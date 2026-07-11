@@ -1,0 +1,153 @@
+import type { BlockType } from "../types"
+import type { BlockDefinition, BlockValidationResult } from "./types"
+import { heroSliderBlock } from "./hero-slider"
+import { promoBannerGridBlock } from "./promo-banner-grid"
+import { productTabsBlock } from "./product-tabs"
+import { dealOfDayBlock } from "./deal-of-day"
+import { categoryShowcaseBlock } from "./category-showcase"
+import { brandStripBlock } from "./brand-strip"
+import { richTextBlock } from "./rich-text"
+import { imageWithTextBlock } from "./image-with-text"
+import { newsletterBlock } from "./newsletter"
+import { instagramGridBlock } from "./instagram-grid"
+import { testimonialsBlock } from "./testimonials"
+import { containerBlock } from "./container"
+import { imageGalleryBlock } from "./image-gallery"
+
+/**
+ * Block registry (phase-0-architecture.md §3).
+ *
+ * The single source of truth for every CMS block type: label, defaultData,
+ * schemaVersion and a pure validator. Phase 3 ships TWO blocks — `hero_slider`
+ * and `promo_banner_grid`. The remaining ~10 types (announcement_bar,
+ * product_tabs, deal_of_day, category_showcase, brand_strip, rich_text,
+ * image_with_text, newsletter, instagram_grid, testimonials) land in Phase 4:
+ * add a file per type and register it here. Nothing else needs to change — the
+ * publish compiler and the store read API are block-agnostic.
+ *
+ * UNREGISTERED-TYPE POLICY (forward-compat): a section whose `type` is a valid
+ * BLOCK_TYPES value but has no registry entry yet (e.g. a seeded `product_tabs`
+ * section before Phase 4) is PASS-THROUGH at publish — its data is compiled into
+ * the snapshot unvalidated and stamped `schema_version: 0`, so the home page can
+ * be published end-to-end while only the two Phase 3 blocks are "built". The
+ * storefront SectionRenderer renders the registered blocks and degrades unknown
+ * ones to null (§5.8). Replace pass-through with real validation as each block
+ * is added.
+ */
+export const BLOCK_REGISTRY: Partial<Record<BlockType, BlockDefinition>> = {
+  image_gallery: imageGalleryBlock,
+  hero_slider: heroSliderBlock,
+  promo_banner_grid: promoBannerGridBlock,
+  product_tabs: productTabsBlock,
+  deal_of_day: dealOfDayBlock,
+  category_showcase: categoryShowcaseBlock,
+  brand_strip: brandStripBlock,
+  rich_text: richTextBlock,
+  image_with_text: imageWithTextBlock,
+  newsletter: newsletterBlock,
+  instagram_grid: instagramGridBlock,
+  testimonials: testimonialsBlock,
+  container: containerBlock,
+}
+
+/** Stamped onto compiled sections whose type has no registry entry yet. */
+export const UNREGISTERED_SCHEMA_VERSION = 0
+
+/** Look up a block definition by type (undefined when not yet registered). */
+export function getBlockDefinition(
+  type: string
+): BlockDefinition | undefined {
+  return (BLOCK_REGISTRY as Record<string, BlockDefinition | undefined>)[type]
+}
+
+/** True when `type` has a registry entry (i.e. is validated + has a renderer). */
+export function isRegisteredBlock(type: string): boolean {
+  return !!getBlockDefinition(type)
+}
+
+/** Schema version for a type (0 when unregistered — see pass-through policy). */
+export function schemaVersionFor(type: string): number {
+  return getBlockDefinition(type)?.schemaVersion ?? UNREGISTERED_SCHEMA_VERSION
+}
+
+/**
+ * Validate RESOLVED block data against its registry schema. Unregistered types
+ * are treated as valid (pass-through) so publishing is not blocked before
+ * Phase 4. Never throws.
+ */
+export function validateBlockData(
+  type: string,
+  data: unknown
+): BlockValidationResult {
+  const def = getBlockDefinition(type)
+  if (!def) {
+    return { valid: true, errors: [] }
+  }
+  const result = def.validate(data)
+  // A page builder must NEVER block Publish just because a merchant left an
+  // (in-practice optional) field empty — those "... is required" cases render
+  // gracefully (the element is simply omitted). Only genuine data corruption
+  // ("... must be a <type>", "must be an object/array", invalid ISO date) is
+  // allowed to block. So we downgrade "is required" errors to non-blocking here,
+  // once, for every registered block type.
+  const blocking = (result.errors || []).filter((e) => !/\bis required\b/.test(e))
+  return { valid: blocking.length === 0, errors: blocking }
+}
+
+export * from "./types"
+export { imageGalleryBlock } from "./image-gallery"
+export { heroSliderBlock } from "./hero-slider"
+export { promoBannerGridBlock } from "./promo-banner-grid"
+export { productTabsBlock } from "./product-tabs"
+export { dealOfDayBlock } from "./deal-of-day"
+export { categoryShowcaseBlock } from "./category-showcase"
+export { brandStripBlock } from "./brand-strip"
+export { richTextBlock } from "./rich-text"
+export { imageWithTextBlock } from "./image-with-text"
+export { newsletterBlock } from "./newsletter"
+export { instagramGridBlock } from "./instagram-grid"
+export { testimonialsBlock } from "./testimonials"
+export { containerBlock } from "./container"
+export type {
+  HeroSliderData,
+  HeroSlide,
+  HeroSlideCta,
+} from "./hero-slider"
+export type {
+  PromoBannerGridData,
+  PromoIntro,
+  PromoSale,
+  PromoCategoryTile,
+  PromoInstagram,
+} from "./promo-banner-grid"
+export type {
+  ProductTabsData,
+  ProductTab,
+  ProductTabSource,
+  ProductTabSort,
+} from "./product-tabs"
+export type { DealOfDayData, DealOfDayCta } from "./deal-of-day"
+export type {
+  CategoryShowcaseData,
+  CategoryShowcaseItem,
+} from "./category-showcase"
+export type { BrandStripData, BrandStripItem } from "./brand-strip"
+export type { RichTextData, RichTextWidth } from "./rich-text"
+export type {
+  ImageWithTextData,
+  ImageWithTextCta,
+  ImageWithTextSide,
+} from "./image-with-text"
+export type { NewsletterData } from "./newsletter"
+export type {
+  InstagramGridData,
+  InstagramGridImage,
+} from "./instagram-grid"
+export type { TestimonialsData, TestimonialItem } from "./testimonials"
+export type {
+  ContainerData,
+  ContainerColumn,
+  ContainerWidget,
+  ContainerLayout,
+  ContainerVerticalAlign,
+} from "./container"

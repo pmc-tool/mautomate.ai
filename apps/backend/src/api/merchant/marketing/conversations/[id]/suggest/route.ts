@@ -1,0 +1,56 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { MARKETING_MODULE } from "../../../../../../modules/marketing"
+import { suggestReply } from "../../../../../../modules/marketing/messaging/ai-reply"
+import { resolveMerchant } from "../../../../_helpers"
+import { meterAction } from "../../../../../../modules/platform/integration/metering-guard"
+
+/**
+ * POST /merchant/marketing/conversations/:id/suggest
+ *
+ * Draft a grounded AI reply for a conversation — on-brand and grounded in the
+ * recent thread + the contact's Customer360 facts. Never sent, only returned.
+ * Tenant-scoped. `needs_ai: true` means no AI provider is configured.
+ * Response: { suggestion, needs_ai }
+ */
+export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const tenantId = ctx.tenant.id
+  const { id } = req.params
+
+  try {
+    const mk: any = req.scope.resolve(MARKETING_MODULE)
+
+    const conversation = await mk
+      .retrieveMarketingConversation(id)
+      .catch(() => null)
+    if (!conversation || conversation.tenant_id !== tenantId) {
+      res.status(404).json({ message: `Conversation ${id} not found` })
+      return
+    }
+
+    const metered = await meterAction(req.scope, tenantId, "ai_text", 1, async () => {
+      const r = await suggestReply(req.scope, {
+        conversationId: id,
+        tenantId,
+      })
+      return { result: r, actualUnits: (r as any)?.needs_ai ? 0 : 1 }
+    })
+    if (!metered.ok) {
+      res.status(402).json({
+        message:
+          "You're out of AI credits. Top up in Billing to use AI suggestions.",
+        code: "insufficient_credits",
+      })
+      return
+    }
+    const { suggestion, needs_ai } = metered.result
+
+    res.json({ suggestion, needs_ai })
+  } catch (e: any) {
+    res.status(500).json({
+      message: e?.message ?? "Failed to generate suggestion",
+    })
+  }
+}

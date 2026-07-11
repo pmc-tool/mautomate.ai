@@ -1,0 +1,59 @@
+# Brand2Door — single-tenant store instance template (Phase 0 substrate).
+#
+# This is the shape the provisioning saga stamps out per tenant: one backend
+# container + its own Postgres + a Redis namespace. `TENANT_ID`, `DATABASE_URL`,
+# the port, and the secrets are injected per tenant at provision time (here they
+# are placeholders for the local containerization gate:
+#   provision -> route -> tear down with zero orphans).
+#
+#   docker compose -f docker/docker-compose.tenant.yml --project-name ff up -d
+#
+# Substrate decision (Phase 0): Docker Compose on the current VM for the first
+# ~10 tenants; graduate to an orchestrator for the long tail.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: medusa
+      POSTGRES_PASSWORD: ${TENANT_DB_PASSWORD:-medusa}
+      POSTGRES_DB: ${TENANT_DB_NAME:-tenant}
+    volumes:
+      - tenant-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medusa"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    # The image is built ONCE by the provisioner (docker build ... tenant-backend)
+    # and reused for every tenant — provisioning just boots it, no per-tenant
+    # rebuild. Override with TENANT_IMAGE to pin a specific build/version.
+    image: ${TENANT_IMAGE:-brand2door/tenant-backend:dev}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # per-tenant identity injected at provision time
+      TENANT_ID: ${TENANT_ID:?TENANT_ID must be set at provision time}
+      NODE_ENV: production
+      FILE_PROVIDER: local
+      DATABASE_URL: postgres://medusa:${TENANT_DB_PASSWORD:-medusa}@db:5432/${TENANT_DB_NAME:-tenant}
+      # No REDIS_URL for the first tenants -> Medusa uses the in-memory event bus
+      # + workflow engine (the proven Forever Finds config). A shared Redis +
+      # worker is introduced in Phase 4 for the queue-heavy jobs.
+      # control-plane master key for the encrypted config store (KMS in prod)
+      PLATFORM_KEK: ${PLATFORM_KEK:?PLATFORM_KEK must be provided}
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      COOKIE_SECRET: ${COOKIE_SECRET:-change-me}
+      STORE_CORS: ${STORE_CORS:-*}
+      ADMIN_CORS: ${ADMIN_CORS:-*}
+      AUTH_CORS: ${AUTH_CORS:-*}
+    ports:
+      - "${TENANT_PORT:-9000}:9000"
+    # saga runs migrations explicitly before start:
+    command: ["sh", "-c", "npx medusa db:migrate && npm run start"]
+
+volumes:
+  tenant-db:

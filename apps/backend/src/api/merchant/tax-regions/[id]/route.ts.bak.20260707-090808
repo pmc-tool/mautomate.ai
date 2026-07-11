@@ -1,0 +1,25 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
+import { resolveMerchant } from "../../_helpers"
+
+/**
+ * DELETE /merchant/tax-regions/:id
+ *
+ * Only tax regions tagged with this tenant's metadata.tenant_id can be
+ * deleted — other tenants' rows return 404.
+ */
+export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const { id } = req.params
+  const taxModule: any = req.scope.resolve(Modules.TAX)
+
+  const [region] = await taxModule.listTaxRegions({ id }, { take: 1 })
+  if (!region || region.metadata?.tenant_id !== ctx.tenant.id) {
+    return res.status(404).json({ message: "tax region not found" })
+  }
+
+  await taxModule.deleteTaxRegions([id])
+  res.json({ id, object: "tax_region", deleted: true })
+}

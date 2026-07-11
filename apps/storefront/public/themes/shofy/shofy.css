@@ -1,0 +1,595 @@
+/* Shofy theme — bridge sheet. Loaded LAST after the Shofy template CSS.
+ *
+ * Purpose:
+ * 1. Map the CMS-editable --ff-* theme vars (injected by the root layout from
+ *    admin Theme settings) onto Shofy's own --tp-* CSS variables, with the
+ *    template's factory values as fallbacks — so admin color/font edits
+ *    restyle the store live.
+ * 2. Carry small fixes needed by the React port (no template JS runs).
+ *
+ * Discipline (see themes/README): no universal `*` rules, nothing more
+ * specific than needed, never fight Tailwind utilities on non-themed pages.
+ */
+
+[data-theme="shofy"] {
+  --tp-theme-primary: var(--ff-primary, #0989ff);
+  --tp-common-black: var(--ff-dark, #010f1c);
+  --tp-heading-primary: var(--ff-heading, #010f1c);
+  --tp-text-body: var(--ff-text, #55585b);
+  --tp-border-primary: var(--ff-border, #eaebed);
+  --tp-common-white: var(--ff-bg, #ffffff);
+  --tp-ff-body: var(--ff-font-body, "Jost", sans-serif);
+  --tp-ff-heading: var(--ff-font-heading, "Jost", sans-serif);
+  --tp-ff-p: var(--ff-font-body, "Jost", sans-serif);
+}
+
+/* Tailwind's `.collapse` utility (visibility: collapse) clashes with
+ * Bootstrap's `.collapse` class if any Bootstrap collapse markup renders
+ * inside the theme. Bootstrap semantics win within Shofy. */
+.shofy-theme .navbar-collapse {
+  visibility: visible;
+}
+
+/* The template's preloader overlay depends on JS to fade out; the React
+ * port never renders it, but guard against any stray markup. */
+[data-theme="shofy"] #loading,
+[data-theme="shofy"] .preloader {
+  display: none;
+}
+
+/* WOW.js never runs in the React port; keep elements carrying the
+ * template's `wow` animation classes visible. */
+.shofy-theme .wow {
+  visibility: visible !important;
+}
+
+/* Sticky header: the template toggles #header-sticky.header-sticky via JS
+ * on scroll; the React header applies the class itself. Keep the resting
+ * state in normal flow so the header never disappears without JS. */
+.shofy-theme #header-sticky:not(.header-sticky) {
+  position: relative;
+}
+
+/* Hero legibility: the template's slides are solid brand-color panels, but
+ * CMS slides can supply light photography as the background. A soft
+ * left-side scrim keeps the white slide copy readable on any image without
+ * dulling the factory solid-color slides (scoped to image slides only). */
+.shofy-theme .tp-slider-item.has-bg-image {
+  position: relative;
+  background-position: center center;
+  background-size: cover;
+}
+
+.shofy-theme .tp-slider-item.has-bg-image::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(1, 15, 28, 0.55) 0%,
+    rgba(1, 15, 28, 0.28) 45%,
+    rgba(1, 15, 28, 0.05) 75%
+  );
+  pointer-events: none;
+}
+
+.shofy-theme .tp-slider-item.has-bg-image .container {
+  position: relative;
+  z-index: 1;
+}
+
+/* Login page in-flow heading (renders inside the account layout, no
+ * full-bleed banner): keep breadcrumb links on brand color, not UA blue. */
+.shofy-theme .login-page-heading .breadcrumb a {
+  color: var(--tp-theme-primary);
+  text-decoration: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared product actions (LeartsActionsWrapper) — Shofy skin.         */
+/* The shared add-to-cart widget emits Learts-era class names that     */
+/* have no rules in the Shofy stylesheet stack; style them here in     */
+/* the theme's own design language (Jost, #0989FF, squared corners).   */
+/* ------------------------------------------------------------------ */
+
+.shofy-theme .product-summery {
+  font-family: var(--tp-ff-body);
+  color: var(--tp-text-body);
+}
+
+.shofy-theme .product-summery a {
+  color: var(--tp-heading-primary);
+  text-decoration: none;
+}
+
+.shofy-theme .product-summery a:hover {
+  color: var(--tp-theme-primary);
+}
+
+.shofy-theme .product-summery .product-title {
+  font-family: var(--tp-ff-heading);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--tp-heading-primary);
+  margin: 6px 0 10px;
+}
+
+.shofy-theme .product-summery .product-price {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--tp-heading-primary);
+  margin-bottom: 14px;
+}
+
+.shofy-theme .product-summery .product-price del {
+  color: var(--tp-text-body);
+  opacity: 0.55;
+  font-size: 17px;
+  font-weight: 400;
+  margin-left: 10px;
+}
+
+.shofy-theme .product-summery .product-ratings {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.shofy-theme .product-summery .star-rating,
+.shofy-theme .product-summery .rating-active {
+  color: #ffb21d;
+}
+
+.shofy-theme .product-summery .review-link {
+  margin-left: 8px;
+  color: var(--tp-text-body);
+}
+
+.shofy-theme .product-summery .product-description {
+  line-height: 1.7;
+  margin-bottom: 22px;
+}
+
+.shofy-theme .product-summery .product-variations .label {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tp-heading-primary);
+  margin-bottom: 8px;
+}
+
+.shofy-theme .product-summery .product-variations a,
+.shofy-theme .product-summery .product-variations button {
+  display: inline-block;
+  border: 1px solid var(--tp-border-primary);
+  background: transparent;
+  color: var(--tp-heading-primary);
+  font-size: 13px;
+  line-height: 1;
+  padding: 10px 16px;
+  margin: 0 8px 8px 0;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.shofy-theme .product-summery .product-variations a:hover,
+.shofy-theme .product-summery .product-variations button:hover,
+.shofy-theme .product-summery .product-variations a.active,
+.shofy-theme .product-summery .product-variations button.active {
+  background: var(--tp-theme-primary);
+  border-color: var(--tp-theme-primary);
+  color: #ffffff;
+}
+
+.shofy-theme .product-summery .product-quantity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 18px;
+}
+
+.shofy-theme .product-summery .product-quantity .qty-btn,
+.shofy-theme .product-summery .product-quantity .input-qty,
+.shofy-theme .product-summery .product-quantity .count {
+  border: 1px solid var(--tp-border-primary);
+  background: #ffffff;
+  color: var(--tp-heading-primary);
+  width: 42px;
+  height: 42px;
+  line-height: 40px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.shofy-theme .product-summery .product-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.shofy-theme .product-summery .product-buttons .btn {
+  background: var(--tp-theme-primary);
+  border: 1px solid var(--tp-theme-primary);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 13px 30px;
+  border-radius: 0;
+  transition: all 0.3s ease;
+}
+
+.shofy-theme .product-summery .product-buttons .btn:hover {
+  background: var(--tp-common-black);
+  border-color: var(--tp-common-black);
+  color: #ffffff;
+}
+
+.shofy-theme .product-summery .product-buttons .btn-icon {
+  background: transparent;
+  color: var(--tp-heading-primary);
+  padding: 12px 16px;
+}
+
+.shofy-theme .product-summery .product-meta {
+  border-top: 1px solid var(--tp-border-primary);
+  padding-top: 16px;
+  font-size: 14px;
+}
+
+.shofy-theme .product-summery .product-meta > div {
+  margin-bottom: 6px;
+}
+
+.shofy-theme .product-summery .product-share a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--tp-border-primary);
+  border-radius: 50%;
+  margin-right: 8px;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared learts-classed pages — Shofy skin.                           */
+/* The CMS contact page and the account area render markup from the    */
+/* shared Learts-era modules (.learts-theme wrappers, page-title       */
+/* strip, section-title2, contact-info, myaccount-*), whose CSS is not */
+/* in the Shofy stylesheet stack. Everything below is scoped to        */
+/* .shofy-theme so Tailwind-styled pages (checkout) stay untouched.    */
+/* ------------------------------------------------------------------ */
+
+.shofy-theme .learts-theme a {
+  color: var(--tp-theme-primary);
+  text-decoration: none;
+}
+
+.shofy-theme .learts-theme a:hover {
+  color: var(--tp-common-black);
+}
+
+/* Learts spacing utilities carried by the shared markup. */
+.shofy-theme .learts-mb-30 {
+  margin-bottom: 30px;
+}
+
+.shofy-theme .learts-mb-n30 {
+  margin-bottom: -30px;
+}
+
+.shofy-theme .learts-pt-30 {
+  padding-top: 30px;
+}
+
+.shofy-theme .learts-mt-60 {
+  margin-top: 60px;
+}
+
+.shofy-theme .section.section-padding {
+  padding-top: 100px;
+  padding-bottom: 100px;
+}
+
+@media (max-width: 991px) {
+  .shofy-theme .section.section-padding {
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
+}
+
+@media (max-width: 767px) {
+  .shofy-theme .section.section-padding {
+    padding-top: 60px;
+    padding-bottom: 60px;
+  }
+}
+
+/* Utility-page header strip (the "Contact us" banner): restyle the
+ * Learts strip as Shofy's own breadcrumb band — light grey panel with
+ * dark Jost title. !important beats the Learts image set inline. */
+.shofy-theme .page-title-section {
+  position: relative;
+  background-image: none !important;
+  background-color: #f6f7f9;
+  padding: 70px 0;
+}
+
+@media (max-width: 767px) {
+  .shofy-theme .page-title-section {
+    padding: 45px 0;
+  }
+}
+
+.shofy-theme .page-title .title {
+  font-family: var(--tp-ff-heading);
+  font-size: clamp(30px, 4.5vw, 44px);
+  font-weight: 700;
+  line-height: 1.15em;
+  color: var(--tp-heading-primary);
+  margin-bottom: 10px;
+}
+
+.shofy-theme .page-title .breadcrumb {
+  margin-bottom: 0;
+}
+
+.shofy-theme .page-title .breadcrumb .breadcrumb-item {
+  font-size: 15px;
+  text-transform: capitalize;
+  color: var(--tp-text-body);
+}
+
+.shofy-theme .page-title .breadcrumb .breadcrumb-item a {
+  color: var(--tp-heading-primary);
+  text-decoration: none;
+}
+
+.shofy-theme .page-title .breadcrumb .breadcrumb-item.active {
+  color: var(--tp-theme-primary);
+}
+
+.shofy-theme
+  .page-title
+  .breadcrumb
+  .breadcrumb-item
+  + .breadcrumb-item::before {
+  color: var(--tp-text-body);
+}
+
+/* Contact page: "Keep in touch with us" / "Send a message" headings. */
+.shofy-theme .section-title2 {
+  margin-bottom: 60px;
+}
+
+.shofy-theme .section-title2 .title {
+  font-family: var(--tp-ff-heading);
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 700;
+  line-height: 1.2em;
+  color: var(--tp-heading-primary);
+  margin-bottom: 0;
+}
+
+.shofy-theme .section-title2 p {
+  max-width: 570px;
+  line-height: 1.75;
+  color: var(--tp-text-body);
+  margin-top: 20px;
+  margin-bottom: 0;
+}
+
+.shofy-theme .section-title2.text-center p {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Contact page: address / contact / hours columns. */
+.shofy-theme .contact-info .title {
+  font-family: var(--tp-ff-body);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1.5;
+  color: var(--tp-heading-primary);
+  padding-left: 44px;
+  margin-bottom: 14px;
+}
+
+.shofy-theme .contact-info .info {
+  position: relative;
+  display: block;
+  line-height: 1.7;
+  color: var(--tp-text-body);
+  padding-left: 44px;
+}
+
+.shofy-theme .contact-info .info:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+.shofy-theme .contact-info .info .icon {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--tp-theme-primary);
+}
+
+.shofy-theme .contact-info .info a {
+  color: var(--tp-heading-primary);
+  text-decoration: none;
+}
+
+.shofy-theme .contact-info .info a:hover {
+  color: var(--tp-theme-primary);
+}
+
+.shofy-theme .contact-map {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--tp-border-primary);
+}
+
+/* Contact page: "Send a message" form. The shared form emits bare
+ * inputs (no .form-control), so Shofy's own form rules never reach
+ * them. Same input/button language as the product-summery skin. */
+.shofy-theme .contact-form input[type="text"],
+.shofy-theme .contact-form input[type="email"],
+.shofy-theme .contact-form textarea {
+  width: 100%;
+  border: 1px solid var(--tp-border-primary);
+  border-radius: 0;
+  background: #ffffff;
+  font-family: var(--tp-ff-body);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--tp-heading-primary);
+  padding: 13px 18px;
+  transition: border-color 0.25s ease;
+}
+
+.shofy-theme .contact-form input[type="text"]::placeholder,
+.shofy-theme .contact-form input[type="email"]::placeholder,
+.shofy-theme .contact-form textarea::placeholder {
+  color: var(--tp-text-body);
+  opacity: 0.7;
+}
+
+.shofy-theme .contact-form input[type="text"]:focus,
+.shofy-theme .contact-form input[type="email"]:focus,
+.shofy-theme .contact-form textarea:focus {
+  border-color: var(--tp-theme-primary);
+  outline: none;
+}
+
+.shofy-theme .contact-form .btn {
+  background: var(--tp-theme-primary);
+  border: 1px solid var(--tp-theme-primary);
+  border-radius: 0;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 14px 40px;
+  transition: all 0.3s ease;
+}
+
+.shofy-theme .contact-form .btn:hover,
+.shofy-theme .contact-form .btn:focus {
+  background: var(--tp-common-black);
+  border-color: var(--tp-common-black);
+  color: #ffffff;
+}
+
+.shofy-theme .contact-form .btn:disabled {
+  opacity: 0.65;
+}
+
+/* Account area: tab list (Dashboard / Account Details / Addresses /
+ * Orders / Logout). */
+.shofy-theme .myaccount-tab-list {
+  border: 1px solid var(--tp-border-primary);
+  background: #ffffff;
+}
+
+.shofy-theme .myaccount-tab-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--tp-ff-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--tp-heading-primary);
+  text-decoration: none;
+  padding: 14px 20px;
+  transition: all 0.25s ease;
+}
+
+.shofy-theme .myaccount-tab-list a + a {
+  border-top: 1px solid var(--tp-border-primary);
+}
+
+.shofy-theme .myaccount-tab-list a:hover {
+  background: #f6f7f9;
+  color: var(--tp-theme-primary);
+}
+
+.shofy-theme .myaccount-tab-list a.active {
+  background: var(--tp-theme-primary);
+  color: #ffffff;
+  cursor: default;
+}
+
+/* Account area: content column. */
+.shofy-theme .myaccount-content {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--tp-text-body);
+}
+
+.shofy-theme .myaccount-content a {
+  color: var(--tp-theme-primary);
+  text-decoration: none;
+}
+
+.shofy-theme .myaccount-content a:hover {
+  color: var(--tp-common-black);
+}
+
+/* Order tables, if a view renders one inside the account content. */
+.shofy-theme .myaccount-content table {
+  width: 100%;
+  border: 1px solid var(--tp-border-primary);
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.shofy-theme .myaccount-content table th,
+.shofy-theme .myaccount-content table td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--tp-border-primary);
+}
+
+.shofy-theme .myaccount-content table th {
+  background: #f6f7f9;
+  color: var(--tp-heading-primary);
+  font-weight: 600;
+}
+
+/* Font Awesome pro-weight coverage fix: the template CSS requests family
+ * "Font Awesome 6 Pro" at weights 100/300/400, but the freely-licensed set
+ * only fully covers the solid (900) face — the free regular face has ~160
+ * glyphs and misses common ones (fa-angle-*, etc.), rendering boxes.
+ * Re-point the sub-900 weights at the solid file; these load after the
+ * template's font-awesome-pro.css, so they win. */
+@font-face {
+  font-family: "Font Awesome 6 Pro";
+  font-style: normal;
+  font-weight: 100;
+  font-display: block;
+  src: url("/shofy/fonts/fa-solid-900.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Font Awesome 6 Pro";
+  font-style: normal;
+  font-weight: 300;
+  font-display: block;
+  src: url("/shofy/fonts/fa-solid-900.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Font Awesome 6 Pro";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("/shofy/fonts/fa-solid-900.woff2") format("woff2");
+}

@@ -1,0 +1,15 @@
+node_modules
+.medusa
+dist
+build
+.git
+.env
+.env.*
+*.log
+coverage
+.DS_Store
+static/*
+!static/.gitkeep
+integration-tests
+**/__tests__
+docker

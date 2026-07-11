@@ -1,0 +1,265 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { CALL_CENTER_MODULE } from "../../../../../modules/call-center"
+import CallCenterModuleService from "../../../../../modules/call-center/service"
+import { resolveMerchant } from "../../../_helpers"
+import { DefinitionSchema } from "../_definition"
+
+const isNotFound = (e: any): boolean =>
+  e?.type === "not_found" || /was not found|not found/i.test(e?.message ?? "")
+
+/**
+ * Load an agent (playbook) and assert tenant ownership. Fail-closed and
+ * null-safe: a missing row OR any tenant_id that is not STRICTLY equal to the
+ * caller's tenant (incl. null/undefined) 404s and returns null. This is the
+ * cross-tenant guard for every method below.
+ */
+const loadOwnedAgent = async (
+  cc: CallCenterModuleService,
+  id: string,
+  tenantId: string,
+  res: MedusaResponse
+): Promise<any | null> => {
+  const agent = await (cc as any).retrievePlaybook(id).catch(() => null)
+  if (!agent || agent.tenant_id !== tenantId) {
+    res.status(404).json({ message: `Agent ${id} was not found` })
+    return null
+  }
+  return agent
+}
+
+/** Resolve the agent's live PlaybookVersion (its current definition), if any. */
+const loadCurrentVersion = async (
+  cc: CallCenterModuleService,
+  agent: any
+): Promise<any | null> => {
+  if (agent.current_version_id) {
+    const v = await (cc as any)
+      .retrievePlaybookVersion(agent.current_version_id)
+      .catch(() => null)
+    if (v) return v
+  }
+  const versions = await (cc as any).listPlaybookVersions(
+    { playbook_id: agent.id, tenant_id: agent.tenant_id },
+    { take: 1, order: { version: "DESC" } }
+  )
+  return Array.isArray(versions) && versions.length ? versions[0] : null
+}
+
+/**
+ * GET /merchant/call-center/agents/:id
+ *
+ * Retrieve a single agent with its full training `definition` (from the live
+ * PlaybookVersion) and its version history. Tenant-scoped. This is what the
+ * agent editor loads to render General / Tools / KnowledgeBase / Voice tabs.
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const tenant_id = ctx.merchant.tenant_id
+  if (!tenant_id) {
+    return res.status(401).json({ message: "merchant tenant not resolved" })
+  }
+
+  const { id } = req.params
+
+  try {
+    const cc: CallCenterModuleService = req.scope.resolve(CALL_CENTER_MODULE)
+
+    const agent = await loadOwnedAgent(cc, id, tenant_id, res)
+    if (!agent) return
+
+    const current = await loadCurrentVersion(cc, agent)
+    const versions = await (cc as any).listPlaybookVersions(
+      { playbook_id: agent.id, tenant_id },
+      { take: 100, order: { version: "DESC" } }
+    )
+
+    res.json({
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        use_case: agent.use_case,
+        status: agent.status,
+        current_version_id: agent.current_version_id,
+        definition: current?.definition ?? {},
+        version: current?.version ?? null,
+      },
+      versions: (Array.isArray(versions) ? versions : []).map((v: any) => ({
+        id: v.id,
+        version: v.version,
+        published: v.published,
+        created_at: v.created_at,
+      })),
+    })
+  } catch (e: any) {
+    res.status(isNotFound(e) ? 404 : 500).json({
+      message: e?.message ?? "Failed to retrieve agent",
+    })
+  }
+}
+
+/**
+ * PUT /merchant/call-center/agents/:id
+ *
+ * Edit / train an agent. Accepts a structured `definition` (persona, voice,
+ * objective, first_message, prompt/system_prompt, states[] state-machine,
+ * tools[], guardrails, disposition_set, dtmf_map — validated against the
+ * Playbook schema) and optional `name` / `use_case` / `status`.
+ *
+ * The definition is merged into and saved on the agent's live (draft)
+ * PlaybookVersion in place; use POST /:id/publish to snapshot an immutable
+ * version. If the agent has no version yet, one is created. Tenant-scoped.
+ */
+export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const tenant_id = ctx.merchant.tenant_id
+  if (!tenant_id) {
+    return res.status(401).json({ message: "merchant tenant not resolved" })
+  }
+
+  const { id } = req.params
+  const b = (req.body ?? {}) as Record<string, any>
+
+  let definition: Record<string, any> | undefined
+  if (b.definition !== undefined) {
+    const parsed = DefinitionSchema.safeParse(b.definition)
+    if (!parsed.success) {
+      return res
+        .status(400)
+        .json({ message: "invalid definition", issues: parsed.error.issues })
+    }
+    definition = parsed.data
+  }
+
+  try {
+    const cc: CallCenterModuleService = req.scope.resolve(CALL_CENTER_MODULE)
+
+    const agent = await loadOwnedAgent(cc, id, tenant_id, res)
+    if (!agent) return
+
+    // Update the playbook container fields when provided.
+    const patch: Record<string, any> = {}
+    if (b.name !== undefined) {
+      const name = String(b.name).trim()
+      if (!name) {
+        return res.status(400).json({ message: "`name` cannot be empty." })
+      }
+      patch.name = name
+    }
+    if (b.use_case !== undefined) {
+      const uc = String(b.use_case).trim()
+      if (!uc) {
+        return res.status(400).json({ message: "`use_case` cannot be empty." })
+      }
+      patch.use_case = uc
+    }
+    if (b.status !== undefined) {
+      if (!["draft", "published"].includes(b.status)) {
+        return res
+          .status(400)
+          .json({ message: "`status` must be `draft` or `published`." })
+      }
+      patch.status = b.status
+    }
+    if (Object.keys(patch).length) {
+      await (cc as any).updatePlaybooks({ id, ...patch })
+    }
+
+    // Persist the training definition onto the live version.
+    let version = await loadCurrentVersion(cc, agent)
+    let current_version_id = agent.current_version_id
+
+    if (definition !== undefined) {
+      const merged = { ...(version?.definition ?? {}), ...definition }
+      if (version) {
+        await (cc as any).updatePlaybookVersions({
+          id: version.id,
+          definition: merged,
+        })
+        version = { ...version, definition: merged }
+      } else {
+        version = await (cc as any).createPlaybookVersions({
+          tenant_id,
+          playbook_id: id,
+          version: 1,
+          definition: merged,
+          published: false,
+        })
+        current_version_id = version.id
+        await (cc as any).updatePlaybooks({ id, current_version_id })
+      }
+    }
+
+    res.json({
+      agent: {
+        id,
+        name: patch.name ?? agent.name,
+        use_case: patch.use_case ?? agent.use_case,
+        status: patch.status ?? agent.status,
+        current_version_id,
+        definition: version?.definition ?? {},
+        version: version?.version ?? null,
+      },
+    })
+  } catch (e: any) {
+    res.status(isNotFound(e) ? 404 : 500).json({
+      message: e?.message ?? "Failed to update agent",
+    })
+  }
+}
+
+/**
+ * DELETE /merchant/call-center/agents/:id
+ *
+ * Delete an agent and all of its versions + knowledge-base entries.
+ * Tenant-scoped. Response: { id, object, deleted }
+ */
+export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const tenant_id = ctx.merchant.tenant_id
+  if (!tenant_id) {
+    return res.status(401).json({ message: "merchant tenant not resolved" })
+  }
+
+  const { id } = req.params
+
+  try {
+    const cc: CallCenterModuleService = req.scope.resolve(CALL_CENTER_MODULE)
+
+    const agent = await loadOwnedAgent(cc, id, tenant_id, res)
+    if (!agent) return
+
+    const versions = await (cc as any).listPlaybookVersions(
+      { playbook_id: id, tenant_id },
+      { take: 1000 }
+    )
+    const versionIds = (Array.isArray(versions) ? versions : []).map(
+      (v: any) => v.id
+    )
+    if (versionIds.length) {
+      await (cc as any).deletePlaybookVersions(versionIds)
+    }
+
+    const kb = await (cc as any).listKnowledgeEntries(
+      { agent_id: id, tenant_id },
+      { take: 1000 }
+    )
+    const kbIds = (Array.isArray(kb) ? kb : []).map((k: any) => k.id)
+    if (kbIds.length) {
+      await (cc as any).deleteKnowledgeEntries(kbIds)
+    }
+
+    await (cc as any).deletePlaybooks(id)
+
+    res.json({ id, object: "call_center_agent", deleted: true })
+  } catch (e: any) {
+    res.status(isNotFound(e) ? 404 : 500).json({
+      message: e?.message ?? "Failed to delete agent",
+    })
+  }
+}

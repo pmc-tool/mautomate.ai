@@ -1,0 +1,862 @@
+/* Bazaro theme — bridge sheet. Loaded LAST after the Bazaro template CSS.
+ *
+ * Purpose:
+ * 1. Map the CMS-editable --ff-* theme vars (injected by the root layout from
+ *    admin Theme settings) onto Bazaro's own --aq-* CSS variables, with the
+ *    template's factory values as fallbacks — so admin color/font edits
+ *    restyle the store live.
+ * 2. Carry fixes needed by the React port (no template JS runs) and scoped
+ *    skins for the shared commerce components (LeartsActionsWrapper,
+ *    RefinementList, Pagination, CartTotals, DiscountCode, ImageGallery)
+ *    plus the shared learts-classed pages (contact / account).
+ *
+ * Discipline (see themes/README): no universal `*` rules, nothing more
+ * specific than needed, never fight Tailwind utilities on non-themed pages
+ * (checkout stays intact). Everything below is scoped to .bazaro-theme or
+ * [data-theme="bazaro"].
+ */
+
+[data-theme="bazaro"] {
+  --aq-theme-1: var(--ff-primary, #141414);
+  --aq-common-black: var(--ff-dark, #141414);
+  --aq-text-body: var(--ff-text, #6d6868);
+  --aq-border-1: var(--ff-border, #f2f2f2);
+  --aq-common-white: var(--ff-bg, #ffffff);
+  --aq-ff-body: var(--ff-font-body, "Satoshi-Medium", sans-serif);
+  --aq-ff-p: var(--ff-font-body, "Satoshi-Medium", sans-serif);
+  --aq-ff-heading: var(--ff-font-heading, "Satoshi-Regular", sans-serif);
+}
+
+/* Tailwind's `.collapse` utility (visibility: collapse) clashes with
+ * Bootstrap's `.collapse` class if any Bootstrap collapse markup renders
+ * inside the theme (the template is Bootstrap-based). Bootstrap semantics
+ * win within Bazaro. */
+.bazaro-theme .navbar-collapse {
+  visibility: visible;
+}
+
+/* The template's #loading preloader overlay depends on JS to fade out; the
+ * React port never renders it, but guard against any stray markup. */
+[data-theme="bazaro"] #loading,
+[data-theme="bazaro"] .preloader {
+  display: none;
+}
+
+/* WOW.js never runs in the React port; keep elements carrying the
+ * template's `wow` animation classes visible. */
+.bazaro-theme .wow {
+  visibility: visible !important;
+}
+
+/* Sticky header: the Bazaro template ships no sticky header of its own;
+ * the React header toggles "sticky-on" on the .bz-header-sticky top bar
+ * past 400px of scroll. The resting state stays static in normal flow so
+ * the header never disappears without JS (same guard as Shofy). */
+.bazaro-theme .bz-header-sticky:not(.sticky-on) {
+  position: relative;
+}
+
+.bazaro-theme .bz-header-sticky {
+  background-color: var(--aq-common-white);
+}
+
+.bazaro-theme .bz-header-sticky.sticky-on {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 99;
+  box-shadow: 0 1px 3px 0 rgba(0, 7, 9, 0.1);
+  animation: bz-header-slide-down 0.35s ease;
+}
+
+@keyframes bz-header-slide-down {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Hero legibility: the template's hero copy is dark Satoshi type over
+ * photography. CMS slides can supply busy or dark imagery, so a soft
+ * left-biased WHITE scrim keeps the black headline readable on any image
+ * without visibly dulling the factory slides (the slide content column
+ * sits on the left / center). Scoped like Cignet's .hero::before. */
+.bazaro-theme .aqf-slider-item {
+  position: relative;
+}
+
+.bazaro-theme .aqf-slider-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.25) 45%,
+    rgba(255, 255, 255, 0) 72%
+  );
+  pointer-events: none;
+}
+
+.bazaro-theme .aqf-slider-item .container {
+  position: relative;
+  z-index: 2;
+}
+
+/* Login page in-flow heading (renders inside the account layout, no
+ * full-bleed banner): keep breadcrumb links on brand color, not UA blue. */
+.bazaro-theme .login-page-heading .breadcrumb a {
+  color: var(--aq-theme-1);
+  text-decoration: none;
+}
+
+/* The template's pd-breadcrumb-list only styles <span>; the React
+ * templates render links inside it too (account layout / product page). */
+.bazaro-theme .pd-breadcrumb-list a {
+  font-size: 14px;
+  line-height: 1;
+  color: rgba(15, 15, 15, 0.6);
+  font-family: var(--aq-ff-satoshi-medium);
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+
+.bazaro-theme .pd-breadcrumb-list a:hover {
+  color: var(--aq-theme-1);
+}
+
+/* Login template hooks (BazaroLogin): panel, info note, submit row. */
+.bazaro-theme .aq-login-form-content {
+  border: 1px solid var(--aq-border-1);
+  background: var(--aq-common-white);
+  padding: 40px 35px;
+  font-family: var(--aq-ff-body);
+  color: var(--aq-text-body);
+}
+
+@media (max-width: 575px) {
+  .bazaro-theme .aq-login-form-content {
+    padding: 30px 20px;
+  }
+}
+
+.bazaro-theme .aq-login-form-info {
+  background: #f7f2ed;
+  border: 1px solid var(--aq-border-1);
+  padding: 14px 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--aq-theme-1);
+}
+
+.bazaro-theme .aq-login-form-info p {
+  margin-bottom: 0;
+}
+
+.bazaro-theme .aq-login-btn-wrap .aq-btn-black,
+.bazaro-theme .aq-login-btn-wrap button {
+  width: 100%;
+  display: block;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared product actions (LeartsActionsWrapper) — Bazaro skin.        */
+/* The shared add-to-cart widget emits Learts-era class names that     */
+/* have no rules in the Bazaro stylesheet stack; style them here in    */
+/* the theme's own design language (Satoshi, #141414 black buttons,    */
+/* #DE1518 sale accents, #F2F2F2 borders, squared corners). It mounts  */
+/* inside .aq-product-details-wrap on the product template; the        */
+/* .bazaro-theme scope reaches it there and anywhere else it renders.  */
+/* ------------------------------------------------------------------ */
+
+.bazaro-theme .product-summery {
+  font-family: var(--aq-ff-body);
+  color: var(--aq-text-body);
+}
+
+.bazaro-theme .product-summery a {
+  color: var(--aq-theme-1);
+  text-decoration: none;
+}
+
+.bazaro-theme .product-summery a:hover {
+  color: var(--aq-common-red, #de1518);
+}
+
+.bazaro-theme .product-summery .product-title {
+  font-family: var(--aq-ff-heading);
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1.15;
+  color: var(--aq-theme-1);
+  margin: 6px 0 10px;
+}
+
+.bazaro-theme .product-summery .product-price {
+  font-family: var(--aq-ff-satoshi-bold, var(--aq-ff-body));
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--aq-theme-1);
+  margin-bottom: 14px;
+}
+
+.bazaro-theme .product-summery .product-price del {
+  color: var(--aq-text-body);
+  opacity: 0.55;
+  font-size: 17px;
+  font-weight: 400;
+  margin-left: 10px;
+}
+
+.bazaro-theme .product-summery .product-price ins {
+  color: var(--aq-common-red, #de1518);
+  text-decoration: none;
+}
+
+.bazaro-theme .product-summery .product-ratings {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.bazaro-theme .product-summery .star-rating,
+.bazaro-theme .product-summery .rating-active {
+  color: var(--aq-common-yellow, #ff9c05);
+}
+
+.bazaro-theme .product-summery .review-link {
+  margin-left: 8px;
+  color: var(--aq-text-body);
+}
+
+.bazaro-theme .product-summery .product-description {
+  line-height: 1.7;
+  margin-bottom: 22px;
+}
+
+.bazaro-theme .product-summery .product-variations .label {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--aq-ff-satoshi-bold, var(--aq-ff-body));
+  color: var(--aq-theme-1);
+  margin-bottom: 8px;
+}
+
+.bazaro-theme .product-summery .product-variations a,
+.bazaro-theme .product-summery .product-variations button {
+  display: inline-block;
+  border: 1px solid var(--aq-border-1);
+  border-radius: 0;
+  background: transparent;
+  color: var(--aq-theme-1);
+  font-size: 13px;
+  line-height: 1;
+  padding: 10px 16px;
+  margin: 0 8px 8px 0;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.bazaro-theme .product-summery .product-variations a:hover,
+.bazaro-theme .product-summery .product-variations button:hover,
+.bazaro-theme .product-summery .product-variations a.active,
+.bazaro-theme .product-summery .product-variations button.active {
+  background: var(--aq-common-black);
+  border-color: var(--aq-common-black);
+  color: #ffffff;
+}
+
+.bazaro-theme .product-summery .product-quantity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 18px;
+}
+
+.bazaro-theme .product-summery .product-quantity .qty-btn,
+.bazaro-theme .product-summery .product-quantity .input-qty,
+.bazaro-theme .product-summery .product-quantity .count {
+  border: 1px solid var(--aq-border-1);
+  border-radius: 0;
+  background: var(--aq-common-white);
+  color: var(--aq-theme-1);
+  width: 42px;
+  height: 42px;
+  line-height: 40px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.bazaro-theme .product-summery .product-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.bazaro-theme .product-summery .product-buttons .btn {
+  background: var(--aq-common-black);
+  border: 1px solid var(--aq-common-black);
+  border-radius: 0;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--aq-ff-satoshi-bold, var(--aq-ff-body));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 14px 30px;
+  transition: all 0.3s ease;
+}
+
+.bazaro-theme .product-summery .product-buttons .btn:hover {
+  background: transparent;
+  border-color: var(--aq-common-black);
+  color: var(--aq-common-black);
+}
+
+.bazaro-theme .product-summery .product-buttons .btn-icon {
+  background: transparent;
+  color: var(--aq-theme-1);
+  padding: 12px 16px;
+}
+
+.bazaro-theme .product-summery .product-meta {
+  border-top: 1px solid var(--aq-border-1);
+  padding-top: 16px;
+  font-size: 14px;
+}
+
+.bazaro-theme .product-summery .product-meta > div {
+  margin-bottom: 6px;
+}
+
+.bazaro-theme .product-summery .product-share a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--aq-border-1);
+  border-radius: 50%;
+  margin-right: 8px;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared ImageGallery (inside .product-details-slider-wrap): the      */
+/* shared component renders a stacked image list, not the template's   */
+/* swiper — keep images fluid with vertical rhythm between them.       */
+/* ------------------------------------------------------------------ */
+
+.bazaro-theme .product-details-slider-wrap img {
+  max-width: 100%;
+  height: auto;
+}
+
+.bazaro-theme .product-details-slider-wrap .learts-gallery-main > * + *,
+.bazaro-theme .product-details-slider-wrap .learts-product-gallery > * + * {
+  margin-top: 12px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Cart page (BazaroCart) — hooks with no template CSS.                */
+/* ------------------------------------------------------------------ */
+
+/* The stepper renders .aq-cart-minus/.aq-cart-plus as <button>s (the
+ * template CSS assumed <span>) — strip UA button chrome so the
+ * template's absolute-positioned stepper styles apply cleanly. */
+.bazaro-theme .aq-product-quantity button {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.bazaro-theme .aq-product-quantity button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Line subtotal column. */
+.bazaro-theme .aq-cart-subtotal {
+  font-family: var(--aq-ff-satoshi-bold, var(--aq-ff-body));
+  color: var(--aq-theme-1);
+  white-space: nowrap;
+}
+
+/* Totals + checkout column (CartTotals renders shared markup). */
+.bazaro-theme .aq-cart-checkout-wrap {
+  border: 1px solid var(--aq-border-1);
+  background: var(--aq-gray-6, #f9f9f9);
+  padding: 30px 25px;
+  font-family: var(--aq-ff-body);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--aq-text-body);
+}
+
+.bazaro-theme .aq-cart-checkout-wrap span {
+  color: inherit;
+}
+
+.bazaro-theme .aq-cart-checkout-wrap .aq-btn-black {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+/* Coupon column (DiscountCode renders shared markup on white). */
+.bazaro-theme .aq-cart-coupon {
+  border: 1px solid var(--aq-border-1);
+  padding: 25px;
+  font-family: var(--aq-ff-body);
+  color: var(--aq-text-body);
+}
+
+.bazaro-theme .aq-cart-coupon label,
+.bazaro-theme .aq-cart-coupon button[type="button"] {
+  color: var(--aq-theme-1);
+}
+
+.bazaro-theme .aq-cart-coupon input {
+  border: 1px solid var(--aq-border-1);
+  border-radius: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared Pagination (inside .aq-pagination): the shared component     */
+/* emits bare <button>s, not the template's ul/li pager — skin them    */
+/* to the template's square pager (active page black bg, white text).  */
+/* ------------------------------------------------------------------ */
+
+.bazaro-theme .aq-pagination {
+  display: flex;
+  justify-content: center;
+}
+
+.bazaro-theme .aq-pagination button {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 8px;
+  margin: 0 4px;
+  border: 1px solid var(--aq-border-1);
+  border-radius: 0;
+  background: var(--aq-common-white);
+  color: var(--aq-theme-1);
+  font-family: var(--aq-ff-body);
+  font-size: 14px;
+  line-height: 38px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.bazaro-theme .aq-pagination button:hover {
+  border-color: var(--aq-common-black);
+}
+
+/* The shared component disables the CURRENT page button — that is the
+ * active state, not an unavailable one. */
+.bazaro-theme .aq-pagination button:disabled {
+  background: var(--aq-common-black);
+  border-color: var(--aq-common-black);
+  color: #ffffff;
+  cursor: default;
+}
+
+.bazaro-theme .aq-pagination span {
+  margin: 0 4px;
+  line-height: 40px;
+  color: var(--aq-text-body);
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared RefinementList (inside .aq-product-sidebar-widget-content):  */
+/* emits Learts-era radio/label markup with no Bazaro rules — neutral  */
+/* scoped skin in the theme's type + accents.                          */
+/* ------------------------------------------------------------------ */
+
+.bazaro-theme .aq-product-sidebar-widget-content {
+  font-family: var(--aq-ff-body);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--aq-text-body);
+}
+
+.bazaro-theme .aq-product-sidebar-widget-content label {
+  color: var(--aq-text-body);
+  cursor: pointer;
+  transition: color 0.25s ease;
+}
+
+.bazaro-theme .aq-product-sidebar-widget-content label:hover {
+  color: var(--aq-theme-1);
+}
+
+.bazaro-theme .aq-product-sidebar-widget-content input[type="radio"],
+.bazaro-theme .aq-product-sidebar-widget-content input[type="checkbox"] {
+  accent-color: var(--aq-common-black);
+}
+
+.bazaro-theme .aq-product-sidebar-widget-content button {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--aq-theme-1);
+  cursor: pointer;
+}
+
+.bazaro-theme .aq-product-sidebar-widget-content a {
+  color: var(--aq-text-body);
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+
+.bazaro-theme .aq-product-sidebar-widget-content a:hover,
+.bazaro-theme .aq-product-sidebar-widget-content a.active {
+  color: var(--aq-theme-1);
+}
+
+/* ------------------------------------------------------------------ */
+/* Blocks: rich-text typography for authored HTML + React-rendered     */
+/* slider/testimonial dot <button>s (template styled <span> bullets).  */
+/* ------------------------------------------------------------------ */
+
+.bazaro-theme .bazaro-rich-text-entry h1,
+.bazaro-theme .bazaro-rich-text-entry h2,
+.bazaro-theme .bazaro-rich-text-entry h3 {
+  color: #141414;
+  font-family: var(--aq-ff-satoshi-medium);
+  margin-bottom: 15px;
+}
+
+.bazaro-theme .bazaro-rich-text-entry p {
+  margin-bottom: 15px;
+}
+
+.bazaro-theme .aqf-slider-dot button.swiper-pagination-bullet,
+.bazaro-theme .aqf-testimonial-dot button.swiper-pagination-bullet {
+  border-style: solid;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared learts-classed pages — Bazaro skin.                          */
+/* The CMS contact page and the account area render markup from the    */
+/* shared Learts-era modules (.learts-theme wrappers, page-title       */
+/* strip, section-title2, contact-info, myaccount-*), whose CSS is not */
+/* in the Bazaro stylesheet stack. Everything below is scoped to       */
+/* .bazaro-theme so Tailwind-styled pages (checkout) stay untouched.   */
+/* ------------------------------------------------------------------ */
+
+.bazaro-theme .learts-theme a {
+  color: var(--aq-theme-1);
+  text-decoration: none;
+}
+
+.bazaro-theme .learts-theme a:hover {
+  color: var(--aq-common-red, #de1518);
+}
+
+/* Learts spacing utilities carried by the shared markup. */
+.bazaro-theme .learts-mb-30 {
+  margin-bottom: 30px;
+}
+
+.bazaro-theme .learts-mb-n30 {
+  margin-bottom: -30px;
+}
+
+.bazaro-theme .learts-pt-30 {
+  padding-top: 30px;
+}
+
+.bazaro-theme .learts-mt-60 {
+  margin-top: 60px;
+}
+
+.bazaro-theme .section.section-padding {
+  padding-top: 100px;
+  padding-bottom: 100px;
+}
+
+@media (max-width: 991px) {
+  .bazaro-theme .section.section-padding {
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
+}
+
+@media (max-width: 767px) {
+  .bazaro-theme .section.section-padding {
+    padding-top: 60px;
+    padding-bottom: 60px;
+  }
+}
+
+/* Utility-page header strip (the "Contact us" banner): restyle the
+ * Learts strip as Bazaro's own breadcrumb band — the template's warm
+ * off-white panel with black Satoshi title and red active crumb.
+ * !important beats the Learts image set inline. */
+.bazaro-theme .page-title-section {
+  position: relative;
+  background-image: none !important;
+  background-color: #f7f2ed;
+  padding: 70px 0;
+}
+
+@media (max-width: 767px) {
+  .bazaro-theme .page-title-section {
+    padding: 45px 0;
+  }
+}
+
+.bazaro-theme .page-title .title {
+  font-family: var(--aq-ff-heading);
+  font-size: clamp(30px, 4.5vw, 48px);
+  font-weight: 500;
+  line-height: 1.1em;
+  color: var(--aq-theme-1);
+  margin-bottom: 10px;
+}
+
+.bazaro-theme .page-title .breadcrumb {
+  margin-bottom: 0;
+}
+
+.bazaro-theme .page-title .breadcrumb .breadcrumb-item {
+  font-size: 14px;
+  text-transform: capitalize;
+  color: var(--aq-text-body);
+}
+
+.bazaro-theme .page-title .breadcrumb .breadcrumb-item a {
+  color: var(--aq-theme-1);
+  text-decoration: none;
+}
+
+.bazaro-theme .page-title .breadcrumb .breadcrumb-item.active {
+  color: var(--aq-common-red, #de1518);
+}
+
+.bazaro-theme
+  .page-title
+  .breadcrumb
+  .breadcrumb-item
+  + .breadcrumb-item::before {
+  color: var(--aq-text-body);
+}
+
+/* Contact page: "Keep in touch with us" / "Send a message" headings. */
+.bazaro-theme .section-title2 {
+  margin-bottom: 60px;
+}
+
+.bazaro-theme .section-title2 .title {
+  font-family: var(--aq-ff-heading);
+  font-size: clamp(26px, 4vw, 40px);
+  font-weight: 500;
+  line-height: 1.2em;
+  color: var(--aq-theme-1);
+  margin-bottom: 0;
+}
+
+.bazaro-theme .section-title2 p {
+  max-width: 570px;
+  line-height: 1.75;
+  color: var(--aq-text-body);
+  margin-top: 20px;
+  margin-bottom: 0;
+}
+
+.bazaro-theme .section-title2.text-center p {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Contact page: address / contact / hours columns. */
+.bazaro-theme .contact-info .title {
+  font-family: var(--aq-ff-satoshi-bold, var(--aq-ff-body));
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  color: var(--aq-theme-1);
+  padding-left: 44px;
+  margin-bottom: 14px;
+}
+
+.bazaro-theme .contact-info .info {
+  position: relative;
+  display: block;
+  line-height: 1.7;
+  color: var(--aq-text-body);
+  padding-left: 44px;
+}
+
+.bazaro-theme .contact-info .info:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+.bazaro-theme .contact-info .info .icon {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--aq-common-red, #de1518);
+}
+
+.bazaro-theme .contact-info .info a {
+  color: var(--aq-theme-1);
+  text-decoration: none;
+}
+
+.bazaro-theme .contact-info .info a:hover {
+  color: var(--aq-common-red, #de1518);
+}
+
+.bazaro-theme .contact-map {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--aq-border-1);
+}
+
+/* Contact page: "Send a message" form. The shared form emits bare
+ * inputs (no .aq-form-control), so Bazaro's own form rules never reach
+ * them. Same input/button language as the product-summery skin. */
+.bazaro-theme .contact-form input[type="text"],
+.bazaro-theme .contact-form input[type="email"],
+.bazaro-theme .contact-form textarea {
+  width: 100%;
+  border: 1px solid var(--aq-border-1);
+  border-radius: 0;
+  background: var(--aq-common-white);
+  font-family: var(--aq-ff-body);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--aq-theme-1);
+  padding: 13px 18px;
+  transition: border-color 0.25s ease;
+}
+
+.bazaro-theme .contact-form input[type="text"]::placeholder,
+.bazaro-theme .contact-form input[type="email"]::placeholder,
+.bazaro-theme .contact-form textarea::placeholder {
+  color: var(--aq-text-body);
+  opacity: 0.7;
+}
+
+.bazaro-theme .contact-form input[type="text"]:focus,
+.bazaro-theme .contact-form input[type="email"]:focus,
+.bazaro-theme .contact-form textarea:focus {
+  border-color: var(--aq-common-black);
+  outline: none;
+}
+
+.bazaro-theme .contact-form .btn {
+  background: var(--aq-common-black);
+  border: 1px solid var(--aq-common-black);
+  border-radius: 0;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--aq-ff-satoshi-bold, var(--aq-ff-body));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 14px 40px;
+  transition: all 0.3s ease;
+}
+
+.bazaro-theme .contact-form .btn:hover,
+.bazaro-theme .contact-form .btn:focus {
+  background: transparent;
+  border-color: var(--aq-common-black);
+  color: var(--aq-common-black);
+}
+
+.bazaro-theme .contact-form .btn:disabled {
+  opacity: 0.65;
+}
+
+/* Account area: tab list (Dashboard / Account Details / Addresses /
+ * Orders / Logout). */
+.bazaro-theme .myaccount-tab-list {
+  border: 1px solid var(--aq-border-1);
+  background: var(--aq-common-white);
+}
+
+.bazaro-theme .myaccount-tab-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--aq-ff-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--aq-theme-1);
+  text-decoration: none;
+  padding: 14px 20px;
+  transition: all 0.25s ease;
+}
+
+.bazaro-theme .myaccount-tab-list a + a {
+  border-top: 1px solid var(--aq-border-1);
+}
+
+.bazaro-theme .myaccount-tab-list a:hover {
+  background: var(--aq-gray-6, #f9f9f9);
+  color: var(--aq-common-red, #de1518);
+}
+
+.bazaro-theme .myaccount-tab-list a.active {
+  background: var(--aq-common-black);
+  color: #ffffff;
+  cursor: default;
+}
+
+/* Account area: content column. */
+.bazaro-theme .myaccount-content {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--aq-text-body);
+}
+
+.bazaro-theme .myaccount-content a {
+  color: var(--aq-theme-1);
+  text-decoration: none;
+}
+
+.bazaro-theme .myaccount-content a:hover {
+  color: var(--aq-common-red, #de1518);
+}
+
+/* Order tables, if a view renders one inside the account content. */
+.bazaro-theme .myaccount-content table {
+  width: 100%;
+  border: 1px solid var(--aq-border-1);
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.bazaro-theme .myaccount-content table th,
+.bazaro-theme .myaccount-content table td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--aq-border-1);
+}
+
+.bazaro-theme .myaccount-content table th {
+  background: var(--aq-gray-6, #f9f9f9);
+  color: var(--aq-theme-1);
+  font-weight: 700;
+}

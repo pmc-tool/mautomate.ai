@@ -1,0 +1,441 @@
+import type { MedusaContainer } from "@medusajs/framework/types"
+import { CALL_CENTER_MODULE } from "../modules/call-center"
+import { MedusaCommerceGateway } from "../modules/call-center/gateway/medusa-adapter"
+import { SettingsService } from "../modules/call-center/settings/settings-service"
+import { DialGate } from "../modules/call-center/dialing/dial-gate"
+import { getLedger } from "../modules/platform/credits/metering"
+import { getCurrentTenantId } from "../lib/tenant-context"
+import { runForEachTenant } from "./_marketing-tenant-sweep"
+
+/**
+ * call-center-dialer (scheduled sweep, every minute).
+ *
+ * Claim-first dispatcher for outbound call tasks (mirrors the idempotency of
+ * cms-scheduled-publish). Each minute it:
+ *   1. Lists CallTasks that are `scheduled`, due (`scheduled_at <= now`) and not
+ *      backing off (`next_retry_at` null or past), bounded to a small batch.
+ *   2. CLAIMS each task (status -> `claimed`) BEFORE acting, so an overlapping
+ *      sweep never double-dispatches the same task.
+ *   3. Resolves the dialable number from the order and POSTs the task to the
+ *      voice runtime (`VOICE_AGENT_URL/calls/outbound`) with a no-throw,
+ *      timeout-bounded fetch.
+ *
+ * Failure handling:
+ *   - VOICE_AGENT_URL unset       -> log + put the task back to `scheduled`
+ *                                    (never lost, retried next sweep).
+ *   - no dialable number          -> `failed` (a task we can never dial).
+ *   - dispatch failure            -> increment attempts; `next_retry_at = +3h`
+ *                                    while attempts < max_attempts, else `failed`.
+ *
+ * MASTER SAFETY FLAG: the whole sweep is a no-op unless
+ * CALL_CENTER_ENABLED === "true". Everything is no-throw.
+ *
+ * This job iterates over every active tenant and runs the tenant-specific
+ * dispatch inside the request-scoped tenant context.
+ *
+ * NOTE: the in-memory job engine is not durable across restarts — a crash
+ * mid-sweep can strand a `claimed` task (acceptable for now). For production,
+ * back claims with Redis/DB locking so they survive restarts and add a reaper
+ * that reschedules long-`claimed` tasks.
+ */
+
+const BATCH_LIMIT = 20
+const RETRY_BACKOFF_MS = 3 * 60 * 60 * 1000 // +3h between dispatch attempts
+const REQUEST_TIMEOUT_MS = 5000
+
+function normalizeVoiceAgentUrl(): string {
+  const raw = process.env.VOICE_AGENT_URL
+  if (!raw) {
+    return ""
+  }
+  return raw.replace(/\/+$/, "")
+}
+
+/**
+ * No-throw, timeout-bounded POST to the voice runtime. Returns `true` on a 2xx,
+ * `false` on any non-2xx / network / timeout error (never throws).
+ */
+async function postOutboundCall(
+  url: string,
+  body: Record<string, unknown>
+): Promise<boolean> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+    return res.ok
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("[call-center] dialer: voice runtime POST failed:", e)
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+export default async function callCenterDialerJob(
+  container: MedusaContainer
+): Promise<void> {
+  // Master kill-switch: inert unless explicitly enabled.
+  if (process.env.CALL_CENTER_ENABLED !== "true") {
+    return
+  }
+
+  const summary = await runForEachTenant(
+    container,
+    "call-center dialer",
+    (c) => runDialerForTenant(c, getCurrentTenantId()!)
+  )
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `[call-center] dialer: platform sweep complete — dispatched=${summary.dispatched}, failed=${summary.failed}, rescheduled=${summary.rescheduled}.`
+  )
+}
+
+async function runDialerForTenant(
+  container: MedusaContainer,
+  tenantId: string
+): Promise<{ dispatched: number; failed: number; rescheduled: number }> {
+  // Durable ops-level kill switch: flippable without redeploy. FAIL SAFE — if
+  // the setting cannot be read, treat outbound as halted and skip this sweep.
+  try {
+    if (await new SettingsService(container).isOutboundHalted(tenantId)) {
+      return { dispatched: 0, failed: 0, rescheduled: 0 }
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[call-center] dialer: outbound-halt check failed for tenant ${tenantId} — skipping sweep (fail safe):`,
+      e
+    )
+    return { dispatched: 0, failed: 0, rescheduled: 0 }
+  }
+
+  const cc: any = container.resolve(CALL_CENTER_MODULE)
+  const gateway = new MedusaCommerceGateway(container)
+  const now = new Date()
+
+  // 1. Find due, non-backing-off scheduled tasks (bounded batch).
+  let dueTasks: any[] = []
+  try {
+    dueTasks = await cc.listCallTasks(
+      {
+        tenant_id: tenantId,
+        status: "scheduled",
+        scheduled_at: { $lte: now },
+        // null OR already-past retry window. ($lte excludes nulls, so OR in null.)
+        $or: [
+          { next_retry_at: null },
+          { next_retry_at: { $lte: now } },
+        ],
+      },
+      { take: BATCH_LIMIT, order: { scheduled_at: "ASC" } }
+    )
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[call-center] dialer: failed to list due tasks for tenant ${tenantId}:`,
+      e
+    )
+    return { dispatched: 0, failed: 0, rescheduled: 0 }
+  }
+
+  if (!dueTasks?.length) {
+    return { dispatched: 0, failed: 0, rescheduled: 0 }
+  }
+
+  const voiceAgentUrl = normalizeVoiceAgentUrl()
+  let dispatched = 0
+  let failed = 0
+  let rescheduled = 0
+
+  for (const task of dueTasks) {
+    // 2. CLAIM the task first so a concurrent sweep skips it.
+    try {
+      await cc.updateCallTasks({ id: task.id, status: "claimed" })
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[call-center] dialer: failed to claim task ${task.id} for tenant ${tenantId} (will retry next sweep):`,
+        e
+      )
+      continue
+    }
+
+    try {
+      // Voice runtime not configured -> put the task BACK to scheduled so it is
+      // retried once the runtime comes online. Never lose it.
+      if (!voiceAgentUrl) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[call-center] dialer: voice runtime not configured (VOICE_AGENT_URL unset) — rescheduling task."
+        )
+        await releaseToScheduled(cc, task.id)
+        rescheduled += 1
+        continue
+      }
+
+      // Resolve the dialable number from the order's shipping address.
+      let toNumber: string | null = null
+      if (task.order_id) {
+        const order = await gateway.getOrder(tenantId, task.order_id)
+        toNumber = order?.shipping_address?.phone ?? null
+      }
+
+      if (!toNumber) {
+        // A task with no reachable number can never succeed -> terminal.
+        // eslint-disable-next-line no-console
+        console.error(
+          `[call-center] dialer: task ${task.id} for tenant ${tenantId} has no dialable number — marking failed.`
+        )
+        await markFailed(cc, task.id)
+        failed += 1
+        continue
+      }
+
+      // 2b. COMPLIANCE + PACING GATE. Every outbound attempt passes the
+      // DialGate before we dial: consent/DNC is a HARD skip (the number must
+      // NEVER be dialed -> terminal `canceled`); call-window and concurrency-cap
+      // are DEFERRALS (reschedule and try later). Fail-closed by construction.
+      const purpose: "transactional" | "marketing" = task.order_id
+        ? "transactional"
+        : "marketing"
+      const cap = await getConcurrencyCap(container, tenantId)
+      const decision = await new DialGate(container).canDial(
+        tenantId,
+        toNumber,
+        purpose,
+        { cap }
+      )
+      if (!decision.ok) {
+        if (decision.deferred) {
+          await releaseToScheduled(cc, task.id)
+          rescheduled += 1
+        } else {
+          // consent_denied — HARD skip. Terminal; this number is never dialed.
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[call-center] dialer: task ${task.id} tenant ${tenantId} BLOCKED by gate (${decision.reason}) — canceling.`
+          )
+          await markCanceled(cc, task.id)
+          failed += 1
+        }
+        continue
+      }
+
+      // 2b-ii. SPEND CAP — no credits, no call. Halt (deferral) when the
+      // tenant wallet is empty. Fail-SAFE: if the balance can't be read we defer
+      // rather than dial, so a billing fault never causes an uncharged call.
+      try {
+        const { balance } = await getLedger(container).balance(tenantId)
+        if (balance <= 0) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[call-center] dialer: tenant ${tenantId} out of credits — halting task ${task.id}.`
+          )
+          await releaseToScheduled(cc, task.id)
+          rescheduled += 1
+          continue
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[call-center] dialer: balance check failed for tenant ${tenantId} — deferring task ${task.id} (fail-safe):`,
+          e
+        )
+        await releaseToScheduled(cc, task.id)
+        rescheduled += 1
+        continue
+      }
+
+      // 2c. SHADOW MODE — dry run. Proves the full pipeline (task -> gate ->
+      // would-dispatch) WITHOUT placing a real call or incurring cost. Marks the
+      // task done so the sweep converges.
+      if (process.env.CALL_CENTER_SHADOW_MODE === "true") {
+        // eslint-disable-next-line no-console
+        console.log(
+          `[call-center] dialer: SHADOW would dispatch task ${task.id} tenant ${tenantId} -> ${toNumber} (purpose=${purpose}).`
+        )
+        await markDoneShadow(cc, task.id)
+        dispatched += 1
+        continue
+      }
+
+      // 3. Dispatch to the voice runtime.
+      const ok = await postOutboundCall(`${voiceAgentUrl}/calls/outbound`, {
+        call_task_id: task.id,
+        tenant_id: tenantId,
+        order_id: task.order_id,
+        playbook_id: task.playbook_id,
+        to_number: toNumber,
+        locale: task.locale,
+      })
+
+      if (ok) {
+        await markInProgress(cc, task.id)
+        dispatched += 1
+        // eslint-disable-next-line no-console
+        console.log(
+          `[call-center] dialer: dispatched task ${task.id} for tenant ${tenantId} to voice runtime.`
+        )
+      } else {
+        const result = await backoffOrFail(cc, task)
+        if (result === "failed") {
+          failed += 1
+        } else {
+          rescheduled += 1
+        }
+      }
+    } catch (e) {
+      // Any unexpected error during dispatch is treated as a transient failure.
+      // eslint-disable-next-line no-console
+      console.error(
+        `[call-center] dialer: task ${task.id} dispatch error in tenant ${tenantId}:`,
+        e
+      )
+      const result = await backoffOrFail(cc, task)
+      if (result === "failed") {
+        failed += 1
+      } else {
+        rescheduled += 1
+      }
+    }
+  }
+
+  return { dispatched, failed, rescheduled }
+}
+
+/** Put a claimed task back to `scheduled` (e.g. voice runtime unavailable). */
+async function releaseToScheduled(cc: any, id: string): Promise<void> {
+  try {
+    await cc.updateCallTasks({ id, status: "scheduled" })
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[call-center] dialer: failed to reschedule task ${id}:`,
+      e
+    )
+  }
+}
+
+/** Mark a task as in-flight after a successful dispatch. */
+async function markInProgress(cc: any, id: string): Promise<void> {
+  try {
+    await cc.updateCallTasks({ id, status: "in_progress" })
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[call-center] dialer: failed to mark task ${id} in_progress:`,
+      e
+    )
+  }
+}
+
+/** Terminal failure — the task can never be dialed. */
+async function markFailed(cc: any, id: string): Promise<void> {
+  try {
+    await cc.updateCallTasks({ id, status: "failed" })
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[call-center] dialer: failed to mark task ${id} failed:`,
+      e
+    )
+  }
+}
+
+/**
+ * Dispatch failed transiently: bump attempts. If we still have attempts left,
+ * reschedule with a +3h backoff; otherwise give up and mark `failed`.
+ */
+async function backoffOrFail(
+  cc: any,
+  task: any
+): Promise<"failed" | "scheduled"> {
+  const attempts = Number(task.attempts ?? 0) + 1
+  const maxAttempts = Number(task.max_attempts ?? 3)
+
+  try {
+    if (attempts >= maxAttempts) {
+      await cc.updateCallTasks({ id: task.id, status: "failed", attempts })
+      // eslint-disable-next-line no-console
+      console.error(
+        `[call-center] dialer: task ${task.id} exhausted ${maxAttempts} attempts — marked failed.`
+      )
+      return "failed"
+    }
+
+    const nextRetryAt = new Date(Date.now() + RETRY_BACKOFF_MS)
+    await cc.updateCallTasks({
+      id: task.id,
+      status: "scheduled",
+      attempts,
+      next_retry_at: nextRetryAt,
+    })
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[call-center] dialer: task ${task.id} dispatch failed (attempt ${attempts}/${maxAttempts}) — retry at ${nextRetryAt.toISOString()}.`
+    )
+    return "scheduled"
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[call-center] dialer: failed to record backoff for task ${task.id}:`,
+      e
+    )
+    return "scheduled"
+  }
+}
+
+export const config = {
+  name: "call-center-dialer",
+  schedule: "* * * * *",
+}
+
+
+/**
+ * Per-tenant outbound concurrency cap (max simultaneous live calls). Read from
+ * the tenant setting `outbound_concurrency_cap`; defaults to 5. Fail-safe: any
+ * error returns the default rather than an unbounded dial.
+ */
+async function getConcurrencyCap(
+  container: MedusaContainer,
+  tenantId: string
+): Promise<number> {
+  try {
+    const v = await new SettingsService(container).get<number>(
+      tenantId,
+      "outbound_concurrency_cap"
+    )
+    const n = Number(v)
+    return Number.isFinite(n) && n > 0 ? n : 5
+  } catch {
+    return 5
+  }
+}
+
+/** Terminal cancel — a HARD-skipped task (consent/DNC) that must never dial. */
+async function markCanceled(cc: any, id: string): Promise<void> {
+  try {
+    await cc.updateCallTasks({ id, status: "canceled" })
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(`[call-center] dialer: failed to cancel task ${id}:`, e)
+  }
+}
+
+/** Shadow-mode completion — marks a would-have-dialed task done without dialing. */
+async function markDoneShadow(cc: any, id: string): Promise<void> {
+  try {
+    await cc.updateCallTasks({ id, status: "done" })
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(`[call-center] dialer: failed to mark shadow task ${id} done:`, e)
+  }
+}

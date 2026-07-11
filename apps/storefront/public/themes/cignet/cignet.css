@@ -1,0 +1,569 @@
+/* Cignet theme — bridge sheet. Loaded LAST after the Cignet template CSS.
+ *
+ * Purpose:
+ * 1. Map the CMS-editable --ff-* theme vars (injected by the root layout from
+ *    admin Theme settings) onto Cignet's own CSS variables, with the
+ *    template's factory values as fallbacks — so admin color/font edits
+ *    restyle the store live, same contract as Learts' theme-overrides.css.
+ * 2. Carry small fixes needed by the React port (no template JS runs).
+ *
+ * Discipline (see themes/README): no universal `*` rules, nothing more
+ * specific than needed, never fight Tailwind utilities on non-themed pages.
+ */
+
+[data-theme="cignet"] {
+  --primary-color: var(--ff-color-primary, #2f3d38);
+  --secondary-color: var(--ff-color-surface, #f5f5f5);
+  --bg-color: var(--ff-color-bg, #ffffff);
+  --text-color: var(--ff-color-text, #596460);
+  --accent-color: var(--ff-color-dark, #304038);
+  --default-font: var(--ff-font-body, "Roboto", sans-serif);
+  --accent-font: var(--ff-font-heading, "Playfair Display", serif);
+}
+
+/* Tailwind's `.collapse` utility (visibility: collapse) clashes with
+ * Bootstrap's `.collapse` class carried by the template's navbar markup.
+ * Within Cignet, Bootstrap semantics win: the menu is visible at desktop
+ * (navbar-expand-lg makes it display:flex) and hidden below lg where the
+ * React slicknav menu takes over. */
+.cignet-theme .navbar-collapse {
+  visibility: visible;
+}
+
+/* The template's preloader overlay depends on JS to fade out; the React port
+ * does not render it, but guard against any stray class usage. */
+[data-theme="cignet"] .preloader {
+  display: none;
+}
+
+/* WOW.js never runs in the React port; make sure elements that carry the
+ * template's `wow` animation classes stay visible. */
+.cignet-theme .wow {
+  visibility: visible !important;
+}
+
+/* Sticky header: the template toggles this via JS on scroll; the React
+ * header applies .active itself. Keep the resting state non-fixed so pages
+ * without the scroll listener never lose the header. */
+.cignet-theme .header-sticky:not(.active) {
+  position: relative;
+}
+
+/* Hero legibility: the template's hero assumed dark jewellery imagery,
+ * but CMS slides can be light product photos. A soft left-side scrim
+ * keeps the white Playfair headline readable on any image without
+ * visibly dulling already-dark slides. */
+.cignet-theme .hero.dark-section {
+  position: relative;
+}
+
+.cignet-theme .hero.dark-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(24, 32, 28, 0.42) 0%,
+    rgba(24, 32, 28, 0.18) 45%,
+    rgba(24, 32, 28, 0) 70%
+  );
+  pointer-events: none;
+}
+
+.cignet-theme .hero.dark-section .container {
+  position: relative;
+  z-index: 1;
+}
+
+/* Login page in-flow heading (renders inside the account layout, no
+ * dark banner): keep breadcrumb links on brand color, not UA blue. */
+.cignet-theme .login-page-heading .breadcrumb a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared product actions (LeartsActionsWrapper) — Cignet skin.        */
+/* The shared add-to-cart widget emits Learts-era class names that     */
+/* have no rules in the Cignet stylesheet stack; style them here in    */
+/* the theme's own design language.                                    */
+/* ------------------------------------------------------------------ */
+
+.cignet-theme .product-summery {
+  font-family: var(--default-font);
+  color: var(--text-color);
+}
+
+.cignet-theme .product-summery a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.cignet-theme .product-summery .product-title {
+  font-family: var(--accent-font);
+  font-size: 34px;
+  font-weight: 500;
+  color: var(--primary-color);
+  margin: 6px 0 10px;
+}
+
+.cignet-theme .product-summery .product-price {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--accent-color);
+  margin-bottom: 14px;
+}
+
+.cignet-theme .product-summery .product-price del {
+  color: var(--text-color);
+  opacity: 0.55;
+  font-size: 17px;
+  margin-left: 10px;
+}
+
+.cignet-theme .product-summery .product-ratings {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.cignet-theme .product-summery .star-rating,
+.cignet-theme .product-summery .rating-active {
+  color: #d4a63f;
+}
+
+.cignet-theme .product-summery .review-link {
+  margin-left: 8px;
+  color: var(--text-color);
+}
+
+.cignet-theme .product-summery .product-description {
+  line-height: 1.7;
+  margin-bottom: 22px;
+}
+
+.cignet-theme .product-summery .product-variations .label {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-color);
+  margin-bottom: 8px;
+}
+
+.cignet-theme .product-summery .product-variations a,
+.cignet-theme .product-summery .product-variations button {
+  display: inline-block;
+  border: 1px solid var(--divider-color);
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 13px;
+  line-height: 1;
+  padding: 10px 16px;
+  margin: 0 8px 8px 0;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.cignet-theme .product-summery .product-variations a:hover,
+.cignet-theme .product-summery .product-variations button:hover,
+.cignet-theme .product-summery .product-variations a.active,
+.cignet-theme .product-summery .product-variations button.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: var(--white-color);
+}
+
+.cignet-theme .product-summery .product-quantity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 18px;
+}
+
+.cignet-theme .product-summery .product-quantity .qty-btn,
+.cignet-theme .product-summery .product-quantity .input-qty,
+.cignet-theme .product-summery .product-quantity .count {
+  border: 1px solid var(--divider-color);
+  background: var(--white-color);
+  color: var(--primary-color);
+  width: 42px;
+  height: 42px;
+  line-height: 40px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.cignet-theme .product-summery .product-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.cignet-theme .product-summery .product-buttons .btn {
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
+  color: var(--white-color);
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 14px 30px;
+  border-radius: 0;
+  transition: all 0.3s ease;
+}
+
+.cignet-theme .product-summery .product-buttons .btn:hover {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: var(--white-color);
+}
+
+.cignet-theme .product-summery .product-buttons .btn-icon {
+  background: transparent;
+  color: var(--primary-color);
+  padding: 12px 16px;
+}
+
+.cignet-theme .product-summery .product-meta {
+  border-top: 1px solid var(--divider-color);
+  padding-top: 16px;
+  font-size: 14px;
+}
+
+.cignet-theme .product-summery .product-meta > div {
+  margin-bottom: 6px;
+}
+
+.cignet-theme .product-summery .product-share a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--divider-color);
+  border-radius: 50%;
+  margin-right: 8px;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared learts-classed pages — Cignet skin.                          */
+/* The CMS contact page and the account area render markup from the    */
+/* shared Learts-era modules (.learts-theme wrappers, page-title       */
+/* strip, section-title2, contact-info, myaccount-*), whose CSS is not */
+/* in the Cignet stylesheet stack. Everything below is scoped to       */
+/* .cignet-theme so Tailwind-styled pages (checkout) stay untouched.   */
+/* ------------------------------------------------------------------ */
+
+/* Generic safety net: Bootstrap paints bare anchors blue + underlined
+ * and Cignet's own CSS only strips the underline. Inside the shared
+ * learts-classed containers, put links on the brand color. Kept FIRST
+ * so the more specific skins below win ties. */
+.cignet-theme .learts-theme a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.cignet-theme .learts-theme a:hover {
+  color: var(--accent-color);
+}
+
+/* Learts spacing utilities carried by the shared markup. */
+.cignet-theme .learts-mb-30 {
+  margin-bottom: 30px;
+}
+
+.cignet-theme .learts-mb-n30 {
+  margin-bottom: -30px;
+}
+
+.cignet-theme .learts-pt-30 {
+  padding-top: 30px;
+}
+
+.cignet-theme .learts-mt-60 {
+  margin-top: 60px;
+}
+
+.cignet-theme .section.section-padding {
+  padding-top: 100px;
+  padding-bottom: 100px;
+}
+
+@media (max-width: 991px) {
+  .cignet-theme .section.section-padding {
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
+}
+
+@media (max-width: 767px) {
+  .cignet-theme .section.section-padding {
+    padding-top: 60px;
+    padding-bottom: 60px;
+  }
+}
+
+/* Utility-page header strip (the "Contact us" banner): restyle the
+ * Learts strip as Cignet's own page-header — the theme's dark banner
+ * image with white Playfair title and white breadcrumb. !important is
+ * needed once, to beat the Learts image set via inline style. */
+.cignet-theme .page-title-section {
+  position: relative;
+  background-image: url("/cignet/images/page-header-bg-image.jpg") !important;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  padding: 110px 0;
+}
+
+@media (max-width: 767px) {
+  .cignet-theme .page-title-section {
+    padding: 70px 0;
+  }
+}
+
+.cignet-theme .page-title .title {
+  font-family: var(--accent-font);
+  font-size: clamp(32px, 5vw, 56px);
+  font-weight: 400;
+  line-height: 1.1em;
+  color: var(--white-color);
+  margin-bottom: 12px;
+}
+
+.cignet-theme .page-title .breadcrumb {
+  margin-bottom: 0;
+}
+
+.cignet-theme .page-title .breadcrumb .breadcrumb-item {
+  font-size: 15px;
+  text-transform: capitalize;
+  color: var(--white-color);
+}
+
+.cignet-theme .page-title .breadcrumb .breadcrumb-item a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.cignet-theme .page-title .breadcrumb .breadcrumb-item.active {
+  opacity: 0.75;
+}
+
+.cignet-theme
+  .page-title
+  .breadcrumb
+  .breadcrumb-item
+  + .breadcrumb-item::before {
+  color: var(--white-color);
+}
+
+/* Contact page: "Keep in touch with us" / "Send a message" headings. */
+.cignet-theme .section-title2 {
+  margin-bottom: 60px;
+}
+
+.cignet-theme .section-title2 .title {
+  font-family: var(--accent-font);
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 400;
+  line-height: 1.2em;
+  color: var(--primary-color);
+  margin-bottom: 0;
+}
+
+.cignet-theme .section-title2 p {
+  max-width: 570px;
+  line-height: 1.75;
+  color: var(--text-color);
+  margin-top: 20px;
+  margin-bottom: 0;
+}
+
+.cignet-theme .section-title2.text-center p {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Contact page: address / contact / hours columns. */
+.cignet-theme .contact-info .title {
+  font-family: var(--default-font);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  line-height: 1.5;
+  color: var(--primary-color);
+  padding-left: 44px;
+  margin-bottom: 14px;
+}
+
+.cignet-theme .contact-info .info {
+  position: relative;
+  display: block;
+  line-height: 1.7;
+  color: var(--text-color);
+  padding-left: 44px;
+}
+
+.cignet-theme .contact-info .info:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+.cignet-theme .contact-info .info .icon {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--accent-color);
+}
+
+.cignet-theme .contact-info .info a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.cignet-theme .contact-info .info a:hover {
+  color: var(--accent-color);
+}
+
+.cignet-theme .contact-map {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--divider-color);
+}
+
+/* Contact page: "Send a message" form. The shared form emits bare
+ * inputs (no .form-control), so Cignet's own .contact-form rules never
+ * reach them. Same input/button language as the product-summery skin. */
+.cignet-theme .contact-form input[type="text"],
+.cignet-theme .contact-form input[type="email"],
+.cignet-theme .contact-form textarea {
+  width: 100%;
+  border: 1px solid var(--divider-color);
+  border-radius: 0;
+  background: var(--white-color);
+  font-family: var(--default-font);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--primary-color);
+  padding: 13px 18px;
+  transition: border-color 0.25s ease;
+}
+
+.cignet-theme .contact-form input[type="text"]::placeholder,
+.cignet-theme .contact-form input[type="email"]::placeholder,
+.cignet-theme .contact-form textarea::placeholder {
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.cignet-theme .contact-form input[type="text"]:focus,
+.cignet-theme .contact-form input[type="email"]:focus,
+.cignet-theme .contact-form textarea:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+.cignet-theme .contact-form .btn {
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
+  border-radius: 0;
+  color: var(--white-color);
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 14px 40px;
+  transition: all 0.3s ease;
+}
+
+.cignet-theme .contact-form .btn:hover,
+.cignet-theme .contact-form .btn:focus {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: var(--white-color);
+}
+
+.cignet-theme .contact-form .btn:disabled {
+  opacity: 0.65;
+}
+
+/* Account area: tab list (Dashboard / Account Details / Addresses /
+ * Orders / Logout). */
+.cignet-theme .myaccount-tab-list {
+  border: 1px solid var(--divider-color);
+  background: var(--white-color);
+}
+
+.cignet-theme .myaccount-tab-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--default-font);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--primary-color);
+  text-decoration: none;
+  padding: 14px 20px;
+  transition: all 0.25s ease;
+}
+
+.cignet-theme .myaccount-tab-list a + a {
+  border-top: 1px solid var(--divider-color);
+}
+
+.cignet-theme .myaccount-tab-list a:hover {
+  background: var(--secondary-color);
+  color: var(--primary-color);
+}
+
+.cignet-theme .myaccount-tab-list a.active {
+  background: var(--primary-color);
+  color: var(--white-color);
+  cursor: default;
+}
+
+/* Account area: content column. Headings inherit Playfair + primary
+ * from Cignet's base h1-h6 rule; here we set the body rhythm and keep
+ * links on brand (higher-specificity repeat of the safety net so it
+ * also covers content rendered outside a .learts-theme wrapper). */
+.cignet-theme .myaccount-content {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-color);
+}
+
+.cignet-theme .myaccount-content a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.cignet-theme .myaccount-content a:hover {
+  color: var(--accent-color);
+}
+
+/* Order tables, if a view renders one inside the account content. */
+.cignet-theme .myaccount-content table {
+  width: 100%;
+  border: 1px solid var(--divider-color);
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.cignet-theme .myaccount-content table th,
+.cignet-theme .myaccount-content table td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--divider-color);
+}
+
+.cignet-theme .myaccount-content table th {
+  background: var(--secondary-color);
+  color: var(--primary-color);
+  font-weight: 500;
+}

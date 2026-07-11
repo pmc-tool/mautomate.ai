@@ -1,0 +1,129 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { resolveMerchant } from "../../_helpers"
+
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const scId = ctx.tenant.meta?.sales_channel_id
+  if (!scId) return res.status(404).json({ message: "order not found" })
+
+  const { id } = req.params
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  const { data } = await query.graph({
+    entity: "order",
+    filters: { id, sales_channel_id: scId } as any,
+    fields: [
+      "id",
+      "display_id",
+      "status",
+      "payment_status",
+      "fulfillment_status",
+      "email",
+      "currency_code",
+      "total",
+      "subtotal",
+      "shipping_total",
+      "tax_total",
+      "discount_total",
+      "created_at",
+      "customer_id",
+      "customer.*",
+      "shipping_address.*",
+      "billing_address.*",
+      "items.id",
+      "items.title",
+      "items.product_title",
+      "items.variant_title",
+      "items.quantity",
+      "items.unit_price",
+      "items.total",
+      "items.thumbnail",
+      "items.metadata",
+      "payment_collections.payments.id",
+      "payment_collections.payments.amount",
+      "payment_collections.payments.captured_at",
+      "payment_collections.payments.captures.id",
+      "payment_collections.payments.captures.amount",
+      "fulfillments.id",
+      "fulfillments.created_at",
+      "fulfillments.shipped_at",
+      "fulfillments.delivered_at",
+      "fulfillments.canceled_at",
+      "fulfillments.labels.tracking_number",
+      "fulfillments.labels.tracking_url",
+    ],
+    pagination: { take: 1, skip: 0 } as any,
+  })
+
+  const order: any = (data || [])[0]
+  if (!order) return res.status(404).json({ message: "order not found" })
+
+  const payments = (order.payment_collections || [])
+    .flatMap((pc: any) => pc.payments || [])
+    .map((p: any) => ({
+      id: p.id,
+      amount: Number(p.amount ?? 0),
+      captured_at: p.captured_at,
+      captures: (p.captures || []).map((c: any) => ({
+        id: c.id,
+        amount: Number(c.amount ?? 0),
+      })),
+    }))
+
+  const fulfillments = (order.fulfillments || []).map((f: any) => ({
+    id: f.id,
+    created_at: f.created_at,
+    shipped_at: f.shipped_at,
+    delivered_at: f.delivered_at,
+    canceled_at: f.canceled_at,
+    labels: (f.labels || []).map((l: any) => ({
+      tracking_number: l.tracking_number,
+      tracking_url: l.tracking_url,
+    })),
+  }))
+
+  res.json({
+    order: {
+      id: order.id,
+      display_id: order.display_id,
+      status: order.status,
+      payment_status: order.payment_status,
+      fulfillment_status: order.fulfillment_status,
+      email: order.email,
+      currency_code: order.currency_code,
+      total: Number(order.total ?? 0),
+      subtotal: Number(order.subtotal ?? 0),
+      shipping_total: Number(order.shipping_total ?? 0),
+      tax_total: Number(order.tax_total ?? 0),
+      discount_total: Number(order.discount_total ?? 0),
+      created_at: order.created_at,
+      customer: order.customer
+        ? {
+            id: order.customer.id,
+            email: order.customer.email,
+            first_name: order.customer.first_name,
+            last_name: order.customer.last_name,
+            phone: order.customer.phone,
+          }
+        : null,
+      shipping_address: order.shipping_address || null,
+      billing_address: order.billing_address || null,
+      items: (order.items || []).map((i: any) => ({
+        id: i.id,
+        title: i.title ?? i.product_title ?? "Product",
+        product_title: i.product_title,
+        variant_title: i.variant_title,
+        quantity: i.quantity,
+        unit_price: Number(i.unit_price ?? 0),
+        total: Number(i.total ?? 0),
+        thumbnail: i.thumbnail,
+        metadata: i.metadata,
+      })),
+      payments,
+      fulfillments,
+    },
+  })
+}

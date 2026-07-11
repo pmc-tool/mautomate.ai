@@ -1,0 +1,46 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { MARKETING_MODULE } from "../../../../../modules/marketing"
+import MarketingModuleService from "../../../../../modules/marketing/service"
+import { resolveMerchant } from "../../../_helpers"
+
+const KINDS = ["broadcast", "transactional", "journey", "recovery"] as const
+type Kind = (typeof KINDS)[number]
+
+/**
+ * GET /merchant/marketing/email/templates
+ *
+ * Merchant-scoped list of email templates. Query params: kind, limit, offset.
+ * Response: { templates, count, limit, offset }
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const tenantId = ctx.tenant.id
+  const svc: MarketingModuleService = req.scope.resolve(MARKETING_MODULE)
+
+  try {
+    const limit = parseInt((req.query.limit as string) ?? "50")
+    const offset = parseInt((req.query.offset as string) ?? "0")
+
+    const filters: Record<string, any> = { tenant_id: tenantId }
+    if (req.query.kind && KINDS.includes(req.query.kind as Kind)) {
+      filters.kind = req.query.kind
+    }
+
+    const [templates, count] = await svc.listAndCountMarketingEmailTemplates(
+      filters,
+      {
+        take: limit,
+        skip: offset,
+        order: { created_at: "DESC" },
+      }
+    )
+
+    res.json({ templates, count, limit, offset })
+  } catch (e: any) {
+    res.status(500).json({
+      message: e?.message ?? "Failed to list email templates",
+    })
+  }
+}

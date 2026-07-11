@@ -1,0 +1,9 @@
+# mAutomate voice-agent runtime. pipecat-ai owns its transitive provider SDKs
+# (deepgram, openai, aiohttp) -- do NOT re-pin them here or the resolver
+# conflicts (aiohttp/deepgram move between pipecat minors).
+pipecat-ai[daily,deepgram,openai,elevenlabs,silero]==0.0.80
+
+# Our own control surface only.
+fastapi>=0.115,<0.116
+uvicorn[standard]>=0.34,<0.35
+httpx>=0.27,<0.29

@@ -1,0 +1,110 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { MARKETING_MODULE } from "../../../../modules/marketing"
+import MarketingModuleService from "../../../../modules/marketing/service"
+import { resolveMerchant } from "../../_helpers"
+
+/**
+ * GET /merchant/marketing/posts
+ *
+ * Merchant-scoped list of marketing posts. Query params: status, limit, offset.
+ * Response: { posts, count, limit, offset }
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const tenantId = ctx.tenant.id
+  const svc: MarketingModuleService = req.scope.resolve(MARKETING_MODULE)
+
+  try {
+    const limit = parseInt((req.query.limit as string) ?? "50")
+    const offset = parseInt((req.query.offset as string) ?? "0")
+
+    const filters: Record<string, any> = { tenant_id: tenantId }
+    if (req.query.status) {
+      filters.status = req.query.status
+    }
+
+    const [posts, count] = await svc.listAndCountMarketingPosts(filters, {
+      take: limit,
+      skip: offset,
+      order: { created_at: "DESC" },
+    })
+
+    res.json({ posts, count, limit, offset })
+  } catch (e: any) {
+    res.status(500).json({
+      message: e?.message ?? "Failed to list posts",
+    })
+  }
+}
+
+/**
+ * POST /merchant/marketing/posts
+ *
+ * Create a merchant-scoped draft post, tagged with the caller's tenant. When
+ * `platforms` are supplied a pending post_target is created per platform (also
+ * tenant-tagged) so the post can later be scheduled/published.
+ * Body: { title?, body?, hashtags?, link_url?, product_ids?, campaign_id?,
+ *         brand_voice_id?, platforms? }
+ * Response: { post, targets }
+ */
+export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const tenantId = ctx.tenant.id
+  const b = (req.body ?? {}) as Record<string, any>
+
+  try {
+    const title = typeof b.title === "string" ? b.title.trim() : undefined
+    const body = typeof b.body === "string" ? b.body.trim() : undefined
+
+    if (!title && !body) {
+      return res
+        .status(400)
+        .json({ message: "A post requires at least `title` or `body`." })
+    }
+
+    const svc: MarketingModuleService = req.scope.resolve(MARKETING_MODULE)
+
+    const created = await svc.createMarketingPosts({
+      tenant_id: tenantId,
+      status: "draft",
+      source: "manual",
+      title: title ?? null,
+      body: body ?? null,
+      hashtags: Array.isArray(b.hashtags) ? b.hashtags : null,
+      link_url: typeof b.link_url === "string" ? b.link_url.trim() : null,
+      product_ids: Array.isArray(b.product_ids) ? b.product_ids : null,
+      campaign_id: typeof b.campaign_id === "string" ? b.campaign_id : null,
+      brand_voice_id:
+        typeof b.brand_voice_id === "string" ? b.brand_voice_id : null,
+      created_by_user_id: (req as any).auth_context?.actor_id ?? null,
+    } as any)
+
+    const post = Array.isArray(created) ? created[0] : created
+
+    const platforms = Array.isArray(b.platforms) ? b.platforms : []
+    let targets: any[] = []
+    if (platforms.length) {
+      const createdTargets = await svc.createMarketingPostTargets(
+        platforms.map((platform: string) => ({
+          tenant_id: tenantId,
+          post_id: (post as any).id,
+          platform,
+          status: "pending",
+        })) as any
+      )
+      targets = Array.isArray(createdTargets)
+        ? createdTargets
+        : [createdTargets]
+    }
+
+    res.status(201).json({ post, targets })
+  } catch (e: any) {
+    res.status(500).json({
+      message: e?.message ?? "Failed to create post",
+    })
+  }
+}

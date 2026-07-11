@@ -1,0 +1,132 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+
+import { PLATFORM_MODULE } from "../../../modules/platform"
+import { validateSlug } from "../../../modules/platform/abuse/quota"
+import { provisionTenantWorkflow } from "../../../workflows/platform/provision-tenant"
+import { createMerchantIdentity } from "../_provision-helpers"
+
+/**
+ * POST /platform/signup — public self-serve store creation (shared-pooled model).
+ *
+ * Every tenant lives in the SAME Medusa backend, isolated by sales channel +
+ * publishable API key. No per-tenant instance, database, or process is created,
+ * so provisioning is fast (~2-5s) and cost is flat regardless of tenant count.
+ *
+ * The workflow is awaited before the response is sent. Medusa's request-scoped
+ * container cannot be safely used after the response is dispatched, and the
+ * in-memory workflow/event bus does not support reliable background execution.
+ */
+const ROOT = process.env.PLATFORM_ROOT_DOMAIN ?? "brandtodoor.com"
+const PACKAGES = ["free_trial", "starter", "growth", "pro", "scale"]
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+const recent = new Map<string, number[]>()
+const PER_IP_HOUR = 5
+
+const cors = (res: MedusaResponse) => {
+  res.setHeader("Access-Control-Allow-Origin", `https://${ROOT}`)
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type")
+}
+
+export const OPTIONS = async (_req: MedusaRequest, res: MedusaResponse) => {
+  cors(res)
+  res.status(204).end()
+}
+
+export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  cors(res)
+  if (process.env.SIGNUP_ENABLED !== "true") {
+    return res.status(404).json({ message: "signup is not open yet" })
+  }
+
+  const ip = String((req.headers["x-forwarded-for"] as string)?.split(",")[0] ?? "unknown").trim()
+  const now = Date.now()
+  const hits = (recent.get(ip) ?? []).filter((t) => now - t < 3600_000)
+  if (hits.length >= PER_IP_HOUR) {
+    return res.status(429).json({ message: "too many signups — try again later" })
+  }
+
+  const body = (req.body ?? {}) as any
+  const slugCheck = validateSlug(String(body.slug ?? ""))
+  if (!slugCheck.ok) {
+    return res.status(400).json({ message: `invalid store address (${slugCheck.reason})` })
+  }
+  const slug = slugCheck.slug
+  const name = String(body.name || slug).slice(0, 60)
+  const email = String(body.email ?? "").trim().toLowerCase()
+  const password = String(body.password ?? "")
+  const pkg = PACKAGES.includes(String(body.package)) ? String(body.package) : "free_trial"
+
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ message: "a valid email is required" })
+  if (password.length < 8) return res.status(400).json({ message: "password must be at least 8 characters" })
+
+  const svc = req.scope.resolve(PLATFORM_MODULE) as any
+
+  const [taken, domainTaken, emailTaken] = await Promise.all([
+    svc.listTenants({ slug }, { take: 1 }),
+    svc.listTenantDomains({ domain: `${slug}.${ROOT}` }, { take: 1 }),
+    svc.listMerchants({ email }),
+  ])
+  if (taken?.length || domainTaken?.length) {
+    return res.status(409).json({ message: `${slug}.${ROOT} is already taken` })
+  }
+  if (emailTaken?.length) {
+    return res.status(409).json({ message: `an account with ${email} already exists` })
+  }
+
+  let trialCredits = 300
+  try {
+    const [p] = await svc.listPlatformPackages({ key: pkg, active: true }, { take: 1 })
+    if (p?.included_credits != null) trialCredits = Number(p.included_credits)
+  } catch {}
+
+  recent.set(ip, [...hits, now])
+
+  // Run provisioning synchronously: the request scope is not safe to use after
+  // the response is sent, and the in-memory bus cannot reliably queue work.
+  const { result, errors } = await provisionTenantWorkflow(req.scope).run({
+    input: { slug, name, package: pkg, trial_credits: trialCredits },
+    throwOnError: false,
+  })
+
+  if (errors?.length) {
+    return res.status(500).json({
+      message: "provisioning failed",
+      errors: errors.map((e: any) => String(e?.error?.message ?? e?.error ?? e)),
+    })
+  }
+
+  const tenantId = (result as any)?.tenant_id
+  if (!tenantId) {
+    return res.status(500).json({ message: "provisioning returned no tenant_id" })
+  }
+
+  const identity = await createMerchantIdentity(req.scope, { tenantId, email, password, name })
+  if (!identity.ok) {
+    await svc.updateTenants({ id: tenantId, status: "failed" }).catch(() => undefined)
+    return res.status(500).json({
+      message: "store created, but merchant account creation failed",
+      error: identity.error,
+    })
+  }
+
+  await svc.updateTenants({
+    id: tenantId,
+    trial_ends_at: new Date(now + 14 * 864e5),
+  })
+
+  const tenant = await svc.retrieveTenant(tenantId).catch(() => null)
+
+  res.status(201).json({
+    slug,
+    name,
+    email,
+    status: tenant?.status ?? "live",
+    store_url: `https://${slug}.${ROOT}`,
+    admin_url: `https://${slug}.${ROOT}/admin`,
+    merchant_login_url: `https://merchant.${ROOT}`,
+    tenant_id: tenantId,
+    merchant_id: identity.merchant_id,
+    publishable_key: tenant?.publishable_key ?? null,
+  })
+}

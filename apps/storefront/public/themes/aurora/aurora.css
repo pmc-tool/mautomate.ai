@@ -1,0 +1,49 @@
+/* ------------------------------------------------------------------ */
+/* Aurora theme overrides                                               */
+/*                                                                     */
+/* Aurora is built with Tailwind utilities. The Learts base stylesheets */
+/* stay loaded so interior commerce pages (store/product/cart) remain   */
+/* styled, so the ONLY job here is to neutralise the Bootstrap/Learts   */
+/* font-family globals inside the `.aurora-theme` surface so Aurora's   */
+/* type renders clean and modern. Deliberately minimal — it must NOT    */
+/* fight Tailwind size/weight/spacing/color utilities (which is why we   */
+/* only touch font-family and the accent var). Loaded last.             */
+/* ------------------------------------------------------------------ */
+
+:root,
+[data-theme="aurora"] {
+  --aurora-accent: #111111;
+}
+
+/* Modern sans for the whole Aurora subtree. We set the root font and override
+   ONLY the Bootstrap/Learts text elements (h1-h6, p, a, etc.) so they inherit
+   it — WITHOUT a universal `*` rule, which would also hijack the icon-font
+   family on reused Learts components (ti-/fa- glyphs render as boxes). Icons are
+   deliberately untouched so the reused commerce widgets keep their glyphs. */
+.aurora-theme {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.aurora-theme h1,
+.aurora-theme h2,
+.aurora-theme h3,
+.aurora-theme h4,
+.aurora-theme h5,
+.aurora-theme h6,
+.aurora-theme p,
+.aurora-theme a,
+.aurora-theme button,
+.aurora-theme li,
+.aurora-theme blockquote,
+.aurora-theme label,
+.aurora-theme input,
+.aurora-theme textarea,
+.aurora-theme select,
+.aurora-theme .title {
+  font-family: inherit;
+}
+
+[data-theme="aurora"] body {
+  background: #ffffff;
+}

@@ -1,0 +1,57 @@
+groups:
+  - name: b2d-platform
+    interval: 30s
+    rules:
+      - alert: B2DBackendDown
+        expr: up{job="b2d-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "B2D shared backend is down"
+          description: "The shared Medusa backend has been down for more than 1 minute."
+
+      - alert: NodeExporterDown
+        expr: up{job="node-exporter"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node exporter is down"
+          description: "Node exporter on {{ $labels.instance }} is down."
+
+      - alert: CadvisorDown
+        expr: up{job="cadvisor"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "cAdvisor is down"
+          description: "cAdvisor on {{ $labels.instance }} is down."
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 90% for more than 5 minutes."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Root filesystem has less than 10% free space."
+
+      - alert: B2DBackendHighMemory
+        expr: nodejs_memory_rss_bytes / 1024 / 1024 > 2048
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "B2D backend RSS memory high"
+          description: "Backend RSS is above 2GB for more than 5 minutes."

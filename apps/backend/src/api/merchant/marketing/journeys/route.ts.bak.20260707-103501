@@ -1,0 +1,87 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { z } from "zod"
+import { MARKETING_MODULE } from "../../../../modules/marketing"
+import MarketingModuleService from "../../../../modules/marketing/service"
+import { resolveMerchant } from "../../_helpers"
+
+const CreateJourneySchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  trigger_event: z.string().min(1),
+  status: z.string().optional().default("draft"),
+})
+
+/**
+ * GET /merchant/marketing/journeys
+ *
+ * Merchant-scoped list of marketing journeys. Query params: status, trigger_event, limit, offset.
+ * Response: { journeys, count, limit, offset }
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const tenantId = ctx.tenant.id
+  const svc: MarketingModuleService = req.scope.resolve(MARKETING_MODULE)
+
+  try {
+    const limit = parseInt((req.query.limit as string) ?? "50")
+    const offset = parseInt((req.query.offset as string) ?? "0")
+
+    const filters: Record<string, any> = { tenant_id: tenantId }
+    if (req.query.status) {
+      filters.status = req.query.status
+    }
+    if (req.query.trigger_event) {
+      filters.trigger_event = req.query.trigger_event
+    }
+
+    const [journeys, count] = await svc.listAndCountMarketingJourneys(filters, {
+      take: limit,
+      skip: offset,
+      order: { created_at: "DESC" },
+    })
+
+    res.json({ journeys, count, limit, offset })
+  } catch (e: any) {
+    res.status(500).json({
+      message: e?.message ?? "Failed to list journeys",
+    })
+  }
+}
+
+/**
+ * POST /merchant/marketing/journeys
+ *
+ * Create a merchant-scoped marketing journey.
+ * Body: { name, description?, trigger_event, status? }
+ */
+export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const parsed = CreateJourneySchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ message: "invalid input", issues: parsed.error.issues })
+  }
+
+  const svc: MarketingModuleService = req.scope.resolve(MARKETING_MODULE)
+
+  try {
+    const [journey] = await svc.createMarketingJourneys([
+      {
+        tenant_id: ctx.tenant.id,
+        name: parsed.data.name,
+        description: parsed.data.description || null,
+        trigger_event: parsed.data.trigger_event,
+        status: parsed.data.status as "draft" | "active" | "paused" | "archived",
+      },
+    ])
+
+    res.status(201).json({ journey })
+  } catch (e: any) {
+    res.status(500).json({
+      message: e?.message ?? "Failed to create journey",
+    })
+  }
+}

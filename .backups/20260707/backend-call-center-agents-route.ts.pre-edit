@@ -1,0 +1,96 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { CALL_CENTER_MODULE } from "../../../../modules/call-center"
+import CallCenterModuleService from "../../../../modules/call-center/service"
+import { resolveMerchant } from "../../_helpers"
+import { z } from "zod"
+
+const CreateAgentSchema = z.object({
+  name: z.string().min(1),
+  use_case: z.string().min(1).default("general"),
+  status: z.enum(["draft", "published"]).optional().default("draft"),
+  definition: z.record(z.string(), z.any()).optional().default({}),
+})
+
+/**
+ * GET /merchant/call-center/agents
+ *
+ * Tenant-scoped list of AI call agents (surfaced as published playbooks).
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const tenant_id = ctx.merchant.tenant_id
+  if (!tenant_id) {
+    return res.status(401).json({ message: "merchant tenant not resolved" })
+  }
+
+  try {
+    const cc: CallCenterModuleService = req.scope.resolve(CALL_CENTER_MODULE)
+    const [agents, count] = await cc.listAndCountPlaybooks(
+      { tenant_id },
+      { take: 200, order: { created_at: "DESC" } }
+    )
+
+    res.json({
+      agents: (agents || []).map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        use_case: a.use_case,
+        status: a.status,
+        current_version_id: a.current_version_id,
+      })),
+      count,
+    })
+  } catch (e: any) {
+    res.status(500).json({ message: e?.message ?? "Failed to list agents" })
+  }
+}
+
+/**
+ * POST /merchant/call-center/agents
+ *
+ * Create an AI call agent (playbook) with an initial v1 definition.
+ */
+export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const tenant_id = ctx.merchant.tenant_id
+  if (!tenant_id) {
+    return res.status(401).json({ message: "merchant tenant not resolved" })
+  }
+
+  const parsed = CreateAgentSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ message: "invalid input", issues: parsed.error.issues })
+  }
+
+  try {
+    const cc: CallCenterModuleService = req.scope.resolve(CALL_CENTER_MODULE)
+
+    const playbook = await cc.createPlaybooks({
+      tenant_id,
+      name: parsed.data.name,
+      use_case: parsed.data.use_case,
+      status: parsed.data.status,
+    })
+
+    const version = await cc.createPlaybookVersions({
+      tenant_id,
+      playbook_id: playbook.id,
+      version: 1,
+      definition: parsed.data.definition,
+      published: parsed.data.status === "published",
+    })
+
+    const updated = await cc.updatePlaybooks({
+      id: playbook.id,
+      current_version_id: version.id,
+    })
+
+    res.status(201).json({ agent: { ...updated, current_version_id: version.id } })
+  } catch (e: any) {
+    res.status(500).json({ message: e?.message ?? "Failed to create agent" })
+  }
+}

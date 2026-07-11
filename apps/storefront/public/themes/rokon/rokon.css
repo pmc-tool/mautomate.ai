@@ -1,0 +1,580 @@
+/* Rokon theme — bridge sheet. Loaded LAST after the Rokon template CSS.
+ *
+ * Purpose:
+ * 1. Map the CMS-editable --ff-* theme vars (injected by the root layout from
+ *    admin Theme settings) onto Rokon's own CSS variables, with the
+ *    template's factory values as fallbacks — so admin color/font edits
+ *    restyle the store live.
+ * 2. Carry fixes needed by the React port (no template JS runs) and scoped
+ *    skins for the shared commerce components (LeartsActionsWrapper,
+ *    RefinementList, Pagination, CartTotals, DiscountCode) plus the shared
+ *    learts-classed pages (contact / account).
+ *
+ * Note on units: the copied /rokon/css/style.css was converted from the
+ * template's 10px-rem base to px (the app root stays 16px so Tailwind
+ * utilities on non-themed pages are untouched). Use px in this sheet.
+ *
+ * Discipline (see themes/README): no universal `*` rules, nothing more
+ * specific than needed, never fight Tailwind utilities on non-themed pages
+ * (checkout stays intact). Everything below is scoped to .rokon-theme or
+ * [data-theme="rokon"].
+ */
+
+[data-theme="rokon"] {
+  /* Rokon's "primary" is its ink/heading color and "secondary" is the red
+   * brand accent — map the CMS accent (--ff-primary) onto the accent slot. */
+  --primary-color: var(--ff-dark, #222222);
+  --secondary-color: var(--ff-primary, #d72323);
+  --text-gray-color: var(--ff-text, #4a4c59);
+  --border-color: var(--ff-border, #e4e4e4);
+  --border-color2: var(--ff-border, #e4e4e4);
+  --white-color: var(--ff-bg, #ffffff);
+  --rubik: var(--ff-font-body, "Rubik", sans-serif);
+  --work-sans: var(--ff-font-heading, "Work Sans", sans-serif);
+}
+
+/* The template's #preloader overlay depends on JS to fade out; the React
+ * port never renders it, but guard against any stray markup. */
+[data-theme="rokon"] #preloader,
+[data-theme="rokon"] .preloader {
+  display: none;
+}
+
+/* WOW.js never runs in the React port; keep any element carrying the
+ * template's `wow` animation classes visible. */
+.rokon-theme .wow {
+  visibility: visible !important;
+}
+
+/* Sticky header: the template's JS adds .sticky to .header__sticky past a
+ * scroll threshold; the React header applies it itself. Keep the resting
+ * state in normal flow so the header never disappears without JS. */
+.rokon-theme .header__sticky:not(.sticky) {
+  position: relative;
+}
+
+/* Hero legibility: Rokon's slider puts DARK headings over a light section
+ * background. When a slide renders a CMS image as its own background
+ * (inline background-image), lay a soft light veil under the content so
+ * the ink headline stays readable on any photo. */
+.rokon-theme .hero__slider--items[style*="background-image"] {
+  position: relative;
+}
+
+.rokon-theme .hero__slider--items[style*="background-image"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    rgba(255, 255, 255, 0.15) 100%
+  );
+  pointer-events: none;
+}
+
+.rokon-theme .hero__slider--items[style*="background-image"] .slider__content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Login page in-flow heading (renders inside the account layout, no
+ * full-bleed banner): keep breadcrumb links on brand color, not UA blue. */
+.rokon-theme .login-page-heading .breadcrumb a,
+.rokon-theme .login-page-heading a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.rokon-theme .login-page-heading a:hover {
+  color: var(--secondary-color);
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared product actions (LeartsActionsWrapper) — Rokon skin.         */
+/* The shared add-to-cart widget emits Learts-era class names that     */
+/* have no rules in the Rokon stylesheet; style them here in the       */
+/* theme's own design language (Work Sans headings, red accent,        */
+/* 3px-radius buttons).                                                */
+/* ------------------------------------------------------------------ */
+
+.rokon-theme .product-summery {
+  font-family: var(--rubik);
+  color: var(--text-gray-color);
+}
+
+.rokon-theme .product-summery a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.rokon-theme .product-summery .product-title {
+  font-family: var(--work-sans);
+  font-size: 30px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin: 6px 0 12px;
+}
+
+.rokon-theme .product-summery .product-price {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--secondary-color);
+  margin-bottom: 14px;
+}
+
+.rokon-theme .product-summery .product-price del {
+  color: var(--text-gray-color);
+  opacity: 0.55;
+  font-size: 16px;
+  font-weight: 400;
+  margin-left: 10px;
+}
+
+.rokon-theme .product-summery .product-ratings {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.rokon-theme .product-summery .star-rating,
+.rokon-theme .product-summery .rating-active {
+  color: var(--yellow-color, #ffc107);
+}
+
+.rokon-theme .product-summery .review-link {
+  margin-left: 8px;
+  color: var(--text-gray-color);
+}
+
+.rokon-theme .product-summery .product-description {
+  line-height: 1.7;
+  margin-bottom: 22px;
+}
+
+.rokon-theme .product-summery .product-variations .label {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-color);
+  margin-bottom: 8px;
+}
+
+.rokon-theme .product-summery .product-variations a,
+.rokon-theme .product-summery .product-variations button {
+  display: inline-block;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 13px;
+  line-height: 1;
+  padding: 10px 16px;
+  margin: 0 8px 8px 0;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.rokon-theme .product-summery .product-variations a:hover,
+.rokon-theme .product-summery .product-variations button:hover,
+.rokon-theme .product-summery .product-variations a.active,
+.rokon-theme .product-summery .product-variations button.active {
+  background: var(--secondary-color);
+  border-color: var(--secondary-color);
+  color: #ffffff;
+}
+
+.rokon-theme .product-summery .product-quantity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 18px;
+}
+
+.rokon-theme .product-summery .product-quantity .qty-btn,
+.rokon-theme .product-summery .product-quantity .input-qty,
+.rokon-theme .product-summery .product-quantity .count {
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background: #ffffff;
+  color: var(--primary-color);
+  width: 42px;
+  height: 42px;
+  line-height: 40px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.rokon-theme .product-summery .product-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.rokon-theme .product-summery .product-buttons .btn {
+  background: var(--secondary-color);
+  border: 1px solid var(--secondary-color);
+  border-radius: 3px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 14px 30px;
+  transition: all 0.3s ease;
+}
+
+.rokon-theme .product-summery .product-buttons .btn:hover {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #ffffff;
+}
+
+.rokon-theme .product-summery .product-buttons .btn-icon {
+  background: transparent;
+  color: var(--primary-color);
+  padding: 12px 16px;
+}
+
+.rokon-theme .product-summery .product-meta {
+  border-top: 1px solid var(--border-color);
+  padding-top: 16px;
+  font-size: 14px;
+}
+
+.rokon-theme .product-summery .product-meta > div {
+  margin-bottom: 6px;
+}
+
+.rokon-theme .product-summery .product-share a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  margin-right: 8px;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared learts-classed pages — Rokon skin.                           */
+/* The CMS contact page and the account area render markup from the    */
+/* shared Learts-era modules (.learts-theme wrappers, page-title       */
+/* strip, section-title2, contact-info, myaccount-*), whose CSS is not */
+/* in the Rokon stylesheet. Everything below is scoped to .rokon-theme */
+/* so Tailwind-styled pages (checkout) stay untouched.                 */
+/* ------------------------------------------------------------------ */
+
+/* Generic safety net: keep bare anchors inside the shared containers on
+ * the brand ink, not UA blue. Kept FIRST so specific skins win ties. */
+.rokon-theme .learts-theme a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.rokon-theme .learts-theme a:hover {
+  color: var(--secondary-color);
+}
+
+/* Learts spacing utilities carried by the shared markup. */
+.rokon-theme .learts-mb-30 {
+  margin-bottom: 30px;
+}
+
+.rokon-theme .learts-mb-n30 {
+  margin-bottom: -30px;
+}
+
+.rokon-theme .learts-pt-30 {
+  padding-top: 30px;
+}
+
+.rokon-theme .learts-mt-60 {
+  margin-top: 60px;
+}
+
+.rokon-theme .section.section-padding {
+  padding-top: 100px;
+  padding-bottom: 100px;
+}
+
+@media (max-width: 991px) {
+  .rokon-theme .section.section-padding {
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
+}
+
+@media (max-width: 767px) {
+  .rokon-theme .section.section-padding {
+    padding-top: 60px;
+    padding-bottom: 60px;
+  }
+}
+
+/* Utility-page header strip (the "Contact us" banner): restyle the Learts
+ * strip as Rokon's own breadcrumb banner — light hero image with the ink
+ * Work Sans title. !important is needed once, to beat the Learts image
+ * set via inline style. */
+.rokon-theme .page-title-section {
+  position: relative;
+  background-image: url("/rokon/img/banner/breadcrumb-bg.webp") !important;
+  background-position: 5% center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  padding: 60px 0;
+}
+
+@media (max-width: 767px) {
+  .rokon-theme .page-title-section {
+    padding: 40px 0;
+  }
+}
+
+.rokon-theme .page-title .title {
+  font-family: var(--work-sans);
+  font-size: clamp(30px, 4.5vw, 50px);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--primary-color);
+  margin-bottom: 10px;
+}
+
+.rokon-theme .page-title .breadcrumb {
+  margin-bottom: 0;
+}
+
+.rokon-theme .page-title .breadcrumb .breadcrumb-item {
+  font-size: 15px;
+  text-transform: capitalize;
+  color: var(--primary-color);
+}
+
+.rokon-theme .page-title .breadcrumb .breadcrumb-item a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.rokon-theme .page-title .breadcrumb .breadcrumb-item.active {
+  color: var(--secondary-color);
+}
+
+.rokon-theme
+  .page-title
+  .breadcrumb
+  .breadcrumb-item
+  + .breadcrumb-item::before {
+  color: var(--text-gray-color);
+}
+
+/* Contact page: "Keep in touch with us" / "Send a message" headings. */
+.rokon-theme .section-title2 {
+  margin-bottom: 60px;
+}
+
+.rokon-theme .section-title2 .title {
+  font-family: var(--work-sans);
+  font-size: clamp(26px, 4vw, 38px);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--primary-color);
+  margin-bottom: 0;
+}
+
+.rokon-theme .section-title2 p {
+  max-width: 570px;
+  line-height: 1.75;
+  color: var(--text-gray-color);
+  margin-top: 20px;
+  margin-bottom: 0;
+}
+
+.rokon-theme .section-title2.text-center p {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Contact page: address / contact / hours columns. */
+.rokon-theme .contact-info .title {
+  font-family: var(--rubik);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  line-height: 1.5;
+  color: var(--primary-color);
+  padding-left: 44px;
+  margin-bottom: 14px;
+}
+
+.rokon-theme .contact-info .info {
+  position: relative;
+  display: block;
+  line-height: 1.7;
+  color: var(--text-gray-color);
+  padding-left: 44px;
+}
+
+.rokon-theme .contact-info .info:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+.rokon-theme .contact-info .info .icon {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--secondary-color);
+}
+
+.rokon-theme .contact-info .info a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.rokon-theme .contact-info .info a:hover {
+  color: var(--secondary-color);
+}
+
+.rokon-theme .contact-map {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border-color);
+}
+
+/* Contact page: "Send a message" form. The shared form emits bare inputs
+ * (no .form-control), so Rokon's own form rules never reach them. Same
+ * input/button language as the product-summery skin. */
+.rokon-theme .contact-form input[type="text"],
+.rokon-theme .contact-form input[type="email"],
+.rokon-theme .contact-form textarea {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background: #ffffff;
+  font-family: var(--rubik);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--primary-color);
+  padding: 13px 18px;
+  transition: border-color 0.25s ease;
+}
+
+.rokon-theme .contact-form input[type="text"]::placeholder,
+.rokon-theme .contact-form input[type="email"]::placeholder,
+.rokon-theme .contact-form textarea::placeholder {
+  color: var(--text-gray-color);
+  opacity: 0.7;
+}
+
+.rokon-theme .contact-form input[type="text"]:focus,
+.rokon-theme .contact-form input[type="email"]:focus,
+.rokon-theme .contact-form textarea:focus {
+  border-color: var(--secondary-color);
+  outline: none;
+}
+
+.rokon-theme .contact-form .btn {
+  background: var(--secondary-color);
+  border: 1px solid var(--secondary-color);
+  border-radius: 3px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 14px 40px;
+  transition: all 0.3s ease;
+}
+
+.rokon-theme .contact-form .btn:hover,
+.rokon-theme .contact-form .btn:focus {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #ffffff;
+}
+
+.rokon-theme .contact-form .btn:disabled {
+  opacity: 0.65;
+}
+
+/* Account area: tab list (Dashboard / Account Details / Addresses /
+ * Orders / Logout). */
+.rokon-theme .myaccount-tab-list {
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.rokon-theme .myaccount-tab-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--rubik);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--primary-color);
+  text-decoration: none;
+  padding: 14px 20px;
+  transition: all 0.25s ease;
+}
+
+.rokon-theme .myaccount-tab-list a + a {
+  border-top: 1px solid var(--border-color);
+}
+
+.rokon-theme .myaccount-tab-list a:hover {
+  background: var(--bg-gray-color, #f7f8fc);
+  color: var(--secondary-color);
+}
+
+.rokon-theme .myaccount-tab-list a.active {
+  background: var(--secondary-color);
+  color: #ffffff;
+  cursor: default;
+}
+
+/* Account area: content column body rhythm; keep links on brand. */
+.rokon-theme .myaccount-content {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-gray-color);
+}
+
+.rokon-theme .myaccount-content a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.rokon-theme .myaccount-content a:hover {
+  color: var(--secondary-color);
+}
+
+/* Order tables, if a view renders one inside the account content. */
+.rokon-theme .myaccount-content table {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.rokon-theme .myaccount-content table th,
+.rokon-theme .myaccount-content table td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.rokon-theme .myaccount-content table th {
+  background: var(--bg-gray-color, #f7f8fc);
+  color: var(--primary-color);
+  font-weight: 500;
+}

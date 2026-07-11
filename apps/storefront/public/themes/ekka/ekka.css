@@ -1,0 +1,765 @@
+/* Ekka theme — bridge sheet. Loaded LAST after the Ekka template CSS.
+ *
+ * Purpose:
+ * 1. Expose the CMS-editable --ff-* theme vars (injected by the root layout
+ *    from admin Theme settings) as Ekka-scoped vars with the template's
+ *    factory values as fallbacks — the Ekka CSS itself is compiled with
+ *    hardcoded colors, so these vars drive the bridge's own skins.
+ * 2. Carry small fixes needed by the React port (no template JS runs).
+ *
+ * Discipline (see themes/README): no universal `*` rules, nothing more
+ * specific than needed, never fight Tailwind utilities on non-themed pages.
+ */
+
+[data-theme="ekka"] {
+  --ekka-primary: var(--ff-primary, #3474d4);
+  --ekka-dark: var(--ff-dark, #212121);
+  --ekka-border: var(--ff-border, #eeeeee);
+  --ekka-text: var(--ff-text, #777777);
+  --ekka-heading: var(--ff-heading, #212121);
+  --ekka-bg: var(--ff-bg, #ffffff);
+  --ekka-surface: #f7f7f7;
+  --ekka-font-body: var(--ff-font-body, "Poppins, sans-serif", sans-serif);
+  --ekka-font-heading: var(
+    --ff-font-heading,
+    "Poppins, sans-serif",
+    sans-serif
+  );
+}
+
+/* The template ships `body { user-select: none }` (demo-protection quirk).
+ * A real store must let customers select/copy text. */
+body.ekka-theme {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* The template's #ec-overlay preloader depends on JS to fade out; the React
+ * port never renders it, but guard against any stray usage. */
+.ekka-theme #ec-overlay,
+.ekka-theme .preloader {
+  display: none;
+}
+
+/* Animation guards: the template's entrance animations (animate.css classes
+ * toggled by its JS / swiper callbacks) never run in the React port. Keep
+ * anything carrying those classes visible. */
+.ekka-theme .wow {
+  visibility: visible !important;
+}
+
+/* Tailwind's `.collapse` utility (visibility: collapse) clashes with
+ * Bootstrap's `.collapse` class (Ekka bundles Bootstrap). Within Ekka,
+ * Bootstrap semantics win. */
+.ekka-theme .navbar-collapse {
+  visibility: visible;
+}
+
+/* Sticky header: the template toggles stickiness via JS on scroll; the React
+ * header applies its own class. Keep the resting state non-fixed so pages
+ * without the scroll listener never lose the header. */
+.ekka-theme .ec-header.sticky-top:not(.active) {
+  position: relative;
+}
+
+/* Hero legibility: CMS slides can carry light product photos; the template's
+ * slide text assumed its own tuned banners. A soft left-side scrim keeps the
+ * dark headline area readable without visibly dulling the factory banners. */
+.ekka-theme .ec-slide-item {
+  position: relative;
+}
+
+.ekka-theme .ec-slide-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.25) 45%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  pointer-events: none;
+}
+
+.ekka-theme .ec-slide-item .container {
+  position: relative;
+  z-index: 1;
+}
+
+/* Product cards: the template's CSS sets `pointer-events: none` on
+ * .ec-pro-image .image (its JS handled clicks); in the React port the
+ * image IS the product link, so re-enable it. */
+.ekka-theme .ec-pro-image .image {
+  pointer-events: auto;
+}
+
+/* Rich text block: Ekka ships no generic post-entry typography; give
+ * the theme's rich_text renderer a sane vertical rhythm. */
+.ekka-theme .ekka-rich-text-entry h2,
+.ekka-theme .ekka-rich-text-entry h3,
+.ekka-theme .ekka-rich-text-entry h4 {
+  color: var(--ekka-heading);
+  margin: 24px 0 12px;
+}
+
+.ekka-theme .ekka-rich-text-entry p {
+  color: var(--ekka-text);
+  line-height: 1.75;
+  margin-bottom: 14px;
+}
+
+.ekka-theme .ekka-rich-text-entry ul,
+.ekka-theme .ekka-rich-text-entry ol {
+  color: var(--ekka-text);
+  padding-left: 20px;
+  margin-bottom: 14px;
+}
+
+.ekka-theme .ekka-rich-text-entry ul li {
+  list-style: disc;
+  margin-bottom: 6px;
+}
+
+.ekka-theme .ekka-rich-text-entry ol li {
+  list-style: decimal;
+  margin-bottom: 6px;
+}
+
+.ekka-theme .ekka-rich-text-entry a {
+  color: var(--ekka-primary);
+  text-decoration: none;
+}
+
+/* Login page in-flow heading (renders inside the account layout, no
+ * full-bleed banner): keep breadcrumb links on brand color, not UA blue. */
+.ekka-theme .login-page-heading .breadcrumb a {
+  color: var(--ekka-primary);
+  text-decoration: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared product actions (LeartsActionsWrapper) — Ekka skin.          */
+/* The shared add-to-cart widget emits Learts-era class names that     */
+/* have no rules in the Ekka stylesheet stack; style them here in the  */
+/* theme's own design language (Poppins, blue primary, 5px radius).    */
+/* ------------------------------------------------------------------ */
+
+.ekka-theme .product-summery {
+  font-family: var(--ekka-font-body);
+  color: var(--ekka-text);
+  font-size: 14px;
+}
+
+.ekka-theme .product-summery a {
+  color: var(--ekka-primary);
+  text-decoration: none;
+}
+
+.ekka-theme .product-summery .product-title {
+  font-family: var(--ekka-font-heading);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ekka-heading);
+  margin: 4px 0 10px;
+}
+
+.ekka-theme .product-summery .product-price {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ekka-heading);
+  margin-bottom: 14px;
+}
+
+.ekka-theme .product-summery .product-price del {
+  color: var(--ekka-text);
+  opacity: 0.6;
+  font-size: 16px;
+  font-weight: 400;
+  margin-left: 10px;
+}
+
+.ekka-theme .product-summery .product-ratings {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.ekka-theme .product-summery .star-rating,
+.ekka-theme .product-summery .rating-active {
+  color: #f27d0c;
+}
+
+.ekka-theme .product-summery .review-link {
+  margin-left: 8px;
+  color: var(--ekka-text);
+}
+
+.ekka-theme .product-summery .product-description {
+  line-height: 1.75;
+  margin-bottom: 22px;
+}
+
+.ekka-theme .product-summery .product-variations .label {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ekka-heading);
+  margin-bottom: 8px;
+}
+
+.ekka-theme .product-summery .product-variations a,
+.ekka-theme .product-summery .product-variations button {
+  display: inline-block;
+  border: 1px solid var(--ekka-border);
+  border-radius: 5px;
+  background: var(--ekka-bg);
+  color: var(--ekka-heading);
+  font-size: 13px;
+  line-height: 1;
+  padding: 10px 15px;
+  margin: 0 8px 8px 0;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.ekka-theme .product-summery .product-variations a:hover,
+.ekka-theme .product-summery .product-variations button:hover,
+.ekka-theme .product-summery .product-variations a.active,
+.ekka-theme .product-summery .product-variations button.active {
+  background: var(--ekka-primary);
+  border-color: var(--ekka-primary);
+  color: #ffffff;
+}
+
+.ekka-theme .product-summery .product-quantity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 18px;
+}
+
+.ekka-theme .product-summery .product-quantity .qty-btn,
+.ekka-theme .product-summery .product-quantity .input-qty,
+.ekka-theme .product-summery .product-quantity .count {
+  border: 1px solid var(--ekka-border);
+  border-radius: 5px;
+  background: var(--ekka-bg);
+  color: var(--ekka-heading);
+  width: 40px;
+  height: 40px;
+  line-height: 38px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.ekka-theme .product-summery .product-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.ekka-theme .product-summery .product-buttons .btn {
+  background: var(--ekka-primary);
+  border: 1px solid var(--ekka-primary);
+  border-radius: 5px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+  padding: 12px 28px;
+  transition: all 0.3s ease;
+}
+
+.ekka-theme .product-summery .product-buttons .btn:hover {
+  background: var(--ekka-dark);
+  border-color: var(--ekka-dark);
+  color: #ffffff;
+}
+
+.ekka-theme .product-summery .product-buttons .btn-icon {
+  background: transparent;
+  color: var(--ekka-heading);
+  padding: 11px 14px;
+}
+
+.ekka-theme .product-summery .product-meta {
+  border-top: 1px solid var(--ekka-border);
+  padding-top: 16px;
+  font-size: 14px;
+}
+
+.ekka-theme .product-summery .product-meta > div {
+  margin-bottom: 6px;
+}
+
+.ekka-theme .product-summery .product-share a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--ekka-border);
+  border-radius: 50%;
+  margin-right: 8px;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared learts-classed pages — Ekka skin.                            */
+/* The CMS contact page and the account area render markup from the    */
+/* shared Learts-era modules (.learts-theme wrappers, page-title strip, */
+/* section-title2, contact-info, myaccount-*), whose CSS is not in the  */
+/* Ekka stylesheet stack. Everything below is scoped to .ekka-theme so  */
+/* Tailwind-styled pages (checkout) stay untouched.                     */
+/* ------------------------------------------------------------------ */
+
+/* Generic safety net: Bootstrap paints bare anchors blue + underlined.
+ * Inside the shared learts-classed containers, put links on the brand
+ * color. Kept FIRST so the more specific skins below win ties. */
+.ekka-theme .learts-theme a {
+  color: var(--ekka-primary);
+  text-decoration: none;
+}
+
+.ekka-theme .learts-theme a:hover {
+  color: var(--ekka-dark);
+}
+
+/* Learts spacing utilities carried by the shared markup. */
+.ekka-theme .learts-mb-30 {
+  margin-bottom: 30px;
+}
+
+.ekka-theme .learts-mb-n30 {
+  margin-bottom: -30px;
+}
+
+.ekka-theme .learts-pt-30 {
+  padding-top: 30px;
+}
+
+.ekka-theme .learts-mt-60 {
+  margin-top: 60px;
+}
+
+.ekka-theme .section.section-padding {
+  padding-top: 80px;
+  padding-bottom: 80px;
+}
+
+@media (max-width: 991px) {
+  .ekka-theme .section.section-padding {
+    padding-top: 60px;
+    padding-bottom: 60px;
+  }
+}
+
+@media (max-width: 767px) {
+  .ekka-theme .section.section-padding {
+    padding-top: 40px;
+    padding-bottom: 40px;
+  }
+}
+
+/* Utility-page header strip (the "Contact us" banner): restyle the
+ * Learts photo strip as Ekka's own breadcrumb band — a light gray strip
+ * with dark title, matching .ec-breadcrumb. !important is needed once,
+ * to beat the Learts image set via inline style. */
+.ekka-theme .page-title-section {
+  position: relative;
+  background-image: none !important;
+  background-color: var(--ekka-surface);
+  border-top: 1px solid var(--ekka-border);
+  border-bottom: 1px solid var(--ekka-border);
+  padding: 42px 0;
+}
+
+@media (max-width: 767px) {
+  .ekka-theme .page-title-section {
+    padding: 28px 0;
+  }
+}
+
+.ekka-theme .page-title .title {
+  font-family: var(--ekka-font-heading);
+  font-size: clamp(24px, 3.4vw, 34px);
+  font-weight: 600;
+  line-height: 1.2em;
+  color: var(--ekka-heading);
+  margin-bottom: 8px;
+}
+
+.ekka-theme .page-title .breadcrumb {
+  margin-bottom: 0;
+}
+
+.ekka-theme .page-title .breadcrumb .breadcrumb-item {
+  font-size: 14px;
+  text-transform: capitalize;
+  color: var(--ekka-text);
+}
+
+.ekka-theme .page-title .breadcrumb .breadcrumb-item a {
+  color: var(--ekka-primary);
+  text-decoration: none;
+}
+
+.ekka-theme .page-title .breadcrumb .breadcrumb-item.active {
+  color: var(--ekka-text);
+}
+
+.ekka-theme
+  .page-title
+  .breadcrumb
+  .breadcrumb-item
+  + .breadcrumb-item::before {
+  color: var(--ekka-text);
+}
+
+/* Contact page: "Keep in touch with us" / "Send a message" headings. */
+.ekka-theme .section-title2 {
+  margin-bottom: 50px;
+}
+
+.ekka-theme .section-title2 .title {
+  font-family: var(--ekka-font-heading);
+  font-size: clamp(24px, 3.4vw, 32px);
+  font-weight: 600;
+  line-height: 1.25em;
+  color: var(--ekka-heading);
+  margin-bottom: 0;
+}
+
+.ekka-theme .section-title2 p {
+  max-width: 570px;
+  line-height: 1.75;
+  color: var(--ekka-text);
+  margin-top: 18px;
+  margin-bottom: 0;
+}
+
+.ekka-theme .section-title2.text-center p {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Contact page: address / contact / hours columns. */
+.ekka-theme .contact-info .title {
+  font-family: var(--ekka-font-body);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+  color: var(--ekka-heading);
+  padding-left: 44px;
+  margin-bottom: 14px;
+}
+
+.ekka-theme .contact-info .info {
+  position: relative;
+  display: block;
+  line-height: 1.7;
+  color: var(--ekka-text);
+  padding-left: 44px;
+}
+
+.ekka-theme .contact-info .info:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+.ekka-theme .contact-info .info .icon {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--ekka-primary);
+}
+
+.ekka-theme .contact-info .info a {
+  color: var(--ekka-primary);
+  text-decoration: none;
+}
+
+.ekka-theme .contact-info .info a:hover {
+  color: var(--ekka-dark);
+}
+
+.ekka-theme .contact-map {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--ekka-border);
+  border-radius: 5px;
+}
+
+/* Contact page: "Send a message" form. The shared form emits bare
+ * inputs (no .form-control), so Ekka's own form rules never reach
+ * them. Same input/button language as the product-summery skin. */
+.ekka-theme .contact-form input[type="text"],
+.ekka-theme .contact-form input[type="email"],
+.ekka-theme .contact-form textarea {
+  width: 100%;
+  border: 1px solid var(--ekka-border);
+  border-radius: 5px;
+  background: var(--ekka-bg);
+  font-family: var(--ekka-font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ekka-heading);
+  padding: 12px 16px;
+  transition: border-color 0.25s ease;
+}
+
+.ekka-theme .contact-form input[type="text"]::placeholder,
+.ekka-theme .contact-form input[type="email"]::placeholder,
+.ekka-theme .contact-form textarea::placeholder {
+  color: var(--ekka-text);
+  opacity: 0.8;
+}
+
+.ekka-theme .contact-form input[type="text"]:focus,
+.ekka-theme .contact-form input[type="email"]:focus,
+.ekka-theme .contact-form textarea:focus {
+  border-color: var(--ekka-primary);
+  outline: none;
+}
+
+.ekka-theme .contact-form .btn {
+  background: var(--ekka-primary);
+  border: 1px solid var(--ekka-primary);
+  border-radius: 5px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+  padding: 12px 36px;
+  transition: all 0.3s ease;
+}
+
+.ekka-theme .contact-form .btn:hover,
+.ekka-theme .contact-form .btn:focus {
+  background: var(--ekka-dark);
+  border-color: var(--ekka-dark);
+  color: #ffffff;
+}
+
+.ekka-theme .contact-form .btn:disabled {
+  opacity: 0.65;
+}
+
+/* Account area: tab list (Dashboard / Account Details / Addresses /
+ * Orders / Logout). */
+.ekka-theme .myaccount-tab-list {
+  border: 1px solid var(--ekka-border);
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--ekka-bg);
+}
+
+.ekka-theme .myaccount-tab-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--ekka-font-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ekka-heading);
+  text-decoration: none;
+  padding: 14px 20px;
+  transition: all 0.25s ease;
+}
+
+.ekka-theme .myaccount-tab-list a + a {
+  border-top: 1px solid var(--ekka-border);
+}
+
+.ekka-theme .myaccount-tab-list a:hover {
+  background: var(--ekka-surface);
+  color: var(--ekka-primary);
+}
+
+.ekka-theme .myaccount-tab-list a.active {
+  background: var(--ekka-primary);
+  color: #ffffff;
+  cursor: default;
+}
+
+/* Account area: content column. */
+.ekka-theme .myaccount-content {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ekka-text);
+}
+
+.ekka-theme .myaccount-content a {
+  color: var(--ekka-primary);
+  text-decoration: none;
+}
+
+.ekka-theme .myaccount-content a:hover {
+  color: var(--ekka-dark);
+}
+
+/* Order tables, if a view renders one inside the account content. */
+.ekka-theme .myaccount-content table {
+  width: 100%;
+  border: 1px solid var(--ekka-border);
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.ekka-theme .myaccount-content table th,
+.ekka-theme .myaccount-content table td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ekka-border);
+}
+
+.ekka-theme .myaccount-content table th {
+  background: var(--ekka-surface);
+  color: var(--ekka-heading);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ */
+/* Interior templates — hooks the Ekka templates emit around SHARED    */
+/* commerce components (whose markup is Tailwind/Medusa-UI, unstyled   */
+/* by the Ekka stack). Scoped to .ekka-theme.                          */
+/* ------------------------------------------------------------------ */
+
+/* Shop/category pagination: the shared Pagination renders plain
+ * buttons; give them the template's pill look inside our wrapper. */
+.ekka-theme .ec-pro-pagination button {
+  min-width: 32px;
+  height: 32px;
+  border: 1px solid var(--ekka-border);
+  border-radius: 5px;
+  background: var(--ekka-bg);
+  color: var(--ekka-text);
+  font-size: 14px;
+  line-height: 1;
+  margin: 0 3px;
+  padding: 0 8px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.ekka-theme .ec-pro-pagination button:hover:not(:disabled) {
+  background: var(--ekka-primary);
+  border-color: var(--ekka-primary);
+  color: #ffffff;
+}
+
+.ekka-theme .ec-pro-pagination button:disabled {
+  background: var(--ekka-primary);
+  border-color: var(--ekka-primary);
+  color: #ffffff;
+  cursor: default;
+}
+
+/* Sidebar filter block content (shared RefinementList inside the Ekka
+ * sidebar shell): keep its type on the theme's palette. */
+.ekka-theme .ec-sidebar-block .ec-sb-block-content {
+  font-size: 14px;
+  color: var(--ekka-text);
+}
+
+.ekka-theme .ec-sidebar-block .ec-sb-block-content a {
+  color: var(--ekka-text);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.ekka-theme .ec-sidebar-block .ec-sb-block-content a:hover {
+  color: var(--ekka-primary);
+}
+
+/* Cart: shared Thumbnail inside the product cell. */
+.ekka-theme .ec-cart-pro-img {
+  display: inline-block;
+  width: 90px;
+  vertical-align: middle;
+}
+
+/* Cart: quantity stepper buttons (the demo generated these via JS, so
+ * its CSS never covered real button elements). */
+.ekka-theme .cart-qty-plus-minus button,
+.ekka-theme .cart-qty-plus-minus .ec_cart_qtybtn {
+  border: 1px solid var(--ekka-border);
+  border-radius: 5px;
+  background: var(--ekka-bg);
+  color: var(--ekka-heading);
+  width: 30px;
+  height: 30px;
+  line-height: 28px;
+  text-align: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ekka-theme .cart-qty-plus-minus button:hover {
+  background: var(--ekka-primary);
+  border-color: var(--ekka-primary);
+  color: #ffffff;
+}
+
+/* Cart sidebar: summary (shared CartTotals), coupon (DiscountCode) and
+ * the checkout button link. */
+.ekka-theme .ec-cart-summary {
+  font-size: 14px;
+  color: var(--ekka-text);
+}
+
+.ekka-theme .ec-cart-coupan-content {
+  margin-bottom: 16px;
+}
+
+.ekka-theme .ec-cart-checkout-btn,
+.ekka-theme a.ec-cart-checkout-btn {
+  display: block;
+  text-align: center;
+  background: var(--ekka-primary);
+  border: 1px solid var(--ekka-primary);
+  border-radius: 5px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 12px 28px;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.ekka-theme .ec-cart-checkout-btn:hover,
+.ekka-theme a.ec-cart-checkout-btn:hover {
+  background: var(--ekka-dark);
+  border-color: var(--ekka-dark);
+  color: #ffffff;
+}
+
+/* Product page: the shared ImageGallery replaces the template's slick
+ * slider markup inside .single-pro-img; keep it in normal flow. */
+.ekka-theme .single-pro-img {
+  position: relative;
+}
+
+/* Login/register: form error output from the shared ErrorMessage. */
+.ekka-theme .ec-login-wrapper .error-message,
+.ekka-theme .ec-register-wrapper .error-message,
+.ekka-theme .ec-login-wrapper [data-testid="login-error-message"],
+.ekka-theme .ec-register-wrapper [data-testid="register-error"] {
+  color: #d02e2e;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.ekka-theme .ec-register-wrapper {
+  margin-top: 40px;
+}

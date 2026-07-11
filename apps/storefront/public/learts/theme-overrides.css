@@ -1,0 +1,329 @@
+/* Learts theme integration overrides for the Medusa Next.js storefront.
+   Keeps the template look while smoothing over Tailwind preflight + Next quirks. */
+
+/* Tailwind preflight sets img { display:block } which is fine, but ensure
+   responsive images never overflow their grid cells. */
+.learts-theme img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Restore link styling inside Learts sections (Tailwind strips it). */
+.learts-theme a {
+  text-decoration: none;
+}
+
+/* Body font + base color — driven by the CMS `theme` setting via CSS custom
+   properties (injected in app/layout.tsx), with the template values as fallback. */
+body {
+  font-family: var(--ff-font-body, "Jost", sans-serif);
+  color: var(--ff-text, #333);
+  background-color: var(--ff-bg, #fff);
+}
+.learts-theme .title,
+.learts-theme h1,
+.learts-theme h2,
+.learts-theme h3,
+.learts-theme h4,
+.learts-theme h5,
+.learts-theme h6 {
+  font-family: var(--ff-font-heading, "Marcellus", serif);
+}
+
+/* Mobile offcanvas menu (we drive this with React state, not jQuery). */
+.learts-mobile-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 300px;
+  max-width: 85vw;
+  height: 100%;
+  background: #fff;
+  z-index: 1050;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.15);
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  overflow-y: auto;
+  padding: 30px 25px;
+}
+.learts-mobile-menu.open {
+  transform: translateX(0);
+}
+.learts-mobile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1040;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease;
+}
+.learts-mobile-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+.learts-mobile-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.learts-mobile-menu > ul > li > a {
+  display: block;
+  padding: 10px 0;
+  font-size: 15px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #333;
+  border-bottom: 1px solid #eee;
+}
+
+/* Hero slider (React-driven crossfade). */
+.learts-hero {
+  position: relative;
+  overflow: hidden;
+}
+.learts-hero .slide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+.learts-hero .slide.active {
+  opacity: 1;
+}
+.learts-hero .slide-inner {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+/* Reveal the slide text. The Learts theme sets `.home3-slide-content > *`
+   to opacity:0 / translateY(30px) and only un-hides them via the Swiper
+   `.swiper-slide-active` class. Our slider is React-driven (`.slide.active`,
+   no Swiper), so re-key the reveal + the staggered rise onto `.slide.active`,
+   otherwise the title / subtitle / CTA stay invisible over the image. */
+.learts-hero .slide.active .home3-slide-content > * {
+  opacity: 1;
+}
+.learts-hero .slide.active .home3-slide-content .sub-title {
+  transition-delay: 0.75s;
+  transform: translateY(0);
+}
+.learts-hero .slide.active .home3-slide-content .title {
+  transition-delay: 0.95s;
+  transform: translateY(0);
+}
+.learts-hero .slide.active .home3-slide-content .link {
+  transition-delay: 1.15s;
+  transform: translateY(0);
+}
+/* When a slide deactivates, drop its text immediately (no reverse stagger)
+   so the incoming slide's animation reads cleanly. */
+.learts-hero .slide:not(.active) .home3-slide-content > * {
+  transition-delay: 0s;
+}
+
+/* Instagram banner: its .content is absolutely positioned but the template
+   never marks an ancestor relative, so anchor it to the tile. */
+.learts-theme .instagram-banner1 .inner,
+.learts-theme .instagram-banner1 .image {
+  position: relative;
+}
+.learts-theme .instagram-banner1 .image img {
+  display: block;
+  width: 100%;
+}
+
+/* Make sure the product-tab content swaps cleanly with React. */
+.prodyct-tab-content1 .tab-pane {
+  display: none;
+}
+.prodyct-tab-content1 .tab-pane.active {
+  display: block;
+}
+
+/* ===========================================================
+   Account: profile forms + address cards (Learts look)
+   =========================================================== */
+
+/* Profile field rows — divide each editor row */
+.myaccount-content [data-testid$="-editor"] {
+  padding: 20px 0;
+  border-bottom: 1px solid #eee;
+}
+.myaccount-content [data-testid$="-editor"] span.uppercase {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #999;
+}
+.myaccount-content [data-testid="current-info"] {
+  font-size: 16px;
+  color: #333;
+}
+
+/* Form inputs / selects (account + address modals) */
+.myaccount-content input:not([type="checkbox"]):not([type="radio"]),
+.myaccount-content select,
+.myaccount-content textarea,
+[data-testid="add-address-modal"] input,
+[data-testid="add-address-modal"] select,
+[data-testid="edit-address-modal"] input,
+[data-testid="edit-address-modal"] select {
+  border: 1px solid #e5e5e5 !important;
+  border-radius: 4px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  height: 50px;
+}
+.myaccount-content input:focus,
+.myaccount-content select:focus,
+[data-testid="add-address-modal"] input:focus,
+[data-testid="add-address-modal"] select:focus,
+[data-testid="edit-address-modal"] input:focus,
+[data-testid="edit-address-modal"] select:focus {
+  border-color: var(--ff-primary, #72a499) !important;
+  box-shadow: none !important;
+}
+
+/* Edit / Cancel button -> outlined Learts button */
+.myaccount-content [data-testid="edit-button"],
+[data-testid="add-address-modal"] [data-testid="cancel-button"],
+[data-testid="edit-address-modal"] [data-testid="cancel-button"] {
+  background: #fff !important;
+  color: #1f1f1f !important;
+  border: 1px solid #1f1f1f !important;
+  border-radius: 0 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  font-size: 12px;
+}
+.myaccount-content [data-testid="edit-button"]:hover,
+[data-testid="add-address-modal"] [data-testid="cancel-button"]:hover,
+[data-testid="edit-address-modal"] [data-testid="cancel-button"]:hover {
+  background: #1f1f1f !important;
+  color: #fff !important;
+}
+
+/* Save / submit buttons -> solid Learts black button */
+.myaccount-content [data-testid="save-button"],
+[data-testid="add-address-modal"] button[type="submit"],
+[data-testid="edit-address-modal"] button[type="submit"] {
+  background: #1f1f1f !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 0 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+.myaccount-content [data-testid="save-button"]:hover,
+[data-testid="add-address-modal"] button[type="submit"]:hover,
+[data-testid="edit-address-modal"] button[type="submit"]:hover {
+  background: var(--ff-primary, #72a499) !important;
+}
+
+/* Address cards */
+[data-testid="add-address-button"],
+[data-testid="address-container"] {
+  border: 1px solid #e5e5e5 !important;
+  border-radius: 6px !important;
+  background: #fff;
+  transition: border-color 0.2s ease;
+}
+[data-testid="add-address-button"]:hover {
+  border-color: var(--ff-primary, #72a499) !important;
+  color: var(--ff-primary, #72a499);
+}
+[data-testid="address-name"] {
+  font-family: "Marcellus", serif;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+[data-testid="address-edit-button"]:hover,
+[data-testid="address-delete-button"]:hover {
+  color: var(--ff-primary, #72a499) !important;
+}
+
+/* ===========================================================
+   Contact page form
+   =========================================================== */
+.learts-theme .contact-form input,
+.learts-theme .contact-form textarea {
+  width: 100%;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  background: #fff;
+  padding: 12px 18px;
+  font-size: 15px;
+  color: #333;
+}
+.learts-theme .contact-form textarea {
+  min-height: 150px;
+  resize: vertical;
+}
+.learts-theme .contact-form input:focus,
+.learts-theme .contact-form textarea:focus {
+  outline: none;
+  border-color: var(--ff-primary, #72a499);
+}
+.learts-theme .contact-map {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ */
+/* Desktop header responsiveness fix.                                   */
+/* The original Learts template centered its menu absolutely, so the    */
+/* base CSS gives `.site-main-menu` a huge `padding: 0 200px 0 270px`    */
+/* (470px!). In this Bootstrap-grid React port that padding makes the    */
+/* header content overflow the container just above the xl breakpoint,   */
+/* so the account/search/wishlist/cart icons wrapped onto a second line. */
+/* Drop the stray padding, keep the header on a single row, and tighten  */
+/* the per-link padding on smaller desktops so everything fits inline    */
+/* from ~1200px up to the mobile (<xl) hamburger header.                  */
+/* ------------------------------------------------------------------ */
+/* Never let the header tools drop to a second line — one row, always. */
+.header-section .row.align-items-center {
+  flex-wrap: nowrap;
+}
+.header-section .header-tools {
+  flex-shrink: 0;
+}
+/* Drop the 470px template padding at every width so the header content      */
+/* (~980px) sits comfortably inside the container and can neither wrap nor    */
+/* overflow. The menu column keeps `me-auto`, so it reads logo → nav → icons. */
+.header-section .site-main-menu {
+  padding-left: 0;
+  padding-right: 0;
+}
+/* On smaller desktops (~1200–1399px) tighten link padding/letter-spacing so  */
+/* the full nav stays inline right down to the <xl mobile hamburger header.   */
+@media (max-width: 1399.98px) {
+  .header-section .site-main-menu > ul > li > a {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .header-section .site-main-menu > ul > li {
+    letter-spacing: 1px;
+  }
+}
+
+/* --------------------------------------------------------------------- */
+/* Mobile side gutters.                                                   */
+/* The Learts base CSS caps `.container` at `max-width: 350px` on phones   */
+/* and centres it, so content — and the mobile header/topbar — sits         */
+/* pinched in the middle with big empty gaps that grow wider on larger      */
+/* phones (390/430px). Let the container use the full width with a single   */
+/* ~16px gutter instead. Desktop (>=768px) keeps the original layout.       */
+/* --------------------------------------------------------------------- */
+@media (max-width: 767.98px) {
+  .container {
+    max-width: 100%;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}

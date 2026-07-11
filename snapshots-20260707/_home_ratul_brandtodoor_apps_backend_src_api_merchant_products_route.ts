@@ -1,0 +1,177 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { createProductsWorkflow } from "@medusajs/core-flows"
+import { z } from "zod"
+import { resolveMerchant } from "../_helpers"
+
+const productStatuses = ["draft", "published", "proposed", "rejected"] as const
+
+const CreateProductSchema = z.object({
+  title: z.string().min(1),
+  handle: z.string().optional(),
+  description: z.string().optional(),
+  status: z.enum(productStatuses).optional().default("draft"),
+  prices: z.array(z.object({
+    amount: z.number().int().min(0),
+    currency_code: z.string().min(3).max(3).default("usd"),
+  })).optional().default([{ amount: 0, currency_code: "usd" }]),
+  inventory_quantity: z.number().int().min(0).optional().default(0),
+  sku: z.string().optional(),
+  tags: z.array(z.string()).optional().default([]),
+  collection_ids: z.array(z.string()).optional().default([]),
+})
+
+function slugifyHandle(title: string, existing?: string): string {
+  if (existing) return existing.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-_]/g, "")
+  return title.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-_]/g, "")
+}
+
+async function loadVariantPrices(req: MedusaRequest, variantIds: string[]): Promise<Record<string, any[]>> {
+  if (!variantIds.length) return {}
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: links } = await query.graph({
+    entity: "product_variant_price_set",
+    filters: { variant_id: variantIds } as any,
+    fields: ["variant_id", "price_set_id"],
+  })
+  const priceSetByVariant: Record<string, string> = {}
+  for (const link of links || []) {
+    const l = link as any
+    if (l.variant_id && l.price_set_id) priceSetByVariant[l.variant_id] = l.price_set_id
+  }
+
+  const priceSetIds = Object.values(priceSetByVariant)
+  if (!priceSetIds.length) return {}
+
+  const pricingModule: any = req.scope.resolve(Modules.PRICING)
+  const priceSets = await pricingModule.listPriceSets(
+    { id: priceSetIds },
+    { relations: ["prices"], take: priceSetIds.length }
+  )
+  const pricesByPriceSet = new Map<string, any[]>()
+  for (const ps of priceSets || []) {
+    pricesByPriceSet.set(ps.id, ps.prices || [])
+  }
+
+  const result: Record<string, any[]> = {}
+  for (const [variantId, priceSetId] of Object.entries(priceSetByVariant)) {
+    result[variantId] = pricesByPriceSet.get(priceSetId) || []
+  }
+  return result
+}
+
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+  const scId = ctx.tenant.meta?.sales_channel_id
+  if (!scId) return res.json({ products: [], count: 0 })
+
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: links } = await query.graph({
+    entity: "product_sales_channel",
+    filters: { sales_channel_id: scId } as any,
+    fields: ["product_id"],
+  })
+  const ids = (links || []).map((l: any) => l.product_id).filter(Boolean)
+  if (!ids.length) return res.json({ products: [], count: 0 })
+
+  const { data } = await query.graph({
+    entity: "product",
+    filters: { id: ids } as any,
+    fields: ["id", "title", "status", "thumbnail", "handle", "created_at", "updated_at", "variants.id"],
+    pagination: { take: 200, skip: 0, order: { created_at: "DESC" } } as any,
+  })
+
+  const variantsByProduct = (data || []).map((p: any) => ({
+    product: p,
+    variants: p.variants || [],
+  }))
+  const allVariantIds = variantsByProduct
+    .flatMap(({ variants }) => variants.map((v: any) => v.id))
+    .filter(Boolean)
+  const pricesByVariant = await loadVariantPrices(req, allVariantIds)
+
+  const products = variantsByProduct.map(({ product: p, variants }) => {
+    const firstVariant = variants[0]
+    const firstPrice = firstVariant ? pricesByVariant[firstVariant.id]?.[0] : undefined
+    const inventoryQuantity = firstVariant?.metadata?.inventory_quantity ?? 0
+
+    return {
+      id: p.id,
+      title: p.title,
+      status: p.status,
+      thumbnail: p.thumbnail,
+      handle: p.handle,
+      updated_at: p.updated_at,
+      variant_count: variants.length,
+      price: firstPrice?.amount,
+      currency_code: firstPrice?.currency_code,
+      stock: inventoryQuantity,
+    }
+  })
+  res.json({ products, count: products.length })
+}
+
+export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+  const scId = ctx.tenant.meta?.sales_channel_id
+  if (!scId) return res.status(400).json({ message: "tenant sales channel not configured" })
+
+  const parsed = CreateProductSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ message: "invalid input", issues: parsed.error.issues })
+  }
+
+  const {
+    title, handle, description, status, prices, inventory_quantity, sku, tags, collection_ids,
+  } = parsed.data
+
+  const productModule: any = req.scope.resolve(Modules.PRODUCT)
+
+  // Resolve tag IDs from tag values (create missing ones).
+  const tagIds: string[] = []
+  if (tags.length) {
+    const existing = await productModule.listProductTags({ value: tags }, { take: tags.length })
+    const existingByValue = new Map<string, string>((existing || []).map((t: any) => [t.value, t.id]))
+    const missing = tags.filter((t) => !existingByValue.has(t))
+    if (missing.length) {
+      const created = await productModule.createProductTags(missing.map((value) => ({ value })))
+      for (const t of created || []) existingByValue.set(t.value, t.id)
+    }
+    for (const t of tags) {
+      const id = existingByValue.get(t)
+      if (id) tagIds.push(id)
+    }
+  }
+
+  const { result: products } = await createProductsWorkflow(req.scope).run({
+    input: {
+      products: [
+        {
+          title,
+          handle: slugifyHandle(title, handle),
+          description,
+          status,
+          tag_ids: tagIds,
+          collection_id: collection_ids[0] || undefined,
+          sales_channels: [{ id: scId }],
+          options: [{ title: "Default", values: ["Default"] }],
+          variants: [
+            {
+              title: "Default",
+              sku,
+              prices: prices.map((p) => ({ amount: p.amount, currency_code: p.currency_code })),
+              options: { Default: "Default" },
+              manage_inventory: false,
+              metadata: { inventory_quantity },
+            },
+          ],
+        } as any,
+      ],
+    },
+  })
+
+  const product = (products as any[])[0]
+  res.status(201).json({ product })
+}

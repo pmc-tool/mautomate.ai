@@ -1,0 +1,241 @@
+import { HttpTypes } from "@medusajs/types"
+
+import { getProductPrice } from "@lib/util/get-product-price"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
+
+/* ------------------------------------------------------------------ */
+/* Cignet PRESENTATIONAL view for the product_tabs block. Pure, client-  */
+/* safe (no data fetching, no server-only imports) — it takes the        */
+/* already-resolved per-tab `groups` as props and renders the Cignet     */
+/* "Our Products" markup. Rendered BYTE-IDENTICALLY by both the live      */
+/* async server block (ProductTabs.tsx) and the visual-editor canvas      */
+/* (which fetches the same groups from /api/puck/product-tab-groups).     */
+/* ------------------------------------------------------------------ */
+
+interface ProductTabGroup {
+  label: string
+  products: HttpTypes.StoreProduct[]
+}
+
+export interface ProductTabsViewProps {
+  /** Per-tab resolved products, aligned 1:1 with the block's tabs. */
+  groups: ProductTabGroup[]
+  sub_title?: string
+  title?: string
+  /** Stable "sec-<idx>" scope used to key the CSS-only tab switching. */
+  sectionScope?: string
+}
+
+const PLACEHOLDER = "/cignet/images/product-image-1.png"
+
+/* Template fallbacks — the index.html "Our Products" section heading. */
+const FALLBACK_SUB_TITLE = "Our Products"
+const FALLBACK_TITLE = "Explore Our Signature Jewellery Pieces"
+
+/** Cignet product card — the exact product-item markup from products.html. */
+const ProductCard = ({ product }: { product: HttpTypes.StoreProduct }) => {
+  const { cheapestPrice } = getProductPrice({ product })
+
+  const images = product.images ?? []
+  const mainImage = product.thumbnail || images[0]?.url || PLACEHOLDER
+  // Second image for the hover swap, when the product has one.
+  const hoverImage = images.find((img) => img.url && img.url !== mainImage)?.url
+
+  const onSale =
+    cheapestPrice?.price_type === "sale" ||
+    (!!cheapestPrice &&
+      cheapestPrice.original_price !== cheapestPrice.calculated_price)
+
+  const href = `/products/${product.handle}`
+
+  return (
+    <div className="product-item group wow fadeInUp">
+      {/* Product Item Header Start */}
+      <div className="product-item-header">
+        {/* Product Item Image Start */}
+        <div className="product-item-image">
+          <LocalizedClientLink href={href}>
+            <figure className="relative">
+              <img src={mainImage} alt={product.title} />
+              {hoverImage ? (
+                <img
+                  src={hoverImage}
+                  alt={product.title}
+                  className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                />
+              ) : null}
+            </figure>
+          </LocalizedClientLink>
+        </div>
+        {/* Product Item Image End */}
+
+        {/* Product Item Action Start */}
+        <div className="product-item-action">
+          <ul>
+            <li>
+              <LocalizedClientLink href={href} aria-label="Add to wishlist">
+                <img src="/cignet/images/icon-wishlist-primary.svg" alt="" />
+              </LocalizedClientLink>
+            </li>
+            <li>
+              <LocalizedClientLink href={href} aria-label="View product">
+                <img src="/cignet/images/icon-preview-primary.svg" alt="" />
+              </LocalizedClientLink>
+            </li>
+            <li>
+              <LocalizedClientLink href={href} aria-label="Add to cart">
+                <img src="/cignet/images/icon-cart-primary.svg" alt="" />
+              </LocalizedClientLink>
+            </li>
+          </ul>
+        </div>
+        {/* Product Item Action End */}
+      </div>
+      {/* Product Item Header End */}
+
+      {/* Product Item Body Start */}
+      <div className="product-item-body">
+        {/* Product Item Content Start */}
+        <div className="product-item-content">
+          <h2 className="product-item-title">
+            <LocalizedClientLink href={href}>
+              {product.title}
+            </LocalizedClientLink>
+          </h2>
+        </div>
+        {/* Product Item Content End */}
+
+        {/* Product Item Price Start */}
+        <div className="product-item-price">
+          <h3>
+            {cheapestPrice?.calculated_price ?? ""}
+            {onSale && cheapestPrice ? (
+              <span>{cheapestPrice.original_price}</span>
+            ) : null}
+          </h3>
+        </div>
+        {/* Product Item Price End */}
+      </div>
+      {/* Product Item Body End */}
+    </div>
+  )
+}
+
+/** CSS-only tab switching, scoped by the section's stable id. */
+const tabCss = (scope: string, count: number): string => {
+  const rules: string[] = [
+    `.product-tabs .product-tabs-radio{position:absolute;opacity:0;pointer-events:none}`,
+    `.product-tabs .product-tabs-nav{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:15px;margin-bottom:40px}`,
+    `.product-tabs .product-tabs-nav label{cursor:pointer;margin:0}`,
+    `.product-tabs .product-tabs-panels .product-tabs-panel{display:none}`,
+  ]
+  for (let i = 0; i < count; i++) {
+    rules.push(
+      `#${scope}-tab-${i}:checked ~ .product-tabs-panels .product-tabs-panel-${i}{display:flex}`,
+      `#${scope}-tab-${i}:checked ~ .product-tabs-nav label[for="${scope}-tab-${i}"]{background-color:var(--primary-color);border-color:var(--primary-color);color:var(--white-color)}`
+    )
+  }
+  return rules.join("\n")
+}
+
+const ProductTabsView = (props: ProductTabsViewProps) => {
+  const groups = (Array.isArray(props.groups) ? props.groups : []).filter(
+    (group) => group.products.length > 0
+  )
+
+  if (!groups.length) {
+    return null
+  }
+
+  const subTitle =
+    typeof props.sub_title === "string" && props.sub_title
+      ? props.sub_title
+      : FALLBACK_SUB_TITLE
+  const title =
+    typeof props.title === "string" && props.title
+      ? props.title
+      : FALLBACK_TITLE
+
+  // Stable per-section scope for the radio/label ids (sanitized for CSS ids).
+  const scope = (
+    typeof props.sectionScope === "string" && props.sectionScope
+      ? props.sectionScope
+      : "cignet-products"
+  ).replace(/[^a-zA-Z0-9_-]/g, "-")
+
+  const multi = groups.length > 1
+
+  return (
+    <section className="our-products">
+      <div className="container">
+        <div className="row section-row">
+          <div className="col-xl-12">
+            {/* Section Title Start */}
+            <div className="section-title section-title-center">
+              <span className="section-sub-title wow fadeInUp">{subTitle}</span>
+              <h2 className="text-anime-style-3">{title}</h2>
+            </div>
+            {/* Section Title End */}
+          </div>
+        </div>
+
+        <div className="row">
+          <div className="col-lg-12">
+            <div className="product-tabs">
+              {multi ? (
+                <style
+                  dangerouslySetInnerHTML={{
+                    __html: tabCss(scope, groups.length),
+                  }}
+                />
+              ) : null}
+
+              {multi
+                ? groups.map((group, i) => (
+                    <input
+                      key={`radio-${i}`}
+                      type="radio"
+                      id={`${scope}-tab-${i}`}
+                      name={`${scope}-tabs`}
+                      className="product-tabs-radio"
+                      defaultChecked={i === 0}
+                      aria-label={group.label}
+                    />
+                  ))
+                : null}
+
+              {multi ? (
+                <div className="product-tabs-nav wow fadeInUp">
+                  {groups.map((group, i) => (
+                    <label
+                      key={`pill-${i}`}
+                      htmlFor={`${scope}-tab-${i}`}
+                      className="btn-default"
+                    >
+                      {group.label}
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="product-tabs-panels">
+                {groups.map((group, i) => (
+                  <div
+                    key={group.label || i}
+                    className={`product-item-list product-tabs-panel product-tabs-panel-${i}`}
+                  >
+                    {group.products.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export default ProductTabsView

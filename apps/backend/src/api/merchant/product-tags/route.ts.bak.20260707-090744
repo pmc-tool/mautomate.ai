@@ -1,0 +1,27 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
+import { resolveMerchant } from "../_helpers"
+
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  try {
+    const productModule: any = req.scope.resolve(Modules.PRODUCT)
+    const tags = await productModule.listProductTags(
+      {},
+      { take: 200, order: { created_at: "DESC" } }
+    )
+    // Tags are global in Medusa; scope to this tenant via metadata.tenant_id.
+    // Fail-closed: untagged/legacy rows are invisible to this merchant.
+    const owned = (tags || []).filter(
+      (t: any) => t.metadata?.tenant_id === ctx.tenant.id
+    )
+    res.json({
+      tags: owned.map((t: any) => ({ id: t.id, value: t.value })),
+      count: owned.length,
+    })
+  } catch (e: any) {
+    res.status(500).json({ message: e?.message ?? "Failed to load product tags" })
+  }
+}

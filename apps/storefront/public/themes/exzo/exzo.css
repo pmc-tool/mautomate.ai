@@ -1,0 +1,700 @@
+/* Exzo theme — bridge sheet. Loaded LAST after the Exzo template CSS.
+ *
+ * Purpose:
+ * 1. Map the CMS-editable --ff-* theme vars (injected by the root layout from
+ *    admin Theme settings) onto bridge-local vars (Exzo's stylesheet has no
+ *    CSS custom properties of its own) with the template's factory values as
+ *    fallbacks.
+ * 2. Carry small fixes needed by the React port (no template JS runs).
+ *
+ * Discipline (see themes/README): no universal `*` rules, nothing more
+ * specific than needed, never fight Tailwind utilities on non-themed pages.
+ */
+
+[data-theme="exzo"] {
+  --exzo-primary: var(--ff-color-primary, #b8cd06);
+  --exzo-dark: var(--ff-color-dark, #343434);
+  --exzo-bg: var(--ff-color-bg, #ffffff);
+  --exzo-text: var(--ff-color-text, #888888);
+  --exzo-text-strong: #555555;
+  --exzo-border: var(--ff-color-border, #eeeeee);
+  --exzo-body-font: var(--ff-font-body, "Questrial", sans-serif);
+  --exzo-heading-font: var(--ff-font-heading, "Raleway", sans-serif);
+}
+
+/* Tailwind's `.collapse` utility (visibility: collapse) clashes with
+ * Bootstrap's `.collapse` class. Exzo's own nav does not use navbar-collapse,
+ * but guard any Bootstrap collapse markup rendered inside the theme. */
+.exzo-theme .navbar-collapse {
+  visibility: visible;
+}
+
+/* Exzo's style.css paints EVERY <header> fixed and EVERY <footer> dark via
+ * bare element selectors, which would break non-theme chrome (checkout,
+ * account shells) while the theme stylesheets are active. Neutralize
+ * globally, then restore for the theme's own chrome — ExzoHeader renders
+ * inside a div.exzo-theme wrapper and ExzoFooter is footer.exzo-theme.
+ * (This sheet loads last, so the source-order override is deterministic;
+ * Tailwind positioning utilities on other pages still win on specificity.) */
+header {
+  position: static;
+}
+
+.exzo-theme header {
+  position: fixed;
+}
+
+footer {
+  background: transparent;
+}
+
+footer.exzo-theme {
+  background: var(--exzo-dark, #343434);
+}
+
+/* The template's #loader-wrapper overlay depends on jQuery to fade out; the
+ * React port never renders it, but guard against any stray usage — it is a
+ * fixed full-screen white layer that would blank the page. */
+.exzo-theme #loader-wrapper,
+[data-theme="exzo"] #loader-wrapper {
+  display: none;
+}
+
+/* Animation-library guards: no wow.js/animate runs in the React port. */
+.exzo-theme .wow {
+  visibility: visible !important;
+}
+
+/* global.js sized `.page-height` to the viewport minus the fixed header
+ * (159px desktop / 100px compact). Reproduce that in CSS so hero slides get
+ * their full-bleed height without JS; the template's own media queries
+ * (max-width 991px/767px) still override to 500px/auto. */
+.exzo-theme .swiper-container.page-height,
+.exzo-theme .cell-view.page-height {
+  height: calc(100vh - 159px);
+  min-height: 500px;
+}
+
+/* Hero legibility: Exzo's slides assume dark studio imagery, but CMS slides
+ * can be light photos. A soft scrim keeps the white Raleway headline readable
+ * on any image without visibly dulling already-dark slides. */
+.exzo-theme .exzo-hero .swiper-slide {
+  position: relative;
+}
+
+.exzo-theme .exzo-hero .swiper-slide::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(20, 22, 12, 0.45) 0%,
+    rgba(20, 22, 12, 0.22) 50%,
+    rgba(20, 22, 12, 0.08) 100%
+  );
+  pointer-events: none;
+}
+
+.exzo-theme .exzo-hero .swiper-slide .container {
+  position: relative;
+  z-index: 1;
+}
+
+/* Login page in-flow heading (renders inside the account layout, no
+ * full-bleed banner): keep breadcrumb links off UA blue. */
+.exzo-theme .login-page-heading .breadcrumbs a,
+.exzo-theme .login-page-heading .breadcrumb a,
+.exzo-theme .exzo-login-heading .breadcrumbs a,
+.exzo-theme .exzo-login-heading .breadcrumb a {
+  color: var(--exzo-text);
+  text-decoration: none;
+}
+
+.exzo-theme .login-page-heading .breadcrumbs a:hover,
+.exzo-theme .login-page-heading .breadcrumb a:hover,
+.exzo-theme .exzo-login-heading .breadcrumbs a:hover,
+.exzo-theme .exzo-login-heading .breadcrumb a:hover {
+  color: var(--exzo-primary);
+}
+
+/* Cart page: the React stepper renders <button> where the template used
+ * <span>; strip the UA button chrome so the template's .quantity-select
+ * rules (pill outline, +/- pseudo-glyphs) render as designed. */
+.exzo-theme .quantity-select button.minus,
+.exzo-theme .quantity-select button.plus {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border-width: 0;
+  padding: 0;
+  font-size: 0;
+}
+
+.exzo-theme .quantity-select button.minus {
+  border-right: 1px solid var(--exzo-border);
+}
+
+.exzo-theme .quantity-select button.plus {
+  border-left: 1px solid var(--exzo-border);
+}
+
+.exzo-theme .quantity-select button.minus:hover,
+.exzo-theme .quantity-select button.plus:hover {
+  background: var(--exzo-border);
+}
+
+/* Cart page: shared CartTotals / DiscountCode render Tailwind-styled
+ * internals; just keep their typography on the theme's body font and give
+ * the totals card the template's rounded-outline language. */
+.exzo-theme .exzo-cart-totals {
+  border: 1px solid var(--exzo-border);
+  border-radius: 10px;
+  padding: 30px;
+  font-family: var(--exzo-body-font);
+}
+
+.exzo-theme .exzo-coupon-form {
+  font-family: var(--exzo-body-font);
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared product actions (LeartsActionsWrapper) — Exzo skin.          */
+/* The shared add-to-cart widget emits Learts-era class names that     */
+/* have no rules in the Exzo stylesheet stack; style them here in the  */
+/* theme's own design language: Questrial body, Raleway 700 uppercase  */
+/* labels, lime #b8cd06 accents, pill-radius controls.                 */
+/* ------------------------------------------------------------------ */
+
+.exzo-theme .product-summery {
+  font-family: var(--exzo-body-font);
+  color: var(--exzo-text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.exzo-theme .product-summery a {
+  color: var(--exzo-text-strong);
+  text-decoration: none;
+}
+
+.exzo-theme .product-summery a:hover {
+  color: var(--exzo-primary);
+}
+
+.exzo-theme .product-summery .product-title {
+  font-family: var(--exzo-heading-font);
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1.15;
+  text-transform: uppercase;
+  color: var(--exzo-dark);
+  margin: 6px 0 12px;
+}
+
+.exzo-theme .product-summery .product-price {
+  font-family: var(--exzo-heading-font);
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--exzo-primary);
+  margin-bottom: 16px;
+}
+
+.exzo-theme .product-summery .product-price del {
+  color: var(--exzo-text);
+  opacity: 0.6;
+  font-size: 17px;
+  font-weight: 700;
+  margin-left: 10px;
+}
+
+.exzo-theme .product-summery .product-ratings {
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.exzo-theme .product-summery .star-rating,
+.exzo-theme .product-summery .rating-active {
+  color: var(--exzo-primary);
+}
+
+.exzo-theme .product-summery .review-link {
+  margin-left: 8px;
+  color: var(--exzo-text);
+}
+
+.exzo-theme .product-summery .product-description {
+  line-height: 1.75;
+  margin-bottom: 22px;
+}
+
+.exzo-theme .product-summery .product-variations .label {
+  display: block;
+  font-family: var(--exzo-heading-font);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--exzo-dark);
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.exzo-theme .product-summery .product-variations a,
+.exzo-theme .product-summery .product-variations button {
+  display: inline-block;
+  border: 1px solid var(--exzo-border);
+  border-radius: 20px;
+  background: var(--exzo-bg);
+  color: var(--exzo-text-strong);
+  font-family: var(--exzo-heading-font);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1;
+  padding: 11px 18px 9px;
+  margin: 0 8px 8px 0;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.exzo-theme .product-summery .product-variations a:hover,
+.exzo-theme .product-summery .product-variations button:hover,
+.exzo-theme .product-summery .product-variations a.active,
+.exzo-theme .product-summery .product-variations button.active {
+  background: var(--exzo-primary);
+  border-color: var(--exzo-primary);
+  color: #ffffff;
+}
+
+.exzo-theme .product-summery .product-quantity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 18px;
+}
+
+.exzo-theme .product-summery .product-quantity .qty-btn,
+.exzo-theme .product-summery .product-quantity .input-qty,
+.exzo-theme .product-summery .product-quantity .count {
+  border: 1px solid var(--exzo-border);
+  border-radius: 50%;
+  background: var(--exzo-bg);
+  color: var(--exzo-dark);
+  width: 42px;
+  height: 42px;
+  line-height: 40px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.exzo-theme .product-summery .product-quantity .input-qty {
+  border-radius: 21px;
+  width: 56px;
+}
+
+.exzo-theme .product-summery .product-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.exzo-theme .product-summery .product-buttons .btn {
+  background: var(--exzo-primary);
+  border: 1px solid var(--exzo-primary);
+  border-radius: 25px;
+  color: #ffffff;
+  font-family: var(--exzo-heading-font);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 16px 30px 14px;
+  line-height: 1.3;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.exzo-theme .product-summery .product-buttons .btn:hover {
+  background: var(--exzo-dark);
+  border-color: var(--exzo-dark);
+  color: #ffffff;
+}
+
+.exzo-theme .product-summery .product-buttons .btn-icon {
+  background: transparent;
+  box-shadow: none;
+  color: var(--exzo-dark);
+  padding: 12px 16px;
+}
+
+.exzo-theme .product-summery .product-meta {
+  border-top: 1px solid var(--exzo-border);
+  padding-top: 16px;
+  font-size: 13px;
+}
+
+.exzo-theme .product-summery .product-meta > div {
+  margin-bottom: 6px;
+}
+
+.exzo-theme .product-summery .product-share a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--exzo-border);
+  border-radius: 50%;
+  margin-right: 8px;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared learts-classed pages — Exzo skin.                            */
+/* The CMS contact page and the account area render markup from the    */
+/* shared Learts-era modules (.learts-theme wrappers, page-title       */
+/* strip, section-title2, contact-info, myaccount-*), whose CSS is not */
+/* in the Exzo stylesheet stack. Scoped to .exzo-theme so Tailwind-    */
+/* styled pages (checkout) stay untouched.                             */
+/* ------------------------------------------------------------------ */
+
+.exzo-theme .learts-theme a {
+  color: var(--exzo-text-strong);
+  text-decoration: none;
+}
+
+.exzo-theme .learts-theme a:hover {
+  color: var(--exzo-primary);
+}
+
+.exzo-theme .learts-mb-30 {
+  margin-bottom: 30px;
+}
+
+.exzo-theme .learts-mb-n30 {
+  margin-bottom: -30px;
+}
+
+.exzo-theme .learts-pt-30 {
+  padding-top: 30px;
+}
+
+.exzo-theme .learts-mt-60 {
+  margin-top: 60px;
+}
+
+.exzo-theme .section.section-padding {
+  padding-top: 100px;
+  padding-bottom: 100px;
+}
+
+@media (max-width: 991px) {
+  .exzo-theme .section.section-padding {
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
+}
+
+@media (max-width: 767px) {
+  .exzo-theme .section.section-padding {
+    padding-top: 60px;
+    padding-bottom: 60px;
+  }
+}
+
+/* Utility-page header strip (contact page etc.): restyle the Learts strip
+ * as Exzo's page banner — dark image, white Raleway 900 uppercase title.
+ * !important beats the Learts image set via inline style. */
+.exzo-theme .page-title-section {
+  position: relative;
+  background-image: url("/exzo/img/background-1.jpg") !important;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  padding: 100px 0;
+}
+
+.exzo-theme .page-title-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 22, 12, 0.45);
+  pointer-events: none;
+}
+
+.exzo-theme .page-title-section > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 767px) {
+  .exzo-theme .page-title-section {
+    padding: 60px 0;
+  }
+}
+
+.exzo-theme .page-title .title {
+  font-family: var(--exzo-heading-font);
+  font-size: clamp(28px, 5vw, 48px);
+  font-weight: 900;
+  text-transform: uppercase;
+  line-height: 1.1em;
+  color: #ffffff;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
+  margin-bottom: 12px;
+}
+
+.exzo-theme .page-title .breadcrumb {
+  margin-bottom: 0;
+  background: none;
+  padding: 0;
+}
+
+.exzo-theme .page-title .breadcrumb .breadcrumb-item {
+  display: inline-block;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+
+.exzo-theme .page-title .breadcrumb .breadcrumb-item a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.exzo-theme .page-title .breadcrumb .breadcrumb-item a:hover {
+  color: var(--exzo-primary);
+}
+
+.exzo-theme .page-title .breadcrumb .breadcrumb-item.active {
+  opacity: 0.75;
+}
+
+.exzo-theme
+  .page-title
+  .breadcrumb
+  .breadcrumb-item
+  + .breadcrumb-item::before {
+  color: #ffffff;
+  content: "/";
+  padding: 0 8px;
+}
+
+/* Contact page: section headings. */
+.exzo-theme .section-title2 {
+  margin-bottom: 60px;
+}
+
+.exzo-theme .section-title2 .title {
+  font-family: var(--exzo-heading-font);
+  font-size: clamp(24px, 4vw, 36px);
+  font-weight: 900;
+  text-transform: uppercase;
+  line-height: 1.2em;
+  color: var(--exzo-dark);
+  margin-bottom: 0;
+}
+
+.exzo-theme .section-title2 p {
+  max-width: 570px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--exzo-text);
+  margin-top: 20px;
+  margin-bottom: 0;
+}
+
+.exzo-theme .section-title2.text-center p {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Contact page: address / contact / hours columns. */
+.exzo-theme .contact-info .title {
+  font-family: var(--exzo-heading-font);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  line-height: 1.5;
+  color: var(--exzo-dark);
+  padding-left: 44px;
+  margin-bottom: 14px;
+}
+
+.exzo-theme .contact-info .info {
+  position: relative;
+  display: block;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--exzo-text);
+  padding-left: 44px;
+}
+
+.exzo-theme .contact-info .info:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+.exzo-theme .contact-info .info .icon {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--exzo-primary);
+}
+
+.exzo-theme .contact-info .info a {
+  color: var(--exzo-text-strong);
+  text-decoration: none;
+}
+
+.exzo-theme .contact-info .info a:hover {
+  color: var(--exzo-primary);
+}
+
+.exzo-theme .contact-map {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--exzo-border);
+  border-radius: 10px;
+}
+
+/* Contact page: "Send a message" form — Exzo's rounded input language. */
+.exzo-theme .contact-form input[type="text"],
+.exzo-theme .contact-form input[type="email"],
+.exzo-theme .contact-form textarea {
+  width: 100%;
+  border: 1px solid var(--exzo-border);
+  border-radius: 26px;
+  background: var(--exzo-bg);
+  font-family: var(--exzo-body-font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--exzo-text-strong);
+  padding: 13px 30px;
+  transition: border-color 0.25s ease;
+}
+
+.exzo-theme .contact-form textarea {
+  border-radius: 20px;
+  min-height: 140px;
+}
+
+.exzo-theme .contact-form input[type="text"]::placeholder,
+.exzo-theme .contact-form input[type="email"]::placeholder,
+.exzo-theme .contact-form textarea::placeholder {
+  color: var(--exzo-text);
+  opacity: 1;
+}
+
+.exzo-theme .contact-form input[type="text"]:focus,
+.exzo-theme .contact-form input[type="email"]:focus,
+.exzo-theme .contact-form textarea:focus {
+  border-color: var(--exzo-primary);
+  outline: none;
+}
+
+.exzo-theme .contact-form .btn {
+  background: var(--exzo-primary);
+  border: 1px solid var(--exzo-primary);
+  border-radius: 25px;
+  color: #ffffff;
+  font-family: var(--exzo-heading-font);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 15px 40px 13px;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.exzo-theme .contact-form .btn:hover,
+.exzo-theme .contact-form .btn:focus {
+  background: var(--exzo-dark);
+  border-color: var(--exzo-dark);
+  color: #ffffff;
+}
+
+.exzo-theme .contact-form .btn:disabled {
+  opacity: 0.65;
+}
+
+/* Account area: tab list. */
+.exzo-theme .myaccount-tab-list {
+  border: 1px solid var(--exzo-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--exzo-bg);
+}
+
+.exzo-theme .myaccount-tab-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--exzo-heading-font);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--exzo-dark);
+  text-decoration: none;
+  padding: 15px 20px 13px;
+  transition: all 0.25s ease;
+}
+
+.exzo-theme .myaccount-tab-list a + a {
+  border-top: 1px solid var(--exzo-border);
+}
+
+.exzo-theme .myaccount-tab-list a:hover {
+  background: #f7f7f7;
+  color: var(--exzo-dark);
+}
+
+.exzo-theme .myaccount-tab-list a.active {
+  background: var(--exzo-primary);
+  color: #ffffff;
+  cursor: default;
+}
+
+/* Account area: content column. */
+.exzo-theme .myaccount-content {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--exzo-text);
+}
+
+.exzo-theme .myaccount-content a {
+  color: var(--exzo-text-strong);
+  text-decoration: none;
+}
+
+.exzo-theme .myaccount-content a:hover {
+  color: var(--exzo-primary);
+}
+
+.exzo-theme .myaccount-content table {
+  width: 100%;
+  border: 1px solid var(--exzo-border);
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.exzo-theme .myaccount-content table th,
+.exzo-theme .myaccount-content table td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--exzo-border);
+}
+
+.exzo-theme .myaccount-content table th {
+  background: #f7f7f7;
+  color: var(--exzo-dark);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-family: var(--exzo-heading-font);
+}

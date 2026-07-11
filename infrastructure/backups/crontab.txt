@@ -1,0 +1,4 @@
+# Brand2Door automated backups
+* * * * * /home/ratul/brandtodoor/infrastructure/backups/sync-wal.py >> /home/ratul/brandtodoor/infrastructure/backups/wal-sync.log 2>&1
+0 3 * * * /home/ratul/brandtodoor/infrastructure/backups/pg-dump.py >> /home/ratul/brandtodoor/infrastructure/backups/pg-dump.log 2>&1
+0 6 * * 0 /home/ratul/brandtodoor/infrastructure/backups/test-restore.py >> /home/ratul/brandtodoor/infrastructure/backups/restore-test.log 2>&1

@@ -1,0 +1,97 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
+import { z } from "zod"
+import { resolveMerchant } from "../_helpers"
+
+const AddressSchema = z.object({
+  address_1: z.string().min(1),
+  address_2: z.string().optional(),
+  city: z.string().optional(),
+  country_code: z.string().min(2).max(2),
+  postal_code: z.string().optional(),
+  province: z.string().optional(),
+  phone: z.string().optional(),
+})
+
+const CreateStockLocationSchema = z.object({
+  name: z.string().min(1).max(200),
+  address: AddressSchema.nullable().optional().default(null),
+})
+
+function formatStockLocation(location: any) {
+  const address = location.address || null
+  return {
+    id: location.id,
+    name: location.name,
+    address: address
+      ? {
+          address_1: address.address_1 ?? null,
+          address_2: address.address_2 ?? null,
+          city: address.city ?? null,
+          country_code: address.country_code ?? null,
+          postal_code: address.postal_code ?? null,
+          province: address.province ?? null,
+          phone: address.phone ?? null,
+        }
+      : null,
+    created_at: location.created_at,
+    updated_at: location.updated_at,
+  }
+}
+
+/**
+ * GET /merchant/stock-locations
+ *
+ * Stock locations are GLOBAL in Medusa, so rows are tagged with
+ * metadata.tenant_id at creation and only this tenant's rows are returned.
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const stockLocationModule: any = req.scope.resolve(Modules.STOCK_LOCATION)
+  const all = await stockLocationModule.listStockLocations(
+    {},
+    { take: 500, skip: 0, order: { created_at: "DESC" }, relations: ["address"] }
+  )
+  const locations = (all || []).filter(
+    (l: any) => l.metadata?.tenant_id === ctx.tenant.id
+  )
+
+  res.json({
+    stock_locations: locations.map(formatStockLocation),
+    count: locations.length,
+  })
+}
+
+/**
+ * POST /merchant/stock-locations
+ */
+export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const parsed = CreateStockLocationSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ message: "invalid input", issues: parsed.error.issues })
+  }
+
+  const stockLocationModule: any = req.scope.resolve(Modules.STOCK_LOCATION)
+
+  try {
+    const location = await stockLocationModule.createStockLocations({
+      name: parsed.data.name,
+      address: parsed.data.address
+        ? {
+            ...parsed.data.address,
+            country_code: parsed.data.address.country_code.toUpperCase(),
+          }
+        : undefined,
+      metadata: { tenant_id: ctx.tenant.id },
+    })
+
+    res.status(201).json({ stock_location: formatStockLocation(location) })
+  } catch (err: any) {
+    res.status(400).json({ message: err?.message || "failed to create stock location" })
+  }
+}

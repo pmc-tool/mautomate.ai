@@ -1,0 +1,101 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
+import { z } from "zod"
+import { resolveMerchant } from "../../_helpers"
+
+const UpdateStockLocationSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  address: z
+    .object({
+      address_1: z.string().min(1),
+      address_2: z.string().optional(),
+      city: z.string().optional(),
+      country_code: z.string().min(2).max(2),
+      postal_code: z.string().optional(),
+      province: z.string().optional(),
+      phone: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
+})
+
+function formatStockLocation(location: any) {
+  const address = location.address || null
+  return {
+    id: location.id,
+    name: location.name,
+    address: address
+      ? {
+          address_1: address.address_1 ?? null,
+          address_2: address.address_2 ?? null,
+          city: address.city ?? null,
+          country_code: address.country_code ?? null,
+          postal_code: address.postal_code ?? null,
+          province: address.province ?? null,
+          phone: address.phone ?? null,
+        }
+      : null,
+    created_at: location.created_at,
+    updated_at: location.updated_at,
+  }
+}
+
+async function findOwnedLocation(req: MedusaRequest, tenantId: string, id: string) {
+  const stockLocationModule: any = req.scope.resolve(Modules.STOCK_LOCATION)
+  const [location] = await stockLocationModule.listStockLocations(
+    { id },
+    { take: 1, relations: ["address"] }
+  )
+  if (!location || location.metadata?.tenant_id !== tenantId) return null
+  return location
+}
+
+/**
+ * PUT /merchant/stock-locations/:id
+ *
+ * Only locations tagged with this tenant's metadata.tenant_id can be
+ * updated — other tenants' rows return 404.
+ */
+export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const { id } = req.params
+  const location = await findOwnedLocation(req, ctx.tenant.id, id)
+  if (!location) return res.status(404).json({ message: "stock location not found" })
+
+  const parsed = UpdateStockLocationSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ message: "invalid input", issues: parsed.error.issues })
+  }
+
+  const stockLocationModule: any = req.scope.resolve(Modules.STOCK_LOCATION)
+  const updated = await stockLocationModule.updateStockLocations(id, {
+    name: parsed.data.name ?? undefined,
+    address: parsed.data.address
+      ? {
+          ...parsed.data.address,
+          country_code: parsed.data.address.country_code.toUpperCase(),
+        }
+      : undefined,
+  })
+
+  res.json({ stock_location: formatStockLocation(updated) })
+}
+
+/**
+ * DELETE /merchant/stock-locations/:id
+ */
+export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const { id } = req.params
+  const location = await findOwnedLocation(req, ctx.tenant.id, id)
+  if (!location) return res.status(404).json({ message: "stock location not found" })
+
+  const stockLocationModule: any = req.scope.resolve(Modules.STOCK_LOCATION)
+  await stockLocationModule.deleteStockLocations(id)
+
+  res.json({ id, object: "stock_location", deleted: true })
+}

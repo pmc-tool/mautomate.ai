@@ -1,0 +1,456 @@
+import {
+  ContainerRegistrationKeys,
+  Modules,
+} from "@medusajs/framework/utils"
+import { MedusaContainer } from "@medusajs/framework/types"
+
+import {
+  CommerceAddress,
+  CommerceCustomer,
+  CommerceGateway,
+  CommerceLineItem,
+  CommerceOrder,
+  OrderFilter,
+} from "./commerce-gateway"
+
+/**
+ * Metadata key under which we store the call-center fulfillment-hold flag.
+ *
+ * IMPORTANT: Medusa has NO native concept of a fulfillment hold — it does NOT
+ * gate any fulfillment on this flag. It is purely a call-center construct.
+ * Therefore our own dialer AND any custom fulfillment path (subscribers,
+ * workflows, manual admin actions we own) MUST read this flag via
+ * `isFulfillmentHeld` and refuse to ship when it is `true`. Nothing in stock
+ * Medusa enforces it for us.
+ */
+const FULFILLMENT_HOLD_KEY = "cc_fulfillment_hold"
+
+/**
+ * Metadata key under which we store the call-center tag set (see `setOrderTags`).
+ * These are call-center tags, distinct from any backend-native tagging system.
+ */
+const ORDER_TAGS_KEY = "cc_tags"
+
+/** Fields fetched for a full order graph (order -> items -> shipping_address -> customer). */
+const ORDER_FIELDS = [
+  "id",
+  "display_id",
+  "email",
+  "currency_code",
+  "total",
+  "payment_status",
+  "fulfillment_status",
+  "status",
+  "customer_id",
+  "created_at",
+  "metadata",
+  "items.title",
+  "items.quantity",
+  "items.variant_id",
+  "items.product_id",
+  "shipping_address.first_name",
+  "shipping_address.last_name",
+  "shipping_address.phone",
+  "shipping_address.address_1",
+  "shipping_address.address_2",
+  "shipping_address.city",
+  "shipping_address.province",
+  "shipping_address.postal_code",
+  "shipping_address.country_code",
+  "customer.phone",
+]
+
+const CUSTOMER_FIELDS = [
+  "id",
+  "email",
+  "phone",
+  "first_name",
+  "last_name",
+  "has_account",
+  "addresses.first_name",
+  "addresses.last_name",
+  "addresses.phone",
+  "addresses.address_1",
+  "addresses.address_2",
+  "addresses.city",
+  "addresses.province",
+  "addresses.postal_code",
+  "addresses.country_code",
+]
+
+/**
+ * Medusa-backed implementation of `CommerceGateway`.
+ *
+ * Reads go through the Query graph (one round-trip joins order -> items ->
+ * shipping_address -> customer). Writes go through the module services
+ * (Modules.ORDER / Modules.CUSTOMER). Everything is mapped to the normalized,
+ * backend-agnostic DTOs before it leaves this class.
+ *
+ * `tenantId` is currently accepted-but-unscoped (single-tenant store). Every
+ * place it would eventually constrain a query/write is marked with
+ * `TODO(tenancy)`.
+ */
+export class MedusaCommerceGateway implements CommerceGateway {
+  private readonly container: MedusaContainer
+
+  constructor(container: MedusaContainer) {
+    this.container = container
+  }
+
+  private get query() {
+    return this.container.resolve(ContainerRegistrationKeys.QUERY)
+  }
+
+  private get orderService(): any {
+    return this.container.resolve(Modules.ORDER)
+  }
+
+  private get customerService(): any {
+    return this.container.resolve(Modules.CUSTOMER)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reads
+  // ---------------------------------------------------------------------------
+
+  async getOrder(
+    tenantId: string,
+    orderId: string
+  ): Promise<CommerceOrder | null> {
+    // TODO(tenancy): scope by store/sales_channel — add e.g.
+    // `sales_channel_id: tenantToSalesChannel(tenantId)` to the filters below.
+    const { data } = await this.query.graph({
+      entity: "order",
+      fields: ORDER_FIELDS,
+      filters: { id: orderId },
+    })
+
+    const order = data?.[0]
+    return order ? this.toCommerceOrder(order) : null
+  }
+
+  async queryOrders(
+    tenantId: string,
+    filter: OrderFilter
+  ): Promise<CommerceOrder[]> {
+    const filters: Record<string, unknown> = {}
+
+    if (filter.payment_status) {
+      filters.payment_status = filter.payment_status
+    }
+    if (filter.fulfillment_status) {
+      filters.fulfillment_status = filter.fulfillment_status
+    }
+    if (filter.status) {
+      filters.status = filter.status
+    }
+    if (filter.region_id) {
+      filters.region_id = filter.region_id
+    }
+    if (filter.created_after !== undefined) {
+      // Query graph supports operator filters via `$gt`.
+      // TODO(verify): confirm `created_at: { $gt }` operator syntax for the
+      // order entity in this Medusa version (v2.17).
+      filters.created_at = { $gt: this.toDate(filter.created_after) }
+    }
+    // TODO(tenancy): scope by store/sales_channel here as well.
+
+    const { data } = await this.query.graph({
+      entity: "order",
+      fields: ORDER_FIELDS,
+      filters,
+      pagination: {
+        skip: filter.offset ?? 0,
+        take: filter.limit ?? 50,
+        order: { created_at: "DESC" },
+      },
+    })
+
+    let orders = (data ?? []).map((o: any) => this.toCommerceOrder(o))
+
+    // `country_code` lives on the shipping address, not a top-level order
+    // column, so it is filtered in-memory after the join.
+    if (filter.country_code) {
+      const cc = filter.country_code.toLowerCase()
+      orders = orders.filter(
+        (o: CommerceOrder) =>
+          o.shipping_address?.country_code?.toLowerCase() === cc
+      )
+    }
+
+    return orders
+  }
+
+  async getCustomer(
+    tenantId: string,
+    customerId: string
+  ): Promise<CommerceCustomer | null> {
+    // TODO(tenancy): scope by store/sales_channel.
+    const { data } = await this.query.graph({
+      entity: "customer",
+      fields: CUSTOMER_FIELDS,
+      filters: { id: customerId },
+    })
+
+    const customer = data?.[0]
+    return customer ? this.toCommerceCustomer(customer) : null
+  }
+
+  async findCustomersByPhone(
+    tenantId: string,
+    phoneE164: string
+  ): Promise<CommerceCustomer[]> {
+    // TODO(tenancy): scope by store/sales_channel on both queries below.
+
+    // 1. Registered customers whose account phone matches.
+    const { data: customerRows } = await this.query.graph({
+      entity: "customer",
+      fields: CUSTOMER_FIELDS,
+      filters: { phone: phoneE164 },
+    })
+
+    const results: CommerceCustomer[] = (customerRows ?? []).map((c: any) =>
+      this.toCommerceCustomer(c)
+    )
+    const seen = new Set(results.map((c) => c.id))
+
+    // 2. Guests: match orders whose shipping_address.phone equals the number,
+    //    and surface a synthetic customer for each unique guest that is not
+    //    already covered by a registered account above.
+    // Medusa's order Query-graph filters don't support a nested
+    // shipping_address.phone predicate, so fetch a bounded recent window and
+    // match in-memory (the loop below re-checks addr.phone).
+    // TODO(perf): index guest phones (a dedicated phone column / search index)
+    // instead of scanning recent orders once this is on the live inbound path.
+    const { data: orderRows } = await this.query.graph({
+      entity: "order",
+      fields: [
+        "id",
+        "email",
+        "customer_id",
+        "shipping_address.first_name",
+        "shipping_address.last_name",
+        "shipping_address.phone",
+        "shipping_address.address_1",
+        "shipping_address.address_2",
+        "shipping_address.city",
+        "shipping_address.province",
+        "shipping_address.postal_code",
+        "shipping_address.country_code",
+      ],
+      pagination: { take: 500, order: { created_at: "DESC" } },
+    })
+
+    for (const order of orderRows ?? []) {
+      const addr = order?.shipping_address
+      if (!addr || addr.phone !== phoneE164) {
+        continue
+      }
+      // If this order belongs to a registered customer we already returned,
+      // skip — that account is the better record.
+      if (order.customer_id && seen.has(order.customer_id)) {
+        continue
+      }
+
+      // Key guests by customer_id when present, otherwise by the phone itself
+      // so we do not emit one synthetic record per guest order.
+      const guestKey = order.customer_id ?? `guest:${phoneE164}`
+      if (seen.has(guestKey)) {
+        continue
+      }
+      seen.add(guestKey)
+
+      results.push({
+        id: order.customer_id ?? guestKey,
+        email: order.email ?? null,
+        phone: phoneE164,
+        first_name: addr.first_name ?? null,
+        last_name: addr.last_name ?? null,
+        has_account: Boolean(order.customer_id),
+        addresses: [this.toCommerceAddress(addr)].filter(
+          (a): a is CommerceAddress => a !== null
+        ),
+      })
+    }
+
+    return results
+  }
+
+  // ---------------------------------------------------------------------------
+  // Writes
+  // ---------------------------------------------------------------------------
+
+  async updateOrderMetadata(
+    tenantId: string,
+    orderId: string,
+    patch: Record<string, unknown>
+  ): Promise<void> {
+    // TODO(tenancy): verify the order belongs to `tenantId` before mutating.
+    const current = await this.readOrderMetadata(orderId)
+    const metadata = { ...current, ...patch }
+    // updateOrders(orderId, data) overload.
+    await this.orderService.updateOrders(orderId, { metadata })
+  }
+
+  async setOrderTags(
+    tenantId: string,
+    orderId: string,
+    tags: string[]
+  ): Promise<void> {
+    // Tags are a call-center concept persisted in order metadata.
+    await this.updateOrderMetadata(tenantId, orderId, {
+      [ORDER_TAGS_KEY]: tags,
+    })
+  }
+
+  async cancelOrder(
+    tenantId: string,
+    orderId: string,
+    reason: string
+  ): Promise<void> {
+    // TODO(tenancy): verify the order belongs to `tenantId` before cancelling.
+
+    // Record the reason in metadata first so it survives regardless of how the
+    // cancel path stores its own bookkeeping.
+    await this.updateOrderMetadata(tenantId, orderId, {
+      cc_cancel_reason: reason,
+      cc_canceled_at: new Date().toISOString(),
+    })
+
+    // TODO(verify): `cancel(orderId)` is the order module's cancel entrypoint in
+    // v2.17. Depending on business rules you may instead want to run the
+    // `cancelOrderWorkflow` from @medusajs/core-flows so payment/fulfillment
+    // side-effects and validations run. This does a direct module cancel.
+    await this.orderService.cancel(orderId)
+  }
+
+  async markFulfillmentHold(
+    tenantId: string,
+    orderId: string,
+    held: boolean
+  ): Promise<void> {
+    // Purely a call-center flag — see FULFILLMENT_HOLD_KEY note. Nothing in
+    // Medusa reacts to this; our own dialer / fulfillment path must honor it.
+    await this.updateOrderMetadata(tenantId, orderId, {
+      [FULFILLMENT_HOLD_KEY]: held,
+    })
+  }
+
+  async isFulfillmentHeld(tenantId: string, orderId: string): Promise<boolean> {
+    const metadata = await this.readOrderMetadata(orderId)
+    return metadata[FULFILLMENT_HOLD_KEY] === true
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internal helpers
+  // ---------------------------------------------------------------------------
+
+  /** Fetch just the metadata bag for an order (used before a shallow merge). */
+  private async readOrderMetadata(
+    orderId: string
+  ): Promise<Record<string, unknown>> {
+    const { data } = await this.query.graph({
+      entity: "order",
+      fields: ["id", "metadata"],
+      filters: { id: orderId },
+    })
+    return (data?.[0]?.metadata as Record<string, unknown>) ?? {}
+  }
+
+  private toDate(value: string | number | Date): Date {
+    return value instanceof Date ? value : new Date(value)
+  }
+
+  private toCommerceOrder(order: any): CommerceOrder {
+    const items: CommerceLineItem[] = (order.items ?? []).map((it: any) => ({
+      title: it.title ?? "",
+      quantity: Number(it.quantity ?? 0),
+      variant_id: it.variant_id ?? null,
+      product_id: it.product_id ?? null,
+    }))
+
+    return {
+      id: order.id,
+      display_id: order.display_id ?? null,
+      email: order.email ?? null,
+      // Prefer the shipping address phone (what a caller dials), fall back to
+      // the account phone joined from the customer.
+      phone: order.shipping_address?.phone ?? order.customer?.phone ?? null,
+      currency_code: order.currency_code ?? null,
+      total: this.toNumber(order.total),
+      payment_status: order.payment_status ?? null,
+      fulfillment_status: order.fulfillment_status ?? null,
+      status: order.status ?? null,
+      items,
+      shipping_address: this.toCommerceAddress(order.shipping_address),
+      customer_id: order.customer_id ?? null,
+      created_at: this.toIso(order.created_at),
+      metadata: (order.metadata as Record<string, unknown>) ?? {},
+    }
+  }
+
+  private toCommerceCustomer(customer: any): CommerceCustomer {
+    const addresses: CommerceAddress[] = (customer.addresses ?? [])
+      .map((a: any) => this.toCommerceAddress(a))
+      .filter((a: CommerceAddress | null): a is CommerceAddress => a !== null)
+
+    return {
+      id: customer.id,
+      email: customer.email ?? null,
+      phone: customer.phone ?? null,
+      first_name: customer.first_name ?? null,
+      last_name: customer.last_name ?? null,
+      has_account: Boolean(customer.has_account),
+      addresses,
+    }
+  }
+
+  private toCommerceAddress(addr: any): CommerceAddress | null {
+    if (!addr) {
+      return null
+    }
+    const name =
+      [addr.first_name, addr.last_name].filter(Boolean).join(" ").trim() || null
+    return {
+      name,
+      phone: addr.phone ?? null,
+      address_1: addr.address_1 ?? null,
+      address_2: addr.address_2 ?? null,
+      city: addr.city ?? null,
+      province: addr.province ?? null,
+      postal_code: addr.postal_code ?? null,
+      country_code: addr.country_code ?? null,
+    }
+  }
+
+  /** Medusa money fields are BigNumberValue (number | string | BigNumber-like). */
+  private toNumber(value: unknown): number {
+    if (value == null) {
+      return 0
+    }
+    if (typeof value === "number") {
+      return value
+    }
+    if (typeof value === "string") {
+      const n = Number(value)
+      return Number.isFinite(n) ? n : 0
+    }
+    // BigNumber-like object exposes `numeric` / `valueOf`.
+    const anyVal = value as any
+    if (typeof anyVal.numeric === "number") {
+      return anyVal.numeric
+    }
+    const n = Number(anyVal)
+    return Number.isFinite(n) ? n : 0
+  }
+
+  private toIso(value: unknown): string | null {
+    if (!value) {
+      return null
+    }
+    if (value instanceof Date) {
+      return value.toISOString()
+    }
+    return String(value)
+  }
+}

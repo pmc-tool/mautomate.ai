@@ -1,0 +1,627 @@
+/* Helendo theme — bridge sheet. Loaded LAST after the Helendo template CSS.
+ *
+ * Purpose:
+ * 1. Expose the CMS-editable --ff-* theme vars (injected by the root layout
+ *    from admin Theme settings) as Helendo-scoped variables with the
+ *    template's factory values as fallbacks. Helendo's own stylesheet is
+ *    hardcoded (no custom properties), so these vars drive every rule the
+ *    bridge owns (skins for shared markup, React-port fixes).
+ * 2. Carry small fixes needed by the React port (no template JS runs).
+ *
+ * Discipline (see themes/README): no universal `*` rules, nothing more
+ * specific than needed, never fight Tailwind utilities on non-themed pages.
+ */
+
+[data-theme="helendo"] {
+  --hl-primary: var(--ff-primary, #dcb14a);
+  --hl-dark: var(--ff-dark, #000000);
+  --hl-heading: var(--ff-heading, #111111);
+  --hl-text: var(--ff-text, #666666);
+  --hl-border: var(--ff-border, #ededed);
+  --hl-bg: var(--ff-bg, #ffffff);
+  --hl-surface: #f4f5f7;
+  --hl-font-body: var(--ff-font-body, "Roboto", sans-serif);
+  --hl-font-heading: var(--ff-font-heading, "Roboto", sans-serif);
+}
+
+/* Tailwind's `.collapse` utility (visibility: collapse) beats Bootstrap's
+ * `.collapse` class if any Bootstrap collapse markup renders inside the
+ * theme (vendor.min.css bundles Bootstrap 4). Bootstrap semantics win. */
+.helendo-theme .navbar-collapse {
+  visibility: visible;
+}
+
+/* The template's preloader overlay depends on JS to fade out; the React
+ * port never renders it, but guard against any stray markup. */
+[data-theme="helendo"] .preloader-activate,
+[data-theme="helendo"] .preloader-area,
+[data-theme="helendo"] .preloader {
+  display: none;
+}
+
+/* WOW.js / scroll-reveal animations never run in the React port; keep any
+ * element carrying the template's animation classes visible. */
+.helendo-theme .wow {
+  visibility: visible !important;
+}
+
+/* Sticky header: the template toggles .is-sticky via JS on scroll; the
+ * React header applies the class itself. Keep the resting state in normal
+ * flow so the header never disappears without JS. (.header-sticky is only
+ * position:fixed when .is-sticky is present, so this is belt-and-braces.) */
+.helendo-theme .header-sticky:not(.is-sticky) {
+  position: relative;
+}
+
+/* The template's jQuery set data-bg backgrounds and .bg-img only carries a
+ * grey fallback; React components set backgroundImage inline — make sure
+ * every bg-img pane paints it like the template intended. */
+.helendo-theme .bg-img {
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+}
+
+/* Hero legibility: the template's hero copy is near-black on pale studio
+ * photography, but CMS slides can supply dark imagery. A soft left-side
+ * WHITE scrim keeps the dark headline readable on any image without
+ * visibly changing the factory light slides. */
+.helendo-theme .single-hero-slider-one.has-bg-image {
+  position: relative;
+}
+
+.helendo-theme .single-hero-slider-one.has-bg-image::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(255, 255, 255, 0.42) 45%,
+    rgba(255, 255, 255, 0.05) 75%
+  );
+  pointer-events: none;
+}
+
+.helendo-theme .single-hero-slider-one.has-bg-image .container {
+  position: relative;
+  z-index: 1;
+}
+
+/* Cart quantity stepper: the template styles JS-injected .qtybutton
+ * DIVs inside .quickview-quality .cart-plus-minus; the React port
+ * renders real <button> elements, so strip the UA button chrome and
+ * give the box the border the jQuery-era markup showed. */
+.helendo-theme .quickview-quality .cart-plus-minus {
+  border: 1px solid var(--hl-border);
+}
+
+.helendo-theme .quickview-quality .cart-plus-minus button.qtybutton {
+  background: transparent;
+  border: none;
+  padding: 0;
+  width: 24px;
+  color: var(--hl-heading);
+}
+
+.helendo-theme .quickview-quality .cart-plus-minus button.qtybutton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Login page in-flow heading (renders inside the account layout, no
+ * full-bleed banner): keep breadcrumb links on brand colors, not UA blue. */
+.helendo-theme .login-page-heading .breadcrumb a {
+  color: var(--hl-heading);
+  text-decoration: none;
+}
+
+.helendo-theme .login-page-heading .breadcrumb a:hover {
+  color: var(--hl-primary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared product actions (LeartsActionsWrapper) — Helendo skin.       */
+/* The shared add-to-cart widget emits Learts-era class names that     */
+/* have no rules in the Helendo stylesheet stack; style them here in   */
+/* the theme's own design language (Roboto, black buttons, gold        */
+/* accents, squared corners).                                          */
+/* ------------------------------------------------------------------ */
+
+.helendo-theme .product-summery {
+  font-family: var(--hl-font-body);
+  color: var(--hl-text);
+}
+
+.helendo-theme .product-summery a {
+  color: var(--hl-heading);
+  text-decoration: none;
+}
+
+.helendo-theme .product-summery a:hover {
+  color: var(--hl-primary);
+}
+
+.helendo-theme .product-summery .product-title {
+  font-family: var(--hl-font-heading);
+  font-size: 30px;
+  font-weight: 500;
+  color: var(--hl-heading);
+  margin: 6px 0 10px;
+}
+
+.helendo-theme .product-summery .product-price {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--hl-dark);
+  margin-bottom: 14px;
+}
+
+.helendo-theme .product-summery .product-price del {
+  color: var(--hl-text);
+  opacity: 0.55;
+  font-size: 17px;
+  font-weight: 400;
+  margin-left: 10px;
+}
+
+.helendo-theme .product-summery .product-ratings {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.helendo-theme .product-summery .star-rating,
+.helendo-theme .product-summery .rating-active {
+  color: var(--hl-primary);
+}
+
+.helendo-theme .product-summery .review-link {
+  margin-left: 8px;
+  color: var(--hl-text);
+}
+
+.helendo-theme .product-summery .product-description {
+  line-height: 1.74;
+  margin-bottom: 22px;
+}
+
+.helendo-theme .product-summery .product-variations .label {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--hl-heading);
+  margin-bottom: 8px;
+}
+
+.helendo-theme .product-summery .product-variations a,
+.helendo-theme .product-summery .product-variations button {
+  display: inline-block;
+  border: 1px solid var(--hl-border);
+  background: transparent;
+  color: var(--hl-heading);
+  font-size: 13px;
+  line-height: 1;
+  padding: 10px 16px;
+  margin: 0 8px 8px 0;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.helendo-theme .product-summery .product-variations a:hover,
+.helendo-theme .product-summery .product-variations button:hover,
+.helendo-theme .product-summery .product-variations a.active,
+.helendo-theme .product-summery .product-variations button.active {
+  background: var(--hl-dark);
+  border-color: var(--hl-dark);
+  color: var(--hl-bg);
+}
+
+.helendo-theme .product-summery .product-quantity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 18px;
+}
+
+.helendo-theme .product-summery .product-quantity .qty-btn,
+.helendo-theme .product-summery .product-quantity .input-qty,
+.helendo-theme .product-summery .product-quantity .count {
+  border: 1px solid var(--hl-border);
+  background: var(--hl-bg);
+  color: var(--hl-heading);
+  width: 42px;
+  height: 42px;
+  line-height: 40px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.helendo-theme .product-summery .product-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.helendo-theme .product-summery .product-buttons .btn {
+  background: var(--hl-dark);
+  border: 1px solid var(--hl-dark);
+  color: var(--hl-bg);
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 13px 30px;
+  border-radius: 0;
+  transition: all 0.3s ease;
+}
+
+.helendo-theme .product-summery .product-buttons .btn:hover {
+  background: var(--hl-primary);
+  border-color: var(--hl-primary);
+  color: var(--hl-bg);
+}
+
+.helendo-theme .product-summery .product-buttons .btn-icon {
+  background: transparent;
+  color: var(--hl-heading);
+  padding: 12px 16px;
+}
+
+.helendo-theme .product-summery .product-meta {
+  border-top: 1px solid var(--hl-border);
+  padding-top: 16px;
+  font-size: 14px;
+}
+
+.helendo-theme .product-summery .product-meta > div {
+  margin-bottom: 6px;
+}
+
+.helendo-theme .product-summery .product-share a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--hl-border);
+  border-radius: 50%;
+  margin-right: 8px;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared learts-classed pages — Helendo skin.                         */
+/* The CMS contact page and the account area render markup from the    */
+/* shared Learts-era modules (.learts-theme wrappers, page-title       */
+/* strip, section-title2, contact-info, myaccount-*), whose CSS is not */
+/* in the Helendo stylesheet stack. Everything below is scoped to      */
+/* .helendo-theme so Tailwind-styled pages (checkout) stay untouched.  */
+/* ------------------------------------------------------------------ */
+
+.helendo-theme .learts-theme a {
+  color: var(--hl-heading);
+  text-decoration: none;
+}
+
+.helendo-theme .learts-theme a:hover {
+  color: var(--hl-primary);
+}
+
+/* Learts spacing utilities carried by the shared markup. */
+.helendo-theme .learts-mb-30 {
+  margin-bottom: 30px;
+}
+
+.helendo-theme .learts-mb-n30 {
+  margin-bottom: -30px;
+}
+
+.helendo-theme .learts-pt-30 {
+  padding-top: 30px;
+}
+
+.helendo-theme .learts-mt-60 {
+  margin-top: 60px;
+}
+
+.helendo-theme .section.section-padding {
+  padding-top: 100px;
+  padding-bottom: 100px;
+}
+
+@media (max-width: 991px) {
+  .helendo-theme .section.section-padding {
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
+}
+
+@media (max-width: 767px) {
+  .helendo-theme .section.section-padding {
+    padding-top: 60px;
+    padding-bottom: 60px;
+  }
+}
+
+/* Utility-page header strip (the "Contact us" banner): restyle the
+ * Learts strip as Helendo's own breadcrumb band — the template's light
+ * grey #f4f5f7 panel with black title. !important beats the Learts
+ * image set inline. */
+.helendo-theme .page-title-section {
+  position: relative;
+  background-image: none !important;
+  background-color: var(--hl-surface);
+  padding: 80px 0;
+}
+
+@media (max-width: 767px) {
+  .helendo-theme .page-title-section {
+    padding: 50px 0;
+  }
+}
+
+.helendo-theme .page-title .title {
+  font-family: var(--hl-font-heading);
+  font-size: clamp(30px, 4.5vw, 44px);
+  font-weight: 500;
+  line-height: 1.15em;
+  color: var(--hl-heading);
+  margin-bottom: 10px;
+}
+
+.helendo-theme .page-title .breadcrumb {
+  margin-bottom: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.helendo-theme .page-title .breadcrumb .breadcrumb-item {
+  font-size: 15px;
+  text-transform: capitalize;
+  color: var(--hl-text);
+}
+
+.helendo-theme .page-title .breadcrumb .breadcrumb-item a {
+  color: var(--hl-heading);
+  text-decoration: none;
+}
+
+.helendo-theme .page-title .breadcrumb .breadcrumb-item a:hover {
+  color: var(--hl-primary);
+}
+
+.helendo-theme .page-title .breadcrumb .breadcrumb-item.active {
+  color: var(--hl-primary);
+}
+
+.helendo-theme
+  .page-title
+  .breadcrumb
+  .breadcrumb-item
+  + .breadcrumb-item::before {
+  color: var(--hl-text);
+}
+
+/* Contact page: "Keep in touch with us" / "Send a message" headings. */
+.helendo-theme .section-title2 {
+  margin-bottom: 60px;
+}
+
+.helendo-theme .section-title2 .title {
+  font-family: var(--hl-font-heading);
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 500;
+  line-height: 1.2em;
+  color: var(--hl-heading);
+  margin-bottom: 0;
+  position: relative;
+  padding-bottom: 12px;
+}
+
+.helendo-theme .section-title2 .title::after {
+  position: absolute;
+  content: "";
+  left: 0;
+  bottom: 0;
+  background: var(--hl-primary);
+  height: 4px;
+  width: 70px;
+}
+
+.helendo-theme .section-title2.text-center .title::after {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.helendo-theme .section-title2 p {
+  max-width: 570px;
+  line-height: 1.75;
+  color: var(--hl-text);
+  margin-top: 20px;
+  margin-bottom: 0;
+}
+
+.helendo-theme .section-title2.text-center p {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Contact page: address / contact / hours columns. */
+.helendo-theme .contact-info .title {
+  font-family: var(--hl-font-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  line-height: 1.5;
+  color: var(--hl-heading);
+  padding-left: 44px;
+  margin-bottom: 14px;
+}
+
+.helendo-theme .contact-info .info {
+  position: relative;
+  display: block;
+  line-height: 1.7;
+  color: var(--hl-text);
+  padding-left: 44px;
+}
+
+.helendo-theme .contact-info .info:not(:last-child) {
+  margin-bottom: 8px;
+}
+
+.helendo-theme .contact-info .info .icon {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--hl-primary);
+}
+
+.helendo-theme .contact-info .info a {
+  color: var(--hl-heading);
+  text-decoration: none;
+}
+
+.helendo-theme .contact-info .info a:hover {
+  color: var(--hl-primary);
+}
+
+.helendo-theme .contact-map {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--hl-border);
+}
+
+/* Contact page: "Send a message" form. The shared form emits bare
+ * inputs (no .form-control), so Helendo's own form rules never reach
+ * them. Same input/button language as the product-summery skin. */
+.helendo-theme .contact-form input[type="text"],
+.helendo-theme .contact-form input[type="email"],
+.helendo-theme .contact-form textarea {
+  width: 100%;
+  border: 1px solid var(--hl-border);
+  border-radius: 0;
+  background: var(--hl-bg);
+  font-family: var(--hl-font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--hl-heading);
+  padding: 13px 18px;
+  transition: border-color 0.25s ease;
+}
+
+.helendo-theme .contact-form input[type="text"]::placeholder,
+.helendo-theme .contact-form input[type="email"]::placeholder,
+.helendo-theme .contact-form textarea::placeholder {
+  color: var(--hl-text);
+  opacity: 0.7;
+}
+
+.helendo-theme .contact-form input[type="text"]:focus,
+.helendo-theme .contact-form input[type="email"]:focus,
+.helendo-theme .contact-form textarea:focus {
+  border-color: var(--hl-dark);
+  outline: none;
+}
+
+.helendo-theme .contact-form .btn {
+  background: var(--hl-dark);
+  border: 1px solid var(--hl-dark);
+  border-radius: 0;
+  color: var(--hl-bg);
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 14px 40px;
+  transition: all 0.3s ease;
+}
+
+.helendo-theme .contact-form .btn:hover,
+.helendo-theme .contact-form .btn:focus {
+  background: var(--hl-primary);
+  border-color: var(--hl-primary);
+  color: var(--hl-bg);
+}
+
+.helendo-theme .contact-form .btn:disabled {
+  opacity: 0.65;
+}
+
+/* Account area: tab list (Dashboard / Account Details / Addresses /
+ * Orders / Logout). */
+.helendo-theme .myaccount-tab-list {
+  border: 1px solid var(--hl-border);
+  background: var(--hl-bg);
+}
+
+.helendo-theme .myaccount-tab-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--hl-font-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--hl-heading);
+  text-decoration: none;
+  padding: 14px 20px;
+  transition: all 0.25s ease;
+}
+
+.helendo-theme .myaccount-tab-list a + a {
+  border-top: 1px solid var(--hl-border);
+}
+
+.helendo-theme .myaccount-tab-list a:hover {
+  background: var(--hl-surface);
+  color: var(--hl-primary);
+}
+
+.helendo-theme .myaccount-tab-list a.active {
+  background: var(--hl-dark);
+  color: var(--hl-bg);
+  cursor: default;
+}
+
+/* Account area: content column. */
+.helendo-theme .myaccount-content {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--hl-text);
+}
+
+.helendo-theme .myaccount-content a {
+  color: var(--hl-heading);
+  text-decoration: none;
+}
+
+.helendo-theme .myaccount-content a:hover {
+  color: var(--hl-primary);
+}
+
+/* Order tables, if a view renders one inside the account content. */
+.helendo-theme .myaccount-content table {
+  width: 100%;
+  border: 1px solid var(--hl-border);
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.helendo-theme .myaccount-content table th,
+.helendo-theme .myaccount-content table td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hl-border);
+}
+
+.helendo-theme .myaccount-content table th {
+  background: var(--hl-surface);
+  color: var(--hl-heading);
+  font-weight: 500;
+}
