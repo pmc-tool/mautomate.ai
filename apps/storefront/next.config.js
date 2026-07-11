@@ -21,6 +21,7 @@ const MEDIA_S3_HOST = process.env.NEXT_PUBLIC_MEDIA_S3_HOST
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   reactStrictMode: true,
   async rewrites() {
     // Proxy the analytics tracker + collector through the storefront so Umami

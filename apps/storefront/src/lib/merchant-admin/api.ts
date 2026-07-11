@@ -4050,3 +4050,487 @@ export async function testNotificationTemplate(
     body: to ? { to } : {},
   })
 }
+
+
+// ===== Products parity (Medusa admin UX) additions 2026-07-12 =====
+
+export type ProductListItem = {
+  id: string
+  title: string
+  handle: string
+  status: string
+  thumbnail?: string | null
+  collection?: { id: string; title: string } | null
+  type?: { id: string; value: string } | null
+  tags?: { id: string; value: string }[]
+  variants_count: number
+  sales_channels?: { id: string; name: string }[]
+  created_at: string
+  updated_at?: string
+}
+
+
+
+export type ListProductsPagedParams = {
+  q?: string
+  offset?: number
+  limit?: number
+  status?: string[]
+  type_id?: string[]
+  tag_id?: string[]
+  collection_id?: string[]
+  category_id?: string[]
+  order?: string
+}
+
+
+
+export async function listProductsPaged(
+  token: string,
+  params: ListProductsPagedParams = {}
+): Promise<{ products: ProductListItem[]; count: number }> {
+  const search = new URLSearchParams()
+  if (params.q) search.set("q", params.q)
+  if (params.offset !== undefined) search.set("offset", String(params.offset))
+  if (params.limit !== undefined) search.set("limit", String(params.limit))
+  if (params.order) search.set("order", params.order)
+  if (params.status?.length) search.set("status", params.status.join(","))
+  if (params.type_id?.length) search.set("type_id", params.type_id.join(","))
+  if (params.tag_id?.length) search.set("tag_id", params.tag_id.join(","))
+  if (params.collection_id?.length) {
+    search.set("collection_id", params.collection_id.join(","))
+  }
+  if (params.category_id?.length) {
+    search.set("category_id", params.category_id.join(","))
+  }
+  const qs = search.toString()
+  return request<{ products: ProductListItem[]; count: number }>(
+    `/merchant/products${qs ? `?${qs}` : ""}`,
+    { token }
+  )
+}
+
+
+
+export type ProductFullVariant = {
+  id: string
+  title: string
+  sku: string | null
+  barcode: string | null
+  ean: string | null
+  upc: string | null
+  options: ProductFullVariantOption[]
+  prices: ProductFullVariantPrice[]
+  inventory_quantity?: number
+  manage_inventory: boolean
+  allow_backorder: boolean
+  // Optional attribute fields; returned when the backend includes them.
+  weight?: number | null
+  length?: number | null
+  height?: number | null
+  width?: number | null
+  mid_code?: string | null
+  hs_code?: string | null
+  origin_country?: string | null
+  material?: string | null
+  metadata?: Record<string, any> | null
+  created_at: string
+  updated_at: string
+}
+
+
+
+export type ProductFull = {
+  id: string
+  title: string
+  subtitle?: string | null
+  handle: string
+  description?: string | null
+  status: string
+  thumbnail?: string | null
+  images: { id: string; url: string; rank?: number }[]
+  options: {
+    id: string
+    title: string
+    values: { id: string; value: string; rank?: number | null }[]
+  }[]
+  variants: ProductFullVariant[]
+  collection?: { id: string; title: string } | null
+  categories?: { id: string; name: string }[]
+  type?: { id: string; value: string } | null
+  tags?: { id: string; value: string }[]
+  sales_channels?: { id: string; name: string }[]
+  shipping_profile?: { id: string; name: string } | null
+  weight?: number | null
+  length?: number | null
+  height?: number | null
+  width?: number | null
+  mid_code?: string | null
+  hs_code?: string | null
+  origin_country?: string | null
+  material?: string | null
+  discountable?: boolean
+  external_id?: string | null
+  metadata?: Record<string, any> | null
+  created_at: string
+  updated_at?: string
+}
+
+
+
+export async function getProductFull(
+  token: string,
+  id: string
+): Promise<{ product: ProductFullDetail }> {
+  return request<{ product: ProductFullDetail }>(
+    `/merchant/products/${id}?full=1`,
+    { token }
+  )
+}
+
+
+
+export async function createProductOption(
+  token: string,
+  productId: string,
+  payload: { title: string; values: string[] }
+): Promise<{ product_option: ProductOption }> {
+  return request<{ product_option: ProductOption }>(
+    `/merchant/products/${productId}/options`,
+    { method: "POST", token, body: payload }
+  )
+}
+
+
+
+export async function updateProductOption(
+  token: string,
+  productId: string,
+  optionId: string,
+  payload: { title?: string; values?: string[] }
+): Promise<{ product_option: ProductOption }> {
+  return request<{ product_option: ProductOption }>(
+    `/merchant/products/${productId}/options/${optionId}`,
+    { method: "POST", token, body: payload }
+  )
+}
+
+
+
+export async function deleteProductOption(
+  token: string,
+  productId: string,
+  optionId: string
+): Promise<void> {
+  await request<{ id: string; object: string; deleted: boolean }>(
+    `/merchant/products/${productId}/options/${optionId}`,
+    { method: "DELETE", token }
+  )
+}
+
+
+
+export async function listStoreCurrencies(
+  token: string
+): Promise<{ currencies: string[]; default_currency: string }> {
+  return request<{ currencies: string[]; default_currency: string }>(
+    "/merchant/store/currencies",
+    { token }
+  )
+}
+
+export type VariantPriceInput = {
+  currency_code: string
+  amount: number
+}
+
+
+
+export type CreateVariantInput = {
+  title?: string
+  sku?: string
+  barcode?: string
+  ean?: string
+  upc?: string
+  manage_inventory?: boolean
+  allow_backorder?: boolean
+  options: Record<string, string>
+  prices: { currency_code: string; amount: number }[]
+}
+
+
+
+export type UpdateVariantInput = {
+  title?: string
+  material?: string | null
+  sku?: string | null
+  barcode?: string | null
+  ean?: string | null
+  upc?: string | null
+  manage_inventory?: boolean
+  allow_backorder?: boolean
+  options?: Record<string, string>
+  prices?: VariantPriceInput[]
+  weight?: number | null
+  length?: number | null
+  height?: number | null
+  width?: number | null
+  mid_code?: string | null
+  hs_code?: string | null
+  origin_country?: string | null
+  metadata?: Record<string, unknown> | null
+}
+
+
+
+export async function createVariant(
+  token: string,
+  productId: string,
+  payload: CreateVariantInput
+): Promise<{ variant: any }> {
+  return request<{ variant: any }>(`/merchant/products/${productId}/variants`, {
+    method: "POST",
+    token,
+    body: payload,
+  })
+}
+
+
+
+export async function updateVariant(
+  token: string,
+  productId: string,
+  variantId: string,
+  payload: VariantUpsertPayload
+): Promise<{ variant: any }> {
+  return request<{ variant: any }>(
+    `/merchant/products/${productId}/variants/${variantId}`,
+    {
+      method: "POST",
+      token,
+      body: payload,
+    }
+  )
+}
+
+
+
+export async function deleteVariant(
+  token: string,
+  productId: string,
+  variantId: string
+): Promise<void> {
+  await request<void>(`/merchant/products/${productId}/variants/${variantId}`, {
+    method: "DELETE",
+    token,
+  })
+}
+
+
+
+export type VariantPriceBatchUpdate = {
+  variant_id: string
+  prices: { currency_code: string; amount: number }[]
+}
+
+
+
+export async function updateVariantPricesBatch(
+  token: string,
+  productId: string,
+  updates: VariantPriceBatchUpdate[]
+): Promise<{ ok: true }> {
+  return request<{ ok: true }>(`/merchant/products/${productId}/prices`, {
+    method: "POST",
+    token,
+    body: { updates },
+  })
+}
+
+
+
+export type ProductStockLocationLevel = {
+  location_id: string
+  location_name: string
+  stocked_quantity: number
+  reserved_quantity: number
+}
+
+
+
+export type ProductStockVariant = {
+  variant_id: string
+  variant_title: string
+  sku: string | null
+  inventory_item_id: string | null
+  locations: ProductStockLocationLevel[]
+}
+
+
+
+export async function getProductStock(
+  token: string,
+  productId: string
+): Promise<{ variants: ProductStockVariantRow[] }> {
+  return request<{ variants: ProductStockVariantRow[] }>(
+    `/merchant/products/${productId}/stock`,
+    { token }
+  )
+}
+
+
+
+export type ProductStockUpdate = {
+  inventory_item_id: string
+  location_id: string
+  stocked_quantity: number
+}
+
+
+
+export async function updateProductStock(
+  token: string,
+  productId: string,
+  updates: ProductStockUpdateInput[]
+): Promise<{ ok: true }> {
+  return request<{ ok: true }>(`/merchant/products/${productId}/stock`, {
+    method: "POST",
+    token,
+    body: { updates },
+  })
+}
+
+export async function deleteProductImage(
+  token: string,
+  productId: string,
+  imageId: string
+): Promise<{ product: any }> {
+  return request<{ product: any }>(
+    `/merchant/products/${productId}/media?image_id=${encodeURIComponent(imageId)}`,
+    { method: "DELETE", token }
+  )
+}
+
+export type ProductFullImage = { id: string; url: string }
+
+
+
+export type ProductFullOptionValue = {
+  id: string
+  value: string
+}
+
+
+
+export type ProductFullOption = {
+  id: string
+  title: string
+  values: ProductFullOptionValue[]
+}
+
+
+
+export type ProductFullVariantPrice = {
+  id: string
+  currency_code: string
+  amount: number
+}
+
+
+
+export type ProductFullVariantOption = {
+  id: string
+  value: string
+  option: { id: string; title: string } | null
+}
+
+
+
+export type ProductFullDetail = {
+  id: string
+  title: string
+  subtitle: string | null
+  handle: string
+  description: string | null
+  status: string
+  thumbnail: string | null
+  images: { id: string; url: string }[]
+  options: ProductFullOption[]
+  variants: ProductFullVariant[]
+  collection: { id: string; title: string } | null
+  categories: { id: string; name: string }[]
+  type: { id: string; value: string } | null
+  tags: { id: string; value: string }[]
+  sales_channels: { id: string; name: string }[]
+  shipping_profile: { id: string; name: string } | null
+  weight: number | null
+  length: number | null
+  height: number | null
+  width: number | null
+  mid_code: string | null
+  hs_code: string | null
+  origin_country: string | null
+  material: string | null
+  discountable: boolean
+  external_id: string | null
+  metadata: Record<string, any> | null
+  created_at: string
+  updated_at: string
+}
+
+
+
+export async function listShippingProfilesLite(
+  token: string
+): Promise<{ profiles: { id: string; name: string }[] }> {
+  const res = await request<{
+    shipping_profiles?: { id: string; name: string }[]
+    profiles?: { id: string; name: string }[]
+  }>("/merchant/shipping-profiles", { token })
+  return {
+    profiles: (res.profiles || res.shipping_profiles || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+    })),
+  }
+}
+
+export type VariantUpsertPayload = {
+  title?: string
+  sku?: string | null
+  barcode?: string | null
+  ean?: string | null
+  upc?: string | null
+  manage_inventory?: boolean
+  allow_backorder?: boolean
+  options?: Record<string, string>
+  prices?: { currency_code: string; amount: number }[]
+  weight?: number | null
+  length?: number | null
+  height?: number | null
+  width?: number | null
+  mid_code?: string | null
+  hs_code?: string | null
+  origin_country?: string | null
+  material?: string | null
+  metadata?: Record<string, any> | null
+}
+
+
+
+export type ProductStockVariantRow = {
+  variant_id: string
+  variant_title: string
+  sku: string | null
+  inventory_item_id: string | null
+  locations: ProductStockLocationLevel[]
+}
+
+
+
+export type ProductStockUpdateInput = {
+  inventory_item_id: string
+  location_id: string
+  stocked_quantity: number
+}
+

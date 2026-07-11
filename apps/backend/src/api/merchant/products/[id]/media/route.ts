@@ -1,6 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { uploadFilesWorkflow } from "@medusajs/core-flows"
+import { updateProductsWorkflow, uploadFilesWorkflow } from "@medusajs/core-flows"
 import { resolveMerchant } from "../../../_helpers"
 import { tenantScopedUploadFilename } from "../../../../../lib/tenant-upload"
 
@@ -81,4 +81,67 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   res.status(201).json({ product: { id, thumbnail: file.url, url: file.url } })
+}
+
+/**
+ * DELETE /merchant/products/[id]/media?image_id=img_...
+ *
+ * Remove one image from the tenant-owned product's images. When the product
+ * thumbnail pointed at the removed image's url, the thumbnail is cleared too.
+ */
+export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+  const scId = ctx.tenant.meta?.sales_channel_id
+  if (!scId) return res.status(404).json({ message: "product not found" })
+
+  const { id } = req.params
+  if (!(await productBelongsToSalesChannel(req, id, scId))) {
+    return res.status(404).json({ message: "product not found" })
+  }
+
+  const imageId = typeof req.query?.image_id === "string" ? req.query.image_id : ""
+  if (!imageId) {
+    return res.status(400).json({ message: "image_id query parameter is required" })
+  }
+
+  const productModule: any = req.scope.resolve(Modules.PRODUCT)
+  let product: any
+  try {
+    product = await productModule.retrieveProduct(id, { relations: ["images"] })
+  } catch {
+    return res.status(404).json({ message: "product not found" })
+  }
+
+  const images: any[] = product.images || []
+  const removed = images.find((img) => img.id === imageId)
+  if (!removed) {
+    return res.status(404).json({ message: "image not found" })
+  }
+
+  const remaining = images.filter((img) => img.id !== imageId)
+  const update: any = {
+    id,
+    images: remaining.map((img) => ({ id: img.id, url: img.url })),
+  }
+  if (product.thumbnail && product.thumbnail === removed.url) {
+    update.thumbnail = null
+  }
+
+  try {
+    await updateProductsWorkflow(req.scope).run({
+      input: { products: [update] },
+    })
+  } catch (e: any) {
+    return res.status(400).json({ message: e?.message || "failed to remove image" })
+  }
+
+  const fresh = await productModule.retrieveProduct(id, { relations: ["images"] })
+  res.json({
+    product: {
+      id: fresh.id,
+      thumbnail: fresh.thumbnail ?? null,
+      images: (fresh.images || []).map((img: any) => ({ id: img.id, url: img.url })),
+    },
+  })
 }

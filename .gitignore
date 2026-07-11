@@ -7,3 +7,4 @@ dist/
 .env.*
 *.bak*
 .claude-sync/
+infrastructure/redis/**/dump.rdb
