@@ -37,6 +37,7 @@ import {
   detectHandoffKeyword,
   generateAutoReply,
   HANDOFF_REASON_LABEL,
+  MAX_AI_ROUNDS_PER_REPLY,
 } from "./ai-reply"
 import type { HandoffReason } from "./ai-reply"
 import { getMessagingProvider } from "./registry"
@@ -465,11 +466,22 @@ export const handleInboundAutoReply = async (
       }
 
       // (5)+(6) Credits gate the AI call; the decision comes back from ai-reply.
+      //
+      // METERING (tool era): one reply is no longer always one model call. A
+      // tool-assisted answer runs up to MAX_AI_ROUNDS_PER_REPLY completions
+      // (model -> tool -> model -> ...), and `decision.units` reports how many
+      // ACTUALLY ran. So we RESERVE the worst case up front — a tenant can never
+      // be pushed into overdraft by a chatty tool loop — and COMMIT the real
+      // count, refunding the difference. One metered `ai_text` unit therefore
+      // still means exactly one model completion, as it always did.
+      //
+      // `units` is 0 when no model ran at all (keyword handoff, reply limit, no
+      // provider), so those still cost nothing.
       const metered = await meterAction(
         container,
         input.tenantId,
         "ai_text",
-        1,
+        MAX_AI_ROUNDS_PER_REPLY,
         async () => {
           const decision = await generateAutoReply(container, {
             conversationId: input.conversationId,
@@ -477,10 +489,9 @@ export const handleInboundAutoReply = async (
             chatbot,
             inboundText: input.text,
           })
-          // A handoff never reached the model — do not bill for it.
           return {
             result: decision,
-            actualUnits: decision.action === "reply" ? 1 : 0,
+            actualUnits: Math.max(0, decision.units ?? 0),
           }
         },
         { idempotencyKey: `marketing_auto_reply:${input.messageId}` }

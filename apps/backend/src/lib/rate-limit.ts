@@ -171,6 +171,54 @@ export const consumeRateLimit = async (
 }
 
 /**
+ * READ the current count for `key` WITHOUT consuming a unit.
+ *
+ * Needed by counters that must only be INCREMENTED on failure but CHECKED on
+ * every attempt — e.g. the chat agent's order-verification lockout, where a
+ * successful lookup must not burn the visitor's budget but an already-exhausted
+ * budget must block the next attempt before it runs (see
+ * `modules/marketing/messaging/chat-tools`).
+ *
+ * Same fixed, epoch-aligned windows as `consumeRateLimit`, so both functions see
+ * the same bucket. A Redis failure degrades to the in-process counter's view.
+ */
+export const peekRateLimit = async (
+  key: string,
+  limit: number,
+  windowSeconds: number
+): Promise<RateLimitResult> => {
+  const nowSeconds = Math.floor(Date.now() / 1000)
+  const windowStart = nowSeconds - (nowSeconds % windowSeconds)
+  const retryAfter = windowStart + windowSeconds - nowSeconds
+  const bucketKey = `rl:${key}:${windowStart}`
+
+  let count: number | null = null
+  const redis = await getRedis()
+  if (redis) {
+    try {
+      const raw = await redis.get(bucketKey)
+      count = raw == null ? 0 : Number(raw)
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.warn("[rate-limit] redis get failed, falling back:", e?.message ?? e)
+      count = null
+    }
+  }
+
+  if (count == null || Number.isNaN(count)) {
+    const entry = memoryCounters.get(bucketKey)
+    count = entry && entry.expiresAt > Date.now() ? entry.count : 0
+  }
+
+  return {
+    allowed: count < limit,
+    remaining: Math.max(0, limit - count),
+    retryAfter: Math.max(1, retryAfter),
+    limit,
+  }
+}
+
+/**
  * The client's IP, preferring the left-most entry of `x-forwarded-for` (the
  * backend sits behind nginx/Cloudflare, so `req.ip` is the proxy).
  */

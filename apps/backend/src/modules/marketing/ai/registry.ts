@@ -20,15 +20,35 @@ import { meterInstanceCall } from "../../platform/integration/instance-meter"
  * pure passthrough, so wrapping here is safe and needs zero call-site changes.
  */
 
-/** Wrap a text provider so generate() is credit-metered (ai_text, 1 unit/call). */
-const meteredText = (inner: AiTextProvider): AiTextProvider => ({
-  name: inner.name,
-  isConfigured: () => inner.isConfigured(),
-  generate: (prompt, opts) =>
-    meterInstanceCall("ai_text", 1, async () => ({
-      result: await inner.generate(prompt, opts),
-    })),
-})
+/**
+ * Wrap a text provider so generate() is credit-metered (ai_text, 1 unit/call).
+ *
+ * TOOL RUNS: `runTools` is forwarded (and its capability flag with it) so the
+ * wrapper never silently strips the tool capability. One tool run makes SEVERAL
+ * model completions, so it reserves 1 unit and commits the ACTUAL number of
+ * rounds — a 3-round answer is billed as 3 `ai_text` units, never as 1.
+ */
+const meteredText = (inner: AiTextProvider): AiTextProvider => {
+  const canRunTools =
+    inner.supportsTools === true && typeof inner.runTools === "function"
+
+  return {
+    name: inner.name,
+    isConfigured: () => inner.isConfigured(),
+    generate: (prompt, opts) =>
+      meterInstanceCall("ai_text", 1, async () => ({
+        result: await inner.generate(prompt, opts),
+      })),
+    supportsTools: canRunTools,
+    runTools: canRunTools
+      ? (prompt, opts) =>
+          meterInstanceCall("ai_text", 1, async () => {
+            const result = await inner.runTools!(prompt, opts)
+            return { result, actualUnits: Math.max(1, result.rounds) }
+          })
+      : undefined,
+  }
+}
 
 /** Wrap an image provider so generate() is metered (ai_image, per image). */
 const meteredImage = (inner: AiImageProvider): AiImageProvider => ({

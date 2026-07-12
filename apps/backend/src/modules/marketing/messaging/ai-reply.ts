@@ -33,9 +33,14 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { MARKETING_MODULE } from "../index"
 import { getCommerceGateway } from "../gateway"
 import type { CommerceCustomer, CommerceOrder } from "../gateway"
+// The call-center gateway is the sales-channel-scoped commerce reader the tools
+// use; it also exposes `listCustomerOrders(email)`, which the marketing gateway
+// does not. Cross-module reuse (not a fork) — the same precedent as knowledge/rag.
+import { getCommerceGateway as getScopedCommerceGateway } from "../../call-center/gateway"
 import { getAiTextProvider } from "../ai/registry"
 import { buildBrandContext } from "../content/brand-context"
 import { retrieveContext } from "../knowledge/rag"
+import { CHAT_TOOL_GUIDE, createChatToolRuntime } from "./chat-tools"
 
 const currentTenantId = (): string =>
   getCurrentTenantId() ?? resolveTenantId("MARKETING_DEFAULT_TENANT")
@@ -91,9 +96,19 @@ const orderTime = (o: CommerceOrder): number => {
 }
 
 /**
+ * Channels on which the contact's email is SELF-ASSERTED by an anonymous visitor
+ * rather than supplied by the platform. An email from one of these can never be
+ * used to match a customer — otherwise a visitor could type someone else's
+ * address and be handed their order history. (The web widget does not collect an
+ * email today; this gate keeps the branch safe if that ever changes.)
+ */
+const UNTRUSTED_EMAIL_CHANNELS = new Set(["web_widget"])
+
+/**
  * Resolve the Customer360 for a contact. Prefers a linked `customer_id`; falls
- * back to a phone match; otherwise returns an unmatched snapshot. Never throws —
- * any gateway failure yields `matched:false`.
+ * back to a phone match, then to a CHANNEL-SUPPLIED email match; otherwise
+ * returns an unmatched snapshot. Never throws — any gateway failure yields
+ * `matched:false`.
  */
 export const buildCustomer360 = async (
   container: MedusaContainer,
@@ -109,10 +124,50 @@ export const buildCustomer360 = async (
     let customer: CommerceCustomer | null = null
     let orders: CommerceOrder[] = []
 
+    const trustedEmail =
+      typeof contact.email === "string" &&
+      contact.email.trim().length > 0 &&
+      !UNTRUSTED_EMAIL_CHANNELS.has(contact.primary_channel)
+        ? contact.email.trim().toLowerCase()
+        : null
+
     if (contact.customer_id) {
       customer = await gateway.getCustomer(currentTenantId(), contact.customer_id)
       const all = await gateway.queryOrders(currentTenantId(), { limit: 200 })
       orders = all.filter((o) => o.customer_id === contact.customer_id)
+    } else if (trustedEmail) {
+      // EMAIL BRANCH. Scoped by the call-center gateway to the tenant's sales
+      // channel (fail closed), then filtered to an EXACT case-insensitive match —
+      // the adapter's own email path is fuzzy (built for garbled speech), which
+      // is not acceptable as an identity match here.
+      const scoped = getScopedCommerceGateway(container)
+      const found = await scoped
+        .listCustomerOrders(currentTenantId(), { email: trustedEmail })
+        .catch(() => [])
+      const mine = (found ?? []).filter(
+        (o: any) =>
+          typeof o.email === "string" &&
+          o.email.trim().toLowerCase() === trustedEmail
+      )
+      const customerId = mine.find((o: any) => o.customer_id)?.customer_id
+      if (customerId) {
+        customer = await gateway
+          .getCustomer(currentTenantId(), customerId)
+          .catch(() => null)
+      }
+      if (!customer && mine.length) {
+        // Guest checkout: no customer account, but these orders ARE this contact's.
+        customer = {
+          id: `guest:${trustedEmail}`,
+          email: trustedEmail,
+          phone: (mine[0] as any).phone ?? null,
+          first_name: (mine[0] as any).shipping_address?.name ?? null,
+          last_name: null,
+          has_account: false,
+          addresses: [],
+        } as CommerceCustomer
+      }
+      orders = mine as unknown as CommerceOrder[]
     } else if (contact.phone) {
       const matches = await gateway.findCustomersByPhone(
         currentTenantId(),
@@ -234,10 +289,11 @@ const threadTranscript = (messages: any[]): string => {
  */
 const GROUNDING_RULE =
   "HARD RULE: Never invent or guess order numbers, totals, tracking numbers, " +
-  "delivery dates, shipping status, refunds, or stock. Only reference order or " +
-  "customer details that appear in the CUSTOMER FACTS or the conversation " +
-  "below. If the customer asks for a detail you do not have, say you will " +
-  "check and follow up rather than fabricating it."
+  "delivery dates, shipping status, refunds, or stock. Only reference order, " +
+  "product or customer details that appear in the CUSTOMER FACTS, in the " +
+  "conversation below, or in a result one of your TOOLS returned in this turn. " +
+  "If the customer asks for a detail you do not have, say you will check and " +
+  "follow up rather than fabricating it."
 
 /** The shared grounding for a conversation: the thread + the Customer360. */
 export type ReplyGrounding = {
@@ -439,10 +495,24 @@ export const detectHandoffKeyword = (text: string | null): boolean => {
   return HANDOFF_KEYWORDS.some((k) => t.includes(k))
 }
 
-/** What the bot decided to do with an inbound message. No side effects. */
+/**
+ * What the bot decided to do with an inbound message. No side effects.
+ *
+ * `units` is the number of MODEL COMPLETIONS the decision actually consumed —
+ * 0 when no model ran (keyword handoff, reply limit, no provider), 1 for a plain
+ * answer, and N for a tool-assisted answer that took N rounds. The runtime meters
+ * exactly this (see `auto-reply`), so a tool-using reply is billed honestly rather
+ * than being charged as one unit or silently multiplying the bill.
+ */
 export type AutoReplyDecision =
-  | { action: "reply"; text: string }
-  | { action: "handoff"; reason: HandoffReason }
+  | { action: "reply"; text: string; units: number; tools?: string[] }
+  | { action: "handoff"; reason: HandoffReason; units: number }
+
+/**
+ * Hard cap on model completions in one tool-assisted reply. The runtime RESERVES
+ * this many credits before the call and commits only what was used.
+ */
+export const MAX_AI_ROUNDS_PER_REPLY = 4
 
 /** Render the retrieved knowledge snippets as a prompt section. */
 const knowledgeSection = (snippets: string[]): string => {
@@ -477,10 +547,10 @@ const personaSection = (chatbot: any): string => {
   }
   if (chatbot?.dont_go_beyond) {
     lines.push(
-      "SCOPE LOCK: answer ONLY from the KNOWLEDGE and CUSTOMER FACTS below. If " +
-        "the answer is not there, say you do not have that information and offer " +
-        "to connect the customer with a human agent. Never improvise an answer " +
-        "from general knowledge."
+      "SCOPE LOCK: answer ONLY from the KNOWLEDGE, the CUSTOMER FACTS, and the " +
+        "results your TOOLS return. If the answer is not in any of those, say you " +
+        "do not have that information and offer to connect the customer with a " +
+        "human agent. Never improvise an answer from general knowledge."
     )
   }
   lines.push(
@@ -517,7 +587,7 @@ export const generateAutoReply = async (
 ): Promise<AutoReplyDecision> => {
   try {
     if (detectHandoffKeyword(input.inboundText)) {
-      return { action: "handoff", reason: "requested_human" }
+      return { action: "handoff", reason: "requested_human", units: 0 }
     }
 
     const mk: any = container.resolve(MARKETING_MODULE)
@@ -533,7 +603,7 @@ export const generateAutoReply = async (
       )
       .catch(() => [[], 0])
     if ((aiMessageCount ?? 0) >= MAX_AI_MESSAGES_PER_CONVERSATION) {
-      return { action: "handoff", reason: "ai_message_limit" }
+      return { action: "handoff", reason: "ai_message_limit", units: 0 }
     }
 
     const grounding = await loadReplyGrounding(container, {
@@ -543,14 +613,17 @@ export const generateAutoReply = async (
       excludeSystem: true,
     })
     if (!grounding) {
-      return { action: "handoff", reason: "ai_unavailable" }
+      return { action: "handoff", reason: "ai_unavailable", units: 0 }
     }
 
     const provider = getAiTextProvider()
     if (!provider) {
-      return { action: "handoff", reason: "ai_unavailable" }
+      return { action: "handoff", reason: "ai_unavailable", units: 0 }
     }
 
+    // Pre-retrieved knowledge stays exactly as before (the bot's own chunks for
+    // THIS question). The tool path adds `searchKnowledge` on top, so the model
+    // can also go looking for something the first retrieval missed.
     const snippets = await retrieveContext(
       container,
       input.tenantId,
@@ -559,10 +632,16 @@ export const generateAutoReply = async (
       input.topK ?? 4
     )
 
+    const toolsEnabled =
+      provider.supportsTools === true && typeof provider.runTools === "function"
+
     const system = await buildReplySystem(container, input.tenantId, {
       persona: personaSection(input.chatbot),
       c360: grounding.c360,
-      sections: [knowledgeSection(snippets)],
+      sections: [
+        knowledgeSection(snippets),
+        ...(toolsEnabled ? [CHAT_TOOL_GUIDE] : []),
+      ],
     })
 
     const prompt =
@@ -572,16 +651,58 @@ export const generateAutoReply = async (
       (input.inboundText ?? "(no text)") +
       "\n\nWrite the assistant's reply to the customer now."
 
-    const raw = await provider.generate(prompt, { system, temperature: 0.3 })
-    const text = (raw ?? "").toString().trim()
-    if (!text) {
-      return { action: "handoff", reason: "ai_unavailable" }
+    // --- No tool support (non-OpenAI provider): the original single-shot path.
+    if (!toolsEnabled) {
+      const raw = await provider.generate(prompt, { system, temperature: 0.3 })
+      const text = (raw ?? "").toString().trim()
+      if (!text) {
+        return { action: "handoff", reason: "ai_unavailable", units: 0 }
+      }
+      return { action: "reply", text, units: 1 }
     }
 
-    return { action: "reply", text }
+    // --- Tool-enabled path. The runtime is anchored to THIS conversation, THIS
+    // tenant and THIS chatbot; the matched customer id (if any) comes from the
+    // contact row, never from the model.
+    const contact = grounding.conversation?.contact_id
+      ? await mk
+          .retrieveMarketingContact(grounding.conversation.contact_id)
+          .catch(() => null)
+      : null
+
+    const runtime = createChatToolRuntime(container, {
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      chatbotId: input.chatbot?.id ?? null,
+      customerId: contact?.customer_id ?? null,
+    })
+
+    const run = await provider.runTools!(prompt, {
+      system,
+      temperature: 0.3,
+      tools: runtime.definitions,
+      execute: runtime.execute,
+      maxRounds: MAX_AI_ROUNDS_PER_REPLY,
+    })
+
+    const units = Math.max(1, run.rounds)
+
+    // The model asked for a human -> the RUNTIME owns the handoff (queue + system
+    // message + holding message). We only report the decision, so there is exactly
+    // one handoff implementation (auto-reply's).
+    if (runtime.handoffRequested()) {
+      return { action: "handoff", reason: "requested_human", units }
+    }
+
+    const text = (run.text ?? "").toString().trim()
+    if (!text) {
+      return { action: "handoff", reason: "ai_unavailable", units }
+    }
+
+    return { action: "reply", text, units, tools: runtime.used() }
   } catch {
     // No-throw: a failed generation queues the thread instead of dropping it.
-    return { action: "handoff", reason: "ai_unavailable" }
+    return { action: "handoff", reason: "ai_unavailable", units: 0 }
   }
 }
 
@@ -594,7 +715,13 @@ export type TestReplyResult = {
   used_knowledge: number
   /** True when no AI provider is configured — the UI should say so, not retry. */
   needs_ai: boolean
+  /** Tools the model called while answering (empty when it needed none). */
+  used_tools?: string[]
 }
+
+/** What the test chat says when the bot decides a human should take over. */
+const TEST_HANDOFF_REPLY =
+  "A human agent would take over this conversation from here."
 
 /**
  * Answer ONE question as a chatbot would, with NO side effects — no conversation
@@ -643,10 +770,16 @@ export const generateTestReply = async (
     () => ({ matched: false }) as Customer360
   )
 
+  const toolsEnabled =
+    provider.supportsTools === true && typeof provider.runTools === "function"
+
   const system = await buildReplySystem(container, input.tenantId, {
     persona: personaSection(input.chatbot),
     c360,
-    sections: [knowledgeSection(snippets)],
+    sections: [
+      knowledgeSection(snippets),
+      ...(toolsEnabled ? [CHAT_TOOL_GUIDE] : []),
+    ],
   })
 
   const turns = (input.history ?? [])
@@ -662,10 +795,48 @@ export const generateTestReply = async (
     question +
     "\n\nWrite the assistant's reply to the customer now."
 
-  const raw = await provider
-    .generate(prompt, { system, temperature: 0.3 })
-    .catch(() => "")
-  const reply = (raw ?? "").toString().trim()
+  if (!toolsEnabled) {
+    const raw = await provider
+      .generate(prompt, { system, temperature: 0.3 })
+      .catch(() => "")
+    return {
+      reply: (raw ?? "").toString().trim(),
+      used_knowledge: snippets.length,
+      needs_ai: false,
+    }
+  }
 
-  return { reply, used_knowledge: snippets.length, needs_ai: false }
+  // The SAME tool path a real visitor gets, so a merchant can test it. There is no
+  // real customer and no conversation row behind a test chat: the runtime is
+  // anchored to an ephemeral id (which is all the rate-limit key needs) and
+  // `customerId` is null, so a verified order lookup can only succeed with a real
+  // order number + email, or a real support code. Anything else fails verification
+  // exactly as it would for a visitor — which is the correct behaviour to test.
+  const runtime = createChatToolRuntime(container, {
+    tenantId: input.tenantId,
+    conversationId: `test:${input.chatbot?.id ?? "unknown"}`,
+    chatbotId: input.chatbot?.id ?? null,
+    customerId: null,
+  })
+
+  const run = await provider
+    .runTools!(prompt, {
+      system,
+      temperature: 0.3,
+      tools: runtime.definitions,
+      execute: runtime.execute,
+      maxRounds: MAX_AI_ROUNDS_PER_REPLY,
+    })
+    .catch(() => null)
+
+  const answered = (run?.text ?? "").toString().trim()
+  const reply =
+    answered || (runtime.handoffRequested() ? TEST_HANDOFF_REPLY : "")
+
+  return {
+    reply,
+    used_knowledge: snippets.length,
+    needs_ai: false,
+    used_tools: runtime.used(),
+  }
 }
