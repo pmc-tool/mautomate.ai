@@ -8,7 +8,22 @@ import MarketingChatbotData from "./chatbot-data"
  * powers replies, `channel_config` holds per-channel wiring, `public_key` is the
  * embed/identify token, and `reply_mode` gates whether replies are drafted for
  * review or sent automatically. Its knowledge sources live in `data`
- * (marketing_chatbot_data).
+ * (marketing_chatbot_data) and their embedded chunks in
+ * marketing_knowledge_chunk (owner_id = this bot's id).
+ *
+ * PERSONA/BEHAVIOR: `instructions` is the system prompt that shapes the bot,
+ * `dont_go_beyond` forces answers to stay inside the trained knowledge (refuse
+ * rather than improvise), `language` pins the reply language, `welcome_message`
+ * opens the thread and `bubble_message` is the teaser shown on the closed widget.
+ *
+ * APPEARANCE: `avatar`, `color`, `position`, `show_logo`, `show_datetime`,
+ * `embed_width`/`embed_height` drive the embeddable widget's rendering.
+ *
+ * FEATURE TOGGLES: `collect_email`, `allow_attachments`, `allow_emoji`.
+ *
+ * TRAINING: `training_status` reflects the embedding pipeline for this bot's
+ * sources (not_trained / training / trained); per-source status lives on
+ * marketing_chatbot_data.
  *
  * The partial-unique (public_key) index (where deleted_at IS NULL) gives at most
  * one live bot per public key.
@@ -26,6 +41,24 @@ const MarketingChatbot = model
     public_key: model.text().nullable(),
     reply_mode: model.enum(["draft", "auto"]).default("draft"),
     active: model.boolean().default(true),
+    instructions: model.text().nullable(),
+    dont_go_beyond: model.boolean().default(false),
+    language: model.text().nullable(),
+    welcome_message: model.text().nullable(),
+    bubble_message: model.text().nullable(),
+    avatar: model.text().nullable(),
+    color: model.text().default("#017BE5"),
+    position: model.enum(["left", "right"]).default("right"),
+    show_logo: model.boolean().default(true),
+    show_datetime: model.boolean().default(true),
+    embed_width: model.number().default(420),
+    embed_height: model.number().default(745),
+    collect_email: model.boolean().default(true),
+    allow_attachments: model.boolean().default(true),
+    allow_emoji: model.boolean().default(true),
+    training_status: model
+      .enum(["not_trained", "training", "trained"])
+      .default("not_trained"),
     data: model.hasMany(() => MarketingChatbotData, { mappedBy: "chatbot" }),
   })
   .indexes([

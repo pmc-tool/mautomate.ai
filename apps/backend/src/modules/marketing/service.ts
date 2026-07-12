@@ -36,6 +36,10 @@ import MarketingJourney from "./models/journey"
 import MarketingJourneyEnrollment from "./models/journey-enrollment"
 import MarketingSegment from "./models/segment"
 import MarketingSegmentMember from "./models/segment-member"
+import MarketingKnowledgeChunk from "./models/knowledge-chunk"
+import MarketingChatbotChannel from "./models/chatbot-channel"
+import MarketingInboxNote from "./models/inbox-note"
+import MarketingCannedResponse from "./models/canned-response"
 
 /**
  * Marketing module service.
@@ -93,6 +97,10 @@ class MarketingModuleService extends MedusaService({
   MarketingJourneyEnrollment,
   MarketingSegment,
   MarketingSegmentMember,
+  MarketingKnowledgeChunk,
+  MarketingChatbotChannel,
+  MarketingInboxNote,
+  MarketingCannedResponse,
 }) {}
 
 export default MarketingModuleService
