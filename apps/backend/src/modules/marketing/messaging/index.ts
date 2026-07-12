@@ -24,3 +24,9 @@ export {
 } from "./registry"
 export * from "./types"
 export { ingestInbound, recordOutboundMessage } from "./inbound"
+export {
+  handleInboundAutoReply,
+  AUTO_REPLY_DAILY_CAP_PER_TENANT,
+  HANDOFF_HOLDING_MESSAGE,
+} from "./auto-reply"
+export type { AutoReplyOutcome } from "./auto-reply"

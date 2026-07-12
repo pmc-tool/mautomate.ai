@@ -67,6 +67,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       sinceRaw != null && sinceRaw !== "" ? asTime(sinceRaw) : null
 
     const messages = (Array.isArray(rows) ? rows : [])
+      // Internal notes (e.g. the handoff audit line the bot writes for the
+      // inbox) are never shown to the visitor.
+      .filter((m: any) => m.delivery_status !== "internal")
       .filter((m: any) =>
         sinceTime == null ? true : asTime(m.sent_at) > sinceTime
       )

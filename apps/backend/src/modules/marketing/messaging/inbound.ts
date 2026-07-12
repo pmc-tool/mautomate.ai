@@ -25,10 +25,18 @@ import {
  * Session channels (web_widget) carry no receiving account and keep resolving
  * their tenant from the request context (the web-widget route gates them by a
  * conversation token upstream).
+ *
+ * CHATBOT AUTO-REPLY: once a customer message is persisted, the bot bound to the
+ * thread gets its turn (`./auto-reply`). It is fired-and-forgotten ON PURPOSE —
+ * a webhook must be acknowledged in milliseconds and MUST NOT wait on OpenAI
+ * (Meta retries a slow webhook, which would duplicate work). `handleInboundAutoReply`
+ * is itself no-throw and owns every gate (handler_mode / bot active / reply_mode
+ * auto / handoff / metering / daily cap), so nothing here can reject.
  */
 
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { MARKETING_MODULE } from "../index"
+import { handleInboundAutoReply } from "./auto-reply"
 import type { InboundMessage } from "./types"
 
 /**
@@ -195,10 +203,43 @@ const upsertConversation = async (
 }
 
 /**
+ * Give the thread's chatbot its turn on a freshly persisted customer message,
+ * WITHOUT blocking the caller: the webhook / widget response path must never
+ * wait on an LLM (a slow 200 makes Meta redeliver the event). `handleInboundAutoReply`
+ * is itself no-throw and owns every gate; the `.catch` here is the belt-and-braces
+ * guarantee that this detached promise can never become an unhandled rejection.
+ *
+ * NOTE the import is static and one-directional: `./auto-reply` never imports
+ * `./inbound`, so there is no cycle.
+ */
+const triggerAutoReply = (
+  container: MedusaContainer,
+  tenantId: string,
+  conversationId: string,
+  messageId: string,
+  text: string | null
+): void => {
+  void handleInboundAutoReply(container, {
+    tenantId,
+    conversationId,
+    messageId,
+    text,
+  }).catch((e: any) => {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[marketing-inbound] auto-reply failed for conversation ${conversationId}: ${
+        e?.message ?? e
+      }`
+    )
+  })
+}
+
+/**
  * Ingest a single, already-tenant-resolved message. Runs inside the tenant's
  * `withTenant` scope; every write is stamped with `tenantId`.
  */
 const ingestOne = async (
+  container: MedusaContainer,
   mk: any,
   tenantId: string,
   msg: InboundMessage
@@ -264,6 +305,17 @@ const ingestOne = async (
     } as any)
   }
 
+  // (4) The bot's turn — non-blocking (see `triggerAutoReply`).
+  if (message?.id) {
+    triggerAutoReply(
+      container,
+      tenantId,
+      conversation.id,
+      message.id,
+      msg.text ?? null
+    )
+  }
+
   return {
     skipped: false,
     conversationId: conversation.id,
@@ -304,7 +356,7 @@ export const ingestInbound = async (
       }
 
       const result = await withTenant(tenantId, () =>
-        ingestOne(mk, tenantId, msg)
+        ingestOne(container, mk, tenantId, msg)
       )
       results.push(result)
     } catch (e) {
