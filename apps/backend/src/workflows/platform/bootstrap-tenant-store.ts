@@ -16,6 +16,7 @@ import {
 import { PLATFORM_MODULE } from "../../modules/platform"
 import { CALL_CENTER_MODULE } from "../../modules/call-center"
 import { provisionDefaultAgent } from "../../modules/call-center/default-agent"
+import { provisionDefaultChatbot } from "../../modules/marketing/default-chatbot"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 /**
@@ -185,6 +186,21 @@ const bootstrapTenantStoreStep = createStep(
       await provisionDefaultAgent(cc, tenant)
     } catch (e: any) {
       console.log(`[bootstrap] default agent skipped for ${tenant.id}: ${e?.message}`)
+    }
+
+    // Pre-trained default store assistant (web chat widget) so a new storefront
+    // can answer a shopper about its catalog from the first minute. Creates the
+    // bot (auto-reply, public key), its ACTIVE web_widget binding, seeds its
+    // knowledge and trains it. Non-fatal — never block store creation.
+    try {
+      const bot = await provisionDefaultChatbot(container, tenant)
+      console.log(
+        `[bootstrap] default chatbot for ${tenant.id}: ${JSON.stringify(bot)}`
+      )
+    } catch (e: any) {
+      console.log(
+        `[bootstrap] default chatbot skipped for ${tenant.id}: ${e?.message}`
+      )
     }
 
     return new StepResponse(

@@ -36,6 +36,10 @@ import {
   parseEmbedding,
 } from "../../call-center/knowledge/embedding"
 import { MARKETING_MODULE } from "../index"
+import {
+  MAX_RENDERED_CONTENT,
+  resolveDynamicSourceText,
+} from "./dynamic-sources"
 
 /** Max sources trained in one pass (a runaway bot cannot stall the process). */
 const MAX_SOURCES = 500
@@ -166,7 +170,26 @@ export const embedChatbotSources = async (
       continue
     }
 
-    const text = sourceText(source)
+    // DYNAMIC SOURCES (product_catalog / store-page:<slug>) are REGENERATED from
+    // the live store here, at train time, and their stored `content` refreshed —
+    // so retraining re-syncs the bot with the store instead of re-embedding a
+    // stale snapshot. An empty render means the store genuinely has nothing to
+    // say for that source (no products, no such page): we mark it failed rather
+    // than fall back to the older text and teach the bot something untrue.
+    let text: string
+    const dynamic = await resolveDynamicSourceText(container, tenantId, source)
+      .catch(() => null)
+    if (dynamic === null) {
+      text = sourceText(source)
+    } else {
+      text = dynamic.trim().slice(0, MAX_RENDERED_CONTENT)
+      if (text && text !== source.content) {
+        await mk
+          .updateMarketingChatbotData({ id: source.id, content: text })
+          .catch(() => {})
+      }
+    }
+
     if (!text) {
       await markFailed("This source has no content to embed.")
       continue
