@@ -1,10 +1,12 @@
 import {
   ContainerRegistrationKeys,
+  MedusaError,
   Modules,
 } from "@medusajs/framework/utils"
 import { MedusaContainer } from "@medusajs/framework/types"
 import { createPromotionsWorkflow } from "@medusajs/core-flows"
 
+import { PLATFORM_MODULE } from "../../platform"
 import {
   AbandonedCartFilter,
   CommerceAddress,
@@ -44,6 +46,9 @@ const ORDER_FIELDS = [
   "id",
   "display_id",
   "email",
+  // THE tenant scoping key for orders — always fetched so every read can
+  // re-verify the row it is about to hand back (defense in depth).
+  "sales_channel_id",
   "currency_code",
   "total",
   "payment_status",
@@ -75,6 +80,9 @@ const CUSTOMER_FIELDS = [
   "first_name",
   "last_name",
   "has_account",
+  // `metadata.tenant_id` is one of the two tenant-ownership markers for a
+  // customer (the other is an order in the tenant's sales channel).
+  "metadata",
   "addresses.first_name",
   "addresses.last_name",
   "addresses.phone",
@@ -111,7 +119,11 @@ const PRODUCT_FIELDS = [
   "metadata",
 ]
 
-const CATEGORY_FIELDS = ["id", "name", "handle", "description"]
+// Product categories carry no sales-channel link in Medusa; on this platform a
+// category is owned by the tenant whose id is stamped in `metadata.tenant_id`
+// (same rule the merchant category API enforces — see
+// api/merchant/product-categories/route.ts).
+const CATEGORY_FIELDS = ["id", "name", "handle", "description", "metadata"]
 
 /**
  * Fields fetched for a cart graph (cart -> items -> item.product). `total` is the
@@ -121,6 +133,9 @@ const CATEGORY_FIELDS = ["id", "name", "handle", "description"]
 const CART_FIELDS = [
   "id",
   "email",
+  // THE tenant scoping key for carts — abandoned-cart recovery emails real
+  // shoppers, so every cart row is re-verified against it before it is used.
+  "sales_channel_id",
   "customer_id",
   "currency_code",
   "total",
@@ -145,12 +160,28 @@ const CART_FIELDS = [
  * Modules.CUSTOMER). Everything is mapped to the normalized, backend-agnostic
  * DTOs before it leaves this class.
  *
- * `tenantId` is currently accepted-but-unscoped (single-tenant store). Every
- * place it would eventually constrain a query/write is marked with
- * `TODO(tenancy)`.
+ * TENANCY (this is a pooled, multi-tenant backend — one Node process and one
+ * Medusa database serve every store):
+ *   A tenant owns exactly one Medusa sales channel, `tenant.meta.sales_channel_id`.
+ *   That sales channel IS the scoping key for everything below:
+ *     - product  -> the product_sales_channel link
+ *     - order    -> order.sales_channel_id
+ *     - cart     -> cart.sales_channel_id
+ *     - customer -> metadata.tenant_id, else the sales channel of any of its orders
+ *     - category -> metadata.tenant_id (categories have no sales-channel link)
+ *   Same rules as `lib/marketing-event-tenant.ts`, the /merchant API and the
+ *   call-center gateway.
+ *
+ * FAIL-CLOSED: when a tenant has no resolvable sales channel EVERY read returns
+ * empty/null and every write throws. A mis-provisioned or unknown tenant must
+ * never fall back to a platform-wide query — that is precisely how the marketing
+ * analytics, AI-prompt and abandoned-cart leaks happened.
  */
 export class MedusaCommerceGateway implements CommerceGateway {
   private readonly container: MedusaContainer
+
+  /** tenant_id -> sales_channel_id (null = unresolvable), cached per instance. */
+  private readonly scIdCache = new Map<string, string | null>()
 
   constructor(container: MedusaContainer) {
     this.container = container
@@ -172,6 +203,154 @@ export class MedusaCommerceGateway implements CommerceGateway {
     return this.container.resolve(Modules.CART)
   }
 
+  private get platformService(): any {
+    return this.container.resolve(PLATFORM_MODULE)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tenant scoping (fail-closed)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * The Medusa sales channel id for this tenant, read from the control-plane
+   * tenant row's `meta.sales_channel_id`. Returns null when the tenant is
+   * unknown or has no sales channel — callers MUST then fail closed (empty /
+   * null / throw) so a mis-provisioned tenant can never see another store's data.
+   */
+  private async tenantSalesChannelId(
+    tenantId: string
+  ): Promise<string | null> {
+    if (this.scIdCache.has(tenantId)) {
+      return this.scIdCache.get(tenantId) ?? null
+    }
+
+    let scId: string | null = null
+    try {
+      const tenant = await this.platformService.retrieveTenant(tenantId)
+      const raw = tenant?.meta?.sales_channel_id
+      scId = typeof raw === "string" && raw.trim().length > 0 ? raw : null
+    } catch {
+      // Unknown tenant / platform error -> fail closed.
+      scId = null
+    }
+
+    this.scIdCache.set(tenantId, scId)
+    return scId
+  }
+
+  /**
+   * The product ids linked to a sales channel, via the product_sales_channel
+   * link entity. This is the ONLY way a product enters a tenant's catalog —
+   * exactly what the merchant product API and the call-center gateway do.
+   *
+   * Paged so a large catalog is not silently truncated at one page.
+   */
+  private async tenantProductIds(scId: string): Promise<string[]> {
+    const PAGE = 1000
+    const MAX = 20000
+    const ids: string[] = []
+
+    for (let skip = 0; skip < MAX; skip += PAGE) {
+      const { data: links } = await this.query.graph({
+        entity: "product_sales_channel",
+        fields: ["product_id"],
+        filters: { sales_channel_id: scId } as any,
+        pagination: { take: PAGE, skip } as any,
+      })
+      const rows = links ?? []
+      for (const link of rows) {
+        const id = (link as any)?.product_id
+        if (typeof id === "string" && id.length > 0) {
+          ids.push(id)
+        }
+      }
+      if (rows.length < PAGE) {
+        break
+      }
+    }
+
+    return ids
+  }
+
+  /** True when `productId` is linked to the tenant's sales channel. */
+  private async productInSalesChannel(
+    scId: string,
+    productId: string
+  ): Promise<boolean> {
+    const { data: links } = await this.query.graph({
+      entity: "product_sales_channel",
+      fields: ["product_id"],
+      filters: { sales_channel_id: scId, product_id: productId } as any,
+    })
+    return Boolean(links?.length)
+  }
+
+  /**
+   * A customer belongs to the tenant iff its own `metadata.tenant_id` says so,
+   * OR it placed at least one order in the tenant's sales channel. Mirrors
+   * `tenantForCustomer` in lib/marketing-event-tenant.ts.
+   */
+  private async customerBelongsToTenant(
+    tenantId: string,
+    scId: string,
+    customer: any
+  ): Promise<boolean> {
+    const tagged = (customer?.metadata as any)?.tenant_id
+    if (typeof tagged === "string" && tagged === tenantId) {
+      return true
+    }
+
+    const customerId = customer?.id
+    if (typeof customerId !== "string" || !customerId) {
+      return false
+    }
+
+    const { data } = await this.query.graph({
+      entity: "order",
+      fields: ["id", "sales_channel_id"],
+      filters: { customer_id: customerId, sales_channel_id: scId } as any,
+      pagination: { take: 1, skip: 0 } as any,
+    })
+    return (data ?? []).some((o: any) => o?.sales_channel_id === scId)
+  }
+
+  /**
+   * Assert that `orderId` is an order in the tenant's sales channel, and return
+   * it. Every WRITE goes through this first: a write against an out-of-tenant
+   * (or non-existent) order id must fail closed, never silently succeed.
+   */
+  private async assertOrderInTenant(
+    tenantId: string,
+    orderId: string
+  ): Promise<{ id: string; metadata: Record<string, unknown> }> {
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Order ${orderId} is not accessible: tenant ${tenantId} has no sales channel`
+      )
+    }
+
+    const { data } = await this.query.graph({
+      entity: "order",
+      fields: ["id", "sales_channel_id", "metadata"],
+      filters: { id: orderId, sales_channel_id: scId } as any,
+    })
+
+    const order = data?.[0]
+    if (!order || order.sales_channel_id !== scId) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Order ${orderId} was not found in tenant ${tenantId}`
+      )
+    }
+
+    return {
+      id: order.id,
+      metadata: (order.metadata as Record<string, unknown>) ?? {},
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Catalog reads (marketing surface)
   // ---------------------------------------------------------------------------
@@ -180,8 +359,24 @@ export class MedusaCommerceGateway implements CommerceGateway {
     tenantId: string,
     id: string
   ): Promise<CommerceProduct | null> {
-    // TODO(tenancy): scope by store/sales_channel — add e.g.
-    // `sales_channel_id: tenantToSalesChannel(tenantId)` to the filters below.
+    // TENANT SCOPE: the product must be linked to the tenant's sales channel
+    // (product_sales_channel). Fail-closed: no sales channel -> null.
+    //
+    // NOTE ON STATUS: no status filter is applied — a tenant may legitimately
+    // read its OWN draft product (the product.created subscriber and the studio
+    // image/video generators do exactly that, and a freshly created product is
+    // a draft). What this used to allow, and no longer does, is reading ANOTHER
+    // store's product — draft or published — which is how foreign (including
+    // unpublished) products were being injected into a merchant's AI prompt.
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      return null
+    }
+
+    if (!(await this.productInSalesChannel(scId, id))) {
+      return null
+    }
+
     const { data } = await this.query.graph({
       entity: "product",
       fields: PRODUCT_FIELDS,
@@ -196,7 +391,19 @@ export class MedusaCommerceGateway implements CommerceGateway {
     tenantId: string,
     filter: ProductFilter
   ): Promise<CommerceProduct[]> {
-    const filters: Record<string, unknown> = {}
+    // TENANT SCOPE: only products linked to the tenant's sales channel are ever
+    // considered. Fail-closed: no sales channel (or an empty catalog) -> [].
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      return []
+    }
+
+    const productIds = await this.tenantProductIds(scId)
+    if (!productIds.length) {
+      return []
+    }
+
+    const filters: Record<string, unknown> = { id: productIds }
 
     if (filter.status) {
       filters.status = filter.status
@@ -217,7 +424,6 @@ export class MedusaCommerceGateway implements CommerceGateway {
       // product Query graph in this Medusa version (else map to a title filter).
       filters.q = filter.q
     }
-    // TODO(tenancy): scope by store/sales_channel here as well.
 
     const { data } = await this.query.graph({
       entity: "product",
@@ -229,14 +435,27 @@ export class MedusaCommerceGateway implements CommerceGateway {
       },
     })
 
-    return (data ?? []).map((p: any) => this.toCommerceProduct(p))
+    // Defense in depth: re-verify every returned row against the tenant's
+    // catalog before it leaves this class.
+    const allowed = new Set(productIds)
+    return (data ?? [])
+      .filter((p: any) => allowed.has(p?.id))
+      .map((p: any) => this.toCommerceProduct(p))
   }
 
   async getCategory(
     tenantId: string,
     id: string
   ): Promise<CommerceCategory | null> {
-    // TODO(tenancy): scope by store/sales_channel.
+    // TENANT SCOPE: categories have no sales-channel link in Medusa; on this
+    // platform they are owned via `metadata.tenant_id` (the rule the merchant
+    // category API enforces). Fail-closed: no sales channel -> null, and an
+    // untagged / foreign-tagged category is invisible.
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      return null
+    }
+
     const { data } = await this.query.graph({
       entity: "product_category",
       fields: CATEGORY_FIELDS,
@@ -244,7 +463,16 @@ export class MedusaCommerceGateway implements CommerceGateway {
     })
 
     const category = data?.[0]
-    return category ? this.toCommerceCategory(category) : null
+    if (!category) {
+      return null
+    }
+
+    const owner = (category.metadata as any)?.tenant_id
+    if (typeof owner !== "string" || owner !== tenantId) {
+      return null
+    }
+
+    return this.toCommerceCategory(category)
   }
 
   // ---------------------------------------------------------------------------
@@ -255,23 +483,40 @@ export class MedusaCommerceGateway implements CommerceGateway {
     tenantId: string,
     orderId: string
   ): Promise<CommerceOrder | null> {
-    // TODO(tenancy): scope by store/sales_channel — add e.g.
-    // `sales_channel_id: tenantToSalesChannel(tenantId)` to the filters below.
+    // TENANT SCOPE: an order is in-tenant iff its sales_channel_id equals the
+    // tenant's sales channel. Fail-closed: no sales channel -> null.
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      return null
+    }
+
     const { data } = await this.query.graph({
       entity: "order",
       fields: ORDER_FIELDS,
-      filters: { id: orderId },
+      filters: { id: orderId, sales_channel_id: scId } as any,
     })
 
     const order = data?.[0]
-    return order ? this.toCommerceOrder(order) : null
+    // Defense in depth: re-verify the row's sales channel before returning it.
+    if (!order || order.sales_channel_id !== scId) {
+      return null
+    }
+    return this.toCommerceOrder(order)
   }
 
   async queryOrders(
     tenantId: string,
     filter: OrderFilter
   ): Promise<CommerceOrder[]> {
-    const filters: Record<string, unknown> = {}
+    // TENANT SCOPE: constrain every order read to the tenant's sales channel.
+    // Fail-closed: no sales channel -> []. (Before this, marketing analytics
+    // summed the WHOLE platform's orders and revenue for every merchant.)
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      return []
+    }
+
+    const filters: Record<string, unknown> = { sales_channel_id: scId }
 
     if (filter.payment_status) {
       filters.payment_status = filter.payment_status
@@ -291,7 +536,6 @@ export class MedusaCommerceGateway implements CommerceGateway {
       // order entity in this Medusa version.
       filters.created_at = { $gt: this.toDate(filter.created_after) }
     }
-    // TODO(tenancy): scope by store/sales_channel here as well.
 
     const { data } = await this.query.graph({
       entity: "order",
@@ -304,7 +548,10 @@ export class MedusaCommerceGateway implements CommerceGateway {
       },
     })
 
-    let orders = (data ?? []).map((o: any) => this.toCommerceOrder(o))
+    let orders = (data ?? [])
+      // Defense in depth: re-verify the sales channel on every returned row.
+      .filter((o: any) => o?.sales_channel_id === scId)
+      .map((o: any) => this.toCommerceOrder(o))
 
     // `country_code` lives on the shipping address, not a top-level order
     // column, so it is filtered in-memory after the join.
@@ -323,7 +570,15 @@ export class MedusaCommerceGateway implements CommerceGateway {
     tenantId: string,
     customerId: string
   ): Promise<CommerceCustomer | null> {
-    // TODO(tenancy): scope by store/sales_channel.
+    // TENANT SCOPE: customers have no sales_channel_id column, so a customer is
+    // in-tenant iff `metadata.tenant_id` matches OR it has an order in the
+    // tenant's sales channel (the rule in lib/marketing-event-tenant.ts).
+    // Fail-closed: no sales channel -> null.
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      return null
+    }
+
     const { data } = await this.query.graph({
       entity: "customer",
       fields: CUSTOMER_FIELDS,
@@ -331,25 +586,45 @@ export class MedusaCommerceGateway implements CommerceGateway {
     })
 
     const customer = data?.[0]
-    return customer ? this.toCommerceCustomer(customer) : null
+    if (!customer) {
+      return null
+    }
+
+    if (!(await this.customerBelongsToTenant(tenantId, scId, customer))) {
+      return null
+    }
+
+    return this.toCommerceCustomer(customer)
   }
 
   async findCustomersByPhone(
     tenantId: string,
     phoneE164: string
   ): Promise<CommerceCustomer[]> {
-    // TODO(tenancy): scope by store/sales_channel on both queries below.
+    // TENANT SCOPE: registered matches are kept only when the customer belongs
+    // to the tenant, and the guest scan below runs over the tenant's ORDERS
+    // ONLY (sales-channel filtered). Without this, the same phone number in two
+    // stores bound the caller to the WRONG person's record.
+    // Fail-closed: no sales channel -> [].
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      return []
+    }
 
-    // 1. Registered customers whose account phone matches.
+    // 1. Registered customers whose account phone matches AND who belong to
+    //    this tenant.
     const { data: customerRows } = await this.query.graph({
       entity: "customer",
       fields: CUSTOMER_FIELDS,
       filters: { phone: phoneE164 },
     })
 
-    const results: CommerceCustomer[] = (customerRows ?? []).map((c: any) =>
-      this.toCommerceCustomer(c)
-    )
+    const results: CommerceCustomer[] = []
+    for (const row of customerRows ?? []) {
+      if (await this.customerBelongsToTenant(tenantId, scId, row)) {
+        results.push(this.toCommerceCustomer(row))
+      }
+    }
     const seen = new Set(results.map((c) => c.id))
 
     // 2. Guests: match orders whose shipping_address.phone equals the number,
@@ -365,6 +640,7 @@ export class MedusaCommerceGateway implements CommerceGateway {
       fields: [
         "id",
         "email",
+        "sales_channel_id",
         "customer_id",
         "shipping_address.first_name",
         "shipping_address.last_name",
@@ -376,10 +652,15 @@ export class MedusaCommerceGateway implements CommerceGateway {
         "shipping_address.postal_code",
         "shipping_address.country_code",
       ],
+      filters: { sales_channel_id: scId } as any,
       pagination: { take: 500, order: { created_at: "DESC" } },
     })
 
     for (const order of orderRows ?? []) {
+      // Defense in depth: never consider an out-of-tenant order.
+      if (order?.sales_channel_id !== scId) {
+        continue
+      }
       const addr = order?.shipping_address
       if (!addr || addr.phone !== phoneE164) {
         continue
@@ -423,8 +704,13 @@ export class MedusaCommerceGateway implements CommerceGateway {
     orderId: string,
     patch: Record<string, unknown>
   ): Promise<void> {
-    // TODO(tenancy): verify the order belongs to `tenantId` before mutating.
-    const current = await this.readOrderMetadata(orderId)
+    // TENANT SCOPE: throws MedusaError.NOT_FOUND when the order is not in the
+    // tenant's sales channel (or the tenant has none) — a write against an
+    // out-of-tenant id must fail closed, never silently succeed.
+    const { metadata: current } = await this.assertOrderInTenant(
+      tenantId,
+      orderId
+    )
     const metadata = { ...current, ...patch }
     // updateOrders(orderId, data) overload.
     await this.orderService.updateOrders(orderId, { metadata })
@@ -446,7 +732,10 @@ export class MedusaCommerceGateway implements CommerceGateway {
     orderId: string,
     reason: string
   ): Promise<void> {
-    // TODO(tenancy): verify the order belongs to `tenantId` before cancelling.
+    // TENANT SCOPE: refuse to cancel an order outside the tenant's sales
+    // channel (throws MedusaError.NOT_FOUND). Checked explicitly here — and
+    // again inside updateOrderMetadata — so no path reaches `cancel()` unchecked.
+    await this.assertOrderInTenant(tenantId, orderId)
 
     // Record the reason in metadata first so it survives regardless of how the
     // cancel path stores its own bookkeeping.
@@ -469,13 +758,35 @@ export class MedusaCommerceGateway implements CommerceGateway {
   ): Promise<void> {
     // Purely one of our own flags — see FULFILLMENT_HOLD_KEY note. Nothing in
     // Medusa reacts to this; our own fulfillment path must honor it.
+    //
+    // TENANT SCOPE: enforced by updateOrderMetadata (throws NOT_FOUND for an
+    // out-of-tenant order), asserted here too so the intent is explicit.
+    await this.assertOrderInTenant(tenantId, orderId)
     await this.updateOrderMetadata(tenantId, orderId, {
       [FULFILLMENT_HOLD_KEY]: held,
     })
   }
 
   async isFulfillmentHeld(tenantId: string, orderId: string): Promise<boolean> {
-    const metadata = await this.readOrderMetadata(orderId)
+    // Reads never throw — an out-of-tenant (or unknown) order is simply "not
+    // held" as far as this tenant is concerned.
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      return false
+    }
+
+    const { data } = await this.query.graph({
+      entity: "order",
+      fields: ["id", "sales_channel_id", "metadata"],
+      filters: { id: orderId, sales_channel_id: scId } as any,
+    })
+
+    const order = data?.[0]
+    if (!order || order.sales_channel_id !== scId) {
+      return false
+    }
+
+    const metadata = (order.metadata as Record<string, unknown>) ?? {}
     return metadata[FULFILLMENT_HOLD_KEY] === true
   }
 
@@ -487,16 +798,26 @@ export class MedusaCommerceGateway implements CommerceGateway {
     tenantId: string,
     cartId: string
   ): Promise<CommerceCart | null> {
-    // TODO(tenancy): scope by store/sales_channel.
+    // TENANT SCOPE: a cart is in-tenant iff its sales_channel_id equals the
+    // tenant's sales channel. Fail-closed: no sales channel -> null.
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      return null
+    }
+
     try {
       const { data } = await this.query.graph({
         entity: "cart",
         fields: CART_FIELDS,
-        filters: { id: cartId },
+        filters: { id: cartId, sales_channel_id: scId } as any,
       })
 
       const cart = data?.[0]
-      return cart ? this.toCommerceCart(cart) : null
+      // Defense in depth: re-verify the row's sales channel.
+      if (!cart || cart.sales_channel_id !== scId) {
+        return null
+      }
+      return this.toCommerceCart(cart)
     } catch {
       // Reads never throw for "not found"/backend failure — surface null.
       return null
@@ -507,7 +828,15 @@ export class MedusaCommerceGateway implements CommerceGateway {
     tenantId: string,
     filter: AbandonedCartFilter
   ): Promise<CommerceCart[]> {
-    // TODO(tenancy): scope by store/sales_channel.
+    // TENANT SCOPE: THE most dangerous read in this file — its output is what
+    // cart-recovery EMAILS. Every cart must be in the tenant's sales channel:
+    // filtered in the query, re-checked in the in-memory pass below, and in the
+    // module-service fallback. Fail-closed: no sales channel -> [].
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      return []
+    }
+
     const now = Date.now()
     const cutoff = new Date(now - filter.idleSinceMinutes * 60000)
     const floor = filter.idleUntilMinutes
@@ -528,6 +857,7 @@ export class MedusaCommerceGateway implements CommerceGateway {
         entity: "cart",
         fields: CART_FIELDS,
         filters: {
+          sales_channel_id: scId,
           completed_at: null,
           updated_at: {
             $lt: cutoff,
@@ -543,9 +873,10 @@ export class MedusaCommerceGateway implements CommerceGateway {
     } catch {
       // FALLBACK: operator filters unavailable via the graph — list through the
       // Cart module service (no timestamp predicate) and filter in-code below.
+      // The tenant scope is NOT relaxed here.
       try {
         rows = await this.cartService.listCarts(
-          { completed_at: null },
+          { completed_at: null, sales_channel_id: scId },
           {
             take: 500,
             relations: ["items", "items.product"],
@@ -562,6 +893,12 @@ export class MedusaCommerceGateway implements CommerceGateway {
 
     const carts = (rows ?? [])
       .filter((c: any) => {
+        // TENANT SCOPE (re-check): a cart that is not in this tenant's sales
+        // channel can NEVER be recovered/emailed by this tenant, whichever path
+        // (graph or module-service fallback) produced the row.
+        if (c.sales_channel_id !== scId) {
+          return false
+        }
         // Never completed, reachable (has email), and non-empty.
         if (c.completed_at) {
           return false
@@ -602,7 +939,16 @@ export class MedusaCommerceGateway implements CommerceGateway {
     tenantId: string,
     input: RecoveryDiscountInput
   ): Promise<{ code: string; promotionId: string } | null> {
-    // TODO(tenancy): scope the promotion to the store/sales_channel.
+    // TENANT SCOPE: the promotion is created with a rule that pins it to the
+    // tenant's sales channel, so a recovery code minted for store A can only be
+    // redeemed in store A's storefront (the promotion rule context is the cart,
+    // which carries `sales_channel_id`). Fail-closed: no sales channel -> null,
+    // i.e. no code is minted rather than a platform-wide one.
+    const scId = await this.tenantSalesChannelId(tenantId)
+    if (!scId) {
+      return null
+    }
+
     try {
       // Guard: if neither percentage nor amount is supplied, default to 10% off.
       const usePercentage =
@@ -625,6 +971,14 @@ export class MedusaCommerceGateway implements CommerceGateway {
               is_automatic: false,
               // One-time recovery code.
               limit: 1,
+              // TENANT SCOPE: only redeemable in this tenant's sales channel.
+              rules: [
+                {
+                  attribute: "sales_channel_id",
+                  operator: "eq",
+                  values: [scId],
+                },
+              ],
               application_method: {
                 type: usePercentage ? "percentage" : "fixed",
                 target_type: "order",
@@ -658,18 +1012,6 @@ export class MedusaCommerceGateway implements CommerceGateway {
   // ---------------------------------------------------------------------------
   // Internal helpers
   // ---------------------------------------------------------------------------
-
-  /** Fetch just the metadata bag for an order (used before a shallow merge). */
-  private async readOrderMetadata(
-    orderId: string
-  ): Promise<Record<string, unknown>> {
-    const { data } = await this.query.graph({
-      entity: "order",
-      fields: ["id", "metadata"],
-      filters: { id: orderId },
-    })
-    return (data?.[0]?.metadata as Record<string, unknown>) ?? {}
-  }
 
   private toDate(value: string | number | Date): Date {
     return value instanceof Date ? value : new Date(value)
