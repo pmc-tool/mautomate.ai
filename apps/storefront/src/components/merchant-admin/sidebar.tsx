@@ -80,7 +80,15 @@ const navItems: NavItem[] = [
       { href: "/dashboard/collections", label: "Collections", icon: Folder },
       { href: "/dashboard/gift-cards", label: "Gift cards", icon: GiftSolid },
       { href: "/dashboard/price-lists", label: "Price lists", icon: ListBullet },
-      { href: "/dashboard/discounts", label: "Discounts", icon: ReceiptPercent },
+    ],
+  },
+  {
+    id: "promotions",
+    label: "Promotions",
+    icon: ReceiptPercent,
+    children: [
+      { href: "/dashboard/promotions", label: "Promotions", icon: ReceiptPercent },
+      { href: "/dashboard/campaigns", label: "Campaigns", icon: Sparkles },
     ],
   },
   {

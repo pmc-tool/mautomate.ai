@@ -4534,3 +4534,476 @@ export type ProductStockUpdateInput = {
   stocked_quantity: number
 }
 
+
+
+// ===== Promotions+Campaigns parity additions 2026-07-12 =====
+
+export type PromotionListItem = {
+  id: string
+  display_code: string
+  is_automatic: boolean
+  type: "standard" | "buyget"
+  status: "draft" | "active" | "inactive"
+  method: "code" | "automatic"
+  value_type: "fixed" | "percentage" | null
+  value: number | null
+  currency_code: string | null
+  campaign: { id: string; name: string } | null
+  starts_at: string | null
+  ends_at: string | null
+  created_at: string
+}
+
+
+
+export type CampaignBudget = {
+  type: "spend" | "usage" | "use_by_attribute" | "spend_by_attribute"
+  currency_code: string | null
+  limit: number | null
+  used: number
+  attribute: string | null
+}
+
+
+
+export type CampaignListItem = {
+  id: string
+  name: string
+  description: string | null
+  campaign_identifier_display: string
+  starts_at: string | null
+  ends_at: string | null
+  budget: CampaignBudget | null
+  promotions_count: number
+  created_at: string
+  updated_at: string
+}
+
+
+
+export type CampaignDetail = CampaignListItem & {
+  promotions: PromotionListItem[]
+}
+
+
+
+export type CreateCampaignPayload = {
+  name: string
+  description?: string | null
+  identifier: string
+  starts_at?: string | null
+  ends_at?: string | null
+  budget?: {
+    type: CampaignBudget["type"]
+    currency_code?: string
+    limit?: number | null
+    attribute?: string | null
+  } | null
+}
+
+
+
+export type UpdateCampaignPayload = {
+  name?: string
+  description?: string | null
+  identifier?: string
+  starts_at?: string | null
+  ends_at?: string | null
+  budget?: { limit: number | null }
+}
+
+
+
+export async function listCampaigns(
+  token: string,
+  params?: { q?: string; offset?: number; limit?: number; order?: string }
+): Promise<{ campaigns: CampaignListItem[]; count: number }> {
+  const search = new URLSearchParams()
+  if (params?.q) search.set("q", params.q)
+  if (params?.offset !== undefined) search.set("offset", String(params.offset))
+  if (params?.limit !== undefined) search.set("limit", String(params.limit))
+  if (params?.order) search.set("order", params.order)
+  const qs = search.toString()
+  return request<{ campaigns: CampaignListItem[]; count: number }>(
+    `/merchant/campaigns${qs ? `?${qs}` : ""}`,
+    { token }
+  )
+}
+
+
+
+export async function createCampaign(
+  token: string,
+  payload: CreateCampaignPayload
+): Promise<{ campaign: CampaignListItem }> {
+  return request<{ campaign: CampaignListItem }>("/merchant/campaigns", {
+    method: "POST",
+    token,
+    body: payload,
+  })
+}
+
+
+
+export async function getCampaign(
+  token: string,
+  id: string
+): Promise<{ campaign: CampaignDetail }> {
+  return request<{ campaign: CampaignDetail }>(
+    `/merchant/campaigns/${encodeURIComponent(id)}`,
+    { token }
+  )
+}
+
+
+
+export async function updateCampaign(
+  token: string,
+  id: string,
+  partial: UpdateCampaignInput
+): Promise<{ campaign: CampaignDetail }> {
+  return request<{ campaign: CampaignDetail }>(
+    `/merchant/campaigns/${encodeURIComponent(id)}`,
+    { method: "POST", token, body: partial }
+  )
+}
+
+
+
+export async function deleteCampaign(token: string, id: string): Promise<void> {
+  await request<void>(`/merchant/campaigns/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    token,
+  })
+}
+
+
+
+export async function addPromotionsToCampaign(
+  token: string,
+  id: string,
+  promotionIds: string[]
+): Promise<{ campaign: CampaignDetail }> {
+  return request<{ campaign: CampaignDetail }>(
+    `/merchant/campaigns/${encodeURIComponent(id)}/promotions`,
+    { method: "POST", token, body: { add: promotionIds } }
+  )
+}
+
+
+
+export async function removePromotionsFromCampaign(
+  token: string,
+  id: string,
+  promotionIds: string[]
+): Promise<{ campaign: CampaignDetail }> {
+  return request<{ campaign: CampaignDetail }>(
+    `/merchant/campaigns/${encodeURIComponent(id)}/promotions`,
+    { method: "POST", token, body: { remove: promotionIds } }
+  )
+}
+
+export async function listPromotions(
+  token: string,
+  params: {
+    q?: string
+    offset?: number
+    limit?: number
+    status?: string[]
+    campaign_id?: string
+  } = {}
+): Promise<{ promotions: PromotionListItem[]; count: number }> {
+  const qs = new URLSearchParams()
+  if (params.q) qs.set("q", params.q)
+  if (params.offset != null) qs.set("offset", String(params.offset))
+  if (params.limit != null) qs.set("limit", String(params.limit))
+  if (params.status?.length) {
+    params.status.forEach((s) => qs.append("status", s))
+  }
+  if (params.campaign_id) qs.set("campaign_id", params.campaign_id)
+  const suffix = qs.toString() ? `?${qs.toString()}` : ""
+  return request<{ promotions: PromotionListItem[]; count: number }>(
+    `/merchant/promotions${suffix}`,
+    { token }
+  )
+}
+
+
+
+export async function deletePromotion(token: string, id: string): Promise<void> {
+  await request<unknown>(`/merchant/promotions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    token,
+  })
+}
+
+
+
+export type PromotionRuleOperator = "in" | "eq" | "ne"
+
+
+
+export type PromotionRuleInput = {
+  // Backend attribute identifier (the catalog `value`, e.g. "items.product.id"
+  // or "customer.groups.id") — the create/batch routes whitelist this, never
+  // the display `id`.
+  attribute: string
+  operator: PromotionRuleOperator
+  values: string[]
+}
+
+
+
+export type PromotionRuleValueOption = {
+  value: string
+  label: string
+}
+
+
+
+export type PromotionRuleAttribute = {
+  /** Short id, e.g. "product". Disguised attributes have id === value. */
+  id: string
+  /** Full attribute value path, e.g. "items.product.id" — this is what rule
+   *  create/update ops must send as `attribute`. */
+  value: string
+  label: string
+  field_type: "multiselect" | "select" | "number"
+  required?: boolean
+  disguised?: boolean
+  operators: { id: string; label: string }[]
+}
+
+
+
+export type PromotionApplicationMethod = {
+  type: "fixed" | "percentage"
+  target_type: "items" | "shipping_methods" | "order"
+  value: number
+  currency_code?: string | null
+  allocation?: "each" | "across" | "once" | null
+  max_quantity?: number | null
+  apply_to_quantity?: number | null
+  buy_rules_min_quantity?: number | null
+}
+
+
+
+export type CreatePromotionPayload = {
+  display_code: string
+  is_automatic: boolean
+  type: "standard" | "buyget"
+  status: "draft" | "active" | "inactive"
+  application_method: {
+    type: "fixed" | "percentage"
+    target_type: "items" | "shipping_methods" | "order"
+    value: number
+    currency_code?: string
+    allocation?: "each" | "across"
+    max_quantity?: number | null
+    apply_to_quantity?: number
+    buy_rules_min_quantity?: number
+  }
+  rules?: PromotionRuleInput[]
+  target_rules?: PromotionRuleInput[]
+  buy_rules?: PromotionRuleInput[]
+  campaign_id?: string
+  starts_at?: string | null
+  ends_at?: string | null
+  // CONTRACT EXTENSION (flagged in notes): usage limit for the promotion, maps
+  // to promotion.limit in the promotion module (spec field "Usage Limit").
+  limit?: number | null
+}
+
+
+
+export type PromotionRuleDisplay = {
+  id: string
+  attribute: string
+  attribute_label: string
+  operator: string
+  values: { value: string; label: string }[]
+}
+
+
+
+export type PromotionDetail = PromotionListItem & {
+  application_method: PromotionApplicationMethod | null
+  rules: PromotionRule[]
+  target_rules: PromotionRule[]
+  buy_rules: PromotionRule[]
+  is_tax_inclusive?: boolean
+  limit?: number | null
+  used?: number | null
+  metadata?: Record<string, unknown> | null
+}
+
+
+
+export async function createPromotion(
+  token: string,
+  payload: CreatePromotionPayload
+): Promise<{ promotion: PromotionDetail }> {
+  return request<{ promotion: PromotionDetail }>("/merchant/promotions", {
+    method: "POST",
+    token,
+    body: payload,
+  })
+}
+
+// CONTRACT EXTENSION (flagged in notes): optional 4th param `targetType` maps
+// to the backend's supported application_method_target_type query param. The
+// attribute catalog differs per target type (empty for shipping_methods), so
+// callers building target-rules MUST pass it or they will offer attributes
+// the create route rejects.
+
+
+export async function listRuleAttributes(
+  token: string,
+  ruleType: "rules" | "target-rules" | "buy-rules",
+  promotionType: "standard" | "buyget",
+  targetType?: "items" | "shipping_methods" | "order"
+): Promise<{ attributes: PromotionRuleAttribute[] }> {
+  const params = new URLSearchParams({
+    rule_type: ruleType,
+    promotion_type: promotionType,
+  })
+  if (targetType) {
+    params.set("application_method_target_type", targetType)
+  }
+  return request<{ attributes: PromotionRuleAttribute[] }>(
+    `/merchant/promotions/rule-attributes?${params.toString()}`,
+    { token }
+  )
+}
+
+
+
+export async function listRuleValues(
+  token: string,
+  ruleType: "rules" | "target-rules" | "buy-rules",
+  attribute: string,
+  q?: string
+): Promise<{ values: PromotionRuleValueOption[] }> {
+  const params = new URLSearchParams({
+    rule_type: ruleType,
+    attribute,
+  })
+  if (q) {
+    params.set("q", q)
+  }
+  return request<{ values: PromotionRuleValueOption[] }>(
+    `/merchant/promotions/rule-values?${params.toString()}`,
+    { token }
+  )
+}
+
+
+
+export type PromotionRuleValue = { value: string; label: string }
+
+
+
+export type PromotionRule = {
+  /** null for disguised application-method rules (currency_code,
+   *  buy_rules_min_quantity, apply_to_quantity). */
+  id: string | null
+  /** Full attribute value path for real rules (e.g. "items.product.id");
+   *  the disguised id for disguised rules (id === value there). */
+  attribute: string
+  attribute_label: string
+  operator: PromotionRuleOperator
+  operator_label?: string
+  field_type?: "multiselect" | "select" | "number"
+  required?: boolean
+  disguised?: boolean
+  /** Array of { value, label } for select/multiselect attributes; the RAW
+   *  NUMBER (or null) for field_type "number" per the backend contract —
+   *  always normalize before treating as an array. */
+  values: PromotionRuleValue[] | number | null
+}
+
+
+
+export type PromotionRuleType = "rules" | "target-rules" | "buy-rules"
+
+
+
+export type PromotionCampaignRef = { id: string; name: string }
+
+
+
+export type UpdatePromotionInput = {
+  display_code?: string
+  status?: "draft" | "active" | "inactive"
+  is_automatic?: boolean
+  is_tax_inclusive?: boolean
+  application_method?: Partial<PromotionApplicationMethod>
+  campaign_id?: string | null
+  starts_at?: string | null
+  ends_at?: string | null
+}
+
+
+
+export type UpdatePromotionRulesOps = {
+  create?: PromotionRuleInput[]
+  update?: {
+    id: string
+    attribute: string
+    operator: PromotionRuleOperator
+    values: string[]
+  }[]
+  delete?: string[]
+}
+
+
+
+export async function getPromotion(
+  token: string,
+  id: string
+): Promise<{ promotion: PromotionDetail }> {
+  return request<{ promotion: PromotionDetail }>(
+    `/merchant/promotions/${encodeURIComponent(id)}`,
+    { token }
+  )
+}
+
+
+
+export async function updatePromotion(
+  token: string,
+  id: string,
+  payload: UpdatePromotionInput
+): Promise<{ promotion: PromotionDetail }> {
+  return request<{ promotion: PromotionDetail }>(
+    `/merchant/promotions/${encodeURIComponent(id)}`,
+    { method: "POST", token, body: payload }
+  )
+}
+
+
+
+export async function updatePromotionRules(
+  token: string,
+  id: string,
+  ruleType: PromotionRuleType,
+  ops: UpdatePromotionRulesOps
+): Promise<{ promotion: PromotionDetail }> {
+  return request<{ promotion: PromotionDetail }>(
+    `/merchant/promotions/${encodeURIComponent(id)}/${ruleType}`,
+    { method: "POST", token, body: ops }
+  )
+}
+
+
+
+export type UpdateCampaignInput = {
+  name?: string
+  description?: string | null
+  identifier?: string
+  starts_at?: string | null
+  ends_at?: string | null
+  budget?: { limit: number | null }
+}
+
