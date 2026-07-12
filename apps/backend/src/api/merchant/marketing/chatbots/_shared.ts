@@ -136,7 +136,6 @@ export const parseChatbotFields = (body: Record<string, any>): ParsedFields => {
   }
   if (b.language !== undefined) data.language = nullableText(b.language, 50)
   if (b.avatar !== undefined) data.avatar = nullableText(b.avatar, 1000)
-  if (b.agent_id !== undefined) data.agent_id = b.agent_id ?? null
 
   // Booleans — an explicit `=== true` so "false" strings cannot enable a flag.
   const bools = [

@@ -4,7 +4,6 @@ import {
   Calendar,
   Channels,
   ChartBar,
-  ChatBubbleLeftRight,
   CodeBranch,
   CogSixTooth,
   Envelope,
@@ -24,6 +23,12 @@ import { Link } from "react-router-dom"
 import { AccentIcon, ACCENTS, type AccentKey } from "./_components/ui-kit"
 import { BrandGlyph } from "./_components/brand-icons"
 
+// NOTE (A-6): the former "Engage" group (Inbox + AI Agents) has been retired from
+// this operator-only admin extension. Those surfaces were pinned to a single
+// default tenant and are fully superseded by the tenant-scoped merchant
+// dashboard: /dashboard/inbox, /dashboard/marketing/chatbots and
+// /dashboard/marketing/agents.
+//
 // The Marketing hub groups every surface into four areas — Create, Engage, Grow
 // and Settings — each with its own accent hue so the section reads as one tool.
 type Card = { to: string; label: string; icon: any; description: string }
@@ -38,14 +43,6 @@ const GROUPS: Group[] = [
       { to: "/marketing/posts", label: "Post Hub", icon: SquaresPlus, description: "Every draft, scheduled and published post in one place." },
       { to: "/marketing/calendar", label: "Calendar", icon: Calendar, description: "See and schedule what goes out, and when." },
       { to: "/marketing/studio", label: "AI Studio", icon: Photo, description: "Generate on-brand images and video for your campaigns." },
-    ],
-  },
-  {
-    title: "Engage",
-    accent: "blue",
-    items: [
-      { to: "/marketing/inbox", label: "Inbox", icon: ChatBubbleLeftRight, description: "Comments, DMs and live chat across channels — commerce-aware." },
-      { to: "/marketing/agents", label: "AI Agents", icon: Users, description: "Build and train the agents that draft and reply for you." },
     ],
   },
   {

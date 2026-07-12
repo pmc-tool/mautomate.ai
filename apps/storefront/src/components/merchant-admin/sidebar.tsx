@@ -117,13 +117,25 @@ const navItems: NavItem[] = [
       { href: "/dashboard/marketing", label: "Overview", icon: RocketLaunch },
       { href: "/dashboard/marketing/connect", label: "Social accounts", icon: Globe },
       { href: "/dashboard/marketing/posts", label: "Posts", icon: DocumentText },
-      { href: "/dashboard/marketing/agents", label: "AI agents", icon: Robot },
-      { href: "/dashboard/marketing/brand-voice", label: "Brand voice", icon: Swatch },
       { href: "/dashboard/marketing/journeys", label: "Journeys", icon: Sparkles },
       { href: "/dashboard/marketing/campaigns", label: "Campaigns", icon: Hashtag },
       { href: "/dashboard/marketing/email", label: "Email templates", icon: Envelope },
       { href: "/dashboard/marketing/email/notifications", label: "Email notifications", icon: Envelope },
-      { href: "/dashboard/marketing/chatbots", label: "Chatbots", icon: ChatBubbleLeftRight },
+    ],
+  },
+  // AI agents (A-6) — every AI surface reads as ONE system: chat agents
+  // (the chatbots), social agents (post drafting + scheduling), the brand voice
+  // they all speak in, and a link across to the voice agents that live under
+  // Call Center. ROUTES ARE UNCHANGED; this only regroups the navigation.
+  {
+    id: "ai-agents",
+    label: "AI agents",
+    icon: Robot,
+    children: [
+      { href: "/dashboard/marketing/chatbots", label: "Chat agents", icon: ChatBubbleLeftRight },
+      { href: "/dashboard/marketing/agents", label: "Social agents", icon: Robot },
+      { href: "/dashboard/calls/agents", label: "Voice agents", icon: Bolt },
+      { href: "/dashboard/marketing/brand-voice", label: "Brand voice", icon: Swatch },
     ],
   },
   {

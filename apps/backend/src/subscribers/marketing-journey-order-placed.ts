@@ -1,4 +1,7 @@
-import { resolveTenantId } from "../lib/tenant-context"
+import {
+  logUnresolvedTenant,
+  tenantForOrder,
+} from "../lib/marketing-event-tenant"
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 
 import { getCommerceGateway } from "../modules/marketing/gateway"
@@ -17,9 +20,14 @@ import { enrollForTrigger } from "../modules/marketing/journey/enrollment-servic
  * Guarantees (mirrors marketing-cart-recovered.ts):
  *   - NEVER throws. A marketing hiccup must not fail order placement nor poison
  *     the event-bus retry loop. All IO is wrapped and failures are logged.
+ *
+ * TENANT ATTRIBUTION (A-6): the owning tenant is derived PER EVENT from the
+ * entity's sales channel (lib/marketing-event-tenant.ts), never pinned at module
+ * load. In the pooled backend a module-load `resolveTenantId()` has no request
+ * context and collapses to the shared "default" tenant, which would attribute
+ * every store's events to one tenant. FAIL-CLOSED: if the tenant cannot be
+ * proven, the handler does nothing and says so in the log.
  */
-
-const TENANT_ID = resolveTenantId("MARKETING_DEFAULT_TENANT")
 
 export default async function marketingJourneyOrderPlacedHandler({
   event: { data },
@@ -36,14 +44,21 @@ export default async function marketingJourneyOrderPlacedHandler({
   }
 
   try {
+    // The owning tenant, derived from the order's sales channel (fail-closed).
+    const tenantId = await tenantForOrder(container, orderId)
+    if (!tenantId) {
+      logUnresolvedTenant(container, "order.placed (journey)", "order", orderId)
+      return
+    }
+
     const gateway = getCommerceGateway(container)
-    const order = await gateway.getOrder(TENANT_ID, orderId)
+    const order = await gateway.getOrder(tenantId, orderId)
     if (!order) {
       return
     }
 
     await enrollForTrigger(container, {
-      tenantId: TENANT_ID,
+      tenantId,
       event: "order.placed",
       contactRef: {
         email: order.email,

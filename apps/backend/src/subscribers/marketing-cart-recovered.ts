@@ -1,4 +1,7 @@
-import { resolveTenantId } from "../lib/tenant-context"
+import {
+  logUnresolvedTenant,
+  tenantForOrder,
+} from "../lib/marketing-event-tenant"
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 
 import { getCommerceGateway } from "../modules/marketing/gateway"
@@ -21,9 +24,14 @@ import { SettingsService } from "../modules/marketing/settings/settings-service"
  * Guarantees (mirrors marketing-product-created.ts):
  *   - NEVER throws. A marketing hiccup must not fail order placement nor poison
  *     the event-bus retry loop. All IO is wrapped and failures are logged.
+ *
+ * TENANT ATTRIBUTION (A-6): the owning tenant is derived PER EVENT from the
+ * entity's sales channel (lib/marketing-event-tenant.ts), never pinned at module
+ * load. In the pooled backend a module-load `resolveTenantId()` has no request
+ * context and collapses to the shared "default" tenant, which would attribute
+ * every store's events to one tenant. FAIL-CLOSED: if the tenant cannot be
+ * proven, the handler does nothing and says so in the log.
  */
-
-const TENANT_ID = resolveTenantId("MARKETING_DEFAULT_TENANT")
 const AUTOMATION_KEY = "automation_abandoned_cart"
 
 export default async function marketingCartRecoveredHandler({
@@ -43,21 +51,28 @@ export default async function marketingCartRecoveredHandler({
   try {
     const logger: any = container.resolve("logger")
 
-    // Gate 2 — per-automation toggle (durable setting, defaults OFF).
+    // Gate 2 — the owning tenant, derived from the order's sales channel.
+    const tenantId = await tenantForOrder(container, orderId)
+    if (!tenantId) {
+      logUnresolvedTenant(container, "order.placed (recovery)", "order", orderId)
+      return
+    }
+
+    // Gate 3 — per-automation toggle (durable setting, defaults OFF, per tenant).
     const settings = new SettingsService(container)
-    const enabled = await settings.get<boolean>(TENANT_ID, AUTOMATION_KEY, false)
+    const enabled = await settings.get<boolean>(tenantId, AUTOMATION_KEY, false)
     if (enabled !== true) {
       return
     }
 
     const gateway = getCommerceGateway(container)
-    const order = await gateway.getOrder(TENANT_ID, orderId)
+    const order = await gateway.getOrder(tenantId, orderId)
     const email = order?.email
     if (!email) {
       return
     }
 
-    await markRecoveredByEmail(container, TENANT_ID, email)
+    await markRecoveredByEmail(container, tenantId, email)
 
     logger?.info?.(
       `[marketing] order.placed: closed cart recovery for ${email}`

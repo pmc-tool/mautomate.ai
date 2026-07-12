@@ -1,4 +1,7 @@
-import { resolveTenantId } from "../lib/tenant-context"
+import {
+  logUnresolvedTenant,
+  tenantForProduct,
+} from "../lib/marketing-event-tenant"
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { MARKETING_MODULE } from "../modules/marketing"
 import { getCommerceGateway } from "../modules/marketing/gateway"
@@ -26,9 +29,14 @@ import { SettingsService } from "../modules/marketing/settings/settings-service"
  *   - NEVER throws. A marketing hiccup must not fail product creation nor poison
  *     the event-bus retry loop. All IO is wrapped and failures are logged via
  *     the container logger.
+ *
+ * TENANT ATTRIBUTION (A-6): the owning tenant is derived PER EVENT from the
+ * entity's sales channel (lib/marketing-event-tenant.ts), never pinned at module
+ * load. In the pooled backend a module-load `resolveTenantId()` has no request
+ * context and collapses to the shared "default" tenant, which would attribute
+ * every store's events to one tenant. FAIL-CLOSED: if the tenant cannot be
+ * proven, the handler does nothing and says so in the log.
  */
-
-const TENANT_ID = resolveTenantId("MARKETING_DEFAULT_TENANT")
 const AUTOMATION_KEY = "automation_new_product"
 const MAX_DESCRIPTION_CHARS = 160
 
@@ -61,15 +69,22 @@ export default async function marketingProductCreatedHandler({
   try {
     const logger: any = container.resolve("logger")
 
-    // Gate 2 — per-automation toggle (durable setting, defaults OFF).
+    // Gate 2 — the owning tenant, derived from the product's sales channel.
+    const tenantId = await tenantForProduct(container, productId)
+    if (!tenantId) {
+      logUnresolvedTenant(container, "product.created", "product", productId)
+      return
+    }
+
+    // Gate 3 — per-automation toggle (durable setting, defaults OFF, per tenant).
     const settings = new SettingsService(container)
-    const enabled = await settings.get<boolean>(TENANT_ID, AUTOMATION_KEY, false)
+    const enabled = await settings.get<boolean>(tenantId, AUTOMATION_KEY, false)
     if (enabled !== true) {
       return
     }
 
     const gateway = getCommerceGateway(container)
-    const product = await gateway.getProduct(TENANT_ID, productId)
+    const product = await gateway.getProduct(tenantId, productId)
     if (!product) {
       logger?.warn?.(
         `[marketing] product.created: product ${productId} not found — skipping draft.`
@@ -85,7 +100,7 @@ export default async function marketingProductCreatedHandler({
 
     const svc: any = container.resolve(MARKETING_MODULE)
     await svc.createMarketingPosts({
-      tenant_id: TENANT_ID,
+      tenant_id: tenantId,
       status: "draft",
       source: "automation",
       title: `New arrival: ${title}`,
@@ -94,7 +109,7 @@ export default async function marketingProductCreatedHandler({
     })
 
     logger?.info?.(
-      `[marketing] product.created: drafted new-arrival post for product ${productId}`
+      `[marketing] product.created: drafted new-arrival post for product ${productId} (tenant ${tenantId})`
     )
   } catch (e) {
     // Absolute backstop — a subscriber must never throw past this point.

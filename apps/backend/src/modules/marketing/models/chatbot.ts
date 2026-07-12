@@ -2,13 +2,12 @@ import { model } from "@medusajs/framework/utils"
 import MarketingChatbotData from "./chatbot-data"
 
 /**
- * marketing_chatbot — a public-facing conversational bot bound to an agent.
+ * marketing_chatbot — a public-facing conversational bot.
  *
- * `name`/`greeting` present it, `agent_id` binds it to the MarketingAgent that
- * powers replies, `channel_config` holds per-channel wiring, `public_key` is the
- * embed/identify token, and `reply_mode` gates whether replies are drafted for
- * review or sent automatically. Its knowledge sources live in `data`
- * (marketing_chatbot_data) and their embedded chunks in
+ * `name`/`greeting` present it, `channel_config` holds per-channel wiring,
+ * `public_key` is the embed/identify token, and `reply_mode` gates whether
+ * replies are drafted for review or sent automatically. Its knowledge sources
+ * live in `data` (marketing_chatbot_data) and their embedded chunks in
  * marketing_knowledge_chunk (owner_id = this bot's id).
  *
  * PERSONA/BEHAVIOR: `instructions` is the system prompt that shapes the bot,
@@ -36,6 +35,19 @@ const MarketingChatbot = model
     tenant_id: model.text(),
     name: model.text(),
     greeting: model.text().nullable(),
+    /**
+     * @deprecated DEAD FIELD - do not read or write (A-6).
+     *
+     * This used to bind a chatbot to a MarketingAgent that supplied its persona.
+     * The chatbot now carries its OWN persona (`instructions`, `dont_go_beyond`,
+     * `language`, ...) and the live reply path
+     * (modules/marketing/messaging/ai-reply.ts + auto-reply.ts) never looks at
+     * this column. Every code path that read or wrote it has been removed.
+     *
+     * The column is kept only because dropping it would need a migration; it is
+     * always null for chatbots created from the merchant Chatbot Studio. Do not
+     * reintroduce it.
+     */
     agent_id: model.text().nullable(),
     channel_config: model.json().nullable(),
     public_key: model.text().nullable(),
