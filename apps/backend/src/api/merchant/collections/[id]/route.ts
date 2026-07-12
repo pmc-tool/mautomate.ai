@@ -6,6 +6,7 @@ import { resolveMerchant } from "../../_helpers"
 const UpdateCollectionSchema = z.object({
   title: z.string().min(1).optional(),
   handle: z.string().optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 function slugify(value: string): string {
@@ -58,12 +59,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       title: collection.title,
       handle: collection.handle,
       product_count: products?.length ?? 0,
+      metadata: collection.metadata ?? {},
+      created_at: collection.created_at,
+      updated_at: collection.updated_at,
     },
   })
 }
 
 /**
  * PUT /merchant/collections/:id
+ *
+ * Update title, handle and/or metadata. Metadata writes re-stamp tenant_id so a
+ * merchant can never drop the ownership tag (which would leak the collection to
+ * every tenant / hide it from this one).
  */
 export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
@@ -71,7 +79,9 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const parsed = UpdateCollectionSchema.safeParse(req.body)
   if (!parsed.success) {
-    return res.status(400).json({ message: "invalid input", issues: parsed.error.issues })
+    return res
+      .status(400)
+      .json({ message: "invalid input", issues: parsed.error.issues })
   }
 
   const { id } = req.params
@@ -81,6 +91,9 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   const update: any = { id }
   if (parsed.data.title !== undefined) update.title = parsed.data.title
   if (parsed.data.handle !== undefined) update.handle = slugify(parsed.data.handle)
+  if (parsed.data.metadata !== undefined) {
+    update.metadata = { ...parsed.data.metadata, tenant_id: ctx.tenant.id }
+  }
 
   const productModule: any = req.scope.resolve(Modules.PRODUCT)
   const [collection] = await productModule.updateProductCollections([update])
@@ -90,6 +103,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
       id: collection.id,
       title: collection.title,
       handle: collection.handle,
+      metadata: collection.metadata ?? {},
     },
   })
 }

@@ -78,6 +78,7 @@ const navItems: NavItem[] = [
       { href: "/dashboard/products", label: "Products", icon: CubeSolid },
       { href: "/dashboard/categories", label: "Categories", icon: Tag },
       { href: "/dashboard/collections", label: "Collections", icon: Folder },
+      { href: "/dashboard/product-options", label: "Product options", icon: Swatch },
       { href: "/dashboard/gift-cards", label: "Gift cards", icon: GiftSolid },
       { href: "/dashboard/price-lists", label: "Price lists", icon: ListBullet },
     ],

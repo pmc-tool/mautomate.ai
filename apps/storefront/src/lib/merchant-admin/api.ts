@@ -5655,3 +5655,197 @@ export type UpsertCustomerInput = {
   metadata?: Record<string, unknown> | null
 }
 
+
+
+// ===== Taxonomy parity additions 2026-07-12 =====
+
+export type CategoryDetail = {
+  id: string
+  name: string
+  description: string | null
+  handle: string
+  is_active: boolean
+  is_internal: boolean
+  rank: number
+  parent_category: { id: string; name: string } | null
+  category_children: {
+    id: string
+    name: string
+    rank: number
+    is_active: boolean
+  }[]
+  products_count: number
+  metadata: Record<string, any>
+}
+
+
+
+export type UpdateCategoryInput = {
+  name?: string
+  description?: string | null
+  handle?: string
+  is_active?: boolean
+  is_internal?: boolean
+  parent_category_id?: string | null
+  rank?: number
+  metadata?: Record<string, any>
+}
+
+// Shared row shape for category/collection product tables (Product, Collection,
+// Sales Channels, Variants, Status columns).
+
+
+export type TaxonomyProductRow = {
+  id: string
+  title: string
+  handle: string
+  status: string
+  thumbnail: string | null
+  collection: { id: string; title: string } | null
+  variants_count: number
+  sales_channels: { id: string; name: string }[]
+}
+
+
+
+export type CategoryReorderUpdate = {
+  id: string
+  rank: number
+  parent_category_id?: string | null
+}
+
+
+
+export type ProductOptionRegistryEntry = {
+  title: string
+  values: string[]
+  product_count: number
+  products: { id: string; title: string }[]
+}
+
+
+
+export async function getCategory(
+  token: string,
+  id: string
+): Promise<{ category: CategoryDetail }> {
+  return request<{ category: CategoryDetail }>(
+    `/merchant/product-categories/${id}`,
+    { token }
+  )
+}
+
+
+
+export async function updateCategory(
+  token: string,
+  id: string,
+  body: UpdateCategoryInput
+): Promise<{ category: CategoryDetail }> {
+  return request<{ category: CategoryDetail }>(
+    `/merchant/product-categories/${id}`,
+    { method: "POST", token, body }
+  )
+}
+
+
+
+export async function deleteCategory(token: string, id: string): Promise<void> {
+  await request<void>(`/merchant/product-categories/${id}`, {
+    method: "DELETE",
+    token,
+  })
+}
+
+
+
+export async function listCategoryProducts(
+  token: string,
+  id: string,
+  params: { q?: string; offset?: number; limit?: number } = {}
+): Promise<{ products: TaxonomyProductRow[]; count: number }> {
+  const search = new URLSearchParams()
+  if (params.q) search.set("q", params.q)
+  if (params.offset != null) search.set("offset", String(params.offset))
+  if (params.limit != null) search.set("limit", String(params.limit))
+  const qs = search.toString()
+  return request<{ products: TaxonomyProductRow[]; count: number }>(
+    `/merchant/product-categories/${id}/products` + (qs ? "?" + qs : ""),
+    { token }
+  )
+}
+
+
+
+export async function batchCategoryProducts(
+  token: string,
+  id: string,
+  body: { add: string[]; remove: string[] }
+): Promise<{
+  success: boolean
+  category_id: string
+  add: string[]
+  remove: string[]
+}> {
+  return request<{
+    success: boolean
+    category_id: string
+    add: string[]
+    remove: string[]
+  }>(`/merchant/product-categories/${id}/products`, {
+    method: "POST",
+    token,
+    body,
+  })
+}
+
+
+
+export async function reorderCategories(
+  token: string,
+  updates: CategoryReorderUpdate[]
+): Promise<{ success: boolean; count: number }> {
+  return request<{ success: boolean; count: number }>(
+    `/merchant/product-categories/reorder`,
+    { method: "POST", token, body: { updates } }
+  )
+}
+
+// ---- Taxonomy: collection product batch ----
+
+
+
+export async function batchCollectionProducts(
+  token: string,
+  id: string,
+  body: { add: string[]; remove: string[] }
+): Promise<{
+  success: boolean
+  collection_id: string
+  add: string[]
+  remove: string[]
+}> {
+  return request<{
+    success: boolean
+    collection_id: string
+    add: string[]
+    remove: string[]
+  }>(`/merchant/collections/${id}/products`, {
+    method: "POST",
+    token,
+    body,
+  })
+}
+
+// ---- Taxonomy: product option registry (read-only, tenancy-adapted) ----
+
+
+
+export async function listProductOptionRegistry(
+  token: string
+): Promise<{ options: ProductOptionRegistryEntry[] }> {
+  return request<{ options: ProductOptionRegistryEntry[] }>(
+    `/merchant/product-options`,
+    { token }
+  )
+}

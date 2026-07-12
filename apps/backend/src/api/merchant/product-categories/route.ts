@@ -20,6 +20,13 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9-_]/g, "")
 }
 
+function byRank(a: any, b: any): number {
+  return (
+    (a.rank ?? 0) - (b.rank ?? 0) ||
+    (a.name || "").localeCompare(b.name || "")
+  )
+}
+
 function serializeCategory(c: any): any {
   return {
     id: c.id,
@@ -28,6 +35,7 @@ function serializeCategory(c: any): any {
     description: c.description ?? null,
     status: c.is_active ? "active" : "inactive",
     visibility: c.is_internal ? "internal" : "public",
+    rank: c.rank ?? 0,
     parent: c.parent_category
       ? {
           id: c.parent_category.id,
@@ -35,9 +43,13 @@ function serializeCategory(c: any): any {
           handle: c.parent_category.handle,
           status: c.parent_category.is_active ? "active" : "inactive",
           visibility: c.parent_category.is_internal ? "internal" : "public",
+          rank: c.parent_category.rank ?? 0,
         }
       : null,
-    children: (c.category_children || []).map(serializeCategory),
+    children: (c.category_children || [])
+      .slice()
+      .sort(byRank)
+      .map(serializeCategory),
   }
 }
 
@@ -50,6 +62,8 @@ function serializeCategory(c: any): any {
  *
  * Uses query.graph so metadata is actually returned — the module-service list
  * with `relations` omits it, which made the owner filter match nothing.
+ * Top-level categories and their children are ordered by rank (then name) so the
+ * dashboard tree and the organize/reorder UI render in the stored order.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
@@ -57,7 +71,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
-      filters: { metadata: { tenant_id: ctx.tenant.id } },
+    filters: { metadata: { tenant_id: ctx.tenant.id } },
 
     entity: "product_category",
     fields: [
@@ -67,17 +81,20 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "description",
       "is_active",
       "is_internal",
+      "rank",
       "metadata",
       "parent_category.id",
       "parent_category.name",
       "parent_category.handle",
       "parent_category.is_active",
       "parent_category.is_internal",
+      "parent_category.rank",
       "category_children.id",
       "category_children.name",
       "category_children.handle",
       "category_children.is_active",
       "category_children.is_internal",
+      "category_children.rank",
       "category_children.metadata",
     ],
     pagination: { take: 500, skip: 0 } as any,
@@ -85,7 +102,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const owned = (data || [])
     .filter((c: any) => c.metadata?.tenant_id === ctx.tenant.id)
-    .sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""))
+    .sort(byRank)
 
   res.json({
     categories: owned.map(serializeCategory),
@@ -104,7 +121,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const parsed = CreateCategorySchema.safeParse(req.body)
   if (!parsed.success) {
-    return res.status(400).json({ message: "invalid input", issues: parsed.error.issues })
+    return res
+      .status(400)
+      .json({ message: "invalid input", issues: parsed.error.issues })
   }
 
   const { name, handle, description, parent_id, status, visibility } = parsed.data

@@ -1,8 +1,27 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { updateProductsWorkflow } from "@medusajs/core-flows"
+import { batchLinkProductsToCollectionWorkflow } from "@medusajs/core-flows"
 import { z } from "zod"
 import { resolveMerchant } from "../../../_helpers"
+
+/**
+ * Accepts BOTH the batch shape ({ add, remove }) and the legacy shape
+ * ({ product_ids }, treated as "add"). At least one product id must be present.
+ */
+const PostSchema = z
+  .object({
+    add: z.array(z.string()).optional(),
+    remove: z.array(z.string()).optional(),
+    product_ids: z.array(z.string()).optional(),
+  })
+  .refine(
+    (v) =>
+      (v.add?.length ?? 0) +
+        (v.remove?.length ?? 0) +
+        (v.product_ids?.length ?? 0) >
+      0,
+    { message: "no products provided" }
+  )
 
 const ProductIdsSchema = z.object({
   product_ids: z.array(z.string()).min(1),
@@ -27,25 +46,30 @@ async function findOwnedCollection(
 
 /**
  * True only if EVERY productId is linked to the tenant's sales channel. Used to
- * reject cross-tenant product mutations before running updateProductsWorkflow —
- * without this a tenant could pull another tenant's product into a collection.
+ * reject cross-tenant product mutations before running the link workflow.
  */
 async function allProductsInSalesChannel(
   req: MedusaRequest,
   productIds: string[],
   scId: string
 ): Promise<boolean> {
+  if (!productIds.length) return true
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: links } = await query.graph({
     entity: "product_sales_channel",
     filters: { sales_channel_id: scId, product_id: productIds } as any,
     fields: ["product_id"],
   })
-  const owned = new Set((links || []).map((l: any) => l.product_id).filter(Boolean))
+  const owned = new Set(
+    (links || []).map((l: any) => l.product_id).filter(Boolean)
+  )
   return productIds.every((pid) => owned.has(pid))
 }
 
-async function loadVariantPrices(req: MedusaRequest, variantIds: string[]): Promise<Record<string, any[]>> {
+async function loadVariantPrices(
+  req: MedusaRequest,
+  variantIds: string[]
+): Promise<Record<string, any[]>> {
   if (!variantIds.length) return {}
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: links } = await query.graph({
@@ -56,7 +80,8 @@ async function loadVariantPrices(req: MedusaRequest, variantIds: string[]): Prom
   const priceSetByVariant: Record<string, string> = {}
   for (const link of links || []) {
     const l = link as any
-    if (l.variant_id && l.price_set_id) priceSetByVariant[l.variant_id] = l.price_set_id
+    if (l.variant_id && l.price_set_id)
+      priceSetByVariant[l.variant_id] = l.price_set_id
   }
 
   const priceSetIds = Object.values(priceSetByVariant)
@@ -82,7 +107,7 @@ async function loadVariantPrices(req: MedusaRequest, variantIds: string[]): Prom
 /**
  * GET /merchant/collections/:id/products
  *
- * Products currently in this collection.
+ * Products currently in this collection, restricted to the tenant sales channel.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
@@ -96,19 +121,25 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const productModule: any = req.scope.resolve(Modules.PRODUCT)
 
-  const { data: scLinks } = await req.scope.resolve(ContainerRegistrationKeys.QUERY).graph({
-    entity: "product_sales_channel",
-    filters: { sales_channel_id: scId } as any,
-    fields: ["product_id"],
-  })
-  const scProductIds = new Set((scLinks || []).map((l: any) => l.product_id).filter(Boolean))
+  const { data: scLinks } = await req.scope
+    .resolve(ContainerRegistrationKeys.QUERY)
+    .graph({
+      entity: "product_sales_channel",
+      filters: { sales_channel_id: scId } as any,
+      fields: ["product_id"],
+    })
+  const scProductIds = new Set(
+    (scLinks || []).map((l: any) => l.product_id).filter(Boolean)
+  )
 
   const products = await productModule.listProducts(
     { collection_id: id },
-    { take: 200, relations: ["variants"] }
+    { take: 200, relations: ["variants", "collection", "sales_channels"] }
   )
 
-  const tenantProducts = (products || []).filter((p: any) => scProductIds.has(p.id))
+  const tenantProducts = (products || []).filter((p: any) =>
+    scProductIds.has(p.id)
+  )
   const allVariantIds = tenantProducts
     .flatMap((p: any) => (p.variants || []).map((v: any) => v.id))
     .filter(Boolean)
@@ -116,14 +147,23 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const serialized = tenantProducts.map((p: any) => {
     const firstVariant = (p.variants || [])[0]
-    const firstPrice = firstVariant ? pricesByVariant[firstVariant.id]?.[0] : undefined
+    const firstPrice = firstVariant
+      ? pricesByVariant[firstVariant.id]?.[0]
+      : undefined
     return {
       id: p.id,
       title: p.title,
       handle: p.handle,
       status: p.status,
-      thumbnail: p.thumbnail,
-      variant_count: (p.variants || []).length,
+      thumbnail: p.thumbnail ?? null,
+      collection: p.collection
+        ? { id: p.collection.id, title: p.collection.title }
+        : null,
+      variants_count: (p.variants || []).length,
+      sales_channels: (p.sales_channels || []).map((sc: any) => ({
+        id: sc.id,
+        name: sc.name,
+      })),
       price: firstPrice?.amount,
       currency_code: firstPrice?.currency_code,
     }
@@ -135,55 +175,64 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 /**
  * POST /merchant/collections/:id/products
  *
- * Add products to the collection. The collection must be owned by this tenant
- * and EVERY product must belong to this tenant's sales channel — otherwise the
- * whole request is rejected before any product is mutated.
+ * Add and/or remove products in one batch ({ add, remove }). Also accepts the
+ * legacy { product_ids } shape (treated as "add"). The collection must be owned
+ * by this tenant and EVERY touched product must belong to this tenant's sales
+ * channel, or the whole request is rejected before any link is mutated.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
   const scId = ctx.tenant.meta?.sales_channel_id
-  if (!scId) return res.status(400).json({ message: "tenant sales channel not configured" })
+  if (!scId) {
+    return res.status(400).json({ message: "tenant sales channel not configured" })
+  }
 
-  const parsed = ProductIdsSchema.safeParse(req.body)
+  const parsed = PostSchema.safeParse(req.body)
   if (!parsed.success) {
-    return res.status(400).json({ message: "invalid input", issues: parsed.error.issues })
+    return res
+      .status(400)
+      .json({ message: "invalid input", issues: parsed.error.issues })
   }
 
   const { id } = req.params
-  const { product_ids } = parsed.data
+  const add = parsed.data.add ?? parsed.data.product_ids ?? []
+  const remove = parsed.data.remove ?? []
 
   const collection = await findOwnedCollection(req, ctx.tenant.id, id)
   if (!collection) return res.status(404).json({ message: "collection not found" })
 
-  if (!(await allProductsInSalesChannel(req, product_ids, scId))) {
+  const touched = Array.from(new Set([...add, ...remove]))
+  if (!(await allProductsInSalesChannel(req, touched, scId))) {
     return res.status(404).json({ message: "one or more products not found" })
   }
 
-  await updateProductsWorkflow(req.scope).run({
-    input: {
-      products: product_ids.map((productId) => ({ id: productId, collection_id: id })),
-    },
+  await batchLinkProductsToCollectionWorkflow(req.scope).run({
+    input: { id, add, remove },
   })
 
-  res.status(200).json({ success: true, collection_id: id, product_ids })
+  res.status(200).json({ success: true, collection_id: id, add, remove })
 }
 
 /**
  * DELETE /merchant/collections/:id/products
  *
- * Remove products from the collection. Same ownership + sales-channel checks as
- * POST so a tenant can never mutate another tenant's product.
+ * Legacy remove endpoint: removes { product_ids } from the collection. Same
+ * ownership + sales-channel checks as POST.
  */
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
   const scId = ctx.tenant.meta?.sales_channel_id
-  if (!scId) return res.status(400).json({ message: "tenant sales channel not configured" })
+  if (!scId) {
+    return res.status(400).json({ message: "tenant sales channel not configured" })
+  }
 
   const parsed = ProductIdsSchema.safeParse(req.body)
   if (!parsed.success) {
-    return res.status(400).json({ message: "invalid input", issues: parsed.error.issues })
+    return res
+      .status(400)
+      .json({ message: "invalid input", issues: parsed.error.issues })
   }
 
   const { id } = req.params
@@ -196,11 +245,11 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(404).json({ message: "one or more products not found" })
   }
 
-  await updateProductsWorkflow(req.scope).run({
-    input: {
-      products: product_ids.map((productId) => ({ id: productId, collection_id: null })),
-    },
+  await batchLinkProductsToCollectionWorkflow(req.scope).run({
+    input: { id, add: [], remove: product_ids },
   })
 
-  res.status(200).json({ success: true, collection_id: id, product_ids })
+  res
+    .status(200)
+    .json({ success: true, collection_id: id, product_ids })
 }
