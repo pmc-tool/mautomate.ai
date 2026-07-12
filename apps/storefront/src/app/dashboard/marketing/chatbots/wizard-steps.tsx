@@ -1,33 +1,50 @@
 "use client"
 
-import { useRef, useState } from "react"
+import Link from "next/link"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   AcademicCap,
   ArrowPath,
+  ArrowUpRightOnBox,
   Check,
   CheckCircleSolid,
   ExclamationCircle,
+  Facebook,
   Globe,
+  InformationCircle,
   PaperPlane,
   Plus,
   QuestionMarkCircle,
   SquareTwoStack,
+  Telegram,
   Text as TextIcon,
   Trash,
 } from "@medusajs/icons"
 import { cn } from "@lib/util/cn"
 import { FormField, Input, Select, Textarea } from "@components/merchant-admin/form-field"
 import { FormToggle } from "@components/merchant-admin/form-toggle"
+import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
   addMarketingChatbotData,
+  bindMarketingChatbotChannel,
   deleteMarketingChatbotData,
+  listMarketingChannels,
   testMarketingChatbot,
   trainMarketingChatbot,
+  unbindMarketingChatbotChannel,
+  updateMarketingChatbot,
   ApiError,
+  MarketingChannelAvailability,
+  MarketingChannelBinding,
   MarketingChatbot,
   MarketingChatbotData,
   MarketingChatbotTraining,
 } from "@lib/merchant-admin/api"
+import {
+  ChannelChip,
+  InstagramGlyph,
+  WhatsAppGlyph,
+} from "../channel-glyphs"
 import { ACCENT_COLORS, AVATAR_COLORS, BotAvatar } from "./chatbot-preview"
 import { LANGUAGES, type ChatbotDraft } from "./types"
 
@@ -160,6 +177,17 @@ export function StepConfigure({ draft, onChange }: StepProps) {
             )
           })}
         </div>
+        {draft.reply_mode !== "auto" && (
+          <p className="mt-2 flex items-start gap-1.5 rounded-base border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <ExclamationCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              In draft mode the customer never hears back from the assistant. On
+              every channel it is switched on for, including the chat bubble on
+              your storefront, the visitor sends a message and gets no reply: the
+              suggested answer waits in your inbox until a human sends it.
+            </span>
+          </p>
+        )}
       </FormField>
 
       <div className="rounded-large border border-grey-20 p-4">
@@ -167,7 +195,7 @@ export function StepConfigure({ draft, onChange }: StepProps) {
           checked={draft.active}
           onChange={(v) => onChange({ active: v })}
           label="Chatbot is active"
-          description="A paused bot is not served to visitors and does not answer inbound messages."
+          description="A paused bot is not served to visitors and does not answer inbound messages. Where it appears is decided per channel in the Channels step."
         />
       </div>
     </div>
@@ -771,7 +799,7 @@ export function StepTrain({
 }
 
 /* ------------------------------------------------------------------------- */
-/* Step 4 — Test and embed.                                                   */
+/* Step 5 — Test: ask the real bot, and grab the snippet for any other site.   */
 /* ------------------------------------------------------------------------- */
 
 type TestTurn = { role: "user" | "assistant"; text: string }
@@ -784,6 +812,66 @@ type TestTurn = { role: "user" | "assistant"; text: string }
 const BACKEND_ORIGIN = (
   process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || ""
 ).replace(/\/$/, "")
+
+/**
+ * The one script tag that puts THIS bot on any third-party site. Shared by the
+ * Channels step ("External website") and the Test step so the two can never
+ * drift. It is keyed on the bot's public_key, which is public by design.
+ */
+export function EmbedSnippet({ publicKey }: { publicKey: string | null }) {
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const snippet = publicKey
+    ? `<script src="${BACKEND_ORIGIN}/marketing-chat/widget.js"\n        data-public-key="${publicKey}" defer></script>`
+    : ""
+
+  const copy = async () => {
+    if (!snippet) return
+    try {
+      await navigator.clipboard.writeText(snippet)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setError("Could not copy. Select the snippet and copy it manually.")
+    }
+  }
+
+  if (!snippet) {
+    return (
+      <div className="rounded-base border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+        This assistant has no public key yet, so it cannot be embedded. Save it
+        and reopen this step.
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <pre className="overflow-x-auto rounded-large border border-grey-20 bg-grey-90 p-3 text-xs leading-relaxed text-white">
+        <code>{snippet}</code>
+      </pre>
+      <button
+        type="button"
+        onClick={copy}
+        className="mt-2 inline-flex items-center gap-1.5 rounded-base border border-grey-20 px-3 py-1.5 text-xs font-medium text-grey-70 transition-colors hover:bg-grey-10"
+      >
+        {copied ? (
+          <>
+            <Check className="h-3.5 w-3.5" />
+            Copied
+          </>
+        ) : (
+          <>
+            <SquareTwoStack className="h-3.5 w-3.5" />
+            Copy snippet
+          </>
+        )}
+      </button>
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+    </>
+  )
+}
 
 export function StepDeploy({
   token,
@@ -803,15 +891,10 @@ export function StepDeploy({
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
   const [lastKnowledge, setLastKnowledge] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const embeddedCount = sources.filter((s) => s.status === "embedded").length
-
-  const snippet = chatbot.public_key
-    ? `<script src="${BACKEND_ORIGIN}/marketing-chat/widget.js"\n        data-public-key="${chatbot.public_key}" defer></script>`
-    : ""
 
   const send = async () => {
     const message = input.trim()
@@ -847,17 +930,6 @@ export function StepDeploy({
     } finally {
       setSending(false)
       inputRef.current?.focus()
-    }
-  }
-
-  const copy = async () => {
-    if (!snippet) return
-    try {
-      await navigator.clipboard.writeText(snippet)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      setError("Could not copy. Select the snippet and copy it manually.")
     }
   }
 
@@ -985,50 +1057,543 @@ export function StepDeploy({
           page, WordPress, anything.
         </p>
 
-        {snippet ? (
-          <>
-            <pre className="mt-3 overflow-x-auto rounded-large border border-grey-20 bg-grey-90 p-3 text-xs leading-relaxed text-white">
-              <code>{snippet}</code>
-            </pre>
-            <button
-              type="button"
-              onClick={copy}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-base border border-grey-20 px-3 py-1.5 text-xs font-medium text-grey-70 transition-colors hover:bg-grey-10"
-            >
-              {copied ? (
-                <>
-                  <Check className="h-3.5 w-3.5" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <SquareTwoStack className="h-3.5 w-3.5" />
-                  Copy snippet
-                </>
-              )}
-            </button>
-          </>
-        ) : (
-          <div className="mt-3 rounded-base border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            This bot has no public key yet, so it cannot be embedded. Save it and
-            reopen this step.
-          </div>
-        )}
+        <div className="mt-3">
+          <EmbedSnippet publicKey={chatbot.public_key} />
+        </div>
 
         <div className="mt-4 rounded-large border border-grey-20 bg-grey-5 p-4">
           <p className="text-xs leading-relaxed text-grey-60">
-            You do not need this snippet for your own mAutomate storefront: an
-            active chatbot is served there automatically. Use it for sites you host
-            elsewhere.
+            You do not need this snippet for your own mAutomate storefront. That
+            is the &quot;My website&quot; switch in the Channels step: turn it on
+            and the assistant appears on your store, turn it off and it does not.
           </p>
         </div>
 
         {!draft.active && (
           <div className="mt-3 rounded-base border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            This bot is paused, so the snippet will render nothing. Turn it on in
-            the Configure step.
+            This assistant is paused, so the snippet will render nothing. Turn it
+            on in the Configure step.
           </div>
         )}
+
+        {draft.reply_mode !== "auto" && (
+          <div className="mt-3 rounded-base border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            This assistant is in draft mode, so on a live site it will not answer
+            the visitor. It only suggests a reply in your inbox for a human to
+            send. Switch it to automatic answers in the Configure step.
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------------- */
+/* Step 4 — Channels: where this assistant actually answers.                  */
+/* ------------------------------------------------------------------------- */
+
+/** Brand mark per channel. */
+const CHANNEL_BRAND: Record<
+  string,
+  {
+    icon: React.ComponentType<{ className?: string }>
+    color: string
+    gradient?: string
+  }
+> = {
+  web_widget: { icon: Globe, color: "#111827" },
+  telegram: { icon: Telegram, color: "#229ED9" },
+  messenger: { icon: Facebook, color: "#1877F2" },
+  instagram: {
+    icon: InstagramGlyph,
+    color: "#E1306C",
+    gradient: "linear-gradient(135deg,#F58529,#DD2A7B 55%,#8134AF)",
+  },
+  whatsapp: { icon: WhatsAppGlyph, color: "#25D366" },
+}
+
+/**
+ * Step 4 — Channels.
+ *
+ * A channel is ON for this assistant when an ACTIVE marketing_chatbot_channel
+ * binding exists for it. That row is the ONLY switch:
+ *   - web_widget: /tenant-config mounts the storefront chat bubble only when the
+ *     binding is active, so turning it off removes the bubble entirely (it does
+ *     not leave a bubble that nobody answers),
+ *   - telegram / messenger / instagram / whatsapp: the inbound runtime gives the
+ *     turn to the assistant bound to that channel. No binding means messages
+ *     still land in the inbox, but no assistant replies.
+ *
+ * Availability is the backend's, not a guess: a channel whose messaging provider
+ * is not configured on this install renders DISABLED with the real reason,
+ * never a button that cannot work.
+ */
+export function StepChannels({
+  token,
+  chatbot,
+  draft,
+  onChange,
+  onChatbotChange,
+}: {
+  token: string
+  chatbot: MarketingChatbot
+  draft: ChatbotDraft
+  onChange: (patch: Partial<ChatbotDraft>) => void
+  onChatbotChange: (bot: MarketingChatbot) => void
+}) {
+  const { me } = useMerchantAuth()
+
+  const [channels, setChannels] = useState<MarketingChannelAvailability[]>([])
+  const [bindings, setBindings] = useState<MarketingChannelBinding[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [switching, setSwitching] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await listMarketingChannels(token)
+      setChannels(res.channels)
+      setBindings(res.bindings.filter((b) => b.chatbot_id === chatbot.id))
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : "Could not load your channels."
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [token, chatbot.id])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const bindingFor = (channel: string) =>
+    bindings.find((b) => b.channel === channel) ?? null
+
+  const bind = async (
+    channel: string,
+    body: { social_account_id?: string | null; active?: boolean }
+  ) => {
+    setBusy(channel)
+    setError(null)
+    try {
+      await bindMarketingChatbotChannel(token, chatbot.id, {
+        channel,
+        ...body,
+      })
+      await load()
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : "Could not update that channel. Try again."
+      )
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const unbind = async (channel: string) => {
+    setBusy(channel)
+    setError(null)
+    try {
+      await unbindMarketingChatbotChannel(token, chatbot.id, channel)
+      await load()
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : "Could not disconnect that channel. Try again."
+      )
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** The honest fix for the draft-mode trap: one click makes the bot answer. */
+  const switchToAuto = async () => {
+    setSwitching(true)
+    setError(null)
+    try {
+      const res = await updateMarketingChatbot(token, chatbot.id, {
+        reply_mode: "auto",
+      })
+      onChatbotChange(res.chatbot)
+      // Keep the wizard's draft in step, or its next autosave would write the
+      // old value straight back.
+      onChange({ reply_mode: "auto" })
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : "Could not switch this assistant to automatic answers."
+      )
+    } finally {
+      setSwitching(false)
+    }
+  }
+
+  const isDraftMode = draft.reply_mode !== "auto"
+  const storefrontHost = me?.store?.domain ?? null
+
+  /** The plain truth about what a bound, switched-on channel does. */
+  const AnsweredByNote = ({ channel }: { channel: string }) => (
+    <div className="space-y-2">
+      <p className="flex items-start gap-1.5 text-xs text-emerald-700">
+        <CheckCircleSolid className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          Messages from this channel are answered by this assistant.
+        </span>
+      </p>
+      {isDraftMode && <DraftModeWarning channel={channel} />}
+      {!draft.active && (
+        <p className="flex items-start gap-1.5 rounded-base bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <ExclamationCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            This assistant is paused (Configure step), so nothing is served on
+            this channel until you turn it back on.
+          </span>
+        </p>
+      )}
+    </div>
+  )
+
+  const DraftModeWarning = ({ channel }: { channel: string }) => (
+    <div className="rounded-base border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+      <p className="flex items-start gap-1.5">
+        <ExclamationCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          This assistant is in draft mode: it will NOT answer the customer.
+          {channel === "web_widget"
+            ? " A visitor who opens the chat gets no reply; their message waits in your inbox with a suggested answer for you to send."
+            : " Their message waits in your inbox with a suggested answer for you to send."}
+        </span>
+      </p>
+      <button
+        type="button"
+        onClick={switchToAuto}
+        disabled={switching}
+        className="mt-2 inline-flex items-center gap-1.5 rounded-base border border-amber-300 bg-white px-2.5 py-1.5 font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-60"
+      >
+        {switching && <ArrowPath className="h-3.5 w-3.5 animate-spin" />}
+        Switch to automatic answers
+      </button>
+    </div>
+  )
+
+  /** Card shell: brand chip, title, description, and the channel's controls. */
+  const ChannelCard = ({
+    channel,
+    title,
+    description,
+    right,
+    children,
+    muted,
+  }: {
+    channel: string
+    title: string
+    description: string
+    right?: React.ReactNode
+    children?: React.ReactNode
+    muted?: boolean
+  }) => {
+    const brand = CHANNEL_BRAND[channel] ?? {
+      icon: Globe,
+      color: "#6b7280",
+    }
+    return (
+      <div
+        className={cn(
+          "rounded-large border p-4",
+          muted ? "border-grey-20 bg-grey-5" : "border-grey-20 bg-white"
+        )}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <ChannelChip
+              icon={brand.icon}
+              color={brand.color}
+              gradient={muted ? undefined : brand.gradient}
+              className={cn("h-10 w-10 shrink-0", muted && "opacity-60")}
+            />
+            <div>
+              <p className="text-sm font-medium text-grey-90">{title}</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-grey-50">
+                {description}
+              </p>
+            </div>
+          </div>
+          {right && <div className="shrink-0">{right}</div>}
+        </div>
+        {children && <div className="mt-3 space-y-3">{children}</div>}
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <ArrowPath className="h-5 w-5 animate-spin text-grey-40" />
+      </div>
+    )
+  }
+
+  const meta = (channel: string) =>
+    channels.find((c) => c.channel === channel) ?? null
+
+  const webBinding = bindingFor("web_widget")
+  const webOn = !!webBinding?.active
+
+  /** One account-backed channel (telegram, messenger, instagram, whatsapp). */
+  const AccountChannel = ({ channel }: { channel: string }) => {
+    const info = meta(channel)
+    if (!info) return null
+
+    const binding = bindingFor(channel)
+    const working = busy === channel
+
+    if (!info.available) {
+      return (
+        <ChannelCard
+          channel={channel}
+          title={info.label}
+          description={info.description}
+          muted
+          right={
+            <span className="rounded-full bg-grey-10 px-2.5 py-0.5 text-xs font-medium text-grey-50">
+              Unavailable
+            </span>
+          }
+        >
+          <p className="flex items-start gap-1.5 rounded-base bg-grey-10 px-3 py-2 text-xs text-grey-60">
+            <InformationCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>{info.reason}</span>
+          </p>
+        </ChannelCard>
+      )
+    }
+
+    if (!info.accounts.length) {
+      return (
+        <ChannelCard
+          channel={channel}
+          title={info.label}
+          description={info.description}
+        >
+          <p className="text-xs text-grey-60">
+            No {info.label} account is connected to your store yet. Connect one
+            first, then come back and this assistant can answer it.
+          </p>
+          <Link
+            href="/dashboard/marketing/connect"
+            className="inline-flex items-center gap-1.5 rounded-base border border-grey-20 px-3 py-1.5 text-xs font-medium text-grey-70 transition-colors hover:bg-grey-10"
+          >
+            <ArrowUpRightOnBox className="h-3.5 w-3.5" />
+            Connect {info.label}
+          </Link>
+        </ChannelCard>
+      )
+    }
+
+    return (
+      <ChannelCard
+        channel={channel}
+        title={info.label}
+        description={info.description}
+        right={
+          binding ? (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={binding.active}
+              aria-label={`${info.label} answers on`}
+              disabled={working}
+              onClick={() =>
+                bind(channel, {
+                  social_account_id: binding.social_account_id,
+                  active: !binding.active,
+                })
+              }
+              className={cn(
+                "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors disabled:opacity-60",
+                binding.active ? "bg-grey-90" : "bg-grey-30"
+              )}
+            >
+              <span
+                className={cn(
+                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200",
+                  binding.active ? "translate-x-4" : "translate-x-0"
+                )}
+              />
+            </button>
+          ) : undefined
+        }
+      >
+        <FormField
+          label="Account this assistant answers"
+          hint="Only accounts connected to your store are listed."
+        >
+          <Select
+            value={binding?.social_account_id ?? ""}
+            disabled={working}
+            onChange={(e) => {
+              const value = e.target.value
+              if (!value) {
+                if (binding) unbind(channel)
+                return
+              }
+              bind(channel, { social_account_id: value, active: true })
+            }}
+          >
+            <option value="">
+              Not answered by this assistant
+            </option>
+            {info.accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.display_name || a.handle || a.id}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+
+        {working && (
+          <p className="flex items-center gap-1.5 text-xs text-grey-50">
+            <ArrowPath className="h-3.5 w-3.5 animate-spin" />
+            Saving
+          </p>
+        )}
+
+        {binding ? (
+          binding.active ? (
+            <AnsweredByNote channel={channel} />
+          ) : (
+            <p className="flex items-start gap-1.5 text-xs text-grey-60">
+              <InformationCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                Switched off. Messages from this channel still arrive in your
+                inbox, but this assistant does not answer them.
+              </span>
+            </p>
+          )
+        ) : (
+          <p className="text-xs text-grey-50">
+            Pick an account above to let this assistant answer it. Until then its
+            messages go to the inbox unanswered.
+          </p>
+        )}
+      </ChannelCard>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="rounded-base border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="rounded-large border border-grey-20 bg-grey-5 p-4">
+        <p className="text-sm font-medium text-grey-90">
+          Where this assistant answers
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-grey-60">
+          Each switch below is real. Turn a channel on and this assistant answers
+          the messages that arrive on it. Turn it off and nothing is served on
+          that channel: on your storefront, the chat bubble disappears entirely.
+        </p>
+      </div>
+
+      {/* --- My website (the web_widget binding) --- */}
+      <ChannelCard
+        channel="web_widget"
+        title="My website"
+        description="Show the assistant on your mAutomate storefront."
+        right={
+          <button
+            type="button"
+            role="switch"
+            aria-checked={webOn}
+            aria-label="Show the assistant on my website"
+            disabled={busy === "web_widget"}
+            onClick={() => bind("web_widget", { active: !webOn })}
+            className={cn(
+              "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors disabled:opacity-60",
+              webOn ? "bg-grey-90" : "bg-grey-30"
+            )}
+          >
+            <span
+              className={cn(
+                "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200",
+                webOn ? "translate-x-4" : "translate-x-0"
+              )}
+            />
+          </button>
+        }
+      >
+        {storefrontHost && (
+          <p className="text-xs text-grey-60">
+            Your storefront:{" "}
+            <a
+              href={`https://${storefrontHost}`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-grey-90 underline underline-offset-2"
+            >
+              {storefrontHost}
+            </a>
+          </p>
+        )}
+
+        {busy === "web_widget" && (
+          <p className="flex items-center gap-1.5 text-xs text-grey-50">
+            <ArrowPath className="h-3.5 w-3.5 animate-spin" />
+            Saving
+          </p>
+        )}
+
+        {webOn ? (
+          <AnsweredByNote channel="web_widget" />
+        ) : (
+          <p className="flex items-start gap-1.5 text-xs text-grey-60">
+            <InformationCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              Off: there is no chat bubble on your storefront at all. Visitors
+              cannot start a conversation there.
+            </span>
+          </p>
+        )}
+      </ChannelCard>
+
+      {/* --- Any other website (the embed snippet) --- */}
+      <ChannelCard
+        channel="web_widget"
+        title="External website"
+        description="Put the same assistant on any other site you run."
+      >
+        <p className="text-xs leading-relaxed text-grey-60">
+          Paste this before the closing body tag of any page: a landing page,
+          WordPress, anything. It is independent of the switch above, which only
+          controls your mAutomate storefront.
+        </p>
+        <EmbedSnippet publicKey={chatbot.public_key} />
+      </ChannelCard>
+
+      {/* --- Messaging channels --- */}
+      <div className="space-y-4 border-t border-grey-10 pt-6">
+        <div>
+          <p className="text-sm font-medium text-grey-90">Messaging channels</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-grey-50">
+            Connect an account on the Connect page, then let this assistant
+            answer it here.
+          </p>
+        </div>
+
+        <AccountChannel channel="telegram" />
+        <AccountChannel channel="messenger" />
+        <AccountChannel channel="instagram" />
+        <AccountChannel channel="whatsapp" />
       </div>
     </div>
   )

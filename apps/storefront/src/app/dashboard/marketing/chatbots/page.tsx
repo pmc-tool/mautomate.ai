@@ -255,9 +255,14 @@ export default function MarketingChatbotsPage() {
                       onClick: () => setWizard({ id: bot.id, step: 3 }),
                     },
                     {
+                      label: "Channels",
+                      icon: ChatBubbleLeftRight,
+                      onClick: () => setWizard({ id: bot.id, step: 4 }),
+                    },
+                    {
                       label: "Test and embed",
                       icon: Code,
-                      onClick: () => setWizard({ id: bot.id, step: 4 }),
+                      onClick: () => setWizard({ id: bot.id, step: 5 }),
                     },
                     {
                       label: bot.active ? "Pause" : "Activate",

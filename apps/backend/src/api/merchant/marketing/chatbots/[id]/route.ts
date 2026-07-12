@@ -110,6 +110,22 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
       await (svc as any).deleteMarketingChatbotData(rowIds)
     }
 
+    // The bot's channel bindings die with it. Leaving them behind would keep an
+    // "active" binding pointing at a bot that no longer exists — noise in the
+    // channel map, and a channel that looks answered but is not.
+    const channels = await (svc as any)
+      .listMarketingChatbotChannels(
+        { tenant_id: tenantId, chatbot_id: id },
+        { take: 100 }
+      )
+      .catch(() => [])
+    const channelIds = (Array.isArray(channels) ? channels : []).map(
+      (c: any) => c.id
+    )
+    if (channelIds.length) {
+      await (svc as any).deleteMarketingChatbotChannels(channelIds)
+    }
+
     // The bot's embedded knowledge is owned by the bot (owner_id = its id).
     const chunks = await (svc as any)
       .listMarketingKnowledgeChunks(

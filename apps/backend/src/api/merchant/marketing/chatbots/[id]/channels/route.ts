@@ -52,6 +52,21 @@ const CHANNEL_PLATFORM: Record<(typeof CHANNELS)[number], string | null> = {
 const first = <T>(v: T | T[] | null | undefined): T | null =>
   Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
 
+/**
+ * The non-secret identity of the connected account a binding serves, for the
+ * UI. Never touches marketing_social_credential.
+ */
+const toAccountRef = (account: any | null | undefined) =>
+  account
+    ? {
+        id: account.id,
+        platform: account.platform,
+        display_name: account.display_name ?? null,
+        handle: account.handle ?? null,
+        status: account.status ?? null,
+      }
+    : null
+
 const toBindingDto = (row: any) => ({
   id: row.id,
   chatbot_id: row.chatbot_id,
@@ -66,7 +81,10 @@ const toBindingDto = (row: any) => ({
 /**
  * GET /merchant/marketing/chatbots/:id/channels
  *
- * List the bot's channel bindings (tenant-scoped).
+ * List the bot's channel bindings (tenant-scoped). Each entry carries the
+ * binding itself plus `social_account` — the non-secret identity of the account
+ * it serves (null for web_widget, which has no external account). Additive:
+ * older callers that only read the binding fields keep working.
  * Response: { channels }
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -86,9 +104,37 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       { tenant_id: tenantId, chatbot_id: id },
       { take: 100, order: { created_at: "DESC" } }
     )
+    const bindings = Array.isArray(rows) ? rows : []
+
+    // Resolve the connected account behind each binding so the UI can name it
+    // ("Answered on @mystorebot") without a second round trip. Tenant-scoped:
+    // only THIS tenant's accounts are ever looked at, and no credential column
+    // is read.
+    const accountIds = Array.from(
+      new Set(
+        bindings
+          .map((r: any) => r.social_account_id)
+          .filter((v: any): v is string => typeof v === "string" && !!v)
+      )
+    )
+    const accountById = new Map<string, any>()
+    if (accountIds.length) {
+      const accounts = await (svc as any)
+        .listMarketingSocialAccounts(
+          { tenant_id: tenantId, id: accountIds },
+          { take: accountIds.length }
+        )
+        .catch(() => [])
+      for (const a of Array.isArray(accounts) ? accounts : []) {
+        accountById.set(a.id, a)
+      }
+    }
 
     res.json({
-      channels: (Array.isArray(rows) ? rows : []).map(toBindingDto),
+      channels: bindings.map((row: any) => ({
+        ...toBindingDto(row),
+        social_account: toAccountRef(accountById.get(row.social_account_id)),
+      })),
     })
   } catch (e: any) {
     res.status(isNotFound(e) ? 404 : 500).json({

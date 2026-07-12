@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Facebook,
@@ -19,10 +20,16 @@ import {
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
   listSocialAccounts,
+  listMarketingChannels,
+  bindMarketingChatbotChannel,
+  unbindMarketingChatbotChannel,
   connectSocialAccount,
   disconnectSocialAccount,
   refreshSocialAccount,
   ApiError,
+  MarketingChannelAvailability,
+  MarketingChannelBinding,
+  MarketingChannelChatbot,
   SocialAccount,
   SocialProvider,
 } from "@lib/merchant-admin/api"
@@ -30,29 +37,19 @@ import { PageHeader } from "@components/merchant-admin/page-header"
 import { SectionCard } from "@components/merchant-admin/section-card"
 import { EmptyState } from "@components/merchant-admin/empty-state"
 import { Modal } from "@components/merchant-admin/modal"
-import { FormField, Input } from "@components/merchant-admin/form-field"
+import { FormField, Input, Select } from "@components/merchant-admin/form-field"
 import { cn } from "@lib/util/cn"
+import { InstagramGlyph, WhatsAppGlyph } from "../channel-glyphs"
 
-// Instagram has no brand glyph in @medusajs/icons, so we render a compact
-// inline SVG that reads as the real mark. currentColor so the chip tints it.
-function InstagramGlyph({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-    </svg>
-  )
-}
+/**
+ * What a connected account is FOR. An account can serve one or both:
+ *   - "publishing": the marketing suite posts content to it (campaigns, posts),
+ *   - "messaging":  people message it and an assistant (or a human, from the
+ *                   inbox) answers — this is the `channel` the assistant binds to.
+ * Being connected is not the same as being answered: the binding below is what
+ * makes an assistant answer a messaging account.
+ */
+type Capability = "publishing" | "messaging"
 
 type PlatformMeta = {
   platform: string
@@ -61,24 +58,49 @@ type PlatformMeta = {
   icon: React.ComponentType<{ className?: string }>
   color: string
   gradient?: string
+  capabilities: Capability[]
+  /** The messaging channel this platform's account backs, when it has one. */
+  channel?: string
 }
 
-// The 5 platforms this screen surfaces (no WordPress). Ordered for the grid.
+// The platforms this screen surfaces (no WordPress). Ordered for the grid.
 const PLATFORMS: PlatformMeta[] = [
   {
     platform: "facebook",
     label: "Facebook",
-    description: "Publish to a Facebook Page.",
+    description: "Publish to a Facebook Page and answer its Messenger threads.",
     icon: Facebook,
     color: "#1877F2",
+    capabilities: ["publishing", "messaging"],
+    channel: "messenger",
   },
   {
     platform: "instagram",
     label: "Instagram",
-    description: "Share posts to a Business account.",
+    description: "Share posts to a Business account and answer its direct messages.",
     icon: InstagramGlyph,
     color: "#E1306C",
     gradient: "linear-gradient(135deg,#F58529,#DD2A7B 55%,#8134AF)",
+    capabilities: ["publishing", "messaging"],
+    channel: "instagram",
+  },
+  {
+    platform: "whatsapp",
+    label: "WhatsApp",
+    description: "Answer people who message your WhatsApp business number.",
+    icon: WhatsAppGlyph,
+    color: "#25D366",
+    capabilities: ["messaging"],
+    channel: "whatsapp",
+  },
+  {
+    platform: "telegram",
+    label: "Telegram",
+    description: "Broadcast to a channel and answer people who message your bot.",
+    icon: Telegram,
+    color: "#229ED9",
+    capabilities: ["publishing", "messaging"],
+    channel: "telegram",
   },
   {
     platform: "x",
@@ -86,6 +108,7 @@ const PLATFORMS: PlatformMeta[] = [
     description: "Post to your X profile.",
     icon: X,
     color: "#0F1419",
+    capabilities: ["publishing"],
   },
   {
     platform: "linkedin",
@@ -93,15 +116,14 @@ const PLATFORMS: PlatformMeta[] = [
     description: "Share updates to a LinkedIn page.",
     icon: Linkedin,
     color: "#0A66C2",
-  },
-  {
-    platform: "telegram",
-    label: "Telegram",
-    description: "Broadcast to a channel via a bot.",
-    icon: Telegram,
-    color: "#229ED9",
+    capabilities: ["publishing"],
   },
 ]
+
+const CAPABILITY_LABEL: Record<Capability, string> = {
+  publishing: "Publishing",
+  messaging: "Messaging",
+}
 
 const STATUS_TONES: Record<string, string> = {
   connected: "bg-emerald-50 text-emerald-700",
@@ -154,6 +176,10 @@ export default function SocialConnectPage() {
 
   const [accounts, setAccounts] = useState<SocialAccount[]>([])
   const [providers, setProviders] = useState<SocialProvider[]>([])
+  const [channels, setChannels] = useState<MarketingChannelAvailability[]>([])
+  const [chatbots, setChatbots] = useState<MarketingChannelChatbot[]>([])
+  const [bindings, setBindings] = useState<MarketingChannelBinding[]>([])
+  const [bindingBusy, setBindingBusy] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -179,6 +205,14 @@ export default function SocialConnectPage() {
     return map
   }, [providers])
 
+  // Messaging availability, keyed by CHANNEL (messenger/instagram/whatsapp/…),
+  // straight from the backend providers' isConfigured().
+  const channelByKey = useMemo(() => {
+    const map: Record<string, MarketingChannelAvailability> = {}
+    for (const c of channels) map[c.channel] = c
+    return map
+  }, [channels])
+
   const accountsByPlatform = useMemo(() => {
     const map: Record<string, SocialAccount[]> = {}
     for (const a of accounts) {
@@ -194,10 +228,13 @@ export default function SocialConnectPage() {
     }
     setLoading(true)
     setError(null)
-    listSocialAccounts(token)
-      .then((res) => {
+    Promise.all([listSocialAccounts(token), listMarketingChannels(token)])
+      .then(([res, ch]) => {
         setAccounts(res.accounts || [])
         setProviders(res.providers || [])
+        setChannels(ch.channels || [])
+        setChatbots(ch.chatbots || [])
+        setBindings(ch.bindings || [])
       })
       .catch((err) => {
         setError(
@@ -208,6 +245,76 @@ export default function SocialConnectPage() {
       })
       .finally(() => setLoading(false))
   }, [token])
+
+  /**
+   * The assistant currently answering a given account, or null.
+   *
+   * The inbound runtime gives the turn to the tenant's ACTIVE binding for the
+   * conversation's channel, so exactly one assistant answers a channel at a
+   * time. That is the contract this control enforces below.
+   */
+  const assistantFor = useCallback(
+    (channel: string, accountId: string): MarketingChannelBinding | null =>
+      bindings.find(
+        (b) =>
+          b.channel === channel &&
+          b.active &&
+          b.social_account_id === accountId
+      ) ?? null,
+    [bindings]
+  )
+
+  /**
+   * Point an account at an assistant (or at nobody). Assigning replaces any
+   * other assistant already bound to that channel, so the "answered by" the UI
+   * shows is exactly the assistant the runtime will pick.
+   */
+  const setAssistantFor = async (
+    channel: string,
+    account: SocialAccount,
+    chatbotId: string
+  ) => {
+    if (!token) return
+    setBindingBusy(account.id)
+    setNotice(null)
+    try {
+      const others = bindings.filter(
+        (b) => b.channel === channel && b.chatbot_id !== chatbotId
+      )
+      for (const other of others) {
+        await unbindMarketingChatbotChannel(token, other.chatbot_id, channel)
+      }
+
+      if (chatbotId) {
+        await bindMarketingChatbotChannel(token, chatbotId, {
+          channel,
+          social_account_id: account.id,
+          active: true,
+        })
+      }
+
+      const fresh = await listMarketingChannels(token)
+      setChannels(fresh.channels || [])
+      setChatbots(fresh.chatbots || [])
+      setBindings(fresh.bindings || [])
+      setNotice({
+        tone: "success",
+        text: chatbotId
+          ? "This account is now answered by that assistant."
+          : "No assistant answers this account. Its messages go to the inbox.",
+      })
+    } catch (err) {
+      setNotice({
+        tone: "error",
+        text:
+          err instanceof ApiError
+            ? err.message
+            : "Could not update who answers this account.",
+      })
+    } finally {
+      setBindingBusy(null)
+    }
+  }
 
   useEffect(() => {
     load()
@@ -363,8 +470,8 @@ export default function SocialConnectPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Social accounts"
-        description="Connect the channels your store publishes to. Accounts are scoped to your store only."
+        title="Channels"
+        description="Connect the accounts your store publishes to and the ones your customers message you on. Accounts are scoped to your store only."
       />
 
       {notice && (
@@ -399,7 +506,7 @@ export default function SocialConnectPage() {
 
       <SectionCard
         title="Available platforms"
-        description="Choose a platform to connect. You can connect more than one account."
+        description="An account can serve publishing (the marketing suite posts to it), messaging (customers write to it and an assistant or a human answers), or both."
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {PLATFORMS.map((meta) => {
@@ -408,18 +515,40 @@ export default function SocialConnectPage() {
             const linked = accountsByPlatform[meta.platform] || []
             const isConnected = linked.length > 0
             const isBusy = connecting === meta.platform
-            const needsSetup =
-              mechanism === "oauth" && provider && !provider.configured
+            const messaging = meta.channel
+              ? channelByKey[meta.channel]
+              : undefined
             const cardError = cardErrors[meta.platform]
+
+            // Honest gating. The connect flow only exists for platforms the
+            // backend has a provider for; an oauth provider additionally needs
+            // the operator's app credentials. Anything else renders as an
+            // unavailable card with the real reason, never a dead button.
+            const blockedReason: string | null = !provider
+              ? (messaging?.reason ??
+                "Not available yet - this platform needs operator setup before it can be connected.")
+              : mechanism === "oauth" && !provider.configured
+                ? (messaging && !messaging.available
+                    ? messaging.reason
+                    : "Not available yet - awaiting the operator adding this platform's app credentials.")
+                : null
 
             return (
               <div
                 key={meta.platform}
-                className="flex flex-col gap-4 rounded-large border border-grey-20 bg-white p-5 shadow-borders-base transition-colors hover:border-grey-30"
+                className={cn(
+                  "flex flex-col gap-4 rounded-large border border-grey-20 p-5 shadow-borders-base transition-colors",
+                  blockedReason
+                    ? "bg-grey-5"
+                    : "bg-white hover:border-grey-30"
+                )}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
-                    <BrandChip meta={meta} className="h-11 w-11" />
+                    <BrandChip
+                      meta={meta}
+                      className={cn("h-11 w-11", blockedReason && "opacity-60")}
+                    />
                     <div>
                       <h3 className="font-semibold text-grey-90">
                         {meta.label}
@@ -427,6 +556,16 @@ export default function SocialConnectPage() {
                       <p className="mt-0.5 text-xs text-grey-50">
                         {meta.description}
                       </p>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {meta.capabilities.map((c) => (
+                          <span
+                            key={c}
+                            className="rounded-full bg-grey-10 px-2 py-0.5 text-[11px] font-medium text-grey-60"
+                          >
+                            {CAPABILITY_LABEL[c]}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                   {isConnected && (
@@ -439,13 +578,10 @@ export default function SocialConnectPage() {
                   )}
                 </div>
 
-                {needsSetup ? (
+                {blockedReason ? (
                   <div className="flex items-start gap-2 rounded-base bg-amber-50 px-3 py-2 text-xs text-amber-800">
                     <InformationCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span>
-                      Connect requires the platform&apos;s app credentials
-                      (added by the operator).
-                    </span>
+                    <span>{blockedReason}</span>
                   </div>
                 ) : cardError ? (
                   <div className="flex items-start gap-2 rounded-base bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -458,22 +594,26 @@ export default function SocialConnectPage() {
                   <button
                     type="button"
                     onClick={() => handleConnect(meta)}
-                    disabled={isBusy || !!needsSetup || !token}
+                    disabled={isBusy || !!blockedReason || !token}
                     className={cn(
                       "flex w-full items-center justify-center gap-2 rounded-base px-3 py-2 text-sm font-medium transition-colors",
-                      needsSetup
+                      blockedReason
                         ? "cursor-not-allowed bg-grey-10 text-grey-40"
                         : "bg-grey-90 text-white hover:bg-grey-80 disabled:opacity-60"
                     )}
                   >
                     {isBusy ? (
                       <Spinner className="h-4 w-4 animate-spin" />
-                    ) : mechanism === "oauth" ? (
+                    ) : blockedReason ? null : mechanism === "oauth" ? (
                       <ArrowUpRightOnBox className="h-4 w-4" />
                     ) : (
                       <Plus className="h-4 w-4" />
                     )}
-                    {isConnected ? "Connect another" : "Connect"}
+                    {blockedReason
+                      ? "Not available yet"
+                      : isConnected
+                        ? "Connect another"
+                        : "Connect"}
                   </button>
                 </div>
               </div>
@@ -484,7 +624,7 @@ export default function SocialConnectPage() {
 
       <SectionCard
         title="Connected accounts"
-        description="Manage the accounts currently linked to your store."
+        description="Manage the accounts linked to your store, and choose which assistant answers the ones customers message you on."
       >
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-grey-50">
@@ -495,25 +635,34 @@ export default function SocialConnectPage() {
           <EmptyState
             icon={BuildingStorefront}
             title="No accounts connected yet"
-            description="Connect a platform above to start publishing from your store."
+            description="Connect a platform above to publish from your store, or to let an assistant answer the people who message you."
           />
         ) : (
           <div className="divide-y divide-grey-10">
             {accounts.map((account) => {
-              const meta =
+              const meta: PlatformMeta =
                 PLATFORMS.find((p) => p.platform === account.platform) ?? {
                   platform: account.platform,
                   label: account.platform,
                   description: "",
                   icon: BuildingStorefront,
                   color: "#6b7280",
+                  capabilities: ["publishing"],
                 }
               const busy = busyAccount === account.id
+              const messaging = meta.channel
+                ? channelByKey[meta.channel]
+                : undefined
+              const binding = meta.channel
+                ? assistantFor(meta.channel, account.id)
+                : null
+              const bindBusy = bindingBusy === account.id
               return (
                 <div
                   key={account.id}
-                  className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0"
                 >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
                     {account.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -565,6 +714,97 @@ export default function SocialConnectPage() {
                       Disconnect
                     </button>
                   </div>
+                </div>
+
+                {/* Who answers this account. Only for accounts customers can
+                    actually message; the binding is what makes an assistant
+                    reply, and without one the messages simply sit in the inbox. */}
+                {meta.channel && (
+                  <div className="rounded-large border border-grey-20 bg-grey-5 p-3">
+                    {!messaging?.available ? (
+                      <p className="flex items-start gap-2 text-xs text-grey-60">
+                        <InformationCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          {messaging?.reason ??
+                            "Messaging is not available for this platform yet."}
+                        </span>
+                      </p>
+                    ) : chatbots.length === 0 ? (
+                      <p className="flex flex-wrap items-center gap-1.5 text-xs text-grey-60">
+                        <InformationCircle className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          You have no assistants yet, so these messages go to the
+                          inbox unanswered.
+                        </span>
+                        <Link
+                          href="/dashboard/marketing/chatbots"
+                          className="font-medium text-grey-90 underline underline-offset-2"
+                        >
+                          Create an assistant
+                        </Link>
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-grey-90">
+                            Answered by
+                          </p>
+                          <p className="mt-0.5 text-xs text-grey-50">
+                            {binding
+                              ? "Messages from this account are answered by this assistant."
+                              : "No assistant answers this account: its messages wait in the inbox for a human."}
+                          </p>
+                        </div>
+                        <div className="flex w-full items-center gap-2 sm:w-72">
+                          <Select
+                            aria-label={`Assistant answering ${
+                              account.display_name || account.handle || meta.label
+                            }`}
+                            value={binding?.chatbot_id ?? ""}
+                            disabled={bindBusy || !token}
+                            onChange={(e) =>
+                              setAssistantFor(
+                                meta.channel as string,
+                                account,
+                                e.target.value
+                              )
+                            }
+                          >
+                            <option value="">
+                              No assistant - messages go to the inbox unanswered
+                            </option>
+                            {chatbots.map((bot) => (
+                              <option key={bot.id} value={bot.id}>
+                                {bot.name}
+                                {bot.reply_mode !== "auto"
+                                  ? " (draft mode)"
+                                  : ""}
+                                {!bot.active ? " (paused)" : ""}
+                              </option>
+                            ))}
+                          </Select>
+                          {bindBusy && (
+                            <Spinner className="h-4 w-4 shrink-0 animate-spin text-grey-40" />
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {binding &&
+                      chatbots.find((b) => b.id === binding.chatbot_id)
+                        ?.reply_mode !== "auto" && (
+                        <p className="mt-2 flex items-start gap-1.5 rounded-base border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                          <ExclamationCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          <span>
+                            That assistant is in draft mode, so it will not
+                            answer the customer. It only drafts a reply in your
+                            inbox for a human to send. Change this in the
+                            assistant&apos;s Configure step.
+                          </span>
+                        </p>
+                      )}
+                  </div>
+                )}
                 </div>
               )
             })}

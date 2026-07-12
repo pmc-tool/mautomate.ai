@@ -72,7 +72,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const created = await svc.createMarketingChatbots({
       tenant_id: tenantId,
       // Column defaults cover everything the caller did not send.
-      reply_mode: "draft",
+      //
+      // reply_mode defaults to "auto": a new bot ANSWERS. It used to default to
+      // "draft", which — combined with the storefront mounting the widget on
+      // `active` alone — put a chat bubble on the store that never replied to a
+      // customer (the reply only ever appeared in the merchant's inbox as a
+      // suggestion). "draft" is a deliberate human-in-the-loop choice the studio
+      // offers explicitly; it is never the silent default.
+      reply_mode: "auto",
       active: true,
       ...parsed.data,
       public_key: crypto.randomBytes(12).toString("hex"),
@@ -80,6 +87,24 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     } as any)
 
     const chatbot = Array.isArray(created) ? created[0] : created
+
+    // Bind the bot to the storefront widget channel, switched ON. This binding
+    // is the merchant's real on/off switch for "the assistant appears on my
+    // website" (/tenant-config reads it, fail-closed), so a bot created without
+    // one would never show up. Best-effort: a binding failure must not fail the
+    // create — the studio's Channels step can always create it.
+    try {
+      await (svc as any).createMarketingChatbotChannels({
+        tenant_id: tenantId,
+        chatbot_id: (chatbot as any).id,
+        channel: "web_widget",
+        social_account_id: null,
+        active: true,
+        config: null,
+      })
+    } catch {
+      // Swallowed by design: see above.
+    }
 
     // Optionally seed knowledge sources. Each row is tenant-tagged and starts
     // `pending` — it only counts as knowledge once /train embeds it.

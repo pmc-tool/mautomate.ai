@@ -7,12 +7,23 @@ import { themeAccent } from "../admin/platform/_themes"
 import { getOrCreateTenantWebsite, umamiConfigured } from "../../lib/umami"
 
 /**
- * The public embed key of the tenant's ACTIVE chatbot, or null when the tenant
- * has none. This is what mounts the chat widget on the tenant's storefront: the
- * key is public by design (it is the same token a merchant pastes into a
- * third-party site's `widget.js` tag) and it is the ONLY chatbot field that
- * leaves here — appearance is fetched by the widget from
+ * The public embed key of the tenant's chatbot that is LIVE ON THE STOREFRONT,
+ * or null when the tenant has none. This is what mounts the chat widget on the
+ * tenant's storefront: the key is public by design (it is the same token a
+ * merchant pastes into a third-party site's `widget.js` tag) and it is the ONLY
+ * chatbot field that leaves here — appearance is fetched by the widget from
  * `/marketing-chat/config?public_key=…`.
+ *
+ * TWO conditions must BOTH hold, and the second one is the merchant's real
+ * on/off switch:
+ *   1. the chatbot row is `active` and has a public_key, AND
+ *   2. it has an ACTIVE `marketing_chatbot_channel` binding for the "web_widget"
+ *      channel — the row the studio's Channels step writes.
+ *
+ * FAIL-CLOSED: no binding (or an inactive one) => no widget at all. A merchant
+ * who turns "My website" off gets no chat bubble, not a bubble that nobody
+ * answers. Every chatbot created through the merchant API gets an active
+ * web_widget binding by default, so the default experience is unchanged.
  *
  * Best-effort: any failure returns null so a chatbot problem can never break
  * storefront routing.
@@ -27,9 +38,28 @@ const activeChatbotPublicKey = async (
       { tenant_id: tenantId, active: true },
       { order: { created_at: "ASC" } }
     )
-    const bot = (Array.isArray(bots) ? bots : []).find(
+    const candidates = (Array.isArray(bots) ? bots : []).filter(
       (b: any) => typeof b?.public_key === "string" && b.public_key.length > 0
     )
+    if (!candidates.length) {
+      return null
+    }
+
+    // The web_widget bindings that are switched ON for this tenant.
+    const bindings = await mk.listMarketingChatbotChannels(
+      {
+        tenant_id: tenantId,
+        channel: "web_widget",
+        active: true,
+        chatbot_id: candidates.map((b: any) => b.id),
+      },
+      { take: 100 }
+    )
+    const live = new Set(
+      (Array.isArray(bindings) ? bindings : []).map((r: any) => r.chatbot_id)
+    )
+
+    const bot = candidates.find((b: any) => live.has(b.id))
     return bot?.public_key ?? null
   } catch {
     return null
@@ -82,8 +112,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   )
   res.json({
     tenant_id: resolved.tenant_id,
-    // Public embed key of this tenant's active chatbot (null => no live bot, and
-    // the storefront renders no chat widget at all). Additive + backwards
+    // Public embed key of the chatbot this tenant has switched ON for its own
+    // storefront (its active "web_widget" channel binding). Null => no live bot
+    // and the storefront renders no chat widget at all. Additive + backwards
     // compatible: older storefront builds simply ignore it.
     chatbot_public_key: chatbotPublicKey,
     name: tenant?.name ?? null,

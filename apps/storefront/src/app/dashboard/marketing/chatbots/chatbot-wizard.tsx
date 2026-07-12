@@ -5,6 +5,7 @@ import {
   AcademicCap,
   ArrowPath,
   Check,
+  ChatBubbleLeftRight,
   ChevronLeft,
   Code,
   CogSixTooth,
@@ -20,31 +21,42 @@ import {
   MarketingChatbotData,
 } from "@lib/merchant-admin/api"
 import { ChatbotPreview } from "./chatbot-preview"
-import { StepConfigure, StepCustomize, StepDeploy, StepTrain } from "./wizard-steps"
+import {
+  StepChannels,
+  StepConfigure,
+  StepCustomize,
+  StepDeploy,
+  StepTrain,
+} from "./wizard-steps"
 import { toDraft, type ChatbotDraft } from "./types"
 
 export const WIZARD_STEPS = [
   { num: 1, label: "Configure", icon: CogSixTooth },
   { num: 2, label: "Customize", icon: Swatch },
   { num: 3, label: "Train", icon: AcademicCap },
-  { num: 4, label: "Test and embed", icon: Code },
+  { num: 4, label: "Channels", icon: ChatBubbleLeftRight },
+  { num: 5, label: "Test", icon: Code },
 ] as const
 
-export type WizardStep = 1 | 2 | 3 | 4
+export type WizardStep = 1 | 2 | 3 | 4 | 5
 
 /**
- * The chatbot studio: a fullscreen, four-step wizard over ONE chatbot.
+ * The chatbot studio: a fullscreen, five-step wizard over ONE chatbot.
  *
  * State model — the same one the reference product uses:
  *   - the bot is loaded once into a local `draft` (so every keystroke can
  *     re-render the live preview without a round trip),
  *   - the draft is PUT back on every step change and on Finish (autosave), and
- *   - steps 3 and 4 act on the SERVER's copy (knowledge rows, training,
- *     test chat), so they save the draft first and then work against real data.
+ *   - steps 3, 4 and 5 act on the SERVER's copy (knowledge rows, training,
+ *     channel bindings, test chat), so they save the draft first and then work
+ *     against real data.
  *
- * Steps 1-2 drive the preview on the right. Step 4 replaces the preview's mock
- * transcript with the real test conversation, so the merchant sees their own
- * bot answering inside the widget they just designed.
+ * Steps 1-2 drive the preview on the right. Step 4 (Channels) writes the
+ * marketing_chatbot_channel bindings that decide WHERE the bot answers — the
+ * "My website" switch there is what mounts or removes the storefront chat
+ * bubble. Step 5 replaces the preview's mock transcript with the real test
+ * conversation, so the merchant sees their own bot answering inside the widget
+ * they just designed.
  */
 export function ChatbotWizard({
   token,
@@ -285,7 +297,9 @@ export function ChatbotWizard({
                 {step === 2 && "Style the widget your visitors will see."}
                 {step === 3 && "Teach it what it needs to know about your store."}
                 {step === 4 &&
-                  "Ask it a question, then put it on your site."}
+                  "Choose where it answers: your storefront, another site, and your messaging channels."}
+                {step === 5 &&
+                  "Ask it a question, then grab the snippet for any other site."}
               </p>
             </div>
 
@@ -310,6 +324,18 @@ export function ChatbotWizard({
               />
             )}
             {step === 4 && (
+              <StepChannels
+                token={token}
+                chatbot={chatbot}
+                draft={draft}
+                onChange={patch}
+                onChatbotChange={(bot) => {
+                  setChatbot(bot)
+                  onSaved(bot)
+                }}
+              />
+            )}
+            {step === 5 && (
               <StepDeploy
                 token={token}
                 chatbot={chatbot}
@@ -331,7 +357,7 @@ export function ChatbotWizard({
                   Back
                 </button>
               )}
-              {step < 4 ? (
+              {step < WIZARD_STEPS.length ? (
                 <button
                   type="button"
                   onClick={() => goTo((step + 1) as WizardStep)}
@@ -357,13 +383,13 @@ export function ChatbotWizard({
           <div className="hidden flex-1 overflow-y-auto bg-grey-5 p-8 lg:block">
             <div className="mx-auto flex max-w-[520px] flex-col items-center">
               <p className="mb-4 text-xs font-medium uppercase tracking-wide text-grey-50">
-                {step === 4 && transcript.length > 0
+                {step === 5 && transcript.length > 0
                   ? "Live preview: your test conversation"
                   : "Live preview"}
               </p>
               <ChatbotPreview
                 draft={draft}
-                messages={step === 4 && transcript.length ? transcript : undefined}
+                messages={step === 5 && transcript.length ? transcript : undefined}
               />
             </div>
           </div>

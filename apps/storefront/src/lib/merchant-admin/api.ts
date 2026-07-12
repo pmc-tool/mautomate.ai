@@ -2101,6 +2101,139 @@ export async function testMarketingChatbot(
   })
 }
 
+// --- Chatbot channels: which channels an assistant answers -------------------
+
+/** The channels an assistant can be bound to. Mirrors marketing_chatbot_channel. */
+export type MarketingChannelKey =
+  | "web_widget"
+  | "telegram"
+  | "messenger"
+  | "instagram"
+  | "whatsapp"
+
+/** The non-secret identity of the connected account a binding serves. */
+export type MarketingChannelAccount = {
+  id: string
+  platform: string
+  display_name: string | null
+  handle: string | null
+  status: string | null
+}
+
+/**
+ * One chatbot-channel binding. `active` is the merchant's on/off switch for that
+ * channel; for "web_widget" it is what mounts (or removes) the chat bubble on
+ * the storefront.
+ */
+export type MarketingChatbotChannel = {
+  id: string
+  chatbot_id: string
+  channel: MarketingChannelKey | string
+  social_account_id: string | null
+  active: boolean
+  config: Record<string, unknown> | null
+  created_at: string | null
+  updated_at: string | null
+  /** The connected account behind the binding (null for the web widget). */
+  social_account?: MarketingChannelAccount | null
+}
+
+/**
+ * A channel as this platform install can actually run it. `available` comes from
+ * the backend messaging provider's own isConfigured(); when it is false, `reason`
+ * is the honest explanation to show instead of a button that cannot work.
+ */
+export type MarketingChannelAvailability = {
+  channel: MarketingChannelKey | string
+  label: string
+  description: string
+  available: boolean
+  reason: string | null
+  /** True when the channel is served by a connected account (not the widget). */
+  requires_account: boolean
+  account_platform: string | null
+  /** This tenant's connected accounts that can back the channel. */
+  accounts: MarketingChannelAccount[]
+}
+
+export type MarketingChannelBinding = {
+  id: string
+  chatbot_id: string
+  chatbot_name: string | null
+  channel: MarketingChannelKey | string
+  social_account_id: string | null
+  active: boolean
+}
+
+export type MarketingChannelChatbot = {
+  id: string
+  name: string
+  active: boolean
+  reply_mode: string
+  public_key: string | null
+}
+
+export type MarketingChannelsResponse = {
+  channels: MarketingChannelAvailability[]
+  chatbots: MarketingChannelChatbot[]
+  bindings: MarketingChannelBinding[]
+}
+
+/** The tenant's channel map: availability, assistants, and every binding. */
+export async function listMarketingChannels(
+  token: string
+): Promise<MarketingChannelsResponse> {
+  return request<MarketingChannelsResponse>("/merchant/marketing/channels", {
+    token,
+  })
+}
+
+/** The channels ONE assistant is bound to. */
+export async function listMarketingChatbotChannels(
+  token: string,
+  chatbotId: string
+): Promise<{ channels: MarketingChatbotChannel[] }> {
+  return request<{ channels: MarketingChatbotChannel[] }>(
+    `/merchant/marketing/chatbots/${chatbotId}/channels`,
+    { token }
+  )
+}
+
+/**
+ * Bind an assistant to a channel, or update that binding (upsert on
+ * (chatbot, channel)). `active: false` mutes the assistant on the channel
+ * without unbinding it.
+ */
+export async function bindMarketingChatbotChannel(
+  token: string,
+  chatbotId: string,
+  body: {
+    channel: MarketingChannelKey | string
+    social_account_id?: string | null
+    active?: boolean
+    config?: Record<string, unknown> | null
+  }
+): Promise<{ channel: MarketingChatbotChannel }> {
+  return request<{ channel: MarketingChatbotChannel }>(
+    `/merchant/marketing/chatbots/${chatbotId}/channels`,
+    { method: "POST", token, body }
+  )
+}
+
+/** Unbind an assistant from a channel entirely. */
+export async function unbindMarketingChatbotChannel(
+  token: string,
+  chatbotId: string,
+  channel: MarketingChannelKey | string
+): Promise<{ id: string; object: string; deleted: boolean }> {
+  return request<{ id: string; object: string; deleted: boolean }>(
+    `/merchant/marketing/chatbots/${chatbotId}/channels?channel=${encodeURIComponent(
+      channel
+    )}`,
+    { method: "DELETE", token }
+  )
+}
+
 // --- Marketing writes: campaigns -------------------------------------------
 
 export async function getMarketingCampaign(
