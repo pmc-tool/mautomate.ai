@@ -83,6 +83,15 @@ const navItems: NavItem[] = [
     ],
   },
   {
+    id: "inventory",
+    label: "Inventory",
+    icon: CubeSolid,
+    children: [
+      { href: "/dashboard/inventory", label: "Inventory", icon: CubeSolid },
+      { href: "/dashboard/reservations", label: "Reservations", icon: DocumentText },
+    ],
+  },
+  {
     id: "promotions",
     label: "Promotions",
     icon: ReceiptPercent,

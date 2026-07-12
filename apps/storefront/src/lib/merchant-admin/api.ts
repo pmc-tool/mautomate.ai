@@ -5007,3 +5007,365 @@ export type UpdateCampaignInput = {
   budget?: { limit: number | null }
 }
 
+
+
+// ===== Inventory+Reservations parity additions 2026-07-12 =====
+
+export type InventoryItemRow = {
+  id: string
+  title: string | null
+  sku: string | null
+  thumbnail?: string | null
+  reserved_quantity: number
+  stocked_quantity: number
+  variant_titles: string[]
+}
+
+
+
+export type InventoryLocationLevel = {
+  id: string
+  location_id: string
+  location_name: string | null
+  stocked_quantity: number
+  reserved_quantity: number
+  incoming_quantity: number
+  available_quantity: number
+}
+
+
+
+export type InventoryItemDetail = {
+  id: string
+  title: string | null
+  sku: string | null
+  thumbnail?: string | null
+  reserved_quantity: number
+  stocked_quantity: number
+  variant_titles: string[]
+  origin_country: string | null
+  hs_code: string | null
+  mid_code: string | null
+  material: string | null
+  weight: number | null
+  length: number | null
+  height: number | null
+  width: number | null
+  requires_shipping: boolean
+  metadata: Record<string, any> | null
+  location_levels: InventoryLevel[]
+  variants: InventoryItemVariantLink[]
+}
+
+
+
+export type ReservationRow = {
+  id: string
+  inventory_item_id: string
+  item_title: string | null
+  sku: string | null
+  location_id: string
+  location_name: string | null
+  quantity: number
+  line_item_id: string | null
+  order_id?: string | null
+  order_display_id?: string | number | null
+  description: string | null
+  created_by: string | null
+  created_at: string
+  updated_at?: string
+  metadata?: Record<string, unknown> | null
+}
+
+
+
+export async function listInventoryItems(
+  token: string,
+  params: { q?: string; offset?: number; limit?: number } = {}
+): Promise<{ items: InventoryItemRow[]; count: number }> {
+  const search = new URLSearchParams()
+  if (params.q) search.set("q", params.q)
+  if (params.offset != null) search.set("offset", String(params.offset))
+  if (params.limit != null) search.set("limit", String(params.limit))
+  const qs = search.toString()
+  const path = "/merchant/inventory-items" + (qs ? "?" + qs : "")
+  return request<{ items: InventoryItemRow[]; count: number }>(path, { token })
+}
+
+
+
+export async function getInventoryItem(
+  token: string,
+  id: string
+): Promise<{ item: InventoryItemDetail }> {
+  return request<{ item: InventoryItemDetail }>(
+    `/merchant/inventory-items/${id}`,
+    { token }
+  )
+}
+
+
+
+export async function createInventoryItem(
+  token: string,
+  payload: {
+    sku?: string
+    title?: string
+    requires_shipping?: boolean
+    origin_country?: string | null
+    hs_code?: string | null
+    mid_code?: string | null
+    material?: string | null
+    weight?: number | null
+    length?: number | null
+    height?: number | null
+    width?: number | null
+    metadata?: Record<string, unknown>
+    location_levels?: { location_id: string; stocked_quantity?: number }[]
+  }
+): Promise<{ item: InventoryItemDetail }> {
+  return request<{ item: InventoryItemDetail }>("/merchant/inventory-items", {
+    token,
+    method: "POST",
+    body: payload,
+  })
+}
+
+
+
+export async function updateInventoryItem(
+  token: string,
+  id: string,
+  partial: Partial<{
+    title: string | null
+    sku: string | null
+    requires_shipping: boolean
+    origin_country: string | null
+    hs_code: string | null
+    mid_code: string | null
+    material: string | null
+    weight: number | null
+    length: number | null
+    height: number | null
+    width: number | null
+    metadata: Record<string, unknown> | null
+  }>
+): Promise<{ item: InventoryItemDetail }> {
+  return request<{ item: InventoryItemDetail }>(
+    `/merchant/inventory-items/${id}`,
+    { token, method: "POST", body: partial }
+  )
+}
+
+
+
+export async function deleteInventoryItem(
+  token: string,
+  id: string
+): Promise<void> {
+  return request<void>(`/merchant/inventory-items/${id}`, {
+    method: "DELETE",
+    token,
+  })
+}
+
+
+
+export async function updateInventoryLevels(
+  token: string,
+  id: string,
+  updates: { location_id: string; stocked_quantity: number }[]
+): Promise<{ item: InventoryItemDetail }> {
+  return request<{ item: InventoryItemDetail }>(
+    `/merchant/inventory-items/${id}/levels`,
+    { token, method: "POST", body: { updates } }
+  )
+}
+
+
+
+export async function deleteInventoryLevel(
+  token: string,
+  id: string,
+  locationId: string
+): Promise<{ item: InventoryItemDetail }> {
+  return request<{ item: InventoryItemDetail }>(
+    `/merchant/inventory-items/${id}/levels?location_id=${encodeURIComponent(locationId)}`,
+    { token, method: "DELETE" }
+  )
+}
+
+
+
+export async function listReservations(
+  token: string,
+  params: {
+    q?: string
+    offset?: number
+    limit?: number
+    location_id?: string
+    inventory_item_id?: string
+  } = {}
+): Promise<{ reservations: ReservationRow[]; count: number }> {
+  const search = new URLSearchParams()
+  if (params.q) search.set("q", params.q)
+  if (params.offset != null) search.set("offset", String(params.offset))
+  if (params.limit != null) search.set("limit", String(params.limit))
+  if (params.location_id) search.set("location_id", params.location_id)
+  if (params.inventory_item_id) search.set("inventory_item_id", params.inventory_item_id)
+  const qs = search.toString()
+  const path = "/merchant/reservations" + (qs ? "?" + qs : "")
+  return request<{ reservations: ReservationRow[]; count: number }>(path, { token })
+}
+
+
+
+export async function getReservation(
+  token: string,
+  id: string
+): Promise<{ reservation: ReservationRow & { metadata: Record<string, unknown> | null; location_level: { stocked_quantity: number; reserved_quantity: number; available_quantity: number; incoming_quantity: number } | null } }> {
+  return request(`/merchant/reservations/${id}`, { token })
+}
+
+
+
+export async function createReservation(
+  token: string,
+  payload: {
+    inventory_item_id: string
+    location_id: string
+    quantity: number
+    description?: string
+  }
+): Promise<{ reservation: ReservationRow }> {
+  return request<{ reservation: ReservationRow }>("/merchant/reservations", {
+    token,
+    method: "POST",
+    body: payload,
+  })
+}
+
+
+
+export async function updateReservation(
+  token: string,
+  id: string,
+  partial: { location_id?: string; quantity?: number; description?: string | null; metadata?: Record<string, unknown> | null }
+): Promise<{ reservation: ReservationRow }> {
+  return request<{ reservation: ReservationRow }>(
+    `/merchant/reservations/${id}`,
+    { token, method: "POST", body: partial }
+  )
+}
+
+
+
+export async function deleteReservation(
+  token: string,
+  id: string
+): Promise<void> {
+  return request<void>(`/merchant/reservations/${id}`, {
+    method: "DELETE",
+    token,
+  })
+}
+
+export type InventoryLevelRow = {
+  id: string
+  location_id: string
+  location_name: string
+  stocked_quantity: number
+  reserved_quantity: number
+  incoming_quantity: number
+  available_quantity: number
+}
+
+
+
+export type InventoryItemVariantLink = {
+  id: string
+  title: string | null
+  product_id: string | null
+  product_title: string | null
+}
+
+
+
+export type CreateInventoryItemPayload = {
+  title?: string
+  sku?: string
+  description?: string
+  requires_shipping?: boolean
+  width?: number
+  length?: number
+  height?: number
+  weight?: number
+  mid_code?: string
+  hs_code?: string
+  origin_country?: string
+  material?: string
+}
+
+
+
+export type InventoryLevelUpdateInput = {
+  location_id: string
+  stocked_quantity: number
+}
+
+
+
+export type InventoryLevel = {
+  id: string
+  location_id: string
+  location_name: string
+  stocked_quantity: number
+  reserved_quantity: number
+  incoming_quantity: number
+  available_quantity: number
+}
+
+
+
+export type UpdateInventoryItemInput = {
+  title?: string | null
+  sku?: string | null
+  requires_shipping?: boolean
+  origin_country?: string | null
+  hs_code?: string | null
+  mid_code?: string | null
+  material?: string | null
+  weight?: number | null
+  length?: number | null
+  height?: number | null
+  width?: number | null
+  metadata?: Record<string, any> | null
+}
+
+
+
+export type ListReservationsParams = {
+  q?: string
+  offset?: number
+  limit?: number
+  location_id?: string
+  inventory_item_id?: string
+}
+
+
+
+export type CreateReservationInput = {
+  inventory_item_id: string
+  location_id: string
+  quantity: number
+  description?: string | null
+}
+
+
+
+export type UpdateReservationInput = {
+  location_id?: string
+  quantity?: number
+  description?: string | null
+}
+
