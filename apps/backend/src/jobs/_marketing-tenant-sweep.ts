@@ -3,6 +3,18 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { PLATFORM_MODULE } from "../modules/platform"
 import { withTenant } from "../lib/tenant-context"
 
+/**
+ * Tenant lifecycle states a marketing sweep may run for: the store is serving.
+ * (`tenant.status` is one of provisioning | live | past_due | grace | suspended |
+ * retained | purged | failed — there is NO "active" state, which is what this
+ * sweep used to filter on, so it silently iterated ZERO tenants and every
+ * marketing sweep was a no-op in production.)
+ *
+ * suspended / retained / purged / failed / provisioning are deliberately
+ * excluded: those stores must not post, generate, or send.
+ */
+export const SERVING_STATUSES = ["live", "grace", "past_due"] as const
+
 export interface SweepSummary {
   [key: string]: number
 }
@@ -29,7 +41,7 @@ export async function runForEachTenant<S extends SweepSummary>(
 
   let tenants: Array<{ id: string }> = []
   try {
-    tenants = await svc.listTenants({ status: "active" }, { take: 10000 })
+    tenants = await svc.listTenants({ status: [...SERVING_STATUSES] }, { take: 10000 })
   } catch (e) {
     logger.error(`[marketing] ${name}: failed to list tenants`, e as any)
     return {} as S
