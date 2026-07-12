@@ -5369,3 +5369,289 @@ export type UpdateReservationInput = {
   description?: string | null
 }
 
+
+
+// ===== Customers completion parity additions 2026-07-12 =====
+
+export type CreateCustomerInput = {
+  email: string
+  first_name?: string
+  last_name?: string
+  company_name?: string
+  phone?: string
+}
+
+
+
+export type UpdateCustomerInput = {
+  email?: string
+  first_name?: string | null
+  last_name?: string | null
+  company_name?: string | null
+  phone?: string | null
+  metadata?: Record<string, unknown> | null
+}
+
+
+
+export type CustomerAddressInput = {
+  address_name?: string
+  first_name?: string
+  last_name?: string
+  company?: string
+  address_1: string
+  address_2?: string
+  city?: string
+  postal_code?: string
+  province?: string
+  country_code: string
+  phone?: string
+  is_default_shipping?: boolean
+  is_default_billing?: boolean
+}
+
+
+
+export type CustomerGroupDetail = {
+  id: string
+  name: string
+  customers_count: number
+  created_at?: string
+  updated_at?: string
+  metadata?: Record<string, unknown> | null
+}
+
+
+
+export type GroupCustomer = {
+  id: string
+  email: string
+  first_name?: string | null
+  last_name?: string | null
+  has_account: boolean
+  created_at?: string
+}
+
+
+
+export async function createCustomer(
+  token: string,
+  payload: CreateCustomerInput
+): Promise<{ customer: CustomerDetail }> {
+  return request<{ customer: CustomerDetail }>("/merchant/customers", {
+    method: "POST",
+    token,
+    body: payload,
+  })
+}
+
+
+
+export async function updateCustomer(
+  token: string,
+  id: string,
+  partial: UpdateCustomerInput
+): Promise<{ customer: CustomerDetail }> {
+  return request<{ customer: CustomerDetail }>(`/merchant/customers/${id}`, {
+    method: "POST",
+    token,
+    body: partial,
+  })
+}
+
+
+
+export async function updateCustomerMetadata(
+  token: string,
+  id: string,
+  metadata: Record<string, unknown> | null
+): Promise<{ customer: CustomerDetail }> {
+  return updateCustomer(token, id, { metadata })
+}
+
+/**
+ * DELETE /merchant/customers/:id
+ *
+ * Tenant-safe delete: succeeds only for customers this tenant created
+ * (metadata.tenant_id) that have no orders outside the tenant's sales channel.
+ * The backend returns 409 when foreign orders exist; surface that message.
+ */
+
+
+export async function deleteCustomer(token: string, id: string): Promise<void> {
+  await request<{ id: string; object: string; deleted: boolean }>(
+    `/merchant/customers/${id}`,
+    { method: "DELETE", token }
+  )
+}
+
+
+
+export async function createCustomerAddress(
+  token: string,
+  id: string,
+  address: CustomerAddressInput
+): Promise<{ address: CustomerAddress }> {
+  return request<{ address: CustomerAddress }>(
+    `/merchant/customers/${id}/addresses`,
+    { method: "POST", token, body: address }
+  )
+}
+
+
+
+export async function updateCustomerAddress(
+  token: string,
+  id: string,
+  addressId: string,
+  partial: Partial<CustomerAddressInput>
+): Promise<{ address: CustomerAddress }> {
+  return request<{ address: CustomerAddress }>(
+    `/merchant/customers/${id}/addresses/${addressId}`,
+    { method: "POST", token, body: partial }
+  )
+}
+
+
+
+export async function deleteCustomerAddress(
+  token: string,
+  id: string,
+  addressId: string
+): Promise<void> {
+  await request<{ id: string; object: string; deleted: boolean }>(
+    `/merchant/customers/${id}/addresses/${addressId}`,
+    { method: "DELETE", token }
+  )
+}
+
+
+
+export async function addCustomerToGroups(
+  token: string,
+  id: string,
+  body: { add?: string[]; remove?: string[] }
+): Promise<{ ok: true }> {
+  return request<{ ok: true }>(`/merchant/customers/${id}/customer-groups`, {
+    method: "POST",
+    token,
+    body,
+  })
+}
+
+
+
+export async function getCustomerGroup(
+  token: string,
+  id: string
+): Promise<{ group: CustomerGroupDetail }> {
+  return request<{ group: CustomerGroupDetail }>(
+    `/merchant/customer-groups/${id}`,
+    { token }
+  )
+}
+
+
+
+export async function updateCustomerGroup(
+  token: string,
+  id: string,
+  body: { name?: string; metadata?: Record<string, unknown> | null }
+): Promise<{ group: CustomerGroupDetail }> {
+  return request<{ group: CustomerGroupDetail }>(
+    `/merchant/customer-groups/${id}`,
+    { method: "POST", token, body }
+  )
+}
+
+
+
+export async function deleteCustomerGroup(
+  token: string,
+  id: string
+): Promise<void> {
+  await request<{ id: string; object: string; deleted: boolean }>(
+    `/merchant/customer-groups/${id}`,
+    { method: "DELETE", token }
+  )
+}
+
+
+
+export async function listGroupCustomers(
+  token: string,
+  id: string,
+  params?: { q?: string; offset?: number; limit?: number }
+): Promise<{ customers: GroupCustomer[]; count: number }> {
+  const search = new URLSearchParams()
+  if (params?.q) search.set("q", params.q)
+  if (typeof params?.offset === "number") search.set("offset", String(params.offset))
+  if (typeof params?.limit === "number") search.set("limit", String(params.limit))
+  const qs = search.toString()
+  return request<{ customers: GroupCustomer[]; count: number }>(
+    `/merchant/customer-groups/${id}/customers${qs ? `?${qs}` : ""}`,
+    { token }
+  )
+}
+
+
+
+export async function batchGroupCustomers(
+  token: string,
+  id: string,
+  body: { add?: string[]; remove?: string[] }
+): Promise<{ ok: true }> {
+  return request<{ ok: true }>(`/merchant/customer-groups/${id}/customers`, {
+    method: "POST",
+    token,
+    body,
+  })
+}
+
+export interface CustomerFullAddress {
+  id: string
+  address_name?: string | null
+  company?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  address_1?: string | null
+  address_2?: string | null
+  city?: string | null
+  province?: string | null
+  postal_code?: string | null
+  country_code?: string | null
+  phone?: string | null
+  is_default_shipping?: boolean
+  is_default_billing?: boolean
+}
+
+/** Rich customer returned by GET /merchant/customers/:id used by the detail page. */
+
+
+export type CustomerFull = CustomerDetail & {
+  company_name?: string | null
+  has_account?: boolean
+  metadata?: Record<string, unknown> | null
+  addresses?: CustomerFullAddress[]
+}
+
+/** Customer row as returned by the list endpoint, including account/company info. */
+
+
+export type CustomerListItem = Customer & {
+  has_account?: boolean
+  company_name?: string | null
+  phone?: string | null
+}
+
+
+
+export type UpsertCustomerInput = {
+  email?: string
+  first_name?: string | null
+  last_name?: string | null
+  company_name?: string | null
+  phone?: string | null
+  metadata?: Record<string, unknown> | null
+}
+

@@ -22,12 +22,11 @@ export default function CreateCustomerGroupPage() {
     setSaving(true)
     setError(null)
     try {
-      await createCustomerGroup(token, { name: name.trim() })
-      router.push("/dashboard/customer-groups")
+      const { group } = await createCustomerGroup(token, { name: name.trim() })
+      router.push(`/dashboard/customer-groups/${group.id}`)
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) logout()
       setError(err instanceof Error ? err.message : "Failed to create customer group")
-    } finally {
       setSaving(false)
     }
   }
@@ -42,8 +41,8 @@ export default function CreateCustomerGroupPage() {
           <ArrowLeftMini className="h-5 w-5" />
         </button>
         <PageHeader
-          title="Create customer group"
-          description="Add a new customer group."
+          title="Create Customer Group"
+          description="Create a new customer group to segment your customers."
         />
       </div>
 
@@ -61,6 +60,7 @@ export default function CreateCustomerGroupPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. VIP"
+              autoFocus
               required
             />
           </FormField>
@@ -77,7 +77,7 @@ export default function CreateCustomerGroupPage() {
               disabled={saving || !name.trim()}
               className="rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {saving ? "Creating..." : "Create group"}
+              {saving ? "Creating..." : "Create"}
             </button>
           </div>
         </form>
