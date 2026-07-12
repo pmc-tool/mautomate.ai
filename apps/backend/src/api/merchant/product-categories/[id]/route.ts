@@ -84,12 +84,13 @@ async function countTenantProductsInCategory(
   )
   if (!scProductIds.size) return 0
 
-  const productModule: any = req.scope.resolve(Modules.PRODUCT)
-  const products = await productModule.listProducts(
-    { category_id: [id] },
-    { take: 10000, select: ["id"] }
-  )
-  return (products || []).filter((p: any) => scProductIds.has(p.id)).length
+  const { data: catData } = await query.graph({
+    entity: "product_category",
+    filters: { id } as any,
+    fields: ["id", "products.id"],
+  })
+  const products = ((catData?.[0] as any)?.products || []) as any[]
+  return products.filter((p: any) => scProductIds.has(p.id)).length
 }
 
 /**

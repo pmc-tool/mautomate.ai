@@ -33,9 +33,7 @@ export default async ({ container }) => {
   //    detail products table needs.
   if (sampleCat) {
     const prods = await productModule.listProducts(
-      { category_id: [sampleCat.id] },
-      { take: 3, relations: ["variants", "collection", "sales_channels"] }
-    )
+      { id: sampleCat.id } as any, fields: ["id", "products.id"] })
     out.category_products_sampled = (prods || []).length
     out.product_row_shape_ok = prods?.[0]
       ? {

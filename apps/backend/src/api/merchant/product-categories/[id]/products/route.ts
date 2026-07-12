@@ -103,11 +103,24 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     (scLinks || []).map((l: any) => l.product_id).filter(Boolean)
   )
 
-  const productModule: any = req.scope.resolve(Modules.PRODUCT)
-  const products = await productModule.listProducts(
-    { category_id: [id] },
-    { take: 10000, relations: ["variants", "collection", "sales_channels"] }
-  )
+  // Product.category_id is not filterable in this Medusa version (probe-proven).
+  // Walk from the category side instead: product_category.products.
+  const { data: catData } = await query.graph({
+    entity: "product_category",
+    filters: { id } as any,
+    fields: [
+      "id",
+      "products.id",
+      "products.title",
+      "products.handle",
+      "products.thumbnail",
+      "products.status",
+      "products.variants.id",
+      "products.collection.id",
+      "products.collection.title",
+    ],
+  })
+  const products = (catData?.[0] as any)?.products || []
 
   let tenantProducts = (products || []).filter((p: any) =>
     scProductIds.has(p.id)
