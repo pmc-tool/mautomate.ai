@@ -17,12 +17,33 @@ export type ConversationDto = {
   id: string
   channel: string
   status: string
+  handler_mode: string
+  handoff_reason: string | null
+  chatbot_id: string | null
   starred: boolean
   unread_count: number
   last_message_at: string | null
   assigned_user_id: string | null
   contact: ConversationContactDto | null
   preview: string | null
+}
+
+export type InboxNoteDto = {
+  id: string
+  conversation_id: string
+  author_id: string
+  content: string
+  created_at: string | null
+}
+
+export type CannedResponseDto = {
+  id: string
+  shortcut: string
+  title: string
+  content: string
+  category: string | null
+  created_at: string | null
+  updated_at: string | null
 }
 
 export type MessageDto = {
@@ -61,6 +82,9 @@ export const toConversationDto = (
   id: row.id,
   channel: row.channel,
   status: row.status,
+  handler_mode: row.handler_mode ?? "ai",
+  handoff_reason: row.handoff_reason ?? null,
+  chatbot_id: row.chatbot_id ?? null,
   starred: Boolean(row.starred),
   unread_count: row.unread_count ?? 0,
   last_message_at: toIso(row.last_message_at),
@@ -77,4 +101,22 @@ export const toMessageDto = (row: any): MessageDto => ({
   media: row.media ?? null,
   sent_at: toIso(row.sent_at),
   delivery_status: row.delivery_status ?? null,
+})
+
+export const toInboxNoteDto = (row: any): InboxNoteDto => ({
+  id: row.id,
+  conversation_id: row.conversation_id,
+  author_id: row.author_id,
+  content: row.content,
+  created_at: toIso(row.created_at),
+})
+
+export const toCannedResponseDto = (row: any): CannedResponseDto => ({
+  id: row.id,
+  shortcut: row.shortcut,
+  title: row.title,
+  content: row.content,
+  category: row.category ?? null,
+  created_at: toIso(row.created_at),
+  updated_at: toIso(row.updated_at),
 })
