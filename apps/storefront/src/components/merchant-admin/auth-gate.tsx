@@ -3,32 +3,19 @@
 import React, { useState } from "react"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 
-function SkeletonCard() {
-  return (
-    <div className="w-full max-w-md rounded-large bg-white p-8 shadow-lg">
-      <div className="mb-6 space-y-2">
-        <div className="h-7 w-48 animate-pulse rounded-base bg-grey-10" />
-        <div className="h-4 w-64 animate-pulse rounded-base bg-grey-10" />
-      </div>
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <div className="h-4 w-14 animate-pulse rounded-base bg-grey-10" />
-          <div className="h-10 w-full animate-pulse rounded-base bg-grey-10" />
-        </div>
-        <div className="space-y-1.5">
-          <div className="h-4 w-16 animate-pulse rounded-base bg-grey-10" />
-          <div className="h-10 w-full animate-pulse rounded-base bg-grey-10" />
-        </div>
-        <div className="h-10 w-full animate-pulse rounded-base bg-grey-90" />
-      </div>
-    </div>
-  )
-}
-
+// Shown only while the stored session is read from localStorage - a single
+// frame in practice, since session validation no longer blocks the first paint.
+// It is deliberately neutral: painting a login card here made a normal reload
+// look like a sign-out, and painting the dashboard would flash a fake shell at
+// signed-out visitors.
 function LoadingShell() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-grey-10 p-4">
-      <SkeletonCard />
+    <div
+      className="flex min-h-screen items-center justify-center bg-grey-5"
+      role="status"
+      aria-label="Loading"
+    >
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-grey-20 border-t-grey-60" />
     </div>
   )
 }

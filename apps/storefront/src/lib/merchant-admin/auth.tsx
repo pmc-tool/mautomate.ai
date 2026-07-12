@@ -38,21 +38,26 @@ export function MerchantAuthProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const restore = async (storedToken: string) => {
-    try {
-      const data = await getMerchantMe(storedToken)
-      setMe(data)
-      setToken(storedToken)
-      setView("app")
-    } catch (err) {
-      if (err instanceof ApiError && (err.status === 401 || err.type === "mfa_required")) {
-        localStorage.removeItem(STORAGE_KEY)
-        setView("login")
-      } else {
-        setToken(storedToken)
-        setView("app")
-      }
-    }
+  // A stored token means this merchant was already signed in, so enter the app
+  // immediately and validate the session in the background. Blocking the first
+  // paint on the /merchant/me round-trip is what made every reload flash the
+  // signed-out shell before the dashboard appeared. Only a 401 (or a pending MFA
+  // challenge) sends them back to sign-in; a transient network or 5xx failure
+  // keeps the session, and each page surfaces its own error state.
+  const restore = (storedToken: string) => {
+    setToken(storedToken)
+    setView("app")
+    setLoading(false)
+    getMerchantMe(storedToken)
+      .then((data) => setMe(data))
+      .catch((err) => {
+        if (err instanceof ApiError && (err.status === 401 || err.type === "mfa_required")) {
+          localStorage.removeItem(STORAGE_KEY)
+          setToken(null)
+          setMe(null)
+          setView("login")
+        }
+      })
   }
 
   useEffect(() => {
@@ -73,7 +78,7 @@ export function MerchantAuthProvider({ children }: { children: React.ReactNode }
     }
     const stored = impToken || localStorage.getItem(STORAGE_KEY)
     if (stored) {
-      restore(stored).finally(() => setLoading(false))
+      restore(stored)
     } else {
       setLoading(false)
     }
