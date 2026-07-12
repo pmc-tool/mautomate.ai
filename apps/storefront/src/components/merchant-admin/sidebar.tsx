@@ -65,9 +65,6 @@ const navItems: NavItem[] = [
     children: [
       { href: "/dashboard/orders", label: "Orders", icon: DocumentText },
       { href: "/dashboard/draft-orders", label: "Draft orders", icon: PencilSquare },
-      { href: "/dashboard/returns", label: "Returns", icon: ArrowPath },
-      { href: "/dashboard/claims", label: "Claims", icon: ExclamationCircle },
-      { href: "/dashboard/exchanges", label: "Exchanges", icon: Swatch },
     ],
   },
   {
