@@ -6364,3 +6364,264 @@ export async function listProductsPagedWithDates(
     { token }
   )
 }
+/* ------------------------------------------------------------------ inbox */
+// The unified merchant inbox. Backend: /merchant/marketing/conversations
+// (tenant-scoped, merchant-auth). The types below mirror the serializers in
+// apps/backend/src/api/merchant/marketing/conversations/_dto.ts exactly — do
+// not add fields the backend does not send.
+
+export type InboxChannel =
+  | "web_widget"
+  | "whatsapp"
+  | "messenger"
+  | "instagram"
+  | "telegram"
+  | "email"
+  | "review"
+  | "voice"
+
+export type InboxStatus = "open" | "snoozed" | "closed"
+export type InboxHandlerMode = "ai" | "queued" | "human"
+export type InboxAuthor = "contact" | "agent" | "ai" | "system"
+
+export type InboxContact = {
+  id: string
+  display_name: string | null
+  avatar_url: string | null
+  phone: string | null
+  email: string | null
+  customer_id: string | null
+}
+
+export type InboxConversation = {
+  id: string
+  channel: InboxChannel | string
+  status: InboxStatus | string
+  handler_mode: InboxHandlerMode | string
+  handoff_reason: string | null
+  chatbot_id: string | null
+  starred: boolean
+  unread_count: number
+  last_message_at: string | null
+  assigned_user_id: string | null
+  contact: InboxContact | null
+  preview: string | null
+}
+
+export type InboxMessage = {
+  id: string
+  direction: string
+  author: InboxAuthor | string
+  body: string | null
+  media: unknown
+  sent_at: string | null
+  delivery_status: string | null
+}
+
+export type InboxCustomer360Order = {
+  id: string
+  display_id: number | null
+  total: number
+  currency_code: string | null
+  status: string | null
+  created_at: string | null
+}
+
+export type InboxCustomer360 = {
+  matched: boolean
+  customer: {
+    id: string
+    name: string | null
+    email: string | null
+    phone: string | null
+    has_account: boolean
+  } | null
+  order_count: number
+  total_spent: number
+  currency_code: string | null
+  recent_orders: InboxCustomer360Order[]
+}
+
+export type InboxNote = {
+  id: string
+  conversation_id: string
+  author_id: string
+  content: string
+  created_at: string | null
+}
+
+export type CannedResponse = {
+  id: string
+  shortcut: string
+  title: string
+  content: string
+  category: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export type ListInboxConversationsParams = {
+  status?: string
+  channel?: string
+  q?: string
+  limit?: number
+  offset?: number
+}
+
+export async function listInboxConversations(
+  token: string,
+  params: ListInboxConversationsParams = {}
+): Promise<{ conversations: InboxConversation[]; count: number }> {
+  const search = new URLSearchParams()
+  if (params.status) search.set("status", params.status)
+  if (params.channel) search.set("channel", params.channel)
+  if (params.q) search.set("q", params.q)
+  if (params.limit !== undefined) search.set("limit", String(params.limit))
+  if (params.offset !== undefined) search.set("offset", String(params.offset))
+  const qs = search.toString()
+  return request<{ conversations: InboxConversation[]; count: number }>(
+    `/merchant/marketing/conversations${qs ? `?${qs}` : ""}`,
+    { token }
+  )
+}
+
+export async function getInboxConversation(
+  token: string,
+  id: string
+): Promise<{
+  conversation: InboxConversation
+  messages: InboxMessage[]
+  customer360: InboxCustomer360
+}> {
+  return request(`/merchant/marketing/conversations/${id}`, { token })
+}
+
+// The backend records the reply on the thread even when the external channel
+// send fails; `delivered` reports the external outcome.
+export async function replyToInboxConversation(
+  token: string,
+  id: string,
+  text: string
+): Promise<{ message: InboxMessage; delivered: boolean }> {
+  return request<{ message: InboxMessage; delivered: boolean }>(
+    `/merchant/marketing/conversations/${id}/reply`,
+    { token, method: "POST", body: { text } }
+  )
+}
+
+// Drafts a reply — never sends it. `needs_ai` means no AI provider is set up.
+// Throws ApiError 402 when the store is out of AI credits.
+export async function suggestInboxReply(
+  token: string,
+  id: string
+): Promise<{ suggestion: string; needs_ai: boolean }> {
+  return request<{ suggestion: string; needs_ai: boolean }>(
+    `/merchant/marketing/conversations/${id}/suggest`,
+    { token, method: "POST", body: {} }
+  )
+}
+
+// Throws ApiError 409 when another agent already holds the conversation.
+export async function takeOverInboxConversation(
+  token: string,
+  id: string
+): Promise<{ conversation: InboxConversation }> {
+  return request<{ conversation: InboxConversation }>(
+    `/merchant/marketing/conversations/${id}/take-over`,
+    { token, method: "POST", body: {} }
+  )
+}
+
+// Throws ApiError 403 when the thread is assigned to another agent.
+export async function returnInboxConversationToAi(
+  token: string,
+  id: string
+): Promise<{ conversation: InboxConversation }> {
+  return request<{ conversation: InboxConversation }>(
+    `/merchant/marketing/conversations/${id}/return-to-ai`,
+    { token, method: "POST", body: {} }
+  )
+}
+
+export async function assignInboxConversation(
+  token: string,
+  id: string,
+  assignedUserId: string | null
+): Promise<{ conversation: InboxConversation }> {
+  return request<{ conversation: InboxConversation }>(
+    `/merchant/marketing/conversations/${id}/assign`,
+    { token, method: "POST", body: { assigned_user_id: assignedUserId } }
+  )
+}
+
+export async function setInboxConversationStatus(
+  token: string,
+  id: string,
+  status: InboxStatus
+): Promise<{ conversation: InboxConversation }> {
+  return request<{ conversation: InboxConversation }>(
+    `/merchant/marketing/conversations/${id}/status`,
+    { token, method: "POST", body: { status } }
+  )
+}
+
+// Omit `starred` to toggle the current value.
+export async function starInboxConversation(
+  token: string,
+  id: string,
+  starred?: boolean
+): Promise<{ conversation: InboxConversation }> {
+  return request<{ conversation: InboxConversation }>(
+    `/merchant/marketing/conversations/${id}/star`,
+    {
+      token,
+      method: "POST",
+      body: starred === undefined ? {} : { starred },
+    }
+  )
+}
+
+export async function markInboxConversationRead(
+  token: string,
+  id: string
+): Promise<{ conversation: InboxConversation }> {
+  return request<{ conversation: InboxConversation }>(
+    `/merchant/marketing/conversations/${id}/read`,
+    { token, method: "POST", body: {} }
+  )
+}
+
+export async function listInboxNotes(
+  token: string,
+  id: string
+): Promise<{ notes: InboxNote[]; count: number }> {
+  return request<{ notes: InboxNote[]; count: number }>(
+    `/merchant/marketing/conversations/${id}/notes`,
+    { token }
+  )
+}
+
+export async function createInboxNote(
+  token: string,
+  id: string,
+  content: string
+): Promise<{ note: InboxNote }> {
+  return request<{ note: InboxNote }>(
+    `/merchant/marketing/conversations/${id}/notes`,
+    { token, method: "POST", body: { content } }
+  )
+}
+
+export async function listCannedResponses(
+  token: string,
+  params: { q?: string; category?: string } = {}
+): Promise<{ canned_responses: CannedResponse[]; count: number }> {
+  const search = new URLSearchParams()
+  if (params.q) search.set("q", params.q)
+  if (params.category) search.set("category", params.category)
+  const qs = search.toString()
+  return request<{ canned_responses: CannedResponse[]; count: number }>(
+    `/merchant/marketing/conversations/canned-responses${qs ? `?${qs}` : ""}`,
+    { token }
+  )
+}

@@ -14,6 +14,7 @@ import {
   XMark,
   ArrowRightOnRectangle,
   ChatBubbleLeftRight,
+  InboxSolid,
   RocketLaunch,
   Users,
   UsersSolid,
@@ -107,6 +108,7 @@ const navItems: NavItem[] = [
       { href: "/dashboard/customer-groups", label: "Customer groups", icon: UsersSolid },
     ],
   },
+  { href: "/dashboard/inbox", label: "Inbox", icon: InboxSolid },
   {
     id: "marketing",
     label: "Marketing",
