@@ -74,17 +74,24 @@ const singleTenant = (accounts: any[]): string | null => {
 }
 
 /**
- * Resolve the receiving Telegram bot's tenant from the per-bot webhook secret.
+ * Resolve the receiving Telegram bot's tenant from a per-bot webhook secret.
  * Telegram updates carry no stable receiving-account id in the payload, so the
  * bot is identified by the `x-telegram-bot-api-secret-token` it was registered
- * with, stored on the account as meta.webhook_secret. Fail closed: no stored
- * secret matches -> null (drop).
+ * with, stored on the account as meta.webhook_secret. The compare is TIMING-SAFE
+ * (`timingSafeStrEqual`) so the secret cannot be recovered byte-by-byte from
+ * response timing.
+ *
+ * Fail closed: an empty secret, no stored secret matching it, or a match that
+ * spans more than one tenant -> null. There is NO "first active account"
+ * fallback and NO default tenant.
+ *
+ * Exported so the inbound webhook routes can reject (401) an update they cannot
+ * attribute, rather than acking it and dropping it here.
  */
-const resolveTelegramTenantId = async (
+export const resolveTelegramTenantIdBySecret = async (
   mk: any,
-  msg: InboundMessage
+  secret: string | null | undefined
 ): Promise<string | null> => {
-  const secret = msg.receivingAccountSecret
   if (!secret) {
     return null
   }
@@ -100,6 +107,13 @@ const resolveTelegramTenantId = async (
   })
   return singleTenant(matches)
 }
+
+/** Per-message form of `resolveTelegramTenantIdBySecret` (see above). */
+const resolveTelegramTenantId = async (
+  mk: any,
+  msg: InboundMessage
+): Promise<string | null> =>
+  resolveTelegramTenantIdBySecret(mk, msg.receivingAccountSecret)
 
 /**
  * Resolve the OWNING tenant for an inbound message from its RECEIVING account.

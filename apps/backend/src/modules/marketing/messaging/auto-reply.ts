@@ -136,6 +136,56 @@ const resolveChatbot = async (
 }
 
 /**
+ * The connected account an outbound reply must leave from.
+ *
+ * PREFER the account the bot is BOUND to for this channel
+ * (marketing_chatbot_channel.social_account_id) — a tenant may run two Telegram
+ * bots, and answering from the wrong one would deliver the reply to a customer of
+ * the other bot. Fall back to the tenant's single account for the platform when
+ * the binding names none. Fail closed: an account belonging to another tenant, or
+ * on another platform, is ignored.
+ */
+const resolveSendAccount = async (
+  mk: any,
+  tenantId: string,
+  conversation: any,
+  platform: string
+): Promise<any | null> => {
+  if (conversation.chatbot_id) {
+    const binding: any = first(
+      await mk
+        .listMarketingChatbotChannels(
+          {
+            tenant_id: tenantId,
+            chatbot_id: conversation.chatbot_id,
+            channel: conversation.channel,
+          },
+          { take: 1 }
+        )
+        .catch(() => [])
+    )
+    if (binding?.social_account_id) {
+      const bound = await mk
+        .retrieveMarketingSocialAccount(binding.social_account_id)
+        .catch(() => null)
+      if (
+        bound &&
+        bound.tenant_id === tenantId &&
+        bound.platform === platform
+      ) {
+        return bound
+      }
+    }
+  }
+
+  return first(
+    await mk
+      .listMarketingSocialAccounts({ tenant_id: tenantId, platform })
+      .catch(() => [])
+  )
+}
+
+/**
  * Send text to the customer on the conversation's channel. web_widget needs no
  * external send (its provider stores nothing and the widget polls the thread);
  * an unconnected channel degrades to `no_channel_credential` — the message is
@@ -166,10 +216,11 @@ const deliverToChannel = async (
 
   const platform = CHANNEL_PLATFORM[channel]
   if (platform !== null) {
-    const account = first(
-      await mk
-        .listMarketingSocialAccounts({ tenant_id: tenantId, platform })
-        .catch(() => [])
+    const account = await resolveSendAccount(
+      mk,
+      tenantId,
+      conversation,
+      platform
     )
     if (!account) {
       return { ok: false, deliveryStatus: "no_channel_credential" }
@@ -240,6 +291,45 @@ const persistOutbound = async (
 }
 
 /**
+ * Record a FAILED outbound delivery where the merchant will actually see it.
+ *
+ * The failed message itself already carries `delivery_status = "failed"` (or
+ * `no_channel_credential`), but marketing_message has NO `error`/`meta` column, so
+ * the provider's reason cannot be stored on that row without a schema migration.
+ * It is therefore written next to it as a `system` message — the same device the
+ * handoff already uses to explain itself — so the inbox shows WHY the customer
+ * never received the reply instead of the failure living only in a log line.
+ *
+ * Silent for channels with no external account (web_widget answers by polling the
+ * thread, so "not delivered" is not a failure there). Never throws.
+ */
+const noteDeliveryFailure = async (
+  mk: any,
+  tenantId: string,
+  conversation: any,
+  result: SendResult
+): Promise<void> => {
+  const channel = conversation.channel as string
+  if (!CHANNEL_PLATFORM[channel]) {
+    return
+  }
+
+  const reason =
+    result.error?.message ??
+    (result.deliveryStatus === "no_channel_credential"
+      ? "no connected account for this channel"
+      : "unknown error")
+
+  await persistOutbound(mk, tenantId, conversation, {
+    body: `Delivery to ${channel} failed: ${reason}`,
+    author: "system",
+    deliveryStatus: "internal",
+    // The customer never got it — a human should look. Keep the unread badge.
+    clearsUnread: false,
+  }).catch(() => null)
+}
+
+/**
  * Hand the thread to a human: queue it, record why, tell the customer once.
  * Idempotent enough for the ingest path — a thread already in `queued`/`human`
  * never reaches here (gate 1).
@@ -281,6 +371,10 @@ const handoff = async (
     externalMessageId: sent.externalMessageId ?? null,
     clearsUnread: false,
   }).catch(() => null)
+
+  if (!sent.ok) {
+    await noteDeliveryFailure(mk, tenantId, conversation, sent)
+  }
 
   return { status: "handoff", reason, delivered: sent.ok }
 }
@@ -426,9 +520,15 @@ export const handleInboundAutoReply = async (
         deliveryStatus: sent.ok
           ? sent.deliveryStatus ?? "sent"
           : sent.deliveryStatus ?? "failed",
+        // On success the platform's own id is kept on the row, so a later status
+        // callback (or a redelivered echo) maps back to this exact message.
         externalMessageId: sent.externalMessageId ?? null,
         clearsUnread: true,
       })
+
+      if (!sent.ok) {
+        await noteDeliveryFailure(mk, input.tenantId, conversation, sent)
+      }
 
       return {
         status: "replied",

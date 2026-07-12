@@ -26,7 +26,7 @@ const buildTelegramWebhookUrl = (): string => {
     process.env.MARKETING_BACKEND_URL ??
     process.env.MEDUSA_BACKEND_URL ??
     "http://localhost:9000"
-  return `${base.replace(/\/$/, "")}/marketing-webhooks/telegram`
+  return `${base.replace(/\/$/, "")}/webhooks/marketing/telegram`
 }
 
 /**

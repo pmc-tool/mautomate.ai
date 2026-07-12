@@ -32,6 +32,7 @@
 
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import {
+  authorizeInboundWebhook,
   getMessagingProvider,
   ingestInbound,
 } from "../../../modules/marketing/messaging"
@@ -94,7 +95,19 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // In-handler authenticity gate — the ONLY thing standing between the open
   // perimeter and ingest. Return fast on failure; never reveal why.
-  if (!provider.verifyWebhook(ctx)) {
+  //
+  // `authorizeInboundWebhook` runs the provider's own check AND, for
+  // secret-token channels (Telegram), the authoritative DB-backed, timing-safe
+  // match of the per-bot secret to its owning tenant. A token that matches no
+  // connected bot is REJECTED here (401) instead of being acked and dropped
+  // downstream. Signature channels (Meta HMAC) return `undefined` — proven, with
+  // per-message attribution still to come inside `ingestInbound`.
+  const authorized = await authorizeInboundWebhook(
+    req.scope,
+    provider,
+    ctx
+  ).catch(() => null)
+  if (authorized === null) {
     res.status(401).send("")
     return
   }

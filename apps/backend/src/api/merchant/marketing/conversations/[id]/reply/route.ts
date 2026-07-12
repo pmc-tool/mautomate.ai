@@ -128,9 +128,29 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       body: text,
       author: "agent",
       media,
+      // Keep the platform's own message id on the row when the send succeeded.
       externalMessageId: result.externalMessageId ?? null,
       deliveryStatus,
     })
+
+    // A failed send must be VISIBLE in the thread, not just returned as
+    // `delivered: false` to whoever happened to be looking. marketing_message has
+    // no `error` column, so the reason is recorded as a `system` message beside
+    // the failed one (the same device the AI handoff uses). Channels with no
+    // external account (web_widget) are silent — nothing was meant to be sent.
+    if (!result.ok && platform) {
+      const reason =
+        result.error?.message ??
+        (deliveryStatus === "no_channel_credential"
+          ? "no connected account for this channel"
+          : "unknown error")
+      await recordOutboundMessage(req.scope, {
+        conversationId: conversation.id,
+        body: `Delivery to ${channel} failed: ${reason}`,
+        author: "system",
+        deliveryStatus: "internal",
+      }).catch(() => null)
+    }
 
     res.json({ message: toMessageDto(recorded), delivered: result.ok })
   } catch (e: any) {

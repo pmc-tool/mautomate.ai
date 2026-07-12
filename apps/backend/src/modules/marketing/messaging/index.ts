@@ -23,7 +23,15 @@ export {
   registerMessagingProvider,
 } from "./registry"
 export * from "./types"
-export { ingestInbound, recordOutboundMessage } from "./inbound"
+export {
+  ingestInbound,
+  recordOutboundMessage,
+  resolveTelegramTenantIdBySecret,
+} from "./inbound"
+export {
+  authorizeInboundWebhook,
+  TELEGRAM_SECRET_HEADER,
+} from "./webhook-auth"
 export {
   handleInboundAutoReply,
   AUTO_REPLY_DAILY_CAP_PER_TENANT,
