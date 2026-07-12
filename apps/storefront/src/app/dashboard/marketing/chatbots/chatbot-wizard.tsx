@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import {
   AcademicCap,
   ArrowPath,
@@ -128,6 +129,14 @@ export function ChatbotWizard({
     }
   }, [onClose])
 
+  // Render into document.body so the overlay is positioned against the
+  // viewport, not a transformed dashboard ancestor (which would scope
+  // `position: fixed` to itself and let the page show through and scroll).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   const patch = useCallback((p: Partial<ChatbotDraft>) => {
     setDraft((d) => (d ? { ...d, ...p } : d))
   }, [])
@@ -187,8 +196,10 @@ export function ChatbotWizard({
     onClose()
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white">
+  if (!mounted) return null
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex flex-col bg-white">
       {/* Header: close, step pills, save state */}
       <div className="shrink-0 border-b border-grey-20">
         <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
@@ -395,6 +406,7 @@ export function ChatbotWizard({
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   )
 }
