@@ -117,6 +117,8 @@ const navItems: NavItem[] = [
       { href: "/dashboard/marketing", label: "Overview", icon: RocketLaunch },
       { href: "/dashboard/marketing/connect", label: "Social accounts", icon: Globe },
       { href: "/dashboard/marketing/posts", label: "Posts", icon: DocumentText },
+      { href: "/dashboard/marketing/agents", label: "AI agents", icon: Robot },
+      { href: "/dashboard/marketing/brand-voice", label: "Brand voice", icon: Swatch },
       { href: "/dashboard/marketing/journeys", label: "Journeys", icon: Sparkles },
       { href: "/dashboard/marketing/campaigns", label: "Campaigns", icon: Hashtag },
       { href: "/dashboard/marketing/email", label: "Email templates", icon: Envelope },

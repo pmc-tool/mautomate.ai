@@ -6748,3 +6748,370 @@ export async function listCannedResponses(
     { token }
   )
 }
+
+// ---------------------------------------------------------------------------
+// Marketing — autonomous agents, brand voices, posting schedules
+// Backend: /merchant/marketing/{agents,brand-voices,schedules} (tenant-scoped)
+//
+// The PLAYBOOK is the agent's whole cadence/behaviour contract and is defined,
+// documented and validated by
+// apps/backend/src/modules/marketing/agents/playbook.ts. Keep the types below in
+// step with it: the API REJECTS unknown playbook keys, so anything that is not
+// listed there (a business description, an audience note) must live on the
+// agent's `instructions` instead.
+//
+// CAPABILITY GATE: a platform whose publish adapter requires media (instagram)
+// cannot carry an agent post, because agent-generated posts are text-only. The
+// API rejects such a platform with a 400. GET /agents returns the authoritative
+// `supported_platforms` list, so the UI offers exactly those.
+// ---------------------------------------------------------------------------
+
+export type AgentSlotDay =
+  | "mon"
+  | "tue"
+  | "wed"
+  | "thu"
+  | "fri"
+  | "sat"
+  | "sun"
+  | "daily"
+
+/** One cadence slot. `time` is 24h "HH:MM" wall-clock in the cadence timezone. */
+export type AgentSlot = {
+  day: AgentSlotDay
+  time: string
+  platforms?: string[]
+}
+
+export type AgentCadence = {
+  timezone: string
+  slots: AgentSlot[]
+}
+
+/** approval -> generated posts land in the review queue; auto -> they publish. */
+export type AgentMode = "approval" | "auto"
+
+export type AgentPostType =
+  | "promo"
+  | "educational"
+  | "story"
+  | "tip"
+  | "announcement"
+  | "question"
+  | "ugc"
+  | "behind_the_scenes"
+  | "product_spotlight"
+  | "seasonal"
+
+export type AgentLength = "short" | "medium" | "long"
+
+/** Server-owned observability state. Never sent by the client. */
+export type AgentRuntime = {
+  last_run_at?: string
+  last_generated_at?: string
+  last_post_id?: string
+  last_error?: string | null
+  last_error_at?: string | null
+  generated_count?: number
+  skipped_reason?: string | null
+}
+
+export type AgentPlaybook = {
+  platforms: string[]
+  mode: AgentMode
+  schedule_id?: string
+  cadence?: AgentCadence
+  topics?: string[]
+  post_types?: string[]
+  tone?: string
+  creativity?: number
+  hashtag_count?: number
+  cta_templates?: string[]
+  goals?: string[]
+  length?: AgentLength
+  daily_post_count?: number
+  campaign_id?: string
+  product_ids?: string[]
+  _runtime?: AgentRuntime
+}
+
+export type MarketingAgent = {
+  id: string
+  tenant_id: string
+  name: string
+  kind: "content" | "social" | string
+  instructions: string | null
+  model: string | null
+  brand_voice_id: string | null
+  playbook: AgentPlaybook | null
+  tools?: unknown[] | null
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type CreateMarketingAgentInput = {
+  name: string
+  kind?: "content" | "social"
+  instructions?: string | null
+  model?: string | null
+  brand_voice_id?: string | null
+  active?: boolean
+  playbook: AgentPlaybook
+}
+
+export type UpdateMarketingAgentInput = {
+  name?: string
+  kind?: "content" | "social"
+  instructions?: string | null
+  model?: string | null
+  brand_voice_id?: string | null
+  active?: boolean
+  playbook?: AgentPlaybook
+}
+
+export type ListMarketingAgentsResponse = {
+  agents: MarketingAgent[]
+  count: number
+  limit: number
+  offset: number
+  /** The only platforms an agent may target (the capability gate). */
+  supported_platforms: string[]
+}
+
+export type GenerateAgentPostsResponse = {
+  posts: MarketingPost[]
+  count: number
+  needs_ai: boolean
+}
+
+/**
+ * `tone` is a json column: this UI writes a plain string, but a row written by
+ * another surface may hold a list, so read defensively.
+ */
+export type MarketingBrandVoice = {
+  id: string
+  tenant_id: string
+  name: string
+  tone: string | string[] | null
+  do_rules: string[] | null
+  dont_rules: string[] | null
+  sample_copy: string | null
+  language: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type BrandVoiceInput = {
+  name: string
+  tone?: string | null
+  do_rules?: string[] | null
+  dont_rules?: string[] | null
+  sample_copy?: string | null
+  language?: string
+  is_default?: boolean
+}
+
+export type MarketingSchedule = {
+  id: string
+  tenant_id: string
+  name: string
+  timezone: string
+  slots: AgentSlot[] | null
+  platform_filter: string[] | null
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type MarketingScheduleInput = {
+  name: string
+  timezone?: string
+  slots: AgentSlot[]
+  platform_filter?: string[] | null
+  active?: boolean
+}
+
+export async function listMarketingAgents(
+  token: string,
+  params?: { kind?: string; active?: boolean; limit?: number; offset?: number }
+): Promise<ListMarketingAgentsResponse> {
+  const qs = new URLSearchParams()
+  if (params?.kind) qs.set("kind", params.kind)
+  if (params?.active !== undefined) qs.set("active", String(params.active))
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit))
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset))
+  return request<ListMarketingAgentsResponse>(
+    "/merchant/marketing/agents" + (qs.toString() ? "?" + qs.toString() : ""),
+    { token }
+  )
+}
+
+export async function getMarketingAgent(
+  token: string,
+  id: string
+): Promise<{ agent: MarketingAgent }> {
+  return request<{ agent: MarketingAgent }>(
+    `/merchant/marketing/agents/${id}`,
+    { token }
+  )
+}
+
+export async function createMarketingAgent(
+  token: string,
+  body: CreateMarketingAgentInput
+): Promise<{ agent: MarketingAgent }> {
+  return request<{ agent: MarketingAgent }>("/merchant/marketing/agents", {
+    method: "POST",
+    token,
+    body,
+  })
+}
+
+export async function updateMarketingAgent(
+  token: string,
+  id: string,
+  body: UpdateMarketingAgentInput
+): Promise<{ agent: MarketingAgent }> {
+  return request<{ agent: MarketingAgent }>(
+    `/merchant/marketing/agents/${id}`,
+    { method: "PUT", token, body }
+  )
+}
+
+export async function deleteMarketingAgent(
+  token: string,
+  id: string
+): Promise<{ id: string; object: string; deleted: boolean }> {
+  return request<{ id: string; object: string; deleted: boolean }>(
+    `/merchant/marketing/agents/${id}`,
+    { method: "DELETE", token }
+  )
+}
+
+/**
+ * "Generate now" / "Generate batch". Runs the agent's generation on demand with
+ * the same prompt and placement the cadence uses. A 402 means the tenant is out
+ * of AI credits; ApiError.status carries it.
+ */
+export async function generateAgentPosts(
+  token: string,
+  id: string,
+  body?: { count?: number; platform?: string }
+): Promise<GenerateAgentPostsResponse> {
+  return request<GenerateAgentPostsResponse>(
+    `/merchant/marketing/agents/${id}/generate`,
+    { method: "POST", token, body: body ?? {} }
+  )
+}
+
+export async function listBrandVoices(
+  token: string,
+  params?: { limit?: number; offset?: number }
+): Promise<{
+  brand_voices: MarketingBrandVoice[]
+  count: number
+  limit: number
+  offset: number
+}> {
+  const qs = new URLSearchParams()
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit))
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset))
+  return request<{
+    brand_voices: MarketingBrandVoice[]
+    count: number
+    limit: number
+    offset: number
+  }>(
+    "/merchant/marketing/brand-voices" +
+      (qs.toString() ? "?" + qs.toString() : ""),
+    { token }
+  )
+}
+
+export async function createBrandVoice(
+  token: string,
+  body: BrandVoiceInput
+): Promise<{ brand_voice: MarketingBrandVoice }> {
+  return request<{ brand_voice: MarketingBrandVoice }>(
+    "/merchant/marketing/brand-voices",
+    { method: "POST", token, body }
+  )
+}
+
+export async function updateBrandVoice(
+  token: string,
+  id: string,
+  body: Partial<BrandVoiceInput>
+): Promise<{ brand_voice: MarketingBrandVoice }> {
+  return request<{ brand_voice: MarketingBrandVoice }>(
+    `/merchant/marketing/brand-voices/${id}`,
+    { method: "PUT", token, body }
+  )
+}
+
+export async function deleteBrandVoice(
+  token: string,
+  id: string
+): Promise<{ id: string; object: string; deleted: boolean }> {
+  return request<{ id: string; object: string; deleted: boolean }>(
+    `/merchant/marketing/brand-voices/${id}`,
+    { method: "DELETE", token }
+  )
+}
+
+export async function listMarketingSchedules(
+  token: string,
+  params?: { active?: boolean; limit?: number; offset?: number }
+): Promise<{
+  schedules: MarketingSchedule[]
+  count: number
+  limit: number
+  offset: number
+}> {
+  const qs = new URLSearchParams()
+  if (params?.active !== undefined) qs.set("active", String(params.active))
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit))
+  if (params?.offset !== undefined) qs.set("offset", String(params.offset))
+  return request<{
+    schedules: MarketingSchedule[]
+    count: number
+    limit: number
+    offset: number
+  }>(
+    "/merchant/marketing/schedules" + (qs.toString() ? "?" + qs.toString() : ""),
+    { token }
+  )
+}
+
+export async function createMarketingSchedule(
+  token: string,
+  body: MarketingScheduleInput
+): Promise<{ schedule: MarketingSchedule }> {
+  return request<{ schedule: MarketingSchedule }>(
+    "/merchant/marketing/schedules",
+    { method: "POST", token, body }
+  )
+}
+
+export async function updateMarketingSchedule(
+  token: string,
+  id: string,
+  body: Partial<MarketingScheduleInput>
+): Promise<{ schedule: MarketingSchedule }> {
+  return request<{ schedule: MarketingSchedule }>(
+    `/merchant/marketing/schedules/${id}`,
+    { method: "PUT", token, body }
+  )
+}
+
+export async function deleteMarketingSchedule(
+  token: string,
+  id: string
+): Promise<{ id: string; object: string; deleted: boolean }> {
+  return request<{ id: string; object: string; deleted: boolean }>(
+    `/merchant/marketing/schedules/${id}`,
+    { method: "DELETE", token }
+  )
+}

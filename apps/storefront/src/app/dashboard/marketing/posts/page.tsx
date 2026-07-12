@@ -16,6 +16,7 @@ import {
   Clock,
   ChevronDown,
   ExclamationCircle,
+  Robot,
 } from "@medusajs/icons"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
@@ -75,6 +76,7 @@ export default function MarketingPostsPage() {
   const [view, setView] = useState<View>("board")
   const [statusFilter, setStatusFilter] = useState("all")
   const [platformFilter, setPlatformFilter] = useState("all")
+  const [sourceFilter, setSourceFilter] = useState("all")
   const [search, setSearch] = useState("")
 
   const [composerOpen, setComposerOpen] = useState(false)
@@ -131,13 +133,16 @@ export default function MarketingPostsPage() {
       ) {
         return false
       }
+      // source: "agent" marks a post written by an AI agent; everything a
+      // person typed in the composer is "manual".
+      if (sourceFilter !== "all" && p.source !== sourceFilter) return false
       if (q) {
         const hay = `${p.title || ""} ${p.body || ""}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
     })
-  }, [posts, statusFilter, platformFilter, search])
+  }, [posts, statusFilter, platformFilter, sourceFilter, search])
 
   const openCreate = () => {
     setEditingId(null)
@@ -327,6 +332,15 @@ export default function MarketingPostsPage() {
                 {p.label}
               </option>
             ))}
+          </select>
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="rounded-base border border-grey-30 bg-white px-3 py-2 text-sm text-grey-90 focus:border-grey-90 focus:outline-none"
+          >
+            <option value="all">Any source</option>
+            <option value="agent">Written by an agent</option>
+            <option value="manual">Written by you</option>
           </select>
         </div>
 
@@ -592,6 +606,7 @@ function KanbanCard({
           <p className="truncate text-sm font-medium text-grey-90">
             {postLabel(post)}
           </p>
+          {post.source === "agent" && <AgentBadge />}
         </button>
         <div className="relative" ref={menuRef}>
           <button
@@ -697,6 +712,7 @@ function ListView({
                     <button onClick={() => onOpen(p)} className="text-left hover:underline">
                       {postLabel(p)}
                     </button>
+                    {p.source === "agent" && <AgentBadge />}
                   </td>
                   <td className="px-5 py-3">
                     <PlatformIcons platforms={postPlatforms(p)} />
@@ -960,5 +976,19 @@ function ScheduleModal({
         </div>
       </div>
     </Modal>
+  )
+}
+
+/**
+ * Posts an AI agent wrote carry source="agent" (and the agent's id). Marking
+ * them keeps the board honest: a merchant can always tell what the agent has
+ * been doing from what they typed themselves.
+ */
+function AgentBadge() {
+  return (
+    <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800">
+      <Robot className="h-3 w-3" />
+      Agent
+    </span>
   )
 }
