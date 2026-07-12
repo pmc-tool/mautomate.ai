@@ -2,8 +2,39 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
 import { PLATFORM_MODULE } from "../../modules/platform"
 import { HostResolver } from "../../modules/platform/host-resolver"
+import { MARKETING_MODULE } from "../../modules/marketing"
 import { themeAccent } from "../admin/platform/_themes"
 import { getOrCreateTenantWebsite, umamiConfigured } from "../../lib/umami"
+
+/**
+ * The public embed key of the tenant's ACTIVE chatbot, or null when the tenant
+ * has none. This is what mounts the chat widget on the tenant's storefront: the
+ * key is public by design (it is the same token a merchant pastes into a
+ * third-party site's `widget.js` tag) and it is the ONLY chatbot field that
+ * leaves here — appearance is fetched by the widget from
+ * `/marketing-chat/config?public_key=…`.
+ *
+ * Best-effort: any failure returns null so a chatbot problem can never break
+ * storefront routing.
+ */
+const activeChatbotPublicKey = async (
+  scope: any,
+  tenantId: string
+): Promise<string | null> => {
+  try {
+    const mk: any = scope.resolve(MARKETING_MODULE)
+    const bots = await mk.listMarketingChatbots(
+      { tenant_id: tenantId, active: true },
+      { order: { created_at: "ASC" } }
+    )
+    const bot = (Array.isArray(bots) ? bots : []).find(
+      (b: any) => typeof b?.public_key === "string" && b.public_key.length > 0
+    )
+    return bot?.public_key ?? null
+  } catch {
+    return null
+  }
+}
 
 /**
  * GET /tenant-config?host=<host> — the pooled storefront's entry point.
@@ -45,8 +76,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (umamiConfigured() && tenant) {
     umamiWebsiteId = await getOrCreateTenantWebsite(svc, tenant).catch(() => null)
   }
+  const chatbotPublicKey = await activeChatbotPublicKey(
+    req.scope,
+    resolved.tenant_id
+  )
   res.json({
     tenant_id: resolved.tenant_id,
+    // Public embed key of this tenant's active chatbot (null => no live bot, and
+    // the storefront renders no chat widget at all). Additive + backwards
+    // compatible: older storefront builds simply ignore it.
+    chatbot_public_key: chatbotPublicKey,
     name: tenant?.name ?? null,
     publishable_key: resolved.publishable_key,
     umami_website_id: umamiWebsiteId,

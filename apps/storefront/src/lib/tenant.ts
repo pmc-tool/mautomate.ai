@@ -29,6 +29,7 @@ export const TENANT_HEADER = {
   name: "x-tenant-name",
   status: "x-tenant-status",
   umami: "x-tenant-umami",
+  chatbot: "x-tenant-chatbot",
 } as const
 
 /** Non-httpOnly cookie carrying the publishable key for client-side SDK calls. */
@@ -41,6 +42,8 @@ export type TenantContext = {
   name: string | null
   status: string | null
   umamiWebsiteId: string | null
+  /** Public embed key of the tenant's active chatbot; null = no live chatbot. */
+  chatbotPublicKey: string | null
 }
 
 /**
@@ -62,6 +65,7 @@ export const getTenantContext = cache(
         name: h.get(TENANT_HEADER.name) || null,
         status: h.get(TENANT_HEADER.status) || null,
         umamiWebsiteId: h.get(TENANT_HEADER.umami) || null,
+        chatbotPublicKey: h.get(TENANT_HEADER.chatbot) || null,
       }
     } catch {
       return null

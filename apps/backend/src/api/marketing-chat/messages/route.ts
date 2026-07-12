@@ -1,24 +1,25 @@
-import { resolveTenantId } from "../../../lib/tenant-context"
 /**
  * GET /marketing-chat/messages — the widget polls the thread for replies.
  *
- * Query: { conversation_token, since? }. The token gates the read: it must map
- * to an existing "web_widget" conversation (tenant-scoped) or we 404. Returns
- * the thread's messages (inbound visitor + outbound agent/AI) in chronological
- * order, filtered to `sent_at > since` when `since` is supplied so the widget
- * can long-poll incrementally.
+ * Query: { conversation_token, since? }. The token gates the read: it resolves
+ * to exactly one "web_widget" conversation or we 404.
+ *
+ * MULTI-TENANT: the messages are listed with the tenant id taken FROM THE
+ * RESOLVED CONVERSATION (never env), scoped to that conversation's id — so a
+ * token minted for tenant A can only ever read tenant A's thread, and never
+ * another tenant's messages.
+ *
+ * Returns the thread's messages (inbound visitor + outbound agent/AI) in
+ * chronological order, filtered to `sent_at > since` when `since` is supplied so
+ * the widget can poll incrementally.
  */
 
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MARKETING_MODULE } from "../../../modules/marketing"
 import { applyCors, OPTIONS } from "../_cors"
+import { resolveConversationByToken } from "../_chatbot"
 
 export { OPTIONS }
-
-const TENANT_ID = resolveTenantId("MARKETING_DEFAULT_TENANT")
-
-const first = <T>(v: T | T[] | null | undefined): T | null =>
-  Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
 
 const asTime = (v: any): number => {
   const t = new Date(v).getTime()
@@ -43,13 +44,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const mk: any = req.scope.resolve(MARKETING_MODULE)
 
-    const conversation = first(
-      await mk.listMarketingConversations({
-        tenant_id: TENANT_ID,
-        channel: "web_widget",
-        external_thread_id: token,
-      })
-    )
+    const conversation = await resolveConversationByToken(mk, token)
     if (!conversation) {
       res.status(404).json({ error: "conversation_not_found" })
       return
@@ -57,7 +52,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
     const rows = await mk.listMarketingMessages(
       {
-        tenant_id: TENANT_ID,
+        tenant_id: conversation.tenant_id,
         conversation_id: conversation.id,
       },
       { order: { sent_at: "ASC" } }

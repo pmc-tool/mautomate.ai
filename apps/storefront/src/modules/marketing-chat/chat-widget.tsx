@@ -1,39 +1,54 @@
 "use client"
 
 /**
- * Marketing live-chat widget.
+ * Marketing live-chat widget — the tenant's own chatbot, on the tenant's own
+ * storefront.
  *
- * A self-contained floating chat bubble that talks to the marketing backend's
- * public web-chat API (anonymous, CORS-enabled, token-gated). It renders on
- * every page via the root layout.
+ * MOUNTING IS DATA-DRIVEN: the storefront layout renders this ONLY when the
+ * request's tenant has an ACTIVE chatbot (its `public_key` arrives via
+ * /tenant-config -> the x-tenant-chatbot header -> `getChatbotPublicKey()`).
+ * No env flag decides whether a store has chat — the merchant's data does. With
+ * no key the component is never mounted, so it makes no requests at all.
  *
- * Enable/disable gate:
- *   - Renders by default (always-on).
- *   - Set NEXT_PUBLIC_MARKETING_CHAT_ENABLED="0" to disable it entirely.
- *   - Any other value (including unset) keeps it enabled.
+ * The public key is the tenant anchor for every call: the backend resolves it to
+ * exactly one active chatbot and uses THAT bot's tenant for the conversation, so
+ * a visitor on store A can only ever create/read a conversation in store A.
  *
- * Backend base URL:
- *   - Uses NEXT_PUBLIC_MEDUSA_BACKEND_URL (the storefront's existing public
- *     backend env var), falling back to http://localhost:9000.
+ * API surface consumed (all anonymous, CORS, no cookies/credentials):
+ *   GET  {BASE}/marketing-chat/config?public_key=…  -> { chatbot: {...appearance} }
+ *   POST {BASE}/marketing-chat/session   { public_key, visitor_name? } -> { conversation_token }
+ *   POST {BASE}/marketing-chat/message   { conversation_token, text }  -> { ok: true } | 429
+ *   GET  {BASE}/marketing-chat/messages?conversation_token=…&since=…   -> { messages: [...] }
  *
- * API surface consumed:
- *   POST {BASE}/marketing-chat/session   { visitor_name? } -> { conversation_token, conversation_id }
- *   POST {BASE}/marketing-chat/message   { conversation_token, text } -> { ok: true }
- *   GET  {BASE}/marketing-chat/messages?conversation_token=…&since=… -> { messages: [...] }
- *
- * All calls use { mode: "cors" } — no cookies/credentials; the token gates the
- * conversation. Every window/localStorage access is guarded so SSR never runs
- * it, and any network failure degrades to an "unavailable" state rather than
+ * The conversation token is the ONLY secret the widget holds; it is stored per
+ * public key so two different bots never share a thread. Every window/localStorage
+ * access is SSR-guarded, and any network failure degrades to a notice rather than
  * crashing the storefront.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
 
-const TOKEN_STORAGE_KEY = "marketing_chat_token"
 const POLL_INTERVAL_MS = 4000
+
+type ChatbotConfig = {
+  public_key: string
+  name: string
+  welcome_message: string | null
+  bubble_message: string | null
+  avatar: string | null
+  color: string
+  position: "left" | "right"
+  show_logo: boolean
+  show_datetime: boolean
+  embed_width: number
+  embed_height: number
+  allow_emoji: boolean
+  allow_attachments: boolean
+  collect_email: boolean
+}
 
 type ChatMessage = {
   id: string
@@ -47,26 +62,25 @@ type ChatMessage = {
 /** Client-side optimistic message before the backend echoes it back. */
 type LocalMessage = ChatMessage & { pending?: boolean }
 
-const isEnabled = () =>
-  (process.env.NEXT_PUBLIC_MARKETING_CHAT_ENABLED ?? "1") !== "0"
+const tokenKey = (publicKey: string) => `marketing_chat_token_${publicKey}`
 
-const readStoredToken = (): string | null => {
+const readStoredToken = (publicKey: string): string | null => {
   if (typeof window === "undefined") {
     return null
   }
   try {
-    return window.localStorage.getItem(TOKEN_STORAGE_KEY)
+    return window.localStorage.getItem(tokenKey(publicKey))
   } catch {
     return null
   }
 }
 
-const persistToken = (token: string) => {
+const persistToken = (publicKey: string, token: string) => {
   if (typeof window === "undefined") {
     return
   }
   try {
-    window.localStorage.setItem(TOKEN_STORAGE_KEY, token)
+    window.localStorage.setItem(tokenKey(publicKey), token)
   } catch {
     // Ignore storage failures (private mode, quota) — chat still works in-memory.
   }
@@ -84,24 +98,63 @@ const formatTime = (iso: string): string => {
 const isVisitorMessage = (message: LocalMessage) =>
   message.direction === "inbound" || message.author === "contact"
 
-const ChatWidget = () => {
-  const [mounted, setMounted] = useState(false)
+type Props = {
+  /** The tenant's active chatbot public key. Required — no key, no widget. */
+  publicKey: string
+  /**
+   * Appearance resolved on the SERVER by the mount (chat-widget-mount), so the
+   * bubble is in the SSR HTML and never flashes in. When omitted (a purely
+   * client-side use) the widget fetches /marketing-chat/config itself.
+   */
+  config?: ChatbotConfig | null
+}
+
+const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
+  const [config, setConfig] = useState<ChatbotConfig | null>(initialConfig)
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<LocalMessage[]>([])
   const [input, setInput] = useState("")
-  const [unavailable, setUnavailable] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  const [teaserDismissed, setTeaserDismissed] = useState(false)
 
   const tokenRef = useRef<string | null>(null)
   const lastSeenRef = useRef<string | undefined>(undefined)
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const panelRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const listEndRef = useRef<HTMLDivElement | null>(null)
 
+  // Appearance. Skipped when the server already resolved it. A 404 here means
+  // the key is not a live bot -> render nothing.
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    if (initialConfig) {
+      return
+    }
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetch(
+          `${BACKEND_URL}/marketing-chat/config?public_key=${encodeURIComponent(
+            publicKey
+          )}`,
+          { mode: "cors" }
+        )
+        if (!res.ok) {
+          return
+        }
+        const data = (await res.json()) as { chatbot?: ChatbotConfig }
+        if (!cancelled && data.chatbot) {
+          setConfig(data.chatbot)
+        }
+      } catch {
+        // Backend unreachable: stay unmounted rather than show a dead bubble.
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [publicKey, initialConfig])
 
   const mergeMessages = useCallback((incoming: ChatMessage[]) => {
     if (!incoming.length) {
@@ -114,7 +167,7 @@ const ChatWidget = () => {
           (m) =>
             m.pending &&
             isVisitorMessage(m) &&
-            m.body.trim() === message.body.trim()
+            m.body.trim() === (message.body ?? "").trim()
         )
         if (optimisticIdx !== -1) {
           next[optimisticIdx] = message
@@ -153,10 +206,9 @@ const ChatWidget = () => {
         throw new Error("poll failed")
       }
       const data = (await res.json()) as { messages?: ChatMessage[] }
-      setUnavailable(false)
       mergeMessages(data.messages ?? [])
     } catch {
-      setUnavailable(true)
+      // Transient — the next tick retries. Only a failed SEND surfaces a notice.
     }
   }, [mergeMessages])
 
@@ -164,7 +216,7 @@ const ChatWidget = () => {
     if (tokenRef.current) {
       return tokenRef.current
     }
-    const stored = readStoredToken()
+    const stored = readStoredToken(publicKey)
     if (stored) {
       tokenRef.current = stored
       return stored
@@ -174,7 +226,7 @@ const ChatWidget = () => {
         method: "POST",
         mode: "cors",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ public_key: publicKey }),
       })
       if (!res.ok) {
         throw new Error("session failed")
@@ -184,18 +236,18 @@ const ChatWidget = () => {
         throw new Error("no token")
       }
       tokenRef.current = data.conversation_token
-      persistToken(data.conversation_token)
-      setUnavailable(false)
+      persistToken(publicKey, data.conversation_token)
+      setNotice(null)
       return data.conversation_token
     } catch {
-      setUnavailable(true)
+      setNotice("Chat is unavailable right now. Please try again later.")
       return null
     }
-  }, [])
+  }, [publicKey])
 
   // Establish session + start/stop polling based on open state.
   useEffect(() => {
-    if (!open) {
+    if (!open || !config) {
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current)
         pollTimerRef.current = null
@@ -226,9 +278,9 @@ const ChatWidget = () => {
         pollTimerRef.current = null
       }
     }
-  }, [open, ensureSession, poll])
+  }, [open, config, ensureSession, poll])
 
-  // Move focus into the panel on open; restore is handled by the toggle button.
+  // Move focus into the panel on open.
   useEffect(() => {
     if (open) {
       const timer = window.setTimeout(() => {
@@ -286,13 +338,21 @@ const ChatWidget = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ conversation_token: token, text }),
       })
+      if (res.status === 429) {
+        // The backend rate limits this public endpoint (it triggers paid AI
+        // calls). Tell the visitor plainly instead of silently dropping.
+        setNotice("You are sending messages too quickly. Please wait a moment.")
+        setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
+        return
+      }
       if (!res.ok) {
         throw new Error("send failed")
       }
-      setUnavailable(false)
+      setNotice(null)
       await poll()
     } catch {
-      setUnavailable(true)
+      setNotice("Message could not be sent. Please try again.")
+      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
     } finally {
       setSending(false)
     }
@@ -305,36 +365,62 @@ const ChatWidget = () => {
     }
   }
 
-  if (!mounted || !isEnabled()) {
+  const panelStyle = useMemo(() => {
+    if (!config) {
+      return undefined
+    }
+    return {
+      width: `min(${config.embed_width}px, calc(100vw - 2rem))`,
+      height: `min(${config.embed_height}px, calc(100vh - 8rem))`,
+    }
+  }, [config])
+
+  // No live chatbot (or config not loaded yet): render nothing.
+  if (!config) {
     return null
   }
 
-  const accent = "var(--ff-primary, #72a499)"
+  const accent = config.color
+  const side =
+    config.position === "left" ? "left-4 sm:left-6" : "right-4 sm:right-6"
+  const align = config.position === "left" ? "items-start" : "items-end"
+  const showTeaser = !open && !teaserDismissed && !!config.bubble_message
 
   return (
-    <div className="fixed bottom-4 right-4 z-[2147483000] flex flex-col items-end sm:bottom-6 sm:right-6">
+    <div
+      className={`fixed bottom-4 z-[2147483000] flex flex-col ${align} ${side} sm:bottom-6`}
+    >
       {open && (
         <div
-          ref={panelRef}
           role="dialog"
           aria-modal="false"
-          aria-label="Live chat"
-          className="motion-safe:animate-enter mb-3 flex h-[70vh] max-h-[520px] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-large bg-white shadow-2xl ring-1 ring-black/10 sm:h-[520px] sm:w-[360px]"
+          aria-label={config.name}
+          style={panelStyle}
+          className="motion-safe:animate-enter mb-3 flex flex-col overflow-hidden rounded-large bg-white shadow-2xl ring-1 ring-black/10"
         >
           {/* Header */}
           <div
             className="flex items-center gap-3 px-4 py-3 text-white"
             style={{ backgroundColor: accent }}
           >
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-circle bg-white/20 text-base font-semibold"
-              aria-hidden="true"
-            >
-              💬
-            </div>
+            {config.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={config.avatar}
+                alt=""
+                className="h-9 w-9 shrink-0 rounded-circle object-cover"
+              />
+            ) : (
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-circle bg-white/20 text-base font-semibold"
+                aria-hidden="true"
+              >
+                {config.name.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold leading-tight">
-                Chat with us
+                {config.name}
               </p>
               <p className="truncate text-xs leading-tight text-white/80">
                 We usually reply within a few minutes
@@ -365,18 +451,12 @@ const ChatWidget = () => {
 
           {/* Message list */}
           <div className="flex-1 space-y-3 overflow-y-auto bg-grey-5 px-3 py-4">
-            {messages.length === 0 && !unavailable && (
+            {messages.length === 0 && (
               <div className="mt-6 text-center text-sm text-grey-50">
-                <p className="font-medium text-grey-70">👋 Hi there!</p>
-                <p className="mt-1">
-                  Send us a message and we&rsquo;ll get right back to you.
+                <p>
+                  {config.welcome_message ??
+                    "Send us a message and we will reply here."}
                 </p>
-              </div>
-            )}
-
-            {unavailable && messages.length === 0 && (
-              <div className="mt-6 text-center text-sm text-grey-50">
-                Chat is unavailable right now. Please try again later.
               </div>
             )}
 
@@ -395,20 +475,24 @@ const ChatWidget = () => {
                       >
                         {message.body}
                       </div>
-                      <div className="mt-1 text-right text-[10px] text-grey-40">
-                        {message.pending ? "Sending…" : formatTime(message.sent_at)}
-                      </div>
+                      {config.show_datetime && (
+                        <div className="mt-1 text-right text-[10px] text-grey-40">
+                          {message.pending
+                            ? "Sending..."
+                            : formatTime(message.sent_at)}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
               }
 
-              const isAi = message.author === "ai"
-              const label = isAi
-                ? "Assistant"
-                : message.author === "system"
+              const label =
+                message.author === "system"
                   ? "System"
-                  : "Support"
+                  : message.author === "agent"
+                    ? "Support"
+                    : config.name
               return (
                 <div key={message.id} className="flex justify-start gap-2">
                   <div
@@ -416,32 +500,28 @@ const ChatWidget = () => {
                     style={{ backgroundColor: accent }}
                     aria-hidden="true"
                   >
-                    {label.charAt(0)}
+                    {label.charAt(0).toUpperCase()}
                   </div>
                   <div className="max-w-[80%]">
-                    <div className="mb-1 flex items-center gap-1.5">
-                      <span className="text-[11px] font-medium text-grey-60">
-                        {label}
-                      </span>
-                      {isAi && (
-                        <span
-                          className="rounded-soft px-1 py-0.5 text-[9px] font-semibold uppercase leading-none text-white"
-                          style={{ backgroundColor: accent }}
-                        >
-                          AI
-                        </span>
-                      )}
+                    <div className="mb-1 text-[11px] font-medium text-grey-60">
+                      {label}
                     </div>
-                    <div className="rounded-large rounded-bl-base bg-white px-3 py-2 text-sm text-grey-80 ring-1 ring-grey-20">
+                    <div className="whitespace-pre-wrap rounded-large rounded-bl-base bg-white px-3 py-2 text-sm text-grey-80 ring-1 ring-grey-20">
                       {message.body}
                     </div>
-                    <div className="mt-1 text-[10px] text-grey-40">
-                      {formatTime(message.sent_at)}
-                    </div>
+                    {config.show_datetime && (
+                      <div className="mt-1 text-[10px] text-grey-40">
+                        {formatTime(message.sent_at)}
+                      </div>
+                    )}
                   </div>
                 </div>
               )
             })}
+
+            {notice && (
+              <div className="text-center text-xs text-grey-50">{notice}</div>
+            )}
 
             <div ref={listEndRef} />
           </div>
@@ -455,8 +535,9 @@ const ChatWidget = () => {
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type your message…"
+                placeholder="Type your message..."
                 aria-label="Type your message"
+                maxLength={2000}
                 className="min-w-0 flex-1 rounded-circle border border-grey-20 bg-grey-5 px-4 py-2 text-sm text-grey-80 outline-none focus:border-grey-40"
               />
               <button
@@ -483,7 +564,46 @@ const ChatWidget = () => {
                 </svg>
               </button>
             </div>
+            {config.show_logo && (
+              <p className="mt-1.5 text-center text-[10px] text-grey-40">
+                Powered by mAutomate
+              </p>
+            )}
           </div>
+        </div>
+      )}
+
+      {/* Teaser (the bot's bubble_message) */}
+      {showTeaser && (
+        <div className="mb-2 flex max-w-[220px] items-start gap-1 rounded-large bg-white px-3 py-2 text-xs leading-snug text-grey-80 shadow-lg ring-1 ring-black/5">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="text-left"
+          >
+            {config.bubble_message}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTeaserDismissed(true)}
+            aria-label="Dismiss message"
+            className="-mr-1 -mt-1 shrink-0 p-1 text-grey-40 hover:text-grey-60"
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M4 4l8 8M12 4l-8 8"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
         </div>
       )}
 
@@ -493,7 +613,8 @@ const ChatWidget = () => {
         onClick={() => setOpen((prev) => !prev)}
         aria-label={open ? "Close chat" : "Open chat"}
         aria-expanded={open}
-        className="flex h-14 w-14 items-center justify-center rounded-circle text-white shadow-lg transition-transform motion-safe:hover:scale-105"
+        data-marketing-chat={config.public_key}
+        className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-circle text-white shadow-lg transition-transform motion-safe:hover:scale-105"
         style={{ backgroundColor: accent }}
       >
         {open ? (
@@ -511,6 +632,9 @@ const ChatWidget = () => {
               strokeLinecap="round"
             />
           </svg>
+        ) : config.avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={config.avatar} alt="" className="h-14 w-14 object-cover" />
         ) : (
           <svg
             width="24"

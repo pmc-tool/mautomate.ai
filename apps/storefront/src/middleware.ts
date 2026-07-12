@@ -39,6 +39,13 @@ type TenantConfig = {
    */
   region_id: string | null
   umami_website_id: string | null
+  /**
+   * Public embed key of this tenant's ACTIVE chatbot (null = no live bot). It is
+   * forwarded to server code as x-tenant-chatbot; the storefront layout mounts
+   * the chat widget only when it is present, so the widget is DATA-driven (does
+   * this store have a bot?) rather than env-driven.
+   */
+  chatbot_public_key: string | null
 }
 
 // Per-host tenant resolution cache (module-scoped, short TTL). Keyed by Host so
@@ -270,6 +277,8 @@ export async function middleware(request: NextRequest) {
     forwardHeaders.set("x-tenant-name", tenant.name || "")
     forwardHeaders.set("x-tenant-status", tenant.status || "")
     forwardHeaders.set("x-tenant-umami", tenant.umami_website_id || "")
+    // Active chatbot's public embed key — mounts THIS tenant's chat widget.
+    forwardHeaders.set("x-tenant-chatbot", tenant.chatbot_public_key || "")
     // Dedicated-instance backend, so server data fetches hit the store's own Medusa.
     if (tenant.backend_url) forwardHeaders.set("x-tenant-backend", tenant.backend_url)
     // Tenant's region id (carries its currency) — the storefront resolves this

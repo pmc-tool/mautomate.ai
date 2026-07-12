@@ -7,6 +7,7 @@ import { WishlistProvider } from "@lib/context/wishlist-context"
 import { getBaseURL } from "@lib/util/env"
 import { StoreCartShippingOption } from "@medusajs/types"
 import CartMismatchBanner from "@modules/layout/components/cart-mismatch-banner"
+import ChatWidgetMount from "@modules/marketing-chat/chat-widget-mount"
 import ChromeStyles from "@modules/layout/components/chrome-styles"
 import Footer from "@modules/layout/templates/footer"
 import Nav from "@modules/layout/templates/nav"
@@ -91,6 +92,9 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
       )}
       {props.children}
       <Footer />
+      {/* A-2: the store's own chatbot. Renders only when THIS tenant has an
+          active chatbot (see chat-widget-mount) — nothing otherwise. */}
+      <ChatWidgetMount />
       </WishlistProvider>
     </>
   )
