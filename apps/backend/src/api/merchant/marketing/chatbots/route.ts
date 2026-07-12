@@ -3,9 +3,7 @@ import crypto from "crypto"
 import { MARKETING_MODULE } from "../../../../modules/marketing"
 import MarketingModuleService from "../../../../modules/marketing/service"
 import { resolveMerchant } from "../../_helpers"
-
-const REPLY_MODES = ["draft", "auto"] as const
-const DATA_KINDS = ["faq", "url", "product_catalog", "file", "blog"] as const
+import { DATA_KINDS, parseChatbotFields } from "./_shared"
 
 /**
  * GET /merchant/marketing/chatbots
@@ -45,9 +43,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  * POST /merchant/marketing/chatbots
  *
  * Create a merchant-scoped chatbot with a freshly generated `public_key`.
- * Optionally seed knowledge sources via `data` (array of { kind, content?,
- * source? }). Every created row is tagged with the caller's tenant_id.
- * Body: { name, greeting?, agent_id?, reply_mode?, channel_config?, data? }
+ * Accepts the full studio surface (persona, appearance, feature toggles,
+ * dimensions) via `parseChatbotFields`, so the wizard's "create then configure"
+ * flow and a one-shot API create both work. Optionally seeds knowledge sources
+ * via `data`. Every created row is tagged with the caller's tenant_id.
+ *
+ * Body: { name, ...chatbot fields, data? }
  * Response: { chatbot, data }
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -55,48 +56,37 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!ctx) return res.status(401).json({ message: "not authorized" })
 
   const tenantId = ctx.tenant.id
-  const b = (req.body ?? {}) as {
-    name?: string
-    greeting?: string
-    agent_id?: string
-    reply_mode?: string
-    channel_config?: any
-    data?: Array<{ kind?: string; content?: string; source?: string }>
-  }
+  const b = (req.body ?? {}) as Record<string, any>
 
   try {
-    const name = b.name?.trim()
-    if (!name) {
-      return res.status(400).json({ message: "A chatbot `name` is required." })
+    const parsed = parseChatbotFields(b)
+    if (!parsed.ok) {
+      return res.status(400).json({ message: parsed.message })
     }
-
-    const replyMode = (b.reply_mode ?? "draft").trim()
-    if (!(REPLY_MODES as readonly string[]).includes(replyMode)) {
-      return res.status(400).json({
-        message: `Chatbot \`reply_mode\` must be one of: ${REPLY_MODES.join(", ")}.`,
-      })
+    if (!parsed.data.name) {
+      return res.status(400).json({ message: "A chatbot `name` is required." })
     }
 
     const svc: MarketingModuleService = req.scope.resolve(MARKETING_MODULE)
 
     const created = await svc.createMarketingChatbots({
       tenant_id: tenantId,
-      name,
-      greeting: b.greeting?.trim() ? b.greeting.trim() : null,
-      agent_id: b.agent_id ?? null,
-      reply_mode: replyMode,
-      channel_config: b.channel_config ?? null,
-      public_key: crypto.randomBytes(12).toString("hex"),
+      // Column defaults cover everything the caller did not send.
+      reply_mode: "draft",
       active: true,
+      ...parsed.data,
+      public_key: crypto.randomBytes(12).toString("hex"),
+      training_status: "not_trained",
     } as any)
 
     const chatbot = Array.isArray(created) ? created[0] : created
 
-    // Optionally seed knowledge sources. Each row is tenant-tagged.
+    // Optionally seed knowledge sources. Each row is tenant-tagged and starts
+    // `pending` — it only counts as knowledge once /train embeds it.
     let data: any[] = []
     if (Array.isArray(b.data) && b.data.length) {
       const rows = b.data
-        .map((d) => {
+        .map((d: any) => {
           const kind = (d?.kind ?? "faq").trim()
           if (!(DATA_KINDS as readonly string[]).includes(kind)) return null
           const content = d?.content?.trim()

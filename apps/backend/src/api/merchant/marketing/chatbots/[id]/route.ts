@@ -2,38 +2,13 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MARKETING_MODULE } from "../../../../../modules/marketing"
 import MarketingModuleService from "../../../../../modules/marketing/service"
 import { resolveMerchant } from "../../../_helpers"
-
-const REPLY_MODES = ["draft", "auto"] as const
-
-const isNotFound = (e: any): boolean =>
-  e?.type === "not_found" || /was not found|not found/i.test(e?.message ?? "")
-
-/**
- * Load a chatbot and assert it belongs to the caller's tenant. Fail-closed and
- * null-safe: a missing row OR any tenant_id that is not strictly equal to the
- * caller's tenant (incl. null/undefined) 404s and returns null.
- */
-const loadOwned = async (
-  svc: MarketingModuleService,
-  id: string,
-  tenantId: string,
-  res: MedusaResponse
-): Promise<any | null> => {
-  const chatbot = await (svc as any)
-    .retrieveMarketingChatbot(id)
-    .catch(() => null)
-  if (!chatbot || chatbot.tenant_id !== tenantId) {
-    res.status(404).json({ message: `Chatbot ${id} was not found` })
-    return null
-  }
-  return chatbot
-}
+import { isNotFound, loadOwnedChatbot, parseChatbotFields } from "../_shared"
 
 /**
  * GET /merchant/marketing/chatbots/:id
  *
- * Retrieve a chatbot plus its knowledge-base data rows (newest first).
- * Tenant-scoped. Response: { chatbot, data }
+ * Retrieve a chatbot plus its knowledge sources (newest first), tenant-scoped.
+ * Response: { chatbot, data }
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
@@ -45,7 +20,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const svc: MarketingModuleService = req.scope.resolve(MARKETING_MODULE)
 
-    const chatbot = await loadOwned(svc, id, tenantId, res)
+    const chatbot = await loadOwnedChatbot(svc, id, tenantId, res)
     if (!chatbot) return
 
     const data = await (svc as any).listMarketingChatbotData(
@@ -64,8 +39,13 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 /**
  * PUT /merchant/marketing/chatbots/:id
  *
- * Update a chatbot (tenant-scoped). Only provided fields change.
- * Body: { name?, greeting?, agent_id?, reply_mode?, channel_config?, active? }
+ * Update a chatbot (tenant-scoped). Only the fields present in the body change,
+ * which is what makes the studio's per-step autosave safe: saving step 2 cannot
+ * blank a value owned by step 1. Accepts the full editable surface — persona
+ * (instructions / dont_go_beyond / language / messages), appearance (avatar /
+ * color / position / logo / datetime / dimensions), feature toggles and
+ * reply_mode / active. `training_status` is NOT settable here: only /train moves it.
+ *
  * Response: { chatbot }
  */
 export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -74,41 +54,22 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const tenantId = ctx.tenant.id
   const { id } = req.params
-  const b = (req.body ?? {}) as Record<string, any>
 
   try {
     const svc: MarketingModuleService = req.scope.resolve(MARKETING_MODULE)
 
-    const current = await loadOwned(svc, id, tenantId, res)
+    const current = await loadOwnedChatbot(svc, id, tenantId, res)
     if (!current) return
 
-    const data: Record<string, any> = {}
-    if (b.name !== undefined) {
-      const name = String(b.name).trim()
-      if (!name) {
-        return res
-          .status(400)
-          .json({ message: "Chatbot `name` cannot be empty." })
-      }
-      data.name = name
+    const parsed = parseChatbotFields((req.body ?? {}) as Record<string, any>)
+    if (!parsed.ok) {
+      return res.status(400).json({ message: parsed.message })
     }
-    if (b.greeting !== undefined) data.greeting = b.greeting ?? null
-    if (b.agent_id !== undefined) data.agent_id = b.agent_id ?? null
-    if (b.reply_mode !== undefined) {
-      const replyMode = String(b.reply_mode).trim()
-      if (!(REPLY_MODES as readonly string[]).includes(replyMode)) {
-        return res.status(400).json({
-          message: `Chatbot \`reply_mode\` must be one of: ${REPLY_MODES.join(", ")}.`,
-        })
-      }
-      data.reply_mode = replyMode
-    }
-    if (b.channel_config !== undefined) {
-      data.channel_config = b.channel_config ?? null
-    }
-    if (b.active !== undefined) data.active = b.active === true
 
-    const updated = await (svc as any).updateMarketingChatbots({ id, ...data })
+    const updated = await (svc as any).updateMarketingChatbots({
+      id,
+      ...parsed.data,
+    })
     const chatbot = Array.isArray(updated) ? updated[0] : updated
 
     res.json({ chatbot })
@@ -122,7 +83,9 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
 /**
  * DELETE /merchant/marketing/chatbots/:id
  *
- * Delete a chatbot (tenant-scoped) and its knowledge-base data rows.
+ * Delete a chatbot (tenant-scoped), its knowledge sources, and the embedded
+ * chunks those sources produced — otherwise a deleted bot's vectors would
+ * outlive it in marketing_knowledge_chunk.
  * Response: { id, object, deleted }
  */
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -135,7 +98,7 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   try {
     const svc: MarketingModuleService = req.scope.resolve(MARKETING_MODULE)
 
-    const current = await loadOwned(svc, id, tenantId, res)
+    const current = await loadOwnedChatbot(svc, id, tenantId, res)
     if (!current) return
 
     const rows = await (svc as any).listMarketingChatbotData(
@@ -145,6 +108,18 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
     const rowIds = (Array.isArray(rows) ? rows : []).map((r: any) => r.id)
     if (rowIds.length) {
       await (svc as any).deleteMarketingChatbotData(rowIds)
+    }
+
+    // The bot's embedded knowledge is owned by the bot (owner_id = its id).
+    const chunks = await (svc as any)
+      .listMarketingKnowledgeChunks(
+        { tenant_id: tenantId, owner_id: id },
+        { take: 5000 }
+      )
+      .catch(() => [])
+    const chunkIds = (Array.isArray(chunks) ? chunks : []).map((c: any) => c.id)
+    if (chunkIds.length) {
+      await (svc as any).deleteMarketingKnowledgeChunks(chunkIds).catch(() => {})
     }
 
     await (svc as any).deleteMarketingChatbots(id)

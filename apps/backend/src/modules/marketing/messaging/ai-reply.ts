@@ -584,3 +584,88 @@ export const generateAutoReply = async (
     return { action: "handoff", reason: "ai_unavailable" }
   }
 }
+
+/** One turn of the in-dashboard test conversation. */
+export type TestReplyTurn = { role: "user" | "assistant"; text: string }
+
+export type TestReplyResult = {
+  reply: string
+  /** How many trained knowledge snippets actually grounded this answer. */
+  used_knowledge: number
+  /** True when no AI provider is configured — the UI should say so, not retry. */
+  needs_ai: boolean
+}
+
+/**
+ * Answer ONE question as a chatbot would, with NO side effects — no conversation
+ * row, no message rows, no metering of a customer thread. This powers the "Test"
+ * step of the chatbot studio, so it deliberately reuses the SAME prompt the live
+ * pipeline uses: `personaSection` (instructions / scope lock / language),
+ * `buildReplySystem` (brand voice + Customer360 + grounding rule) and
+ * `knowledgeSection` over `retrieveContext` (the bot's trained chunks).
+ *
+ * The one honest difference from `generateAutoReply`: there is no real customer
+ * behind a test chat, so the Customer360 is the unmatched snapshot. Everything a
+ * merchant is testing — persona, scope lock, language, trained knowledge — is
+ * identical to what a visitor gets.
+ *
+ * Never throws: a missing provider returns `needs_ai:true` with an empty reply.
+ */
+export const generateTestReply = async (
+  container: MedusaContainer,
+  input: {
+    tenantId: string
+    chatbot: any
+    message: string
+    history?: TestReplyTurn[]
+    topK?: number
+  }
+): Promise<TestReplyResult> => {
+  const provider = getAiTextProvider()
+  if (!provider) {
+    return { reply: "", used_knowledge: 0, needs_ai: true }
+  }
+
+  const question = (input.message ?? "").toString().trim()
+  if (!question) {
+    return { reply: "", used_knowledge: 0, needs_ai: false }
+  }
+
+  const snippets = await retrieveContext(
+    container,
+    input.tenantId,
+    input.chatbot?.id,
+    question,
+    input.topK ?? 4
+  ).catch(() => [] as string[])
+
+  const c360 = await buildCustomer360(container, null).catch(
+    () => ({ matched: false }) as Customer360
+  )
+
+  const system = await buildReplySystem(container, input.tenantId, {
+    persona: personaSection(input.chatbot),
+    c360,
+    sections: [knowledgeSection(snippets)],
+  })
+
+  const turns = (input.history ?? [])
+    .filter((t) => t && typeof t.text === "string" && t.text.trim().length > 0)
+    .slice(-10)
+    .map((t) => `${t.role === "user" ? "Customer" : "Assistant"}: ${t.text.trim()}`)
+
+  const prompt =
+    (turns.length
+      ? "Conversation so far (oldest first):\n" + turns.join("\n") + "\n\n"
+      : "") +
+    "The customer's latest message:\n" +
+    question +
+    "\n\nWrite the assistant's reply to the customer now."
+
+  const raw = await provider
+    .generate(prompt, { system, temperature: 0.3 })
+    .catch(() => "")
+  const reply = (raw ?? "").toString().trim()
+
+  return { reply, used_knowledge: snippets.length, needs_ai: false }
+}

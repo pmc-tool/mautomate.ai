@@ -1777,6 +1777,26 @@ export type MarketingChatbot = {
   channel_config?: Record<string, unknown> | null
   active: boolean
   public_key: string | null
+  /** Persona / behaviour. */
+  instructions: string | null
+  dont_go_beyond: boolean
+  language: string | null
+  welcome_message: string | null
+  bubble_message: string | null
+  /** Appearance. */
+  avatar: string | null
+  color: string
+  position: "left" | "right"
+  show_logo: boolean
+  show_datetime: boolean
+  embed_width: number
+  embed_height: number
+  /** Feature toggles. */
+  collect_email: boolean
+  allow_attachments: boolean
+  allow_emoji: boolean
+  /** Embedding pipeline state for this bot's knowledge sources. */
+  training_status: "not_trained" | "training" | "trained"
   created_at: string
   updated_at: string
 }
@@ -1788,26 +1808,52 @@ export type MarketingChatbotData = {
   kind: string
   content: string | null
   source: string | null
+  status: "pending" | "embedded" | "failed"
+  error: string | null
   created_at: string
   updated_at: string
 }
 
-export type CreateMarketingChatbotInput = {
-  name: string
-  greeting?: string
-  agent_id?: string
-  reply_mode?: string
-  channel_config?: Record<string, unknown>
-  data?: Array<{ kind?: string; content?: string; source?: string }>
-}
-
-export type UpdateMarketingChatbotInput = {
+export type MarketingChatbotFields = {
   name?: string
   greeting?: string | null
   agent_id?: string | null
-  reply_mode?: string
+  reply_mode?: "draft" | "auto"
   channel_config?: Record<string, unknown> | null
   active?: boolean
+  instructions?: string | null
+  dont_go_beyond?: boolean
+  language?: string | null
+  welcome_message?: string | null
+  bubble_message?: string | null
+  avatar?: string | null
+  color?: string
+  position?: "left" | "right"
+  show_logo?: boolean
+  show_datetime?: boolean
+  embed_width?: number
+  embed_height?: number
+  collect_email?: boolean
+  allow_attachments?: boolean
+  allow_emoji?: boolean
+}
+
+export type CreateMarketingChatbotInput = MarketingChatbotFields & {
+  name: string
+  data?: Array<{ kind?: string; content?: string; source?: string }>
+}
+
+export type UpdateMarketingChatbotInput = MarketingChatbotFields
+
+/** What one /train run actually did, straight from the embedding pipeline. */
+export type MarketingChatbotTraining = {
+  chatbot_id: string
+  training_status: "not_trained" | "trained"
+  sources: number
+  embedded: number
+  failed: number
+  chunks: number
+  error?: string
 }
 
 export async function getMarketingSummary(token: string): Promise<MarketingSummary> {
@@ -1976,6 +2022,83 @@ export async function deleteMarketingChatbot(
     `/merchant/marketing/chatbots/${id}`,
     { method: "DELETE", token }
   )
+}
+
+// --- Chatbot studio: knowledge, training, test chat -------------------------
+
+/**
+ * Add ONE knowledge source. `kind: "url"` is fetched server-side and its page
+ * text is stored as the row's content, so the resulting row is embeddable.
+ */
+export async function addMarketingChatbotData(
+  token: string,
+  id: string,
+  body: { kind: string; content?: string; source?: string }
+): Promise<{ data: MarketingChatbotData }> {
+  return request<{ data: MarketingChatbotData }>(
+    `/merchant/marketing/chatbots/${id}/data`,
+    { method: "POST", token, body }
+  )
+}
+
+/** Delete one knowledge source and the embedded chunks it produced. */
+export async function deleteMarketingChatbotData(
+  token: string,
+  id: string,
+  dataId: string
+): Promise<{ id: string; deleted: boolean; chunks_deleted: number }> {
+  return request<{ id: string; deleted: boolean; chunks_deleted: number }>(
+    `/merchant/marketing/chatbots/${id}/data?data_id=${encodeURIComponent(dataId)}`,
+    { method: "DELETE", token }
+  )
+}
+
+/**
+ * Train the bot: chunk + embed every knowledge source so replies can retrieve
+ * them. Synchronous — when it resolves, the counts it returns are persisted.
+ */
+export async function trainMarketingChatbot(
+  token: string,
+  id: string
+): Promise<{
+  chatbot: MarketingChatbot
+  training: MarketingChatbotTraining
+  data: MarketingChatbotData[]
+}> {
+  return request<{
+    chatbot: MarketingChatbot
+    training: MarketingChatbotTraining
+    data: MarketingChatbotData[]
+  }>(`/merchant/marketing/chatbots/${id}/train`, { method: "POST", token })
+}
+
+/**
+ * Ask the bot a question and get its real, grounded answer. Creates no
+ * conversation and no messages — it is a dry run of the live reply pipeline.
+ */
+export async function testMarketingChatbot(
+  token: string,
+  id: string,
+  body: {
+    message: string
+    history?: Array<{ role: "user" | "assistant"; text: string }>
+  }
+): Promise<{
+  reply: string
+  used_knowledge: number
+  needs_ai: boolean
+  training_status: string
+}> {
+  return request<{
+    reply: string
+    used_knowledge: number
+    needs_ai: boolean
+    training_status: string
+  }>(`/merchant/marketing/chatbots/${id}/test-chat`, {
+    method: "POST",
+    token,
+    body,
+  })
 }
 
 // --- Marketing writes: campaigns -------------------------------------------

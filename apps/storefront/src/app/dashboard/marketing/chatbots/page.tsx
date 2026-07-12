@@ -1,51 +1,79 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import { ChatBubbleLeftRight, Plus, Trash, XMarkMini } from "@medusajs/icons"
+import { useEffect, useMemo, useState } from "react"
+import {
+  AcademicCap,
+  ChatBubbleLeftRight,
+  Code,
+  CogSixTooth,
+  PlaySolid,
+  Plus,
+  Trash,
+} from "@medusajs/icons"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
-  listMarketingChatbots,
   createMarketingChatbot,
   deleteMarketingChatbot,
-  MarketingChatbot,
+  listMarketingChatbots,
+  updateMarketingChatbot,
   ApiError,
+  MarketingChatbot,
 } from "@lib/merchant-admin/api"
 import { PageHeader } from "@components/merchant-admin/page-header"
-import { StatusBadge } from "@components/merchant-admin/status-badge"
 import { EmptyState } from "@components/merchant-admin/empty-state"
+import { StatusBadge } from "@components/merchant-admin/status-badge"
+import { ActionMenu } from "@components/merchant-admin/action-menu"
+import { KpiCard } from "@components/merchant-admin/kpi-card"
+import { Modal } from "@components/merchant-admin/modal"
+import { BotAvatar } from "./chatbot-preview"
+import { ChatbotWizard, type WizardStep } from "./chatbot-wizard"
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })
+/** "3 days ago" — created_at is the only date a bot card shows. */
+function timeAgo(iso: string): string {
+  const then = new Date(iso).getTime()
+  if (!Number.isFinite(then)) return ""
+  const seconds = Math.max(0, Math.floor((Date.now() - then) / 1000))
+  const units: Array<[number, Intl.RelativeTimeFormatUnit]> = [
+    [60, "second"],
+    [60, "minute"],
+    [24, "hour"],
+    [7, "day"],
+    [4.34524, "week"],
+    [12, "month"],
+    [Number.POSITIVE_INFINITY, "year"],
+  ]
+  let value = seconds
+  for (const [size, unit] of units) {
+    if (value < size) {
+      return new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(
+        -Math.floor(value),
+        unit
+      )
+    }
+    value = value / size
+  }
+  return ""
 }
 
-type KnowledgeRow = { kind: string; content: string; source: string }
-
-const DATA_KINDS = [
-  { value: "faq", label: "FAQ (content)" },
-  { value: "url", label: "URL (source)" },
-  { value: "product_catalog", label: "Product catalog" },
-  { value: "blog", label: "Blog (source)" },
-  { value: "file", label: "File (source)" },
-]
+const TRAINING_LABEL: Record<string, string> = {
+  trained: "Trained",
+  training: "Training",
+  not_trained: "Not trained",
+}
 
 export default function MarketingChatbotsPage() {
   const { token } = useMerchantAuth()
+
   const [chatbots, setChatbots] = useState<MarketingChatbot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showForm, setShowForm] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [form, setForm] = useState({
-    name: "",
-    greeting: "",
-    reply_mode: "draft" as "draft" | "auto",
-  })
-  const [sources, setSources] = useState<KnowledgeRow[]>([])
+
+  const [wizard, setWizard] = useState<{ id: string; step: WizardStep } | null>(
+    null
+  )
+  const [confirmDelete, setConfirmDelete] = useState<MarketingChatbot | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = () => {
     if (!token) {
@@ -55,83 +83,102 @@ export default function MarketingChatbotsPage() {
     setLoading(true)
     setError(null)
     listMarketingChatbots(token, { limit: 100 })
-      .then((res) => setChatbots(res.chatbots || []))
-      .catch((err) => {
-        setError(err instanceof ApiError ? err.message : "Failed to load chatbots")
-      })
+      .then((res) => setChatbots(res.chatbots ?? []))
+      .catch((e) =>
+        setError(e instanceof ApiError ? e.message : "Failed to load chatbots.")
+      )
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => {
-    load()
-  }, [token])
+  useEffect(load, [token])
 
-  const addSource = () =>
-    setSources((s) => [...s, { kind: "faq", content: "", source: "" }])
+  const stats = useMemo(
+    () => ({
+      total: chatbots.length,
+      active: chatbots.filter((c) => c.active).length,
+      trained: chatbots.filter((c) => c.training_status === "trained").length,
+    }),
+    [chatbots]
+  )
 
-  const updateSource = (i: number, patch: Partial<KnowledgeRow>) =>
-    setSources((s) => s.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
-
-  const removeSource = (i: number) =>
-    setSources((s) => s.filter((_, idx) => idx !== i))
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!token || !form.name.trim()) return
+  /**
+   * "Add New Chatbot" creates the bot immediately and drops the merchant into
+   * the wizard — exactly the reference flow. There is no create form: every
+   * field lives in a wizard step, and the wizard autosaves.
+   */
+  const addNew = async () => {
+    if (!token || creating) return
     setCreating(true)
     setError(null)
     try {
-      const data = sources
-        .map((row) => ({
-          kind: row.kind,
-          content: row.content.trim() || undefined,
-          source: row.source.trim() || undefined,
-        }))
-        .filter((row) => row.content || row.source)
-
-      await createMarketingChatbot(token, {
-        name: form.name.trim(),
-        greeting: form.greeting.trim() || undefined,
-        reply_mode: form.reply_mode,
-        data: data.length ? data : undefined,
+      const res = await createMarketingChatbot(token, {
+        name: "Untitled chatbot",
+        welcome_message: "Hello. How can I help you today?",
+        reply_mode: "auto",
       })
-      setForm({ name: "", greeting: "", reply_mode: "draft" })
-      setSources([])
-      setShowForm(false)
-      load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create chatbot")
+      setChatbots((prev) => [res.chatbot, ...prev])
+      setWizard({ id: res.chatbot.id, step: 1 })
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : "Could not create the chatbot."
+      )
     } finally {
       setCreating(false)
     }
   }
 
-  const handleDelete = async (id: string, name: string) => {
+  const upsert = (bot: MarketingChatbot) =>
+    setChatbots((prev) => prev.map((c) => (c.id === bot.id ? bot : c)))
+
+  const toggleActive = async (bot: MarketingChatbot) => {
     if (!token) return
-    if (!window.confirm(`Delete chatbot "${name}"? This cannot be undone.`)) return
+    setError(null)
     try {
-      await deleteMarketingChatbot(token, id)
-      load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete chatbot")
+      const res = await updateMarketingChatbot(token, bot.id, {
+        active: !bot.active,
+      })
+      upsert(res.chatbot)
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : "Could not update the chatbot."
+      )
+    }
+  }
+
+  const remove = async () => {
+    if (!token || !confirmDelete) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await deleteMarketingChatbot(token, confirmDelete.id)
+      setChatbots((prev) => prev.filter((c) => c.id !== confirmDelete.id))
+      setConfirmDelete(null)
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : "Could not delete the chatbot."
+      )
+    } finally {
+      setDeleting(false)
     }
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <PageHeader
-          title="Chatbots"
-          description="Public-facing conversational bots for your store."
-        />
-        <button
-          onClick={() => setShowForm((s) => !s)}
-          className="inline-flex shrink-0 items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80"
-        >
-          <Plus className="h-4 w-4" />
-          {showForm ? "Cancel" : "Create chatbot"}
-        </button>
-      </div>
+      <PageHeader
+        title="Chatbots"
+        description="Build a chatbot that answers your customers from your own knowledge, on your store and anywhere else you put it."
+        action={
+          <button
+            type="button"
+            onClick={addNew}
+            disabled={creating || !token}
+            className="inline-flex shrink-0 items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            {creating ? "Creating..." : "Add new chatbot"}
+          </button>
+        }
+      />
 
       {error && (
         <div className="rounded-base border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -139,191 +186,181 @@ export default function MarketingChatbotsPage() {
         </div>
       )}
 
-      {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className="rounded-large border border-grey-20 bg-white p-5 shadow-borders-base"
-        >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-grey-70">Name</label>
-              <input
-                required
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full rounded-base border border-grey-20 px-3 py-2 text-sm text-grey-90 focus:border-grey-90 focus:outline-none"
-                placeholder="e.g. Store assistant"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-grey-70">
-                Reply mode
-              </label>
-              <select
-                value={form.reply_mode}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, reply_mode: e.target.value as "draft" | "auto" }))
-                }
-                className="w-full rounded-base border border-grey-20 bg-white px-3 py-2 text-sm text-grey-90 focus:border-grey-90 focus:outline-none"
-              >
-                <option value="draft">Draft (review before send)</option>
-                <option value="auto">Auto (reply automatically)</option>
-              </select>
-            </div>
-          </div>
-          <div className="mt-4">
-            <label className="mb-1 block text-sm font-medium text-grey-70">Greeting</label>
-            <input
-              value={form.greeting}
-              onChange={(e) => setForm((f) => ({ ...f, greeting: e.target.value }))}
-              className="w-full rounded-base border border-grey-20 px-3 py-2 text-sm text-grey-90 focus:border-grey-90 focus:outline-none"
-              placeholder="Hi! How can I help you today?"
-            />
-          </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <KpiCard label="Chatbots" value={stats.total} icon={ChatBubbleLeftRight} />
+        <KpiCard label="Active" value={stats.active} icon={PlaySolid} tone="green" />
+        <KpiCard label="Trained" value={stats.trained} icon={AcademicCap} />
+      </div>
 
-          <div className="mt-5 border-t border-grey-10 pt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-grey-70">Knowledge sources</p>
-                <p className="text-xs text-grey-50">
-                  Optional. FAQ uses content; URL/blog/file use a source link.
-                </p>
-              </div>
+      {loading ? (
+        <div className="rounded-large border border-grey-20 bg-white p-8 text-center text-sm text-grey-50 shadow-borders-base">
+          Loading chatbots...
+        </div>
+      ) : chatbots.length === 0 ? (
+        <div className="rounded-large border border-grey-20 bg-white p-6 shadow-borders-base">
+          <EmptyState
+            icon={ChatBubbleLeftRight}
+            title="No chatbots yet"
+            description="Create one and the studio walks you through it: give it a persona, style the widget, feed it your knowledge, then test it and put it on your site."
+            action={
               <button
                 type="button"
-                onClick={addSource}
-                className="inline-flex items-center gap-1 rounded-base border border-grey-20 px-3 py-1.5 text-xs font-medium text-grey-70 hover:bg-grey-5"
+                onClick={addNew}
+                disabled={creating || !token}
+                className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Plus className="h-3.5 w-3.5" />
-                Add source
+                <Plus className="h-4 w-4" />
+                {creating ? "Creating..." : "Add new chatbot"}
               </button>
-            </div>
-            <div className="space-y-3">
-              {sources.map((row, i) => (
-                <div
-                  key={i}
-                  className="flex flex-col gap-2 rounded-base border border-grey-10 bg-grey-5 p-3 sm:flex-row sm:items-start"
-                >
-                  <select
-                    value={row.kind}
-                    onChange={(e) => updateSource(i, { kind: e.target.value })}
-                    className="rounded-base border border-grey-20 bg-white px-2 py-2 text-sm text-grey-90 focus:border-grey-90 focus:outline-none sm:w-48"
-                  >
-                    {DATA_KINDS.map((k) => (
-                      <option key={k.value} value={k.value}>
-                        {k.label}
-                      </option>
-                    ))}
-                  </select>
-                  {row.kind === "faq" || row.kind === "product_catalog" ? (
-                    <textarea
-                      value={row.content}
-                      onChange={(e) => updateSource(i, { content: e.target.value })}
-                      className="min-h-[38px] flex-1 rounded-base border border-grey-20 px-3 py-2 text-sm text-grey-90 focus:border-grey-90 focus:outline-none"
-                      placeholder="Content the bot can answer from"
-                    />
-                  ) : (
-                    <input
-                      value={row.source}
-                      onChange={(e) => updateSource(i, { source: e.target.value })}
-                      className="flex-1 rounded-base border border-grey-20 px-3 py-2 text-sm text-grey-90 focus:border-grey-90 focus:outline-none"
-                      placeholder="https://example.com/page"
-                    />
-                  )}
+            }
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {chatbots.map((bot) => (
+            <div
+              key={bot.id}
+              className="flex flex-col rounded-large border border-grey-20 bg-white p-5 shadow-borders-base transition-shadow hover:shadow-elevation-card-hover"
+            >
+              <div className="flex items-start gap-3">
+                <BotAvatar
+                  avatar={bot.avatar}
+                  color={bot.color || "#017BE5"}
+                  name={bot.name}
+                  className="h-11 w-11 text-base"
+                />
+                <div className="min-w-0 flex-1">
                   <button
                     type="button"
-                    onClick={() => removeSource(i)}
-                    className="inline-flex items-center justify-center rounded-base border border-grey-20 p-2 text-grey-50 hover:bg-white hover:text-red-600"
-                    aria-label="Remove source"
+                    onClick={() => setWizard({ id: bot.id, step: 1 })}
+                    className="block max-w-full truncate text-left text-sm font-semibold text-grey-90 hover:underline"
                   >
-                    <XMarkMini className="h-4 w-4" />
+                    {bot.name}
                   </button>
+                  <p className="mt-0.5 text-xs text-grey-50">
+                    Created {timeAgo(bot.created_at)}
+                  </p>
                 </div>
-              ))}
-            </div>
-          </div>
+                <ActionMenu
+                  label={`Actions for ${bot.name}`}
+                  items={[
+                    {
+                      label: "Edit",
+                      icon: CogSixTooth,
+                      onClick: () => setWizard({ id: bot.id, step: 1 }),
+                    },
+                    {
+                      label: "Train",
+                      icon: AcademicCap,
+                      onClick: () => setWizard({ id: bot.id, step: 3 }),
+                    },
+                    {
+                      label: "Test and embed",
+                      icon: Code,
+                      onClick: () => setWizard({ id: bot.id, step: 4 }),
+                    },
+                    {
+                      label: bot.active ? "Pause" : "Activate",
+                      icon: PlaySolid,
+                      onClick: () => toggleActive(bot),
+                    },
+                    {
+                      label: "Delete",
+                      icon: Trash,
+                      destructive: true,
+                      onClick: () => setConfirmDelete(bot),
+                    },
+                  ]}
+                />
+              </div>
 
-          <div className="mt-5 flex justify-end">
-            <button
-              type="submit"
-              disabled={creating || !form.name.trim()}
-              className="rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {creating ? "Creating..." : "Create chatbot"}
-            </button>
-          </div>
-        </form>
+              <div className="mt-4 flex flex-wrap items-center gap-1.5">
+                <StatusBadge status={bot.active ? "active" : "paused"} />
+                <StatusBadge
+                  status={
+                    bot.training_status === "trained"
+                      ? "success"
+                      : bot.training_status === "training"
+                        ? "processing"
+                        : "draft"
+                  }
+                />
+                <span className="inline-flex items-center rounded-full bg-grey-10 px-2 py-0.5 text-xs font-medium text-grey-70">
+                  {TRAINING_LABEL[bot.training_status] ?? "Not trained"}
+                </span>
+                <span className="inline-flex items-center rounded-full bg-grey-10 px-2 py-0.5 text-xs font-medium text-grey-70">
+                  {bot.reply_mode === "auto" ? "Answers automatically" : "Drafts only"}
+                </span>
+              </div>
+
+              <p className="mt-3 line-clamp-2 flex-1 text-xs leading-relaxed text-grey-50">
+                {bot.instructions?.trim() ||
+                  "No persona yet. Open the studio and tell the bot who it is."}
+              </p>
+
+              <div className="mt-4 flex gap-2 border-t border-grey-10 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setWizard({ id: bot.id, step: 1 })}
+                  className="flex-1 rounded-base border border-grey-20 px-3 py-1.5 text-xs font-medium text-grey-70 transition-colors hover:bg-grey-10"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWizard({ id: bot.id, step: 4 })}
+                  className="flex-1 rounded-base border border-grey-20 px-3 py-1.5 text-xs font-medium text-grey-70 transition-colors hover:bg-grey-10"
+                >
+                  Test and embed
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      <div className="rounded-large border border-grey-20 bg-white shadow-borders-base">
-        {loading ? (
-          <div className="p-8 text-center text-sm text-grey-50">Loading chatbots…</div>
-        ) : chatbots.length === 0 ? (
-          <div className="p-6">
-            <EmptyState
-              icon={ChatBubbleLeftRight}
-              title="No chatbots yet"
-              description="Create a chatbot to answer customer questions automatically."
-            />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-grey-5 text-grey-50">
-                <tr>
-                  <th className="px-5 py-3 text-left font-medium">Name</th>
-                  <th className="px-5 py-3 text-left font-medium">Greeting</th>
-                  <th className="px-5 py-3 text-left font-medium">Reply mode</th>
-                  <th className="px-5 py-3 text-left font-medium">Status</th>
-                  <th className="px-5 py-3 text-left font-medium">Created</th>
-                  <th className="px-5 py-3 text-right font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-grey-10">
-                {chatbots.map((chatbot) => (
-                  <tr key={chatbot.id} className="hover:bg-grey-5">
-                    <td className="px-5 py-3 font-medium text-grey-90">
-                      <Link
-                        href={`/dashboard/marketing/chatbots/${chatbot.id}`}
-                        className="hover:underline"
-                      >
-                        {chatbot.name}
-                      </Link>
-                    </td>
-                    <td className="px-5 py-3 text-grey-60">{chatbot.greeting || "—"}</td>
-                    <td className="px-5 py-3 capitalize text-grey-60">
-                      {chatbot.reply_mode}
-                    </td>
-                    <td className="px-5 py-3">
-                      <StatusBadge status={chatbot.active ? "active" : "inactive"} />
-                    </td>
-                    <td className="px-5 py-3 text-grey-50">
-                      {formatDate(chatbot.created_at)}
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link
-                          href={`/dashboard/marketing/chatbots/${chatbot.id}`}
-                          className="rounded-base border border-grey-20 px-3 py-1.5 text-xs font-medium text-grey-70 hover:bg-grey-5"
-                        >
-                          Edit
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(chatbot.id, chatbot.name)}
-                          className="inline-flex items-center justify-center rounded-base border border-grey-20 p-1.5 text-grey-50 hover:bg-grey-5 hover:text-red-600"
-                          aria-label="Delete chatbot"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {wizard && token && (
+        <ChatbotWizard
+          token={token}
+          chatbotId={wizard.id}
+          initialStep={wizard.step}
+          onClose={() => {
+            setWizard(null)
+            load()
+          }}
+          onSaved={upsert}
+        />
+      )}
+
+      <Modal
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        title="Delete this chatbot"
+        description={
+          confirmDelete
+            ? `"${confirmDelete.name}" and everything it has learned will be removed. This cannot be undone.`
+            : undefined
+        }
+      >
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(null)}
+            disabled={deleting}
+            className="rounded-base border border-grey-20 px-4 py-2 text-sm font-medium text-grey-70 transition-colors hover:bg-grey-10 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={remove}
+            disabled={deleting}
+            className="rounded-base bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {deleting ? "Deleting..." : "Delete chatbot"}
+          </button>
+        </div>
+      </Modal>
     </div>
   )
 }
