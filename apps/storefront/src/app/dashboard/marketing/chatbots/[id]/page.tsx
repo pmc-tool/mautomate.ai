@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Trash } from "@medusajs/icons"
@@ -17,12 +17,56 @@ import {
   ApiError,
 } from "@lib/merchant-admin/api"
 
+/**
+ * Why the chatbot could not be loaded. A 404 (deleted/unknown chatbot) is a
+ * dead end, a 401 is an auth problem handled by logging out, and anything else
+ * (5xx, network failure) is transient and retryable — each gets its own UI.
+ */
+type LoadError = {
+  kind: "not_found" | "unauthorized" | "error"
+  message: string
+}
+
+function toLoadError(err: unknown): LoadError {
+  if (err instanceof ApiError) {
+    if (err.status === 404) {
+      return {
+        kind: "not_found",
+        message: "This chatbot does not exist, or it has been deleted.",
+      }
+    }
+    if (err.status === 401) {
+      return { kind: "unauthorized", message: err.message }
+    }
+    return { kind: "error", message: err.message }
+  }
+  return {
+    kind: "error",
+    message:
+      err instanceof Error
+        ? err.message
+        : "Could not reach the server. Check your connection and try again.",
+  }
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
   })
+}
+
+function BackToChatbots() {
+  return (
+    <Link
+      href="/dashboard/marketing/chatbots"
+      className="inline-flex items-center gap-1 text-sm text-grey-60 hover:text-grey-90"
+    >
+      <ArrowLeft className="h-4 w-4" />
+      Back to chatbots
+    </Link>
+  )
 }
 
 export default function EditChatbotPage() {
@@ -33,6 +77,7 @@ export default function EditChatbotPage() {
   const [chatbot, setChatbot] = useState<MarketingChatbot | null>(null)
   const [data, setData] = useState<MarketingChatbotData[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<LoadError | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -42,10 +87,10 @@ export default function EditChatbotPage() {
   const [replyMode, setReplyMode] = useState<"draft" | "auto">("draft")
   const [active, setActive] = useState(true)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!token || !id) return
     setLoading(true)
-    setError(null)
+    setLoadError(null)
     getMarketingChatbot(token, id)
       .then((res) => {
         setChatbot(res.chatbot)
@@ -56,11 +101,21 @@ export default function EditChatbotPage() {
         setActive(res.chatbot.active)
       })
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) logout()
-        setError(err instanceof Error ? err.message : "Failed to load chatbot")
+        setChatbot(null)
+        setLoadError(toLoadError(err))
       })
       .finally(() => setLoading(false))
-  }, [token, id, logout])
+  }, [token, id])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  // Auth failures are resolved in an effect, never while rendering.
+  useEffect(() => {
+    if (loadError?.kind !== "unauthorized") return
+    logout()
+  }, [loadError, logout])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,6 +133,7 @@ export default function EditChatbotPage() {
       setChatbot(res.chatbot)
       setMessage("Chatbot saved.")
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) logout()
       setError(err instanceof Error ? err.message : "Failed to save chatbot")
     } finally {
       setSaving(false)
@@ -91,6 +147,7 @@ export default function EditChatbotPage() {
       await deleteMarketingChatbot(token, chatbot.id)
       router.push("/dashboard/marketing/chatbots")
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) logout()
       setError(err instanceof Error ? err.message : "Failed to delete chatbot")
     }
   }
@@ -99,32 +156,54 @@ export default function EditChatbotPage() {
     return <div className="p-8 text-center text-sm text-grey-50">Loading chatbot…</div>
   }
 
-  if (!chatbot) {
+  if (loadError?.kind === "unauthorized") {
+    return (
+      <div className="p-8 text-center text-sm text-grey-50">
+        {loadError.message}
+      </div>
+    )
+  }
+
+  if (loadError?.kind === "not_found") {
     return (
       <div className="space-y-4">
-        <Link
-          href="/dashboard/marketing/chatbots"
-          className="inline-flex items-center gap-1 text-sm text-grey-60 hover:text-grey-90"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to chatbots
-        </Link>
-        <div className="rounded-base border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error || "Chatbot not found."}
-        </div>
+        <BackToChatbots />
+        <SectionCard title="Chatbot not found">
+          <p className="text-sm text-grey-60">{loadError.message}</p>
+          <Link
+            href="/dashboard/marketing/chatbots"
+            className="mt-4 inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80"
+          >
+            Back to chatbots
+          </Link>
+        </SectionCard>
+      </div>
+    )
+  }
+
+  if (loadError || !chatbot) {
+    return (
+      <div className="space-y-4">
+        <BackToChatbots />
+        <SectionCard title="Could not load this chatbot">
+          <p className="text-sm text-grey-60">
+            {loadError?.message || "Something went wrong while loading this chatbot."}
+          </p>
+          <button
+            type="button"
+            onClick={load}
+            className="mt-4 inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80"
+          >
+            Retry
+          </button>
+        </SectionCard>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/dashboard/marketing/chatbots"
-        className="inline-flex items-center gap-1 text-sm text-grey-60 hover:text-grey-90"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to chatbots
-      </Link>
+      <BackToChatbots />
 
       <div className="flex items-start justify-between gap-4">
         <PageHeader title={chatbot.name} description="Edit this chatbot's settings." />
