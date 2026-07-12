@@ -10,6 +10,7 @@ import React, {
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowUpDown,
+  Calendar,
   ChevronLeft,
   ChevronRight,
   CubeSolid,
@@ -28,7 +29,7 @@ import { ActionMenu } from "@components/merchant-admin/action-menu"
 import { Modal } from "@components/merchant-admin/modal"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
-  listProductsPaged,
+  listProductsPagedWithDates,
   listProductTypes,
   listProductTags,
   deleteProduct,
@@ -215,6 +216,112 @@ function FilterDropdown({
 }
 
 // ---------------------------------------------------------------------------
+// Date-range filter dropdown (After / Before date inputs) — matches the
+// filter-pill styling of FilterDropdown. Emits ISO date strings (YYYY-MM-DD)
+// via URL params; the backend expands them to inclusive day boundaries.
+// ---------------------------------------------------------------------------
+
+function DateFilterDropdown({
+  label,
+  after,
+  before,
+  onChange,
+}: {
+  label: string
+  after: string
+  before: string
+  onChange: (next: { after: string; before: string }) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside)
+      return () => document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [open])
+
+  const activeCount = (after ? 1 : 0) + (before ? 1 : 0)
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((s) => !s)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-base border px-3 py-2 text-sm font-medium transition-colors",
+          activeCount > 0
+            ? "border-grey-90 bg-grey-90 text-white hover:bg-grey-80"
+            : "border-grey-20 bg-white text-grey-70 hover:bg-grey-10"
+        )}
+      >
+        <Calendar className="h-4 w-4" />
+        {label}
+        {activeCount > 0 && (
+          <span className="rounded-full bg-white/20 px-1.5 text-xs text-white">
+            {activeCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute left-0 z-20 mt-1 w-64 rounded-large border border-grey-20 bg-white p-3 shadow-lg">
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-grey-60">
+                After
+              </label>
+              <input
+                type="date"
+                value={after}
+                max={before || undefined}
+                onChange={(e) =>
+                  onChange({ after: e.target.value, before })
+                }
+                className="w-full rounded-base border border-grey-20 px-2.5 py-1.5 text-sm text-grey-90 focus:border-grey-90 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-grey-60">
+                Before
+              </label>
+              <input
+                type="date"
+                value={before}
+                min={after || undefined}
+                onChange={(e) =>
+                  onChange({ after, before: e.target.value })
+                }
+                className="w-full rounded-base border border-grey-20 px-2.5 py-1.5 text-sm text-grey-90 focus:border-grey-90 focus:outline-none"
+              />
+            </div>
+          </div>
+          {activeCount > 0 && (
+            <div className="mt-3 border-t border-grey-10 pt-2">
+              <button
+                type="button"
+                onClick={() => onChange({ after: "", before: "" })}
+                className="w-full rounded-base px-2 py-1.5 text-left text-sm text-grey-60 hover:bg-grey-10 hover:text-grey-90"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Table cells
 // ---------------------------------------------------------------------------
 
@@ -272,6 +379,10 @@ function ProductsPageContent() {
   const statusParam = searchParams.getAll("status")
   const typeParam = searchParams.getAll("type_id")
   const tagParam = searchParams.getAll("tag_id")
+  const createdAfterParam = searchParams.get("created_after") || ""
+  const createdBeforeParam = searchParams.get("created_before") || ""
+  const updatedAfterParam = searchParams.get("updated_after") || ""
+  const updatedBeforeParam = searchParams.get("updated_before") || ""
   const offsetRaw = parseInt(searchParams.get("offset") || "0", 10)
   const offset =
     Number.isFinite(offsetRaw) && offsetRaw > 0
@@ -333,6 +444,25 @@ function ProductsPageContent() {
     })
   }
 
+  function setDateParam(
+    afterKey: string,
+    beforeKey: string,
+    next: { after: string; before: string }
+  ) {
+    updateParams((p) => {
+      if (next.after) {
+        p.set(afterKey, next.after)
+      } else {
+        p.delete(afterKey)
+      }
+      if (next.before) {
+        p.set(beforeKey, next.before)
+      } else {
+        p.delete(beforeKey)
+      }
+    })
+  }
+
   // ---- debounced search -> URL ----
   useEffect(() => {
     if (searchInput === qParam) return
@@ -368,13 +498,17 @@ function ProductsPageContent() {
       setFetching(true)
       setError(null)
       try {
-        const res = await listProductsPaged(token, {
+        const res = await listProductsPagedWithDates(token, {
           q: qParam || undefined,
           offset,
           limit: PAGE_SIZE,
           status: statusParam.length ? statusParam : undefined,
           type_id: typeParam.length ? typeParam : undefined,
           tag_id: tagParam.length ? tagParam : undefined,
+          created_after: createdAfterParam || undefined,
+          created_before: createdBeforeParam || undefined,
+          updated_after: updatedAfterParam || undefined,
+          updated_before: updatedBeforeParam || undefined,
           order: orderParam || undefined,
         })
         if (!cancelled) {
@@ -476,7 +610,11 @@ function ProductsPageContent() {
     !!qParam ||
     statusParam.length > 0 ||
     typeParam.length > 0 ||
-    tagParam.length > 0
+    tagParam.length > 0 ||
+    !!createdAfterParam ||
+    !!createdBeforeParam ||
+    !!updatedAfterParam ||
+    !!updatedBeforeParam
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE))
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
@@ -568,6 +706,22 @@ function ProductsPageContent() {
               selected={statusParam}
               onChange={(vals) => setMultiParam("status", vals)}
             />
+            <DateFilterDropdown
+              label="Created"
+              after={createdAfterParam}
+              before={createdBeforeParam}
+              onChange={(next) =>
+                setDateParam("created_after", "created_before", next)
+              }
+            />
+            <DateFilterDropdown
+              label="Updated"
+              after={updatedAfterParam}
+              before={updatedBeforeParam}
+              onChange={(next) =>
+                setDateParam("updated_after", "updated_before", next)
+              }
+            />
             {hasActiveFilters && (
               <button
                 type="button"
@@ -578,6 +732,10 @@ function ProductsPageContent() {
                     p.delete("status")
                     p.delete("type_id")
                     p.delete("tag_id")
+                    p.delete("created_after")
+                    p.delete("created_before")
+                    p.delete("updated_after")
+                    p.delete("updated_before")
                   })
                 }}
                 className="inline-flex items-center gap-1 rounded-base px-2 py-2 text-sm font-medium text-grey-60 hover:text-grey-90"

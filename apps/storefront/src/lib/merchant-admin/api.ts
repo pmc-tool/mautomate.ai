@@ -6315,3 +6315,52 @@ export type ProductTagListItem = {
   products_count: number
 }
 
+
+
+// ===== Products list date filters addition 2026-07-12 =====
+
+// ===== Products list: Created/Updated date filters (additive) =====
+// Purely additive companion to the existing listProductsPaged: identical
+// contract plus created_after/created_before/updated_after/updated_before
+// pass-through. The existing ListProductsPagedParams type and
+// listProductsPaged function in api.ts are left untouched, so all existing
+// callers are unaffected. New callers that need date filtering use
+// listProductsPagedWithDates below.
+
+export type ListProductsPagedWithDatesParams = ListProductsPagedParams & {
+  // ISO date bounds (YYYY-MM-DD or full ISO). The backend expands date-only
+  // values to inclusive UTC day boundaries.
+  created_after?: string
+  created_before?: string
+  updated_after?: string
+  updated_before?: string
+}
+
+export async function listProductsPagedWithDates(
+  token: string,
+  params: ListProductsPagedWithDatesParams = {}
+): Promise<{ products: ProductListItem[]; count: number }> {
+  const search = new URLSearchParams()
+  if (params.q) search.set("q", params.q)
+  if (params.offset !== undefined) search.set("offset", String(params.offset))
+  if (params.limit !== undefined) search.set("limit", String(params.limit))
+  if (params.order) search.set("order", params.order)
+  if (params.status?.length) search.set("status", params.status.join(","))
+  if (params.type_id?.length) search.set("type_id", params.type_id.join(","))
+  if (params.tag_id?.length) search.set("tag_id", params.tag_id.join(","))
+  if (params.collection_id?.length) {
+    search.set("collection_id", params.collection_id.join(","))
+  }
+  if (params.category_id?.length) {
+    search.set("category_id", params.category_id.join(","))
+  }
+  if (params.created_after) search.set("created_after", params.created_after)
+  if (params.created_before) search.set("created_before", params.created_before)
+  if (params.updated_after) search.set("updated_after", params.updated_after)
+  if (params.updated_before) search.set("updated_before", params.updated_before)
+  const qs = search.toString()
+  return request<{ products: ProductListItem[]; count: number }>(
+    `/merchant/products${qs ? `?${qs}` : ""}`,
+    { token }
+  )
+}
