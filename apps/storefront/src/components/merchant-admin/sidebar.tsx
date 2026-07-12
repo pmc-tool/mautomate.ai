@@ -172,8 +172,34 @@ const navItems: NavItem[] = [
   },
 ]
 
-function isChildActive(pathname: string, children: NavChild[]) {
-  return children.some((c) => pathname === c.href || pathname.startsWith(`${c.href}/`))
+// A link matches when the path is the link itself or lives under it. Several
+// links can match at once - the AI agent pages sit under /dashboard/marketing/*,
+// so they also match Marketing's "/dashboard/marketing" overview link, and
+// "/dashboard/marketing/email/notifications" matches the email templates link.
+// Only the MOST SPECIFIC (longest) matching link may be active, so exactly one
+// nav entry and one group ever highlight.
+function matches(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
+function resolveActiveHref(pathname: string, items: NavItem[]): string | null {
+  let best: string | null = null
+  const consider = (href: string) => {
+    if (!matches(pathname, href)) return
+    if (best === null || href.length > best.length) best = href
+  }
+  for (const item of items) {
+    if ("children" in item) {
+      for (const child of item.children) consider(child.href)
+    } else {
+      consider(item.href)
+    }
+  }
+  return best
+}
+
+function isChildActive(children: NavChild[], activeHref: string | null) {
+  return activeHref !== null && children.some((c) => c.href === activeHref)
 }
 
 export function Sidebar() {
@@ -181,15 +207,17 @@ export function Sidebar() {
   const { me, logout } = useMerchantAuth()
   const [open, setOpen] = useState(false)
 
+  const activeHref = useMemo(() => resolveActiveHref(pathname, navItems), [pathname])
+
   const initiallyOpen = useMemo(() => {
     const ids = new Set<string>()
     for (const item of navItems) {
-      if ("children" in item && isChildActive(pathname, item.children)) {
+      if ("children" in item && isChildActive(item.children, activeHref)) {
         ids.add(item.id)
       }
     }
     return ids
-  }, [pathname])
+  }, [activeHref])
 
   const [openSections, setOpenSections] = useState<Set<string>>(initiallyOpen)
 
@@ -251,7 +279,7 @@ export function Sidebar() {
           <nav className="flex-1 min-h-0 space-y-1 overflow-y-auto -mr-2 pr-2" aria-label="Main navigation">
             {navItems.map((item) => {
               if ("children" in item) {
-                const active = isChildActive(pathname, item.children)
+                const active = isChildActive(item.children, activeHref)
                 const sectionOpen = openSections.has(item.id)
                 const Icon = item.icon
                 return (
@@ -286,7 +314,7 @@ export function Sidebar() {
                     {sectionOpen && (
                       <div className="ml-4 mt-1 space-y-1 border-l border-grey-20 pl-2">
                         {item.children.map((child) => {
-                          const childActive = pathname === child.href
+                          const childActive = child.href === activeHref
                           const ChildIcon = child.icon
                           return (
                             <Link
@@ -312,7 +340,7 @@ export function Sidebar() {
                 )
               }
 
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+              const active = item.href === activeHref
               const Icon = item.icon
               return (
                 <Link
