@@ -1,31 +1,40 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
-import { ArrowUturnLeft, Plus, PencilSquare, Trash } from "@medusajs/icons"
+import { CurrencyDollar, Plus, PencilSquare, Trash } from "@medusajs/icons"
 import { PageHeader } from "@components/merchant-admin/page-header"
 import { DataTable } from "@components/merchant-admin/data-table"
 import { Modal } from "@components/merchant-admin/modal"
 import { FormField, Input, Textarea } from "@components/merchant-admin/form-field"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
-  listReturnReasons,
-  createReturnReason,
-  updateReturnReason,
-  deleteReturnReason,
-  ReturnReason,
+  listRefundReasons,
+  createRefundReason,
+  updateRefundReason,
+  deleteRefundReason,
+  RefundReason,
   ApiError,
 } from "@lib/merchant-admin/api"
 
-export default function ReturnReasonsPage() {
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+}
+
+export default function RefundReasonsPage() {
   const { token, logout } = useMerchantAuth()
-  const [items, setItems] = useState<ReturnReason[]>([])
+  const [items, setItems] = useState<RefundReason[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<ReturnReason | null>(null)
-  const [value, setValue] = useState("")
+  const [editing, setEditing] = useState<RefundReason | null>(null)
   const [label, setLabel] = useState("")
+  const [code, setCode] = useState("")
+  const [codeTouched, setCodeTouched] = useState(false)
   const [description, setDescription] = useState("")
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -35,11 +44,11 @@ export default function ReturnReasonsPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await listReturnReasons(token)
-      setItems(res.return_reasons || [])
+      const res = await listRefundReasons(token)
+      setItems(res.refund_reasons || [])
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) logout()
-      setError(err instanceof Error ? err.message : "Failed to load return reasons")
+      setError(err instanceof Error ? err.message : "Failed to load refund reasons")
     } finally {
       setLoading(false)
     }
@@ -52,38 +61,53 @@ export default function ReturnReasonsPage() {
 
   const openCreate = () => {
     setEditing(null)
-    setValue("")
     setLabel("")
+    setCode("")
+    setCodeTouched(false)
     setDescription("")
     setFormError(null)
     setModalOpen(true)
   }
 
-  const openEdit = (reason: ReturnReason) => {
+  const openEdit = (reason: RefundReason) => {
     setEditing(reason)
-    setValue(reason.value)
     setLabel(reason.label)
+    setCode(reason.code)
+    setCodeTouched(true)
     setDescription(reason.description || "")
     setFormError(null)
     setModalOpen(true)
   }
 
+  const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value
+    setLabel(next)
+    if (!editing && (!codeTouched || code === "")) {
+      setCode(slugify(next))
+    }
+  }
+
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCode(e.target.value)
+    setCodeTouched(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!token || !label.trim()) return
-    if (!editing && !value.trim()) return
+    if (!token || !label.trim() || !code.trim()) return
     setSaving(true)
     setFormError(null)
     try {
       if (editing) {
-        await updateReturnReason(token, editing.id, {
+        await updateRefundReason(token, editing.id, {
           label: label.trim(),
+          code: code.trim(),
           description: description.trim() || null,
         })
       } else {
-        await createReturnReason(token, {
-          value: value.trim(),
+        await createRefundReason(token, {
           label: label.trim(),
+          code: code.trim(),
           description: description.trim() || undefined,
         })
       }
@@ -91,41 +115,43 @@ export default function ReturnReasonsPage() {
       await loadReasons()
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) logout()
-      setFormError(err instanceof Error ? err.message : "Failed to save return reason")
+      setFormError(err instanceof Error ? err.message : "Failed to save refund reason")
     } finally {
       setSaving(false)
     }
   }
 
-  const handleDelete = async (reason: ReturnReason) => {
+  const handleDelete = async (reason: RefundReason) => {
     if (!token) return
     if (
       !confirm(
-        `You are about to delete the return reason "${reason.label}". This action cannot be undone.`
+        `You are about to delete the refund reason "${reason.label}". This action cannot be undone.`
       )
     )
       return
     try {
-      await deleteReturnReason(token, reason.id)
+      await deleteRefundReason(token, reason.id)
       await loadReasons()
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete return reason")
+      alert(err instanceof Error ? err.message : "Failed to delete refund reason")
     }
   }
 
   const columns = [
     { key: "label", header: "Label", sortable: true },
     {
-      key: "value",
-      header: "Value",
-      render: (r: ReturnReason) => (
-        <span className="font-mono text-sm text-grey-70">{r.value}</span>
+      key: "code",
+      header: "Code",
+      sortable: true,
+      render: (r: RefundReason) => (
+        <span className="font-mono text-sm text-grey-70">{r.code}</span>
       ),
     },
     {
       key: "description",
       header: "Description",
-      render: (r: ReturnReason) => (
+      sortable: true,
+      render: (r: RefundReason) => (
         <span className="text-grey-70">{r.description || "—"}</span>
       ),
     },
@@ -137,15 +163,15 @@ export default function ReturnReasonsPage() {
       className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-grey-80"
     >
       <Plus className="h-4 w-4" />
-      Create return reason
+      Create refund reason
     </button>
   )
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Return Reasons"
-        description="Manage reasons for returned items."
+        title="Refund Reasons"
+        description="Manage reasons for issuing refunds."
         action={createButton}
       />
 
@@ -155,11 +181,14 @@ export default function ReturnReasonsPage() {
         </div>
       )}
 
-      <DataTable<ReturnReason>
+      <DataTable<RefundReason>
         columns={columns}
         rows={items}
-        searchKeys={["label", "value"]}
-        sortKeys={[{ key: "label", label: "Label" }]}
+        searchKeys={["label", "code"]}
+        sortKeys={[
+          { key: "label", label: "Label" },
+          { key: "code", label: "Code" },
+        ]}
         rowActions={(r) => (
           <>
             <button
@@ -178,9 +207,9 @@ export default function ReturnReasonsPage() {
             </button>
           </>
         )}
-        emptyIcon={ArrowUturnLeft}
-        emptyTitle="No return reasons"
-        emptyDescription="Create your first return reason to streamline returns."
+        emptyIcon={CurrencyDollar}
+        emptyTitle="No refund reasons"
+        emptyDescription="Specify the most common reasons for refunds."
         emptyAction={createButton}
         isLoading={loading}
       />
@@ -188,8 +217,8 @@ export default function ReturnReasonsPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? "Edit Return Reason" : "Add Return Reason"}
-        description="Specify the most common reasons for returns."
+        title={editing ? "Edit Refund Reason" : "Add Refund Reason"}
+        description="Specify the most common reasons for refunds."
         size="sm"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -198,35 +227,32 @@ export default function ReturnReasonsPage() {
               {formError}
             </div>
           )}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField
-              label="Value"
-              htmlFor="reason-value"
-              hint="The value should be a unique identifier for the return reason."
-            >
-              <Input
-                id="reason-value"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder="wrong_size"
-                disabled={!!editing}
-              />
-            </FormField>
-            <FormField label="Label" htmlFor="reason-label">
-              <Input
-                id="reason-label"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="Wrong size"
-              />
-            </FormField>
-          </div>
-          <FormField label="Description" htmlFor="reason-description" hint="Optional">
+          <FormField label="Label" htmlFor="refund-label">
+            <Input
+              id="refund-label"
+              value={label}
+              onChange={handleLabelChange}
+              placeholder="Gesture of goodwill"
+            />
+          </FormField>
+          <FormField
+            label="Code"
+            htmlFor="refund-code"
+            hint="Unique identifier for the refund reason"
+          >
+            <Input
+              id="refund-code"
+              value={code}
+              onChange={handleCodeChange}
+              placeholder="gesture_of_goodwill"
+            />
+          </FormField>
+          <FormField label="Description" htmlFor="refund-description" hint="Optional">
             <Textarea
-              id="reason-description"
+              id="refund-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Customer received the wrong size"
+              placeholder="Customer had a bad shopping experience"
               rows={3}
             />
           </FormField>
@@ -240,10 +266,10 @@ export default function ReturnReasonsPage() {
             </button>
             <button
               type="submit"
-              disabled={saving || !label.trim() || (!editing && !value.trim())}
+              disabled={saving || !label.trim() || !code.trim()}
               className="inline-flex items-center rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {saving ? "Saving..." : editing ? "Save reason" : "Create reason"}
+              {saving ? "Saving..." : "Save"}
             </button>
           </div>
         </form>

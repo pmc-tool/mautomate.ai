@@ -182,6 +182,7 @@ const SECTION_LABELS: Record<string, string> = {
   newsletter: "Newsletter",
   instagram_grid: "Instagram Grid",
   testimonials: "Testimonials",
+  image_gallery: "Image Gallery",
   container: "Container / Columns",
 }
 
@@ -1468,13 +1469,12 @@ export default function EditorCanvas() {
               position: "absolute",
               top: Math.max(0, activeRect.top),
               left: Math.max(0, activeRect.left),
-              transform: "translateY(-100%)",
               background: "#f0abfc",
               color: "#0c0d0e",
               fontSize: 11,
               fontWeight: 600,
               padding: "3px 8px",
-              borderRadius: "4px 4px 0 0",
+              borderRadius: "0 0 4px 0",
               whiteSpace: "nowrap",
             }}
           >
@@ -1484,7 +1484,7 @@ export default function EditorCanvas() {
             data-cms-overlay="1"
             style={{
               position: "absolute",
-              top: Math.max(2, activeRect.top - 13),
+              top: Math.max(2, activeRect.top + 6),
               left: activeRect.left + activeRect.width / 2,
               transform: "translateX(-50%)",
               display: "flex",

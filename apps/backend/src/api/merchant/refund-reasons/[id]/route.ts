@@ -1,23 +1,31 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import {
-  updateReturnReasonsWorkflow,
-  deleteReturnReasonsWorkflow,
+  updateRefundReasonsWorkflow,
+  deleteRefundReasonsWorkflow,
 } from "@medusajs/core-flows"
 import { z } from "zod"
 import { resolveMerchant } from "../../_helpers"
 
 const UpdateSchema = z.object({
-  value: z.string().trim().min(1).optional(),
   label: z.string().trim().min(1).optional(),
+  code: z.string().trim().min(1).optional(),
   description: z.string().trim().nullable().optional(),
 })
+
+function slugCode(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+}
 
 function format(r: any) {
   return {
     id: r.id,
-    value: r.value,
     label: r.label,
+    code: r.code,
     description: r.description ?? null,
     created_at: r.created_at,
     updated_at: r.updated_at,
@@ -27,12 +35,12 @@ function format(r: any) {
 async function ownedReason(req: MedusaRequest, tenantId: string, id: string) {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
-    entity: "return_reason",
+    entity: "refund_reason",
     filters: { id } as any,
     fields: [
       "id",
-      "value",
       "label",
+      "code",
       "description",
       "metadata",
       "created_at",
@@ -51,7 +59,7 @@ const update = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
   const existing = await ownedReason(req, ctx.tenant.id, id)
   if (!existing) {
-    return res.status(404).json({ message: "return reason not found" })
+    return res.status(404).json({ message: "refund reason not found" })
   }
 
   const parsed = UpdateSchema.safeParse(req.body ?? {})
@@ -61,18 +69,18 @@ const update = async (req: MedusaRequest, res: MedusaResponse) => {
       .json({ message: "invalid input", issues: parsed.error.issues })
   }
 
-  const patch: Record<string, any> = {}
-  if (parsed.data.value !== undefined) patch.value = parsed.data.value
+  const patch: Record<string, any> = { id }
   if (parsed.data.label !== undefined) patch.label = parsed.data.label
+  if (parsed.data.code !== undefined) patch.code = slugCode(parsed.data.code)
   if (parsed.data.description !== undefined) {
     patch.description = parsed.data.description || null
   }
 
-  const { result } = await updateReturnReasonsWorkflow(req.scope).run({
-    input: { selector: { id }, update: patch },
+  const { result } = await updateRefundReasonsWorkflow(req.scope).run({
+    input: [patch],
   })
 
-  res.json({ return_reason: format((result as any[])[0]) })
+  res.json({ refund_reason: format((result as any[])[0]) })
 }
 
 export const POST = update
@@ -85,10 +93,10 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
   const existing = await ownedReason(req, ctx.tenant.id, id)
   if (!existing) {
-    return res.status(404).json({ message: "return reason not found" })
+    return res.status(404).json({ message: "refund reason not found" })
   }
 
-  await deleteReturnReasonsWorkflow(req.scope).run({ input: { ids: [id] } })
+  await deleteRefundReasonsWorkflow(req.scope).run({ input: { ids: [id] } })
 
-  res.json({ id, object: "return_reason", deleted: true })
+  res.json({ id, object: "refund_reason", deleted: true })
 }

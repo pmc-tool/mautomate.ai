@@ -37,6 +37,7 @@ import Newsletter from "@modules/cms/blocks/Newsletter"
 import InstagramGrid from "@modules/cms/blocks/InstagramGrid"
 import Testimonials from "@modules/cms/blocks/Testimonials"
 import Container from "@modules/cms/blocks/Container"
+import ImageGallery from "@modules/cms/blocks/ImageGallery"
 
 /* Theme-neutral CLIENT previews for the two ASYNC server blocks. */
 import CanvasProductTabs from "./CanvasProductTabs"
@@ -196,6 +197,7 @@ const blocksFor = (
   instagram_grid: b.insta,
   testimonials: b.testi,
   container: Container,
+  image_gallery: ImageGallery,
   product_tabs: (props: any) => (
     <CanvasProductTabs {...props} themeId={themeId} />
   ),

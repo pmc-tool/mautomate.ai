@@ -112,6 +112,7 @@ const BLOCK_LABELS: Record<string, string> = {
   newsletter: "Newsletter",
   instagram_grid: "Instagram Grid",
   testimonials: "Testimonials",
+  image_gallery: "Image Gallery",
   container: "Container / Columns",
 }
 

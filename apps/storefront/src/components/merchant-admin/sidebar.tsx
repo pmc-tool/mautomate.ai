@@ -152,6 +152,9 @@ const navItems: NavItem[] = [
       { href: "/dashboard/settings/taxes", label: "Taxes", icon: BuildingTax },
       { href: "/dashboard/settings/locations", label: "Locations & shipping", icon: MapPin },
       { href: "/dashboard/settings/return-reasons", label: "Return reasons", icon: ArrowUturnLeft },
+      { href: "/dashboard/settings/refund-reasons", label: "Refund reasons", icon: CurrencyDollar },
+      { href: "/dashboard/settings/product-types", label: "Product types", icon: Tag },
+      { href: "/dashboard/settings/product-tags", label: "Product tags", icon: Tag },
     ],
   },
 ]

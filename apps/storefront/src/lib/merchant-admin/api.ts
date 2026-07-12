@@ -5849,3 +5849,469 @@ export async function listProductOptionRegistry(
     { token }
   )
 }
+
+// ===== Settings tail parity additions 2026-07-12 =====
+
+export type TenantCurrencies = {
+  currencies: string[]
+  default_currency: string
+}
+
+// Persists the tenant's currency selection (enabled set + default) via
+// POST /merchant/store/currencies. The backend validates every code against
+// the global store's supported list and requires default_currency to be within
+// the submitted set. Returns the persisted selection so callers can reflect
+// the canonical server state instead of a local echo.
+
+
+export async function updateTenantCurrencies(
+  token: string,
+  body: { currencies: string[]; default_currency: string }
+): Promise<TenantCurrencies> {
+  return request<TenantCurrencies>("/merchant/store/currencies", {
+    method: "POST",
+    token,
+    body: {
+      currencies: body.currencies.map((c) => c.toLowerCase()),
+      default_currency: body.default_currency.toLowerCase(),
+    },
+  })
+}
+
+export type TaxRateRule = {
+  reference: string
+  reference_id: string
+}
+
+
+
+export type TaxRate = {
+  id: string
+  name: string
+  rate: number | null
+  code: string | null
+  is_default: boolean
+  is_combinable: boolean
+  rules: TaxRateRule[]
+  created_at?: string
+  updated_at?: string
+}
+
+
+
+export type TaxRegionProvince = {
+  id: string
+  country_code: string
+  province_code: string | null
+  parent_id: string | null
+  default_rate: {
+    id: string
+    name: string
+    rate: number
+    code?: string | null
+  } | null
+}
+
+
+
+export type TaxRegionDetail = {
+  id: string
+  country_code: string
+  province_code: string | null
+  parent_id: string | null
+  provider_id?: string | null
+  rates: TaxRate[]
+  provinces: TaxRegionProvince[]
+  metadata?: Record<string, unknown> | null
+  created_at: string
+  updated_at?: string
+}
+
+
+
+export type TaxRateInput = {
+  name: string
+  rate?: number | null
+  code?: string | null
+  is_default?: boolean
+  is_combinable?: boolean
+  rules?: TaxRateRule[]
+}
+
+
+
+export type CreateTaxProvinceInput = {
+  province_code: string
+  default_tax_rate?: {
+    name: string
+    rate?: number | null
+    code?: string | null
+    is_combinable?: boolean
+  } | null
+}
+
+
+
+export async function getTaxRegion(
+  token: string,
+  id: string
+): Promise<{ tax_region: TaxRegionDetail }> {
+  return request<{ tax_region: TaxRegionDetail }>(`/merchant/tax-regions/${id}`, {
+    token,
+  })
+}
+
+
+
+export async function createTaxRate(
+  token: string,
+  regionId: string,
+  body: TaxRateInput
+): Promise<{ tax_rate: TaxRate }> {
+  return request<{ tax_rate: TaxRate }>(
+    `/merchant/tax-regions/${regionId}/tax-rates`,
+    { method: "POST", token, body }
+  )
+}
+
+
+
+export async function updateTaxRate(
+  token: string,
+  regionId: string,
+  rateId: string,
+  body: Partial<TaxRateInput>
+): Promise<{ tax_rate: TaxRate }> {
+  return request<{ tax_rate: TaxRate }>(
+    `/merchant/tax-regions/${regionId}/tax-rates/${rateId}`,
+    { method: "POST", token, body }
+  )
+}
+
+
+
+export async function deleteTaxRate(
+  token: string,
+  regionId: string,
+  rateId: string
+): Promise<void> {
+  return request<void>(`/merchant/tax-regions/${regionId}/tax-rates/${rateId}`, {
+    method: "DELETE",
+    token,
+  })
+}
+
+
+
+export async function createTaxProvince(
+  token: string,
+  regionId: string,
+  body: CreateTaxProvinceInput
+): Promise<{ tax_region: TaxRegionProvince }> {
+  return request<{ tax_region: TaxRegionProvince }>(
+    `/merchant/tax-regions/${regionId}/provinces`,
+    { method: "POST", token, body }
+  )
+}
+
+export type RefundReason = {
+  id: string
+  label: string
+  code: string
+  description?: string | null
+  created_at: string
+  updated_at?: string
+}
+
+
+
+export async function listRefundReasons(
+  token: string,
+  params: { q?: string } = {}
+): Promise<{ refund_reasons: RefundReason[]; count: number }> {
+  const qs = new URLSearchParams()
+  if (params.q) qs.set("q", params.q)
+  const s = qs.toString()
+  return request<{ refund_reasons: RefundReason[]; count: number }>(
+    `/merchant/refund-reasons${s ? `?${s}` : ""}`,
+    { token }
+  )
+}
+
+
+
+export async function createRefundReason(
+  token: string,
+  body: { label: string; code?: string; description?: string }
+): Promise<{ refund_reason: RefundReason }> {
+  return request<{ refund_reason: RefundReason }>("/merchant/refund-reasons", {
+    method: "POST",
+    token,
+    body,
+  })
+}
+
+
+
+export async function updateRefundReason(
+  token: string,
+  id: string,
+  body: { label?: string; code?: string; description?: string | null }
+): Promise<{ refund_reason: RefundReason }> {
+  return request<{ refund_reason: RefundReason }>(
+    `/merchant/refund-reasons/${id}`,
+    { method: "PUT", token, body }
+  )
+}
+
+
+
+export async function deleteRefundReason(
+  token: string,
+  id: string
+): Promise<void> {
+  return request<void>(`/merchant/refund-reasons/${id}`, {
+    method: "DELETE",
+    token,
+  })
+}
+
+// -----------------------------
+// Product types (full: products_count + CRUD)
+// -----------------------------
+
+
+
+export type ProductTypeFull = {
+  id: string
+  value: string
+  products_count: number
+  created_at?: string
+  updated_at?: string
+}
+
+
+
+export async function listProductTypesFull(
+  token: string,
+  params: { q?: string; offset?: number; limit?: number } = {}
+): Promise<{ types: ProductTypeFull[]; count: number }> {
+  const qs = new URLSearchParams()
+  if (params.q) qs.set("q", params.q)
+  if (params.offset != null) qs.set("offset", String(params.offset))
+  if (params.limit != null) qs.set("limit", String(params.limit))
+  const s = qs.toString()
+  return request<{ types: ProductTypeFull[]; count: number }>(
+    `/merchant/product-types${s ? `?${s}` : ""}`,
+    { token }
+  )
+}
+
+
+
+export async function createProductType(
+  token: string,
+  body: { value: string }
+): Promise<{ type: ProductTypeFull }> {
+  return request<{ type: ProductTypeFull }>("/merchant/product-types", {
+    method: "POST",
+    token,
+    body,
+  })
+}
+
+
+
+export async function updateProductType(
+  token: string,
+  id: string,
+  body: { value: string }
+): Promise<{ type: ProductTypeFull }> {
+  return request<{ type: ProductTypeFull }>(`/merchant/product-types/${id}`, {
+    method: "PUT",
+    token,
+    body,
+  })
+}
+
+
+
+export async function deleteProductType(
+  token: string,
+  id: string
+): Promise<void> {
+  return request<void>(`/merchant/product-types/${id}`, {
+    method: "DELETE",
+    token,
+  })
+}
+
+// -----------------------------
+// Product tags (full: products_count + CRUD)
+// -----------------------------
+
+
+
+export type ProductTagFull = {
+  id: string
+  value: string
+  products_count: number
+  created_at?: string
+  updated_at?: string
+}
+
+
+
+export async function listProductTagsFull(
+  token: string,
+  params: { q?: string; offset?: number; limit?: number } = {}
+): Promise<{ tags: ProductTagFull[]; count: number }> {
+  const qs = new URLSearchParams()
+  if (params.q) qs.set("q", params.q)
+  if (params.offset != null) qs.set("offset", String(params.offset))
+  if (params.limit != null) qs.set("limit", String(params.limit))
+  const s = qs.toString()
+  return request<{ tags: ProductTagFull[]; count: number }>(
+    `/merchant/product-tags${s ? `?${s}` : ""}`,
+    { token }
+  )
+}
+
+
+
+export async function createProductTag(
+  token: string,
+  body: { value: string }
+): Promise<{ tag: ProductTagFull }> {
+  return request<{ tag: ProductTagFull }>("/merchant/product-tags", {
+    method: "POST",
+    token,
+    body,
+  })
+}
+
+
+
+export async function updateProductTag(
+  token: string,
+  id: string,
+  body: { value: string }
+): Promise<{ tag: ProductTagFull }> {
+  return request<{ tag: ProductTagFull }>(`/merchant/product-tags/${id}`, {
+    method: "PUT",
+    token,
+    body,
+  })
+}
+
+
+
+export async function deleteProductTag(
+  token: string,
+  id: string
+): Promise<void> {
+  return request<void>(`/merchant/product-tags/${id}`, {
+    method: "DELETE",
+    token,
+  })
+}
+
+// -----------------------------
+// Tenant currencies (tenant-meta backed; never mutates the global store)
+// -----------------------------
+
+
+
+export type TaxRateRuleRef = { reference: string; reference_id: string }
+
+
+
+export type TaxRateDetail = {
+  id: string
+  name: string
+  code?: string | null
+  rate?: number | null
+  is_default: boolean
+  is_combinable: boolean
+  rules: TaxRateRuleRef[]
+}
+
+
+
+export async function updateTaxRegionProvider(
+  token: string,
+  id: string,
+  body: { provider_id?: string | null }
+): Promise<{ id: string; object: string; updated: boolean }> {
+  return request<{ id: string; object: string; updated: boolean }>(
+    `/merchant/tax-regions/${id}`,
+    { method: "PUT", token, body }
+  )
+}
+
+
+
+export type CreateTaxRateInput = {
+  name: string
+  code?: string | null
+  rate?: number | null
+  is_default?: boolean
+  is_combinable?: boolean
+  rules?: TaxRateRuleRef[]
+}
+
+
+
+export async function createProvince(
+  token: string,
+  regionId: string,
+  body: {
+    province_code: string
+    is_combinable?: boolean
+    default_tax_rate?: { name: string; code?: string; rate?: number }
+  }
+): Promise<{ tax_region: { id: string; country_code: string; province_code: string | null; parent_id: string | null } }> {
+  return request<{
+    tax_region: {
+      id: string
+      country_code: string
+      province_code: string | null
+      parent_id: string | null
+    }
+  }>(`/merchant/tax-regions/${regionId}/provinces`, {
+    method: "POST",
+    token,
+    body,
+  })
+}
+
+export type CreateRefundReasonInput = {
+  label: string
+  code: string
+  description?: string
+}
+
+
+
+export type UpdateRefundReasonInput = {
+  label?: string
+  code?: string
+  description?: string | null
+}
+
+
+
+export type ProductTypeListItem = {
+  id: string
+  value: string
+  products_count: number
+}
+
+
+
+export type ProductTagListItem = {
+  id: string
+  value: string
+  products_count: number
+}
+
