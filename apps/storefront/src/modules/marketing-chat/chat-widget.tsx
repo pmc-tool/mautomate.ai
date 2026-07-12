@@ -381,6 +381,13 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
   }
 
   const accent = config.color
+  // The typing indicator only shows after the visitor's own message (not while
+  // an initial history load is settling), so a reply always feels like a direct
+  // response to what they just sent.
+  const lastMessage = messages[messages.length - 1]
+  const lastMessageIsVisitor = lastMessage
+    ? isVisitorMessage(lastMessage)
+    : false
   const side =
     config.position === "left" ? "left-4 sm:left-6" : "right-4 sm:right-6"
   const align = config.position === "left" ? "items-start" : "items-end"
@@ -521,6 +528,46 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
 
             {notice && (
               <div className="text-center text-xs text-grey-50">{notice}</div>
+            )}
+
+            {/*
+              Typing indicator. While a reply is in flight (`sending`) and the
+              last message is the visitor's own, show an animated three-dot
+              bubble on the assistant side so the shopper sees the bot is
+              composing instead of the panel appearing frozen. Mirrors the bot
+              message layout (avatar + bubble). motion-safe so it respects
+              prefers-reduced-motion.
+            */}
+            {sending && lastMessageIsVisitor && (
+              <div className="flex justify-start gap-2" aria-live="polite">
+                <div
+                  className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-circle text-xs font-semibold text-white"
+                  style={{ backgroundColor: accent }}
+                  aria-hidden="true"
+                >
+                  {(config.name ?? "?").charAt(0).toUpperCase()}
+                </div>
+                <div className="max-w-[80%]">
+                  <div className="mb-1 text-[11px] font-medium text-grey-60">
+                    {config.name}
+                  </div>
+                  <div className="inline-flex items-center gap-1 rounded-large rounded-bl-base bg-white px-3 py-3 ring-1 ring-grey-20">
+                    <span className="sr-only">Typing</span>
+                    <span
+                      className="h-1.5 w-1.5 rounded-circle bg-grey-40 motion-safe:animate-bounce"
+                      style={{ animationDelay: "0ms" }}
+                    />
+                    <span
+                      className="h-1.5 w-1.5 rounded-circle bg-grey-40 motion-safe:animate-bounce"
+                      style={{ animationDelay: "150ms" }}
+                    />
+                    <span
+                      className="h-1.5 w-1.5 rounded-circle bg-grey-40 motion-safe:animate-bounce"
+                      style={{ animationDelay: "300ms" }}
+                    />
+                  </div>
+                </div>
+              </div>
             )}
 
             <div ref={listEndRef} />
