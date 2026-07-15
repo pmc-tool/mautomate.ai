@@ -8,6 +8,7 @@ import {
 } from "../../../modules/call-center/playbooks"
 import { loadDbPlaybook } from "./_db-playbook"
 import type { MergeData } from "../../../modules/call-center/playbooks"
+import { CALL_CENTER_MODULE } from "../../../modules/call-center"
 
 /**
  * POST /telephony/agent-config  (UNPREFIXED — secret-gated by the
@@ -89,6 +90,138 @@ const interpolateFirstMessage = (
   })
 }
 
+/**
+ * CALLER MEMORY — best-effort context about a RETURNING caller, appended to the
+ * system prompt so the agent can greet a known customer like a person would
+ * ("Is this about the order from Tuesday?") instead of starting from zero.
+ *
+ * Everything here is SERVER-VERIFIED: it comes from the call row and
+ * tenant-scoped gateway/call-history reads — never from anything the caller
+ * said. The prompt block explicitly instructs the model to confirm identity
+ * before using any of it (caller-ID is spoofable). Web test calls carry no
+ * phone number, so they naturally produce no context.
+ *
+ * NO-THROW: any failure returns "" and the call connects without memory.
+ */
+const buildCallerContext = async (
+  scope: MedusaRequest["scope"],
+  tenantId: string,
+  callId: string | undefined,
+  bodyOrderId: string | undefined
+): Promise<string> => {
+  try {
+    const lines: string[] = []
+    let call: any = null
+
+    if (callId) {
+      const cc: any = scope.resolve(CALL_CENTER_MODULE)
+      call = await cc.retrieveCall(callId).catch(() => null)
+      // Fail-closed: a call row from another tenant contributes nothing.
+      if (call && call.tenant_id !== tenantId) call = null
+
+      const phone: string | null =
+        call?.direction === "outbound"
+          ? call?.to_number ?? null
+          : call?.from_number ?? null
+
+      if (call && phone) {
+        // Past completed calls from the same number — the returning-caller signal.
+        try {
+          const prev = await cc.listCalls(
+            {
+              tenant_id: tenantId,
+              status: "completed",
+              ...(call.direction === "outbound"
+                ? { to_number: phone }
+                : { from_number: phone }),
+            },
+            { take: 4, order: { started_at: "DESC" } }
+          )
+          const past = (prev ?? [])
+            .filter((c: any) => c.id !== call.id && (c.summary || c.disposition))
+            .slice(0, 3)
+          if (past.length) {
+            lines.push(
+              `This caller has spoken with us before (${past.length} recent call${
+                past.length > 1 ? "s" : ""
+              }, newest first):`
+            )
+            for (const c of past) {
+              const when = c.started_at
+                ? new Date(c.started_at).toISOString().slice(0, 10)
+                : null
+              const bits = [when, c.disposition, c.summary].filter(Boolean)
+              lines.push(`- ${bits.join(" — ")}`)
+            }
+          }
+        } catch {
+          /* best-effort */
+        }
+
+        // Recent orders tied to that phone number (tenant-scoped, fuzzy match).
+        try {
+          const gateway = getCommerceGateway(scope)
+          const orders = await gateway.findOrders(tenantId, { phone })
+          const recent = (orders ?? []).slice(0, 2)
+          if (recent.length) {
+            lines.push("Recent orders on this caller's phone number:")
+            for (const o of recent) {
+              const items = (o.items ?? [])
+                .map((i) => `${i.quantity}x ${i.title}`)
+                .join(", ")
+              const status = [o.status, o.fulfillment_status]
+                .filter(Boolean)
+                .join(", ")
+              lines.push(
+                `- Order #${o.display_id}${status ? ` (${status})` : ""}${
+                  items ? ` — ${items}` : ""
+                }`
+              )
+            }
+          }
+        } catch {
+          /* best-effort */
+        }
+      }
+    }
+
+    // An order linked on the call row that the merge-data path didn't cover.
+    const linkedOrderId: string | null =
+      call?.order_id && call.order_id !== bodyOrderId ? call.order_id : null
+    if (linkedOrderId) {
+      try {
+        const gateway = getCommerceGateway(scope)
+        const o = await gateway.getOrder(tenantId, linkedOrderId)
+        if (o) {
+          lines.push(
+            `This call is linked to order #${o.display_id} (${[
+              o.status,
+              o.fulfillment_status,
+            ]
+              .filter(Boolean)
+              .join(", ")}).`
+          )
+        }
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    if (!lines.length) return ""
+    return (
+      "\n\n[Caller context — verified from our own records, not from the caller]\n" +
+      lines.join("\n") +
+      "\n\nUse this naturally: if this is clearly a returning caller, greet them " +
+      "like one and pick up where the last conversation left off instead of " +
+      "starting from zero. Caller ID can be spoofed, so confirm you are " +
+      "speaking with the right person (their name, or the order number) before " +
+      "revealing order details, and never read out full contact details."
+    )
+  } catch {
+    return ""
+  }
+}
+
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const body = (req.body ?? {}) as AgentConfigBody
   const playbookId = (body.playbook_id ?? "").trim()
@@ -136,7 +269,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     playbook.first_message,
     mergeData
   )
-  const systemPrompt = compileSystemPrompt(playbook, mergeData)
+  const callerContext = await buildCallerContext(
+    req.scope,
+    tenantId,
+    body.call_id,
+    body.order_id
+  )
+  const systemPrompt = compileSystemPrompt(playbook, mergeData) + callerContext
 
   // Map the playbook tools into the OpenAI function-calling schema shape the
   // runtime forwards to the model.

@@ -37,16 +37,66 @@ export function TestCallPanel({
   const [error, setError] = useState<string | null>(null)
   const [muted, setMuted] = useState(false)
   const [botDispatched, setBotDispatched] = useState(true)
+  const [agentReady, setAgentReady] = useState(false)
 
   // Live refs (kept out of state so listeners always see the latest).
   const callObjRef = useRef<any>(null)
   const callIdRef = useRef<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  // Tear the call down on unmount so a navigation never strands a live room.
+  // INSTANT PICKUP — pre-warm a session (room + bot) the moment the panel
+  // mounts, so clicking Talk only has to join: the agent answers in ~1-2s
+  // instead of ~4-5s. The bot waits alone in the room and self-expires
+  // (unbilled) if never joined; we also end it on unmount. The freshness
+  // window stays safely inside the bot's server-side join timeout.
+  const PREWARM_FRESH_MS = 240_000
+  const prewarmRef = useRef<{
+    session: { call_id: string; room_url: string; token: string; bot_dispatched: boolean }
+    at: number
+  } | null>(null)
+  const dailyModRef = useRef<Promise<any> | null>(null)
+
+  useEffect(() => {
+    if (!token || disabled) return
+    let cancelled = false
+    // Preload the voice engine off the click path.
+    dailyModRef.current = import("@daily-co/daily-js").catch(() => null)
+    ;(async () => {
+      try {
+        const session = await startAgentTestCall(token, agentId)
+        if (cancelled) {
+          // Panel closed before the warm-up finished — release it.
+          void endAgentTestCall(token, agentId, session.call_id).catch(() => {})
+          return
+        }
+        prewarmRef.current = { session, at: Date.now() }
+        setAgentReady(true)
+        // Drop the "standing by" signal when the pre-warm goes stale.
+        setTimeout(() => {
+          if (prewarmRef.current && Date.now() - prewarmRef.current.at >= PREWARM_FRESH_MS) {
+            setAgentReady(false)
+          }
+        }, PREWARM_FRESH_MS + 1000)
+      } catch {
+        // Pre-warm is pure optimization — clicking Talk still works cold.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, disabled])
+
+  // Tear the call down on unmount so a navigation never strands a live room,
+  // and release an unused pre-warmed bot so it doesn't idle out the window.
   useEffect(() => {
     return () => {
       void teardown(false)
+      const pw = prewarmRef.current
+      prewarmRef.current = null
+      if (pw && token) {
+        void endAgentTestCall(token, agentId, pw.session.call_id).catch(() => {})
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -97,26 +147,40 @@ export function TestCallPanel({
     setMuted(false)
     setState("connecting")
 
+    // Use the pre-warmed session when it's still fresh (the bot is already
+    // waiting in the room); otherwise release it and start cold.
     let session: { call_id: string; room_url: string; token: string; bot_dispatched: boolean }
-    try {
-      session = await startAgentTestCall(token, agentId)
-    } catch (e) {
-      setState("error")
-      setError(
-        e instanceof ApiError || e instanceof Error
-          ? e.message
-          : "Could not start the test call."
-      )
-      return
+    const pw = prewarmRef.current
+    prewarmRef.current = null
+    setAgentReady(false)
+    if (pw && Date.now() - pw.at < PREWARM_FRESH_MS) {
+      session = pw.session
+    } else {
+      if (pw) {
+        void endAgentTestCall(token, agentId, pw.session.call_id).catch(() => {})
+      }
+      try {
+        session = await startAgentTestCall(token, agentId)
+      } catch (e) {
+        setState("error")
+        setError(
+          e instanceof ApiError || e instanceof Error
+            ? e.message
+            : "Could not start the test call."
+        )
+        return
+      }
     }
 
     setBotDispatched(session.bot_dispatched)
     callIdRef.current = session.call_id
 
-    // LAZY-load daily-js only when a call actually starts.
+    // The voice engine is usually preloaded at mount; this await is then free.
     let DailyIframe: any
     try {
-      const mod = await import("@daily-co/daily-js")
+      const mod =
+        (await (dailyModRef.current || import("@daily-co/daily-js"))) ||
+        (await import("@daily-co/daily-js"))
       DailyIframe = mod.default ?? mod
     } catch (e) {
       setState("error")
@@ -221,14 +285,22 @@ export function TestCallPanel({
 
       <div className="flex flex-wrap items-center gap-3">
         {state === "idle" || state === "ended" || state === "error" ? (
-          <button
-            onClick={start}
-            disabled={!token || disabled}
-            className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Phone className="h-4 w-4" />
-            {state === "ended" || state === "error" ? "Call again" : "Start test call"}
-          </button>
+          <>
+            <button
+              onClick={start}
+              disabled={!token || disabled}
+              className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Phone className="h-4 w-4" />
+              {state === "ended" || state === "error" ? "Call again" : "Start test call"}
+            </button>
+            {agentReady && state === "idle" && (
+              <span className="inline-flex items-center gap-2 text-xs text-grey-50">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Agent standing by — answers instantly
+              </span>
+            )}
+          </>
         ) : null}
 
         {connecting && (

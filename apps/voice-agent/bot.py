@@ -157,6 +157,10 @@ DEFAULT_FILLERS = [
 # don't stack "one moment... one moment... one moment".
 FILLER_MIN_GAP_SECONDS = 6.0
 
+# A filler only speaks if the tool hasn't ALREADY answered within this window —
+# fast lookups stay seamless, slow ones get covered. (Cancelled on result.)
+FILLER_DELAY_SECONDS = 0.4
+
 
 # ---------------------------------------------------------------------------
 # Idle-caller handling — a human agent would say something; so do we
@@ -454,6 +458,14 @@ class BotSession:
         self._last_filler_at = 0.0
         self._last_filler_text = ""
 
+        # The moment a human actually connected (joined the room / answered).
+        # Billing and the max-duration cap run from HERE, not from bot start —
+        # a pre-warmed bot waiting alone in a room costs the merchant nothing.
+        self._connected_at: Optional[float] = None
+
+        # Whether this call runs on the speech-to-speech (Realtime) pilot.
+        self._realtime_active = False
+
     # -- public API -----------------------------------------------------------
 
     @property
@@ -528,6 +540,79 @@ class BotSession:
         if not base:
             return VOICE_STYLE_RULES
         return base + "\n\n" + VOICE_STYLE_RULES
+
+    def _realtime_enabled(self, config: AgentConfig) -> bool:
+        """
+        Speech-to-speech pilot gate. On when VOICE_REALTIME=true (global) or the
+        playbook id is listed in VOICE_REALTIME_AGENTS (comma-separated), and an
+        OpenAI key exists. Web (Daily) calls only for now.
+        """
+        s = self.settings
+        if not s.openai_api_key:
+            return False
+        if s.realtime_enabled:
+            return True
+        agents = {a.strip() for a in (s.realtime_agents or "").split(",") if a.strip()}
+        return (config.playbook_id or "") in agents or self.params.playbook_id in agents
+
+    def _make_realtime_llm(self, config: AgentConfig):
+        """
+        OpenAI Realtime (speech-to-speech). One model hears and speaks: no
+        STT/TTS relay, native prosody, and SERVER-SIDE semantic turn detection —
+        the model itself decides whether the caller is done or mid-thought.
+        Tools still route through /telephony/tool-execute unchanged.
+        """
+        from pipecat.services.openai_realtime_beta import (
+            OpenAIRealtimeBetaLLMService,
+        )
+        from pipecat.services.openai_realtime_beta.events import (
+            SemanticTurnDetection,
+            SessionProperties,
+        )
+
+        # Realtime tool schemas are FLAT ({type, name, ...}), not the nested
+        # chat-completions shape the config ships.
+        tools: List[Dict[str, Any]] = []
+        for t in config.tools or []:
+            fn = t.get("function") if isinstance(t, dict) else None
+            if fn and fn.get("name"):
+                tools.append(
+                    {
+                        "type": "function",
+                        "name": fn.get("name"),
+                        "description": fn.get("description") or "",
+                        "parameters": fn.get("parameters") or {},
+                    }
+                )
+
+        instructions = self._compose_system_prompt(config)
+        if config.first_message:
+            instructions += (
+                "\n\nBegin the call by greeting the caller with exactly: "
+                f'"{config.first_message}"'
+            )
+
+        props = SessionProperties(
+            instructions=instructions,
+            voice=self.settings.realtime_voice,
+            turn_detection=SemanticTurnDetection(),
+            tools=tools or None,
+        )
+        log.info(
+            "llm provider selected",
+            extra={
+                "call_id": self.params.call_id,
+                "provider": "openai-realtime",
+                "model": self.settings.realtime_model,
+                "voice": self.settings.realtime_voice,
+            },
+        )
+        return OpenAIRealtimeBetaLLMService(
+            api_key=self.settings.openai_api_key,
+            model=self.settings.realtime_model,
+            session_properties=props,
+            send_transcription_frames=True,
+        )
 
     def _make_turn_analyzer(self, config: AgentConfig):
         """
@@ -770,46 +855,69 @@ class BotSession:
             daily_params,
         )
 
-        # 3. STT (Deepgram nova-3, streaming).
-        stt = self._make_stt(config)
-
-        # 4. LLM (OpenAI) with the pulled system prompt + tools as function schemas.
-        llm = await _make_llm(settings, self.params.call_id)
-
-        messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": self._compose_system_prompt(config)},
-        ]
-        # Seed the fixed greeting as the assistant's opening line so the model
-        # has continuity with what the caller heard (we speak it via TTS below).
-        if config.first_message:
-            messages.append({"role": "assistant", "content": config.first_message})
-
-        context = OpenAILLMContext(messages, tools=config.tools or None)
-        self._context = context
-        context_aggregator = llm.create_context_aggregator(context)
-
-        # Register a catch-all function handler routed through /telephony/tool-execute.
-        self._register_tools(llm, config)
-
-        # 5. TTS (ElevenLabs, conversational tuning).
-        tts = self._make_tts(config)
-
-        # 6. The pipeline. The audio recorder sits right after transport.output()
-        #    so it captures BOTH the caller's mic and the agent's spoken audio,
-        #    exactly as heard (lossless PCM — never re-synthesized).
+        # 3-6. Two brains, one bot:
+        #   classic  — Deepgram STT -> GPT -> ElevenLabs TTS (default)
+        #   realtime — OpenAI speech-to-speech (pilot, env-gated): the model
+        #              HEARS the caller (tone, hesitation) and speaks natively,
+        #              with server-side semantic turn detection. No STT/TTS.
         audiobuffer = self._make_audio_recorder()
-        llm_guard = LLMFailureGuard(self)
-        pipeline = Pipeline(
-            self._pipeline_processors(
-                transport, stt, context_aggregator, llm_guard, llm, tts, audiobuffer
+        self._realtime_active = self._realtime_enabled(config)
+
+        if self._realtime_active:
+            llm = self._make_realtime_llm(config)
+            # Instructions live in the realtime session; context stays empty
+            # and simply accumulates the conversation for the transcript.
+            context = OpenAILLMContext([], tools=None)
+            self._context = context
+            context_aggregator = llm.create_context_aggregator(context)
+            self._register_tools(llm, config)
+            pipeline = Pipeline(
+                [
+                    transport.input(),
+                    context_aggregator.user(),
+                    llm,
+                    transport.output(),
+                    audiobuffer,
+                    context_aggregator.assistant(),
+                ]
             )
-        )
+        else:
+            stt = self._make_stt(config)
+            llm = await _make_llm(settings, self.params.call_id)
+
+            messages: List[Dict[str, Any]] = [
+                {"role": "system", "content": self._compose_system_prompt(config)},
+            ]
+            # Seed the fixed greeting as the assistant's opening line so the
+            # model has continuity with what the caller heard (spoken via TTS).
+            if config.first_message:
+                messages.append(
+                    {"role": "assistant", "content": config.first_message}
+                )
+
+            context = OpenAILLMContext(messages, tools=config.tools or None)
+            self._context = context
+            context_aggregator = llm.create_context_aggregator(context)
+
+            # Catch-all function handler routed through /telephony/tool-execute.
+            self._register_tools(llm, config)
+
+            tts = self._make_tts(config)
+            llm_guard = LLMFailureGuard(self)
+            # The audio recorder sits right after transport.output() so it
+            # captures BOTH voices exactly as heard (lossless PCM).
+            pipeline = Pipeline(
+                self._pipeline_processors(
+                    transport, stt, context_aggregator, llm_guard, llm, tts,
+                    audiobuffer,
+                )
+            )
 
         task = PipelineTask(pipeline, params=self._pipeline_params())
         self._task = task
         self._runner = PipelineRunner(handle_sigint=False)
 
-        self._wire_transport_events(transport, task, config)
+        self._wire_transport_events(transport, task, config, context_aggregator)
 
         # Safety net: hard wall-clock cap so a stuck call can never live forever.
         watchdog = asyncio.create_task(self._watchdog())
@@ -937,6 +1045,7 @@ class BotSession:
         @transport.event_handler("on_client_connected")
         async def _on_conn(_t, _client):  # noqa: ANN001
             log.info("twilio client connected; greeting", extra={"call_id": cid})
+            self._mark_connected()
             await self._start_recording()
             if config.first_message:
                 await task.queue_frames([TTSSpeakFrame(config.first_message)])
@@ -958,7 +1067,9 @@ class BotSession:
 
     # -- transport events -----------------------------------------------------
 
-    def _wire_transport_events(self, transport, task, config: AgentConfig) -> None:
+    def _wire_transport_events(
+        self, transport, task, config: AgentConfig, context_aggregator=None
+    ) -> None:
         from pipecat.frames.frames import TTSSpeakFrame
 
         cid = self.params.call_id
@@ -969,8 +1080,15 @@ class BotSession:
                 "participant joined; speaking greeting",
                 extra={"call_id": cid, "participant": participant.get("id")},
             )
+            self._mark_connected()
             await self._start_recording()
-            if config.first_message:
+            if self._realtime_active and context_aggregator is not None:
+                # Speech-to-speech: the greeting is in the session instructions;
+                # kick the first response off with the current context.
+                await task.queue_frames(
+                    [context_aggregator.user().get_context_frame()]
+                )
+            elif config.first_message:
                 await task.queue_frames([TTSSpeakFrame(config.first_message)])
 
         @transport.event_handler("on_participant_left")
@@ -991,33 +1109,46 @@ class BotSession:
 
     # -- tools ----------------------------------------------------------------
 
-    async def _speak_tool_filler(self, llm_processor, tool_name: str) -> None:
+    def _schedule_tool_filler(self, llm_processor, tool_name: str):
         """
-        Speak a short, contextual acknowledgment the moment a slow lookup
-        starts, in the agent's own voice — the caller hears "one sec, let me
-        pull that up" instead of dead air while Medusa answers. Rate-limited so
-        chained tool calls in one turn don't stack fillers.
+        Arm a spoken acknowledgment for a slow lookup — "one sec, let me pull
+        that up" in the agent's own voice — but only if the tool hasn't already
+        answered within FILLER_DELAY_SECONDS (the caller of this method cancels
+        the returned task when the result lands first). Fast lookups stay
+        seamless; slow ones never leave dead air. Rate-limited so chained tool
+        calls in one turn don't stack fillers.
         """
         if not self.settings.fillers_enabled or tool_name in SILENT_TOOLS:
-            return
-        now = time.monotonic()
-        if now - self._last_filler_at < FILLER_MIN_GAP_SECONDS:
-            return
-        choices = TOOL_FILLERS.get(tool_name, DEFAULT_FILLERS)
-        phrase = random.choice(choices)
-        if phrase == self._last_filler_text and len(choices) > 1:
-            phrase = random.choice([c for c in choices if c != phrase])
-        self._last_filler_at = now
-        self._last_filler_text = phrase
-        try:
-            from pipecat.frames.frames import TTSSpeakFrame
+            return None
+        if self._realtime_active:
+            # Speech-to-speech has no TTS stage to speak through; the realtime
+            # model handles its own conversational pacing.
+            return None
 
-            await llm_processor.push_frame(TTSSpeakFrame(phrase))
-        except Exception as exc:  # noqa: BLE001
-            log.warning(
-                "tool filler failed",
-                extra={"call_id": self.params.call_id, "error": str(exc)[:120]},
-            )
+        async def _speak_later() -> None:
+            try:
+                await asyncio.sleep(self.settings.filler_delay_secs)
+                now = time.monotonic()
+                if now - self._last_filler_at < FILLER_MIN_GAP_SECONDS:
+                    return
+                choices = TOOL_FILLERS.get(tool_name, DEFAULT_FILLERS)
+                phrase = random.choice(choices)
+                if phrase == self._last_filler_text and len(choices) > 1:
+                    phrase = random.choice([c for c in choices if c != phrase])
+                self._last_filler_at = now
+                self._last_filler_text = phrase
+                from pipecat.frames.frames import TTSSpeakFrame
+
+                await llm_processor.push_frame(TTSSpeakFrame(phrase))
+            except asyncio.CancelledError:
+                pass  # tool answered fast — no filler needed
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "tool filler failed",
+                    extra={"call_id": self.params.call_id, "error": str(exc)[:120]},
+                )
+
+        return asyncio.create_task(_speak_later())
 
     def _register_tools(self, llm, config: AgentConfig) -> None:
         """
@@ -1037,9 +1168,9 @@ class BotSession:
                 extra={"call_id": cid, "tool_name": name, "arguments": args},
             )
 
-            # Fill the lookup latency with a spoken acknowledgment.
+            # Arm a spoken acknowledgment; it only fires if the tool is slow.
             llm_proc = getattr(params, "llm", None) or llm
-            await self._speak_tool_filler(llm_proc, name or "")
+            filler_task = self._schedule_tool_filler(llm_proc, name or "")
 
             out = await self.control.tool_execute(
                 call_id=cid,
@@ -1047,6 +1178,8 @@ class BotSession:
                 tool_name=name or "",
                 arguments=args,
             )
+            if filler_task is not None and not filler_task.done():
+                filler_task.cancel()
 
             # Capture the disposition the model recorded.
             if name == "setDisposition":
@@ -1122,9 +1255,36 @@ class BotSession:
             )
             return None
 
+    def _mark_connected(self) -> None:
+        """A human joined — start the clock billing and caps run on."""
+        if self._connected_at is None:
+            self._connected_at = time.monotonic()
+
     async def _watchdog(self) -> None:
         try:
-            await asyncio.sleep(self.settings.max_call_seconds)
+            # Pre-join window: a pre-warmed bot nobody joins must not linger
+            # (it would otherwise sit in the room for max_call_seconds).
+            waited = 0.0
+            join_timeout = float(self.settings.prewarm_join_timeout_secs)
+            while self._connected_at is None:
+                if waited >= join_timeout:
+                    log.info(
+                        "nobody joined within the pre-warm window; ending",
+                        extra={"call_id": self.params.call_id},
+                    )
+                    self._ended_reason = self._ended_reason or "never_joined"
+                    await self._end_pipeline()
+                    return
+                await asyncio.sleep(2)
+                waited += 2
+            # Live window: the hard cap runs from the moment the caller
+            # connected, so pre-warm time never eats into the conversation.
+            while True:
+                elapsed = time.monotonic() - self._connected_at
+                remaining = float(self.settings.max_call_seconds) - elapsed
+                if remaining <= 0:
+                    break
+                await asyncio.sleep(min(remaining, 30.0))
             log.warning(
                 "max call duration reached; force-ending",
                 extra={"call_id": self.params.call_id},
@@ -1335,7 +1495,12 @@ class BotSession:
         if not self._transcript:
             self._snapshot_transcript()
 
-        duration = int(max(0.0, time.monotonic() - self._started_at))
+        # Billable duration = talk time, from the moment a human connected.
+        # A pre-warmed bot that nobody joined reports 0 and is never charged.
+        if self._connected_at is not None:
+            duration = int(max(0.0, time.monotonic() - self._connected_at))
+        else:
+            duration = 0
         analysis = await self._maybe_summary()
         summary = analysis.get("summary") if analysis else None
         sentiment = analysis.get("sentiment") if analysis else None

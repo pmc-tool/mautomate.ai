@@ -130,6 +130,20 @@ class Settings:
 
     # Spoken acknowledgments while slow tools run ("one sec, let me check").
     fillers_enabled: bool
+    # A filler only speaks if the tool hasn't answered within this window.
+    filler_delay_secs: float
+
+    # Pre-warm: how long a dispatched bot waits alone in the room for a human
+    # to join before giving up (ends unbilled with reason "never_joined").
+    prewarm_join_timeout_secs: int
+
+    # --- Speech-to-speech pilot (OpenAI Realtime) ---
+    # realtime_enabled turns it on for ALL web calls; realtime_agents pilots it
+    # for specific playbook ids (comma-separated). Default: off.
+    realtime_enabled: bool
+    realtime_agents: str
+    realtime_model: str
+    realtime_voice: str
 
     # Require N transcribed words before a caller sound interrupts the bot
     # (0 = raw VAD barge-in). Useful on noisy phone lines.
@@ -210,6 +224,15 @@ class Settings:
             idle_enabled=_get_bool("VOICE_IDLE_ENABLED", True),
             idle_timeout_secs=_get_float("VOICE_IDLE_TIMEOUT_SECS", 10.0),
             fillers_enabled=_get_bool("VOICE_TOOL_FILLERS", True),
+            filler_delay_secs=_get_float("VOICE_FILLER_DELAY_SECS", 0.4),
+            prewarm_join_timeout_secs=_get_int(
+                "VOICE_PREWARM_JOIN_TIMEOUT_SECS", 300
+            ),
+            realtime_enabled=_get_bool("VOICE_REALTIME", False),
+            realtime_agents=_get("VOICE_REALTIME_AGENTS", "") or "",
+            realtime_model=_get("VOICE_REALTIME_MODEL", "gpt-realtime")
+            or "gpt-realtime",
+            realtime_voice=_get("VOICE_REALTIME_VOICE", "marin") or "marin",
             interrupt_min_words=_get_int("VOICE_INTERRUPT_MIN_WORDS", 0),
             max_call_seconds=_get_int("VOICE_AGENT_MAX_CALL_SECONDS", 600),
             bot_name=_get("VOICE_AGENT_BOT_NAME", "AI Agent") or "AI Agent",
