@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 
 class ConfigError(RuntimeError):
@@ -39,6 +39,33 @@ def _get_int(name: str, default: int) -> int:
         return default
 
 
+def _get_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _get_opt_float(name: str) -> Optional[float]:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _get_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 @dataclass(frozen=True)
 class Settings:
     # --- Service / auth ---
@@ -57,6 +84,7 @@ class Settings:
     openai_model: str
     elevenlabs_api_key: str
     elevenlabs_voice_id: str
+    elevenlabs_model: str
 
     # --- LLM failover ---
     # The brain is the ONE service with no redundancy: STT (Deepgram) and TTS
@@ -71,6 +99,41 @@ class Settings:
     # "auto" (default) = use OpenAI, fall back to Novita when OpenAI is unusable.
     # "openai" / "novita" pin one provider explicitly.
     llm_provider: str
+    llm_temperature: float
+
+    # --- Naturalness / conversation dynamics ---
+    # TTS voice character (ElevenLabs). Canonical conversational tuning:
+    # stability 0.5, similarity 0.75. style > 0 adds expressiveness at a small
+    # latency/stability cost; speed None = provider default.
+    tts_stability: float
+    tts_similarity: float
+    tts_style: float
+    tts_speed: Optional[float]
+
+    # Turn-taking. vad_stop_secs is the silence the bot waits before treating
+    # the caller's turn as over — THE response-gap knob. Pipecat's default 0.8s
+    # reads as laggy; 0.5s is a good human-ish floor without smart turn.
+    vad_confidence: float
+    vad_start_secs: float
+    vad_stop_secs: float
+    vad_min_volume: float
+
+    # Smart Turn v2 (semantic end-of-turn model — needs torch installed).
+    smart_turn: bool
+    smart_turn_stop_secs: float
+    smart_turn_model_path: str
+
+    # Idle-caller handling: check in after N silent seconds, twice, then a
+    # polite goodbye. 0/false disables.
+    idle_enabled: bool
+    idle_timeout_secs: float
+
+    # Spoken acknowledgments while slow tools run ("one sec, let me check").
+    fillers_enabled: bool
+
+    # Require N transcribed words before a caller sound interrupts the bot
+    # (0 = raw VAD barge-in). Useful on noisy phone lines.
+    interrupt_min_words: int
 
     # --- Safety / behaviour ---
     max_call_seconds: int
@@ -124,10 +187,30 @@ class Settings:
                 or "https://api.novita.ai/v3/openai"
             ).rstrip("/"),
             llm_provider=(_get("VOICE_LLM_PROVIDER", "auto") or "auto").lower(),
+            llm_temperature=_get_float("VOICE_LLM_TEMPERATURE", 0.7),
             elevenlabs_api_key=elevenlabs_api_key,
             # Ultimate fallback voice when a playbook ships a non-ElevenLabs
             # placeholder voice_id (e.g. "bn-female-warm"). See bot.resolve_voice_id.
             elevenlabs_voice_id=_get("ELEVENLABS_VOICE_ID", "") or "",
+            # flash v2.5 = ElevenLabs' low-latency conversational model (~75ms).
+            # Set ELEVENLABS_MODEL=eleven_turbo_v2_5 to trade latency for polish.
+            elevenlabs_model=_get("ELEVENLABS_MODEL", "eleven_flash_v2_5")
+            or "eleven_flash_v2_5",
+            tts_stability=_get_float("VOICE_TTS_STABILITY", 0.5),
+            tts_similarity=_get_float("VOICE_TTS_SIMILARITY", 0.75),
+            tts_style=_get_float("VOICE_TTS_STYLE", 0.0),
+            tts_speed=_get_opt_float("VOICE_TTS_SPEED"),
+            vad_confidence=_get_float("VOICE_VAD_CONFIDENCE", 0.6),
+            vad_start_secs=_get_float("VOICE_VAD_START_SECS", 0.15),
+            vad_stop_secs=_get_float("VOICE_VAD_STOP_SECS", 0.5),
+            vad_min_volume=_get_float("VOICE_VAD_MIN_VOLUME", 0.4),
+            smart_turn=_get_bool("VOICE_SMART_TURN", False),
+            smart_turn_stop_secs=_get_float("VOICE_SMART_TURN_STOP_SECS", 2.0),
+            smart_turn_model_path=_get("VOICE_SMART_TURN_MODEL_PATH", "") or "",
+            idle_enabled=_get_bool("VOICE_IDLE_ENABLED", True),
+            idle_timeout_secs=_get_float("VOICE_IDLE_TIMEOUT_SECS", 10.0),
+            fillers_enabled=_get_bool("VOICE_TOOL_FILLERS", True),
+            interrupt_min_words=_get_int("VOICE_INTERRUPT_MIN_WORDS", 0),
             max_call_seconds=_get_int("VOICE_AGENT_MAX_CALL_SECONDS", 600),
             bot_name=_get("VOICE_AGENT_BOT_NAME", "AI Agent") or "AI Agent",
             log_level=(_get("VOICE_AGENT_LOG_LEVEL", "INFO") or "INFO").upper(),

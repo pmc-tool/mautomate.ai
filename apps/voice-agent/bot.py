@@ -11,27 +11,49 @@ Lifecycle (mirrors the CallDone PATTERN, native to mAutomate):
      (POST /telephony/agent-config) — first_message, system_prompt, tools, voice.
   4. It builds and runs the standard Pipecat pipeline:
         DailyTransport.input()
-          -> Deepgram STT (nova-2 for en, nova-3 otherwise)
+          -> Deepgram STT (nova-3, streaming interims)
+          -> user idle monitor (re-prompts a silent caller, then ends politely)
           -> OpenAI LLM context aggregator (user)
-          -> OpenAI LLM (system_prompt + tools as function schemas)
-          -> ElevenLabs TTS (voice_id from config)
+          -> OpenAI LLM (system_prompt + spoken-style rules + tools)
+          -> ElevenLabs TTS (low-latency conversational model, tuned voice)
           -> DailyTransport.output()
           -> OpenAI LLM context aggregator (assistant)
-     with Silero VAD + interruption handling.
+     with Silero VAD (tuned endpointing), optional Smart Turn v2 semantic
+     turn-taking, and interruption handling.
   5. On every LLM function call it POSTs /telephony/tool-execute and feeds the
-     in-band result back to the model; `setDisposition` is captured for the
-     end-of-call webhook, and an `end_call` / `transfer` action ends the session.
+     in-band result back to the model; slow lookups get an immediate spoken
+     acknowledgment so the caller never hears dead air. `setDisposition` is
+     captured for the end-of-call webhook, and an `end_call` / `transfer`
+     action ends the session.
   6. On hangup (user leaves / stop / error / safety timeout) it POSTs
      /telephony/call-ended with the transcript, optional summary, disposition,
      and duration.
 
 TARGET: pipecat-ai == 0.0.80 (namespaced service imports + `FunctionCallParams`
 single-arg function-call signature). See README for version notes.
+
+NATURALNESS NOTES (why the knobs are set the way they are):
+  - The single biggest "the bot feels slow / gappy" lever is turn-end
+    detection. Stock VAD waits `stop_secs` (0.8s default) of silence before the
+    bot even STARTS thinking. We run tuned VAD (VOICE_VAD_STOP_SECS, default
+    0.5) and, when enabled, Smart Turn v2 — a semantic turn-completion model
+    (the same idea as Vapi's "smart endpointing") that lets the VAD trigger at
+    0.2s and then decides "is the caller actually done, or mid-thought?".
+  - Dead air during order lookups reads as a broken line. A deterministic
+    filler ("One sec, let me pull that up") is spoken the moment a slow tool
+    starts, in the agent's own voice.
+  - ElevenLabs Flash v2.5 cuts TTS first-byte latency to ~75ms (vs ~300ms for
+    turbo) and the stability/similarity settings are the canonical
+    conversational tuning.
+  - The spoken-style rules appended to every system prompt stop the LLM from
+    producing markdown lists and paragraph-long monologues that no human would
+    ever SAY.
 """
 
 from __future__ import annotations
 
 import asyncio
+import random
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -43,6 +65,114 @@ from control_plane import AgentConfig, ControlPlaneClient
 from logging_config import get_logger
 
 log = get_logger("voice.bot")
+
+
+# ---------------------------------------------------------------------------
+# Spoken-delivery rules appended to EVERY agent's system prompt
+# ---------------------------------------------------------------------------
+
+# The playbook prompt defines WHO the agent is and WHAT it may do. This block
+# defines how a voice sounds like a person instead of a chatbot being read
+# aloud. It is appended runtime-side so every agent — old and new, any tenant —
+# gets it without re-training playbooks.
+VOICE_STYLE_RULES = """
+[Voice delivery — these rules govern HOW you speak and override any conflicting style guidance above]
+You are on a live voice call. Everything you write is spoken aloud by a text-to-speech voice, so write exactly the way a warm, competent human support agent talks:
+- Keep every reply SHORT: one or two spoken sentences, then stop or ask exactly ONE question. Never deliver lists, menus of options, or monologues.
+- Use contractions and everyday words (I'm, you'll, that's, no problem, sure thing).
+- Plain sentences only: no markdown, no bullet points, no numbered lists, no emojis, no headings, no stage directions, no text in parentheses.
+- Vary your acknowledgments naturally (Sure. / Got it. / Okay, let me see. / Alright.) — never use the same one twice in a row, and don't start every turn with one.
+- Read numbers the way a person would: order numbers and codes digit by digit ("seven seven three three zero five"), prices naturally ("nineteen ninety-nine"), dates conversationally ("the fourteenth of July").
+- When you need to look something up, just call the tool — do not announce that you are checking; a short acknowledgment is played automatically.
+- After a lookup, lead with the answer, not the process. Say "Your order shipped yesterday" — never "According to the system, the status field shows...".
+- If a lookup finds nothing, say so plainly and offer the next step. Never invent orders, prices, dates, or policies.
+- If you didn't catch something, ask naturally ("Sorry, what was that last part?"). Never mention transcription, audio quality, or being an AI system unless the caller directly asks.
+- If the caller interrupts you, drop your sentence and respond to what they said.
+- Confirm critical details by reading them back (addresses, order numbers, email addresses — spell emails out letter by letter only when confirming).
+- Use the caller's name once you learn it, sparingly — once or twice in the whole call, the way a person would.
+- Match the caller's language, formality, and energy. Be personable but efficient: their time matters more than your script.
+""".strip()
+
+
+# ---------------------------------------------------------------------------
+# Spoken fillers so tool latency is never dead air
+# ---------------------------------------------------------------------------
+
+# Tools that must stay silent: bookkeeping and flow control, not lookups.
+SILENT_TOOLS = {
+    "setDisposition",
+    "endCall",
+    "end_call",
+    "transfer",
+    "transferToHuman",
+}
+
+TOOL_FILLERS: Dict[str, List[str]] = {
+    "getOrder": [
+        "One sec, let me pull that up.",
+        "Sure, just a moment while I find that order.",
+        "Okay, let me take a look.",
+    ],
+    "getOrderStatus": [
+        "Let me check on that for you.",
+        "One moment, I'll look that up.",
+    ],
+    "findOrders": [
+        "Alright, give me a second to find that.",
+        "Let me look that up for you.",
+    ],
+    "listCustomerOrders": [
+        "One moment while I pull up your orders.",
+        "Let me grab those for you.",
+    ],
+    "searchProducts": [
+        "Let me have a quick look.",
+        "One sec, checking what we've got.",
+    ],
+    "getProduct": [
+        "Just a second, let me check that one.",
+    ],
+    "searchKnowledge": [
+        "Good question — one moment.",
+        "Let me double-check that for you.",
+    ],
+    "cancelOrder": [
+        "Okay, one moment while I take care of that.",
+    ],
+    "confirmOrder": [
+        "Great, one second while I confirm that.",
+    ],
+    "updateShippingAddress": [
+        "Alright, let me update that now.",
+    ],
+}
+
+DEFAULT_FILLERS = [
+    "One moment.",
+    "Just a second.",
+    "Let me check that for you.",
+]
+
+# Minimum seconds between spoken fillers so chained tool calls in one turn
+# don't stack "one moment... one moment... one moment".
+FILLER_MIN_GAP_SECONDS = 6.0
+
+
+# ---------------------------------------------------------------------------
+# Idle-caller handling — a human agent would say something; so do we
+# ---------------------------------------------------------------------------
+
+IDLE_FIRST_CHECKINS = [
+    "Sorry — are you still there?",
+    "Take your time. I'm still here whenever you're ready.",
+]
+IDLE_SECOND_CHECKINS = [
+    "I can't hear anything from your side. If you're still there, just say something and we'll carry on.",
+]
+IDLE_GOODBYE = (
+    "It sounds like now might not be a good time. I'll let you go — "
+    "feel free to call back any time. Bye for now!"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +311,22 @@ async def _openai_is_usable(settings: Settings) -> bool:
     return ok
 
 
+def _llm_tuning_params(settings: Settings):
+    """
+    Sampling settings for the conversational brain. Default OpenAI temperature
+    is 1.0 — noticeably rambly on a phone call. ~0.6-0.7 keeps replies focused
+    and consistent while still sounding human. Guarded: if this pipecat build's
+    InputParams differs, we fall back to service defaults rather than fail a call.
+    """
+    from pipecat.services.openai.llm import OpenAILLMService
+
+    try:
+        return OpenAILLMService.InputParams(temperature=settings.llm_temperature)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("llm tuning params unavailable", extra={"error": str(exc)[:120]})
+        return None
+
+
 async def _make_llm(settings: Settings, call_id: str):
     """
     Build the LLM service for THIS call, on a provider that is actually working.
@@ -196,6 +342,9 @@ async def _make_llm(settings: Settings, call_id: str):
     if provider == "auto":
         provider = "openai" if await _openai_is_usable(settings) else "novita"
 
+    tuning = _llm_tuning_params(settings)
+    extra: Dict[str, Any] = {"params": tuning} if tuning is not None else {}
+
     if provider == "novita" and settings.novita_api_key:
         log.info(
             "llm provider selected",
@@ -209,6 +358,7 @@ async def _make_llm(settings: Settings, call_id: str):
             api_key=settings.novita_api_key,
             model=settings.novita_model,
             base_url=settings.novita_base_url,
+            **extra,
         )
 
     log.info(
@@ -222,9 +372,8 @@ async def _make_llm(settings: Settings, call_id: str):
     return OpenAILLMService(
         api_key=settings.openai_api_key,
         model=settings.openai_model,
+        **extra,
     )
-
-
 
 
 @dataclass
@@ -241,9 +390,13 @@ class StartParams:
 
 
 def _deepgram_model(language: str) -> str:
-    """nova-2 for English, nova-3 for everything else (better multilingual)."""
-    lang = (language or "en").lower()
-    return "nova-2" if lang.startswith("en") else "nova-3"
+    """
+    nova-3 across the board: it is Deepgram's current best for BOTH English and
+    multilingual real-time transcription (lower word-error rate than nova-2,
+    better numerals — which is what order numbers, prices and phone numbers
+    ride on).
+    """
+    return "nova-3"
 
 
 def resolve_voice_id(config: AgentConfig, settings: Settings) -> str:
@@ -296,6 +449,10 @@ class BotSession:
         self._audiobuffer = None  # pipecat AudioBufferProcessor
         self._recording_stopped = False
         self._recording_path: Optional[str] = None
+
+        # Spoken tool-filler pacing (never two fillers back to back).
+        self._last_filler_at = 0.0
+        self._last_filler_text = ""
 
     # -- public API -----------------------------------------------------------
 
@@ -363,22 +520,230 @@ class BotSession:
         self._ended_reason = self._ended_reason or reason
         await self._end_pipeline()
 
-    # -- pipeline -------------------------------------------------------------
+    # -- shared naturalness builders ------------------------------------------
+
+    def _compose_system_prompt(self, config: AgentConfig) -> str:
+        """Playbook persona + the runtime spoken-delivery rules."""
+        base = (config.system_prompt or "").rstrip()
+        if not base:
+            return VOICE_STYLE_RULES
+        return base + "\n\n" + VOICE_STYLE_RULES
+
+    def _make_turn_analyzer(self, config: AgentConfig):
+        """
+        Smart Turn v2 — a semantic end-of-turn model. Instead of "0.8s of
+        silence means they're done", it listens to HOW the caller stopped
+        (intonation, mid-thought pauses) and either releases the turn almost
+        immediately or grants them more time. This is the mechanism behind the
+        'it never talks over me, yet answers instantly' feel of the best
+        commercial agents. Optional: requires torch (VOICE_SMART_TURN=true) and
+        is skipped for languages the model doesn't cover (Bengali).
+        """
+        if not self.settings.smart_turn:
+            return None
+        lang = (config.voice_language or "en").lower()
+        if lang.startswith("bn"):
+            log.info(
+                "smart turn skipped for unsupported language",
+                extra={"call_id": self.params.call_id, "language": lang},
+            )
+            return None
+        try:
+            from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
+            from pipecat.audio.turn.smart_turn.local_smart_turn_v2 import (
+                LocalSmartTurnAnalyzerV2,
+            )
+
+            analyzer = LocalSmartTurnAnalyzerV2(
+                smart_turn_model_path=self.settings.smart_turn_model_path or None,
+                params=SmartTurnParams(
+                    stop_secs=self.settings.smart_turn_stop_secs,
+                ),
+            )
+            log.info("smart turn v2 enabled", extra={"call_id": self.params.call_id})
+            return analyzer
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "smart turn unavailable — using tuned VAD endpointing",
+                extra={"call_id": self.params.call_id, "error": str(exc)[:200]},
+            )
+            return None
+
+    def _make_vad(self, smart_turn_active: bool):
+        """
+        Tuned Silero VAD. With smart turn active the VAD only needs to detect
+        the CANDIDATE pause (0.2s) — the model decides if the turn is over.
+        Without it, VOICE_VAD_STOP_SECS (default 0.5s, down from pipecat's
+        0.8s) is the response-gap floor.
+        """
+        from pipecat.audio.vad.silero import SileroVADAnalyzer
+        from pipecat.audio.vad.vad_analyzer import VADParams
+
+        s = self.settings
+        stop_secs = 0.2 if smart_turn_active else s.vad_stop_secs
+        return SileroVADAnalyzer(
+            params=VADParams(
+                confidence=s.vad_confidence,
+                start_secs=s.vad_start_secs,
+                stop_secs=stop_secs,
+                min_volume=s.vad_min_volume,
+            )
+        )
+
+    def _make_stt(self, config: AgentConfig, *, twilio: bool = False):
+        from deepgram import LiveOptions
+        from pipecat.services.deepgram.stt import DeepgramSTTService
+
+        opts: Dict[str, Any] = dict(
+            model=_deepgram_model(config.voice_language),
+            language=config.voice_language,
+            smart_format=True,
+            numerals=True,
+            interim_results=True,
+            punctuate=True,
+        )
+        if twilio:
+            opts["encoding"] = "mulaw"
+            opts["sample_rate"] = 8000
+        return DeepgramSTTService(
+            api_key=self.settings.deepgram_api_key,
+            live_options=LiveOptions(**opts),
+            addons={"keepalive": "true"},
+        )
+
+    def _make_tts(self, config: AgentConfig, *, twilio: bool = False):
+        """
+        ElevenLabs, tuned for live conversation:
+          - flash v2.5 (default): ~75ms model latency, the realtime
+            conversational model — the difference between "walkie talkie" and
+            "person".
+          - stability/similarity at the canonical conversational values so the
+            voice breathes instead of sounding flat.
+          - a markdown filter so a stray "**" or list bullet from the LLM is
+            never read out loud.
+        """
+        from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
+        from pipecat.utils.text.markdown_text_filter import MarkdownTextFilter
+
+        s = self.settings
+        params = ElevenLabsTTSService.InputParams(
+            stability=s.tts_stability,
+            similarity_boost=s.tts_similarity,
+            style=s.tts_style if s.tts_style > 0 else None,
+            use_speaker_boost=True,
+            speed=s.tts_speed,
+            auto_mode=True,
+        )
+        kwargs: Dict[str, Any] = dict(
+            api_key=s.elevenlabs_api_key,
+            voice_id=resolve_voice_id(config, s),
+            model=s.elevenlabs_model,
+            params=params,
+            text_filters=[MarkdownTextFilter()],
+        )
+        if twilio:
+            # Twilio Media Streams are 8kHz; the serializer encodes to mu-law.
+            kwargs["sample_rate"] = 8000
+        return ElevenLabsTTSService(**kwargs)
+
+    def _make_user_idle(self):
+        """
+        A human agent never lets 10 seconds of silence pass without a word.
+        First a gentle check-in, then a clearer one, then a polite goodbye and
+        a clean hangup (disposition preserved). Timer resets whenever the
+        caller speaks.
+        """
+        if not self.settings.idle_enabled:
+            return None
+
+        from pipecat.frames.frames import TTSSpeakFrame
+        from pipecat.processors.user_idle_processor import UserIdleProcessor
+
+        async def handle_idle(processor, retry_count: int) -> bool:
+            log.info(
+                "caller idle",
+                extra={"call_id": self.params.call_id, "retry": retry_count},
+            )
+            if retry_count == 1:
+                await processor.push_frame(
+                    TTSSpeakFrame(random.choice(IDLE_FIRST_CHECKINS))
+                )
+                return True
+            if retry_count == 2:
+                await processor.push_frame(
+                    TTSSpeakFrame(random.choice(IDLE_SECOND_CHECKINS))
+                )
+                return True
+            await processor.push_frame(TTSSpeakFrame(IDLE_GOODBYE))
+            self._ended_reason = self._ended_reason or "user_idle_timeout"
+            asyncio.create_task(self._end_pipeline(after_speech=True))
+            return False
+
+        return UserIdleProcessor(
+            callback=handle_idle, timeout=self.settings.idle_timeout_secs
+        )
+
+    def _pipeline_params(self):
+        from pipecat.pipeline.task import PipelineParams
+
+        kwargs: Dict[str, Any] = dict(
+            allow_interruptions=True,
+            enable_metrics=True,
+            enable_usage_metrics=True,
+        )
+        if self.settings.interrupt_min_words > 0:
+            try:
+                from pipecat.audio.interruptions.min_words_interruption_strategy import (
+                    MinWordsInterruptionStrategy,
+                )
+
+                kwargs["interruption_strategies"] = [
+                    MinWordsInterruptionStrategy(
+                        min_words=self.settings.interrupt_min_words
+                    )
+                ]
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "interruption strategy unavailable",
+                    extra={"error": str(exc)[:120]},
+                )
+        return PipelineParams(**kwargs)
+
+    def _pipeline_processors(
+        self, transport, stt, context_aggregator, llm_guard, llm, tts, audiobuffer
+    ) -> list:
+        """The shared processor chain for both transports."""
+        chain: list = [transport.input(), stt]
+        user_idle = self._make_user_idle()
+        if user_idle is not None:
+            chain.append(user_idle)
+        chain.extend(
+            [
+                context_aggregator.user(),
+                # The guard sits directly BEFORE the LLM because an ErrorFrame
+                # travels UPSTREAM — a guard placed after the LLM would never
+                # see the failure it exists to catch.
+                llm_guard.processor,
+                llm,
+                tts,
+                transport.output(),
+                audiobuffer,
+                context_aggregator.assistant(),
+            ]
+        )
+        return chain
+
+    # -- pipeline (Daily / web) -------------------------------------------------
 
     async def _run_pipeline(self, config: AgentConfig) -> None:
         # Imports are local so a missing optional dependency surfaces per-call
         # (logged + reported) instead of failing the whole server at import time.
-        from deepgram import LiveOptions
-        from pipecat.audio.vad.silero import SileroVADAnalyzer
         from pipecat.pipeline.pipeline import Pipeline
         from pipecat.pipeline.runner import PipelineRunner
-        from pipecat.pipeline.task import PipelineParams, PipelineTask
+        from pipecat.pipeline.task import PipelineTask
         from pipecat.processors.aggregators.openai_llm_context import (
             OpenAILLMContext,
         )
-        from pipecat.services.deepgram.stt import DeepgramSTTService
-        from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
-        from pipecat.services.openai.llm import OpenAILLMService
         from pipecat.transports.services.daily import DailyParams, DailyTransport
 
         cid = self.params.call_id
@@ -387,38 +752,32 @@ class BotSession:
         # 1. Mint a Daily meeting token for the (already-created) room.
         token = await self._mint_token(self.params.room_url)
 
-        # 2. Transport — join the room as the 2nd participant.
+        # 2. Transport — join the room as the 2nd participant, with tuned
+        #    turn-taking (smart turn when available, tuned VAD otherwise).
+        turn_analyzer = self._make_turn_analyzer(config)
+        daily_params = DailyParams(
+            audio_in_enabled=True,
+            audio_out_enabled=True,
+            transcription_enabled=False,  # we run Deepgram STT in-pipeline
+            vad_analyzer=self._make_vad(turn_analyzer is not None),
+        )
+        if turn_analyzer is not None:
+            daily_params.turn_analyzer = turn_analyzer
         transport = DailyTransport(
             self.params.room_url,
             token,
             settings.bot_name,
-            DailyParams(
-                audio_in_enabled=True,
-                audio_out_enabled=True,
-                transcription_enabled=False,  # we run Deepgram STT in-pipeline
-                vad_analyzer=SileroVADAnalyzer(),
-            ),
+            daily_params,
         )
 
-        # 3. STT (Deepgram, streaming).
-        stt = DeepgramSTTService(
-            api_key=settings.deepgram_api_key,
-            live_options=LiveOptions(
-                model=_deepgram_model(config.voice_language),
-                language=config.voice_language,
-                smart_format=True,
-                numerals=True,
-                interim_results=True,
-                punctuate=True,
-            ),
-            addons={"keepalive": "true"},
-        )
+        # 3. STT (Deepgram nova-3, streaming).
+        stt = self._make_stt(config)
 
         # 4. LLM (OpenAI) with the pulled system prompt + tools as function schemas.
         llm = await _make_llm(settings, self.params.call_id)
 
         messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": config.system_prompt},
+            {"role": "system", "content": self._compose_system_prompt(config)},
         ]
         # Seed the fixed greeting as the assistant's opening line so the model
         # has continuity with what the caller heard (we speak it via TTS below).
@@ -432,41 +791,21 @@ class BotSession:
         # Register a catch-all function handler routed through /telephony/tool-execute.
         self._register_tools(llm, config)
 
-        # 5. TTS (ElevenLabs).
-        tts = ElevenLabsTTSService(
-            api_key=settings.elevenlabs_api_key,
-            voice_id=resolve_voice_id(config, settings),
-        )
+        # 5. TTS (ElevenLabs, conversational tuning).
+        tts = self._make_tts(config)
 
         # 6. The pipeline. The audio recorder sits right after transport.output()
         #    so it captures BOTH the caller's mic and the agent's spoken audio,
         #    exactly as heard (lossless PCM — never re-synthesized).
         audiobuffer = self._make_audio_recorder()
-        # The guard sits directly BEFORE the LLM because an ErrorFrame travels
-        # UPSTREAM — a guard placed after the LLM would never see the failure it
-        # exists to catch.
         llm_guard = LLMFailureGuard(self)
         pipeline = Pipeline(
-            [
-                transport.input(),
-                stt,
-                context_aggregator.user(),
-                llm_guard.processor,
-                llm,
-                tts,
-                transport.output(),
-                audiobuffer,
-                context_aggregator.assistant(),
-            ]
+            self._pipeline_processors(
+                transport, stt, context_aggregator, llm_guard, llm, tts, audiobuffer
+            )
         )
 
-        task = PipelineTask(
-            pipeline,
-            params=PipelineParams(
-                allow_interruptions=True,
-                enable_metrics=True,
-            ),
-        )
+        task = PipelineTask(pipeline, params=self._pipeline_params())
         self._task = task
         self._runner = PipelineRunner(handle_sigint=False)
 
@@ -483,7 +822,6 @@ class BotSession:
             self._ended.set()
             # Best-effort transcript snapshot from the live context.
             self._snapshot_transcript()
-
 
     # -- Twilio Media Streams (inbound phone) --------------------------------
 
@@ -529,16 +867,11 @@ class BotSession:
             await self._report_ended()
 
     async def _run_twilio_pipeline(self, websocket, stream_sid: str, config) -> None:
-        from deepgram import LiveOptions
-        from pipecat.audio.vad.silero import SileroVADAnalyzer
         from pipecat.pipeline.pipeline import Pipeline
         from pipecat.pipeline.runner import PipelineRunner
-        from pipecat.pipeline.task import PipelineParams, PipelineTask
+        from pipecat.pipeline.task import PipelineTask
         from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
         from pipecat.serializers.twilio import TwilioFrameSerializer
-        from pipecat.services.deepgram.stt import DeepgramSTTService
-        from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
-        from pipecat.services.openai.llm import OpenAILLMService
         from pipecat.transports.network.fastapi_websocket import (
             FastAPIWebsocketParams,
             FastAPIWebsocketTransport,
@@ -556,6 +889,9 @@ class BotSession:
             auth_token=getattr(settings, "twilio_auth_token", "") or "",
         )
 
+        # Phone audio is narrowband and noisier than a web mic: keep the tuned
+        # VAD (no smart turn on 8kHz for now) and require a real word before an
+        # interruption cancels the bot's speech.
         transport = FastAPIWebsocketTransport(
             websocket=websocket,
             params=FastAPIWebsocketParams(
@@ -565,28 +901,17 @@ class BotSession:
                 audio_in_sample_rate=8000,
                 audio_out_sample_rate=8000,
                 add_wav_header=False,
-                vad_analyzer=SileroVADAnalyzer(),
+                vad_analyzer=self._make_vad(False),
                 serializer=serializer,
             ),
         )
 
-        stt = DeepgramSTTService(
-            api_key=settings.deepgram_api_key,
-            live_options=LiveOptions(
-                model=_deepgram_model(config.voice_language),
-                language=config.voice_language,
-                smart_format=True,
-                numerals=True,
-                interim_results=True,
-                punctuate=True,
-                encoding="mulaw",
-                sample_rate=8000,
-            ),
-            addons={"keepalive": "true"},
-        )
+        stt = self._make_stt(config, twilio=True)
 
         llm = await _make_llm(settings, self.params.call_id)
-        messages = [{"role": "system", "content": config.system_prompt}]
+        messages = [
+            {"role": "system", "content": self._compose_system_prompt(config)}
+        ]
         if config.first_message:
             messages.append({"role": "assistant", "content": config.first_message})
         context = OpenAILLMContext(messages, tools=config.tools or None)
@@ -594,35 +919,16 @@ class BotSession:
         context_aggregator = llm.create_context_aggregator(context)
         self._register_tools(llm, config)
 
-        tts = ElevenLabsTTSService(
-            api_key=settings.elevenlabs_api_key,
-            voice_id=resolve_voice_id(config, settings),
-            # 8kHz PCM mu-law output for Twilio.
-            output_format="ulaw_8000",
-        )
+        tts = self._make_tts(config, twilio=True)
 
         audiobuffer = self._make_audio_recorder()
-        # The guard sits directly BEFORE the LLM because an ErrorFrame travels
-        # UPSTREAM — a guard placed after the LLM would never see the failure it
-        # exists to catch.
         llm_guard = LLMFailureGuard(self)
         pipeline = Pipeline(
-            [
-                transport.input(),
-                stt,
-                context_aggregator.user(),
-                llm_guard.processor,
-                llm,
-                tts,
-                transport.output(),
-                audiobuffer,
-                context_aggregator.assistant(),
-            ]
+            self._pipeline_processors(
+                transport, stt, context_aggregator, llm_guard, llm, tts, audiobuffer
+            )
         )
-        task = PipelineTask(
-            pipeline,
-            params=PipelineParams(allow_interruptions=True, enable_metrics=True),
-        )
+        task = PipelineTask(pipeline, params=self._pipeline_params())
         self._task = task
         self._runner = PipelineRunner(handle_sigint=False)
 
@@ -685,6 +991,34 @@ class BotSession:
 
     # -- tools ----------------------------------------------------------------
 
+    async def _speak_tool_filler(self, llm_processor, tool_name: str) -> None:
+        """
+        Speak a short, contextual acknowledgment the moment a slow lookup
+        starts, in the agent's own voice — the caller hears "one sec, let me
+        pull that up" instead of dead air while Medusa answers. Rate-limited so
+        chained tool calls in one turn don't stack fillers.
+        """
+        if not self.settings.fillers_enabled or tool_name in SILENT_TOOLS:
+            return
+        now = time.monotonic()
+        if now - self._last_filler_at < FILLER_MIN_GAP_SECONDS:
+            return
+        choices = TOOL_FILLERS.get(tool_name, DEFAULT_FILLERS)
+        phrase = random.choice(choices)
+        if phrase == self._last_filler_text and len(choices) > 1:
+            phrase = random.choice([c for c in choices if c != phrase])
+        self._last_filler_at = now
+        self._last_filler_text = phrase
+        try:
+            from pipecat.frames.frames import TTSSpeakFrame
+
+            await llm_processor.push_frame(TTSSpeakFrame(phrase))
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "tool filler failed",
+                extra={"call_id": self.params.call_id, "error": str(exc)[:120]},
+            )
+
     def _register_tools(self, llm, config: AgentConfig) -> None:
         """
         Register a single catch-all handler for every function the model may
@@ -702,6 +1036,11 @@ class BotSession:
                 "tool call",
                 extra={"call_id": cid, "tool_name": name, "arguments": args},
             )
+
+            # Fill the lookup latency with a spoken acknowledgment.
+            llm_proc = getattr(params, "llm", None) or llm
+            await self._speak_tool_filler(llm_proc, name or "")
+
             out = await self.control.tool_execute(
                 call_id=cid,
                 tenant_id=tenant_id,
