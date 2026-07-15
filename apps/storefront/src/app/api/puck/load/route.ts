@@ -19,7 +19,7 @@ const EMPTY = { root: {}, content: [] }
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
-  if (!isValidEditorRequest(req)) {
+  if (!(await isValidEditorRequest(req))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 

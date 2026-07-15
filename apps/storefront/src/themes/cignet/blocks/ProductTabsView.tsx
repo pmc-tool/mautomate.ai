@@ -49,7 +49,7 @@ const ProductCard = ({ product }: { product: HttpTypes.StoreProduct }) => {
   const href = `/products/${product.handle}`
 
   return (
-    <div className="product-item group wow fadeInUp">
+    <div data-el="card" className="product-item group wow fadeInUp">
       {/* Product Item Header Start */}
       <div className="product-item-header">
         {/* Product Item Image Start */}
@@ -139,9 +139,9 @@ const tabCss = (scope: string, count: number): string => {
 }
 
 const ProductTabsView = (props: ProductTabsViewProps) => {
-  const groups = (Array.isArray(props.groups) ? props.groups : []).filter(
-    (group) => group.products.length > 0
-  )
+  const groups = (Array.isArray(props.groups) ? props.groups : [])
+    .map((group, i) => ({ group, i }))
+    .filter(({ group }) => group.products.length > 0)
 
   if (!groups.length) {
     return null
@@ -191,14 +191,14 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
               ) : null}
 
               {multi
-                ? groups.map((group, i) => (
+                ? groups.map(({ group, i }, pos) => (
                     <input
                       key={`radio-${i}`}
                       type="radio"
-                      id={`${scope}-tab-${i}`}
+                      id={`${scope}-tab-${pos}`}
                       name={`${scope}-tabs`}
                       className="product-tabs-radio"
-                      defaultChecked={i === 0}
+                      defaultChecked={pos === 0}
                       aria-label={group.label}
                     />
                   ))
@@ -206,10 +206,12 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
 
               {multi ? (
                 <div className="product-tabs-nav wow fadeInUp">
-                  {groups.map((group, i) => (
+                  {groups.map(({ group, i }, pos) => (
                     <label
+                      data-el="tab"
+                      data-el-item={`tabs:${i}`}
                       key={`pill-${i}`}
-                      htmlFor={`${scope}-tab-${i}`}
+                      htmlFor={`${scope}-tab-${pos}`}
                       className="btn-default"
                     >
                       {group.label}
@@ -219,10 +221,10 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
               ) : null}
 
               <div className="product-tabs-panels">
-                {groups.map((group, i) => (
+                {groups.map(({ group, i }, pos) => (
                   <div
                     key={group.label || i}
-                    className={`product-item-list product-tabs-panel product-tabs-panel-${i}`}
+                    className={`product-item-list product-tabs-panel product-tabs-panel-${pos}`}
                   >
                     {group.products.map((product) => (
                       <ProductCard key={product.id} product={product} />

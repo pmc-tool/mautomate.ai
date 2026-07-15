@@ -115,6 +115,7 @@ const HeroSlider = (props: HeroSliderData) => {
         {slides.map((slide, i) => (
           <div
             key={i}
+            data-el-item={`slides:${i}`}
             className="tp-slider-item tp-slider-height d-flex align-items-center green-dark-bg"
             style={{
               gridArea: "1 / 1",
@@ -151,14 +152,17 @@ const HeroSlider = (props: HeroSliderData) => {
               <div className="row align-items-center">
                 <div className="col-xl-5 col-lg-6 col-md-6">
                   <div className="tp-slider-content p-relative z-index-1">
-                    {slide.subtitle ? <span>{slide.subtitle}</span> : null}
-                    <h3 className="tp-slider-title">
+                    {slide.subtitle ? (
+                      <span data-el="kicker">{slide.subtitle}</span>
+                    ) : null}
+                    <h3 data-el="title" className="tp-slider-title">
                       {renderTitle(slide.title)}
                     </h3>
                     {slide.text ? <p>{slide.text}</p> : null}
 
                     <div className="tp-slider-btn">
                       <LocalizedClientLink
+                        data-el="button"
                         href={slide.cta?.href || "/store"}
                         className="tp-btn tp-btn-2 tp-btn-white"
                       >
@@ -170,6 +174,7 @@ const HeroSlider = (props: HeroSliderData) => {
                 <div className="col-xl-7 col-lg-6 col-md-6">
                   <div className="tp-slider-thumb text-end">
                     <img
+                      data-el="image"
                       src={
                         slide.image ||
                         FALLBACK_IMAGES[i % FALLBACK_IMAGES.length]

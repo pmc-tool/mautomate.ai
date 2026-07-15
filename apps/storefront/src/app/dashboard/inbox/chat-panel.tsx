@@ -11,6 +11,7 @@ import {
   PaperPlane,
   Phone,
   Robot,
+  SidebarRight,
   Sparkles,
   Star,
   StarSolid,
@@ -30,7 +31,9 @@ import {
   contactName,
   dayKey,
   dayLabel,
+  formatAmount,
   handlerMeta,
+  handoffCopy,
   initial,
   isInternalMessage,
   messageTime,
@@ -45,6 +48,57 @@ const STATUS_ACTIONS: {
   { id: "snoozed", label: "Snooze", icon: Clock },
   { id: "closed", label: "Close", icon: CheckCircle },
 ]
+
+/** A product the assistant recommended, attached to the message as `media`. */
+type ProductCardMedia = {
+  type: "product"
+  id: string
+  title: string | null
+  handle: string | null
+  thumbnail: string | null
+  price: number | null
+  currency_code: string | null
+  in_stock: boolean
+}
+
+function productsOf(media: unknown): ProductCardMedia[] {
+  if (!Array.isArray(media)) return []
+  return media.filter(
+    (m): m is ProductCardMedia =>
+      !!m && typeof m === "object" && (m as any).type === "product"
+  )
+}
+
+function ProductChip({ product }: { product: ProductCardMedia }) {
+  const price =
+    product.price != null
+      ? formatAmount(product.price, product.currency_code)
+      : null
+
+  return (
+    <div className="flex items-center gap-2 rounded-base border border-grey-20 bg-white p-1.5">
+      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-base bg-grey-10">
+        {product.thumbnail && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.thumbnail}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium text-grey-90">
+          {product.title ?? "Product"}
+        </p>
+        <p className="text-[11px] text-grey-50">
+          {price ?? "—"}
+          {!product.in_stock && " · out of stock"}
+        </p>
+      </div>
+    </div>
+  )
+}
 
 function authorLabel(message: InboxMessage, name: string): string {
   if (message.author === "ai") return "AI assistant"
@@ -108,16 +162,29 @@ function MessageBubble({
             {messageTime(message.sent_at)}
           </span>
         </div>
-        <div
-          className={cn(
-            "mt-1 whitespace-pre-wrap break-words rounded-large px-3.5 py-2 text-sm leading-relaxed",
-            isContact && "rounded-tl-sm border border-grey-20 bg-white text-grey-90",
-            isAi && "rounded-tr-sm bg-sky-50 text-sky-900",
-            !isContact && !isAi && "rounded-tr-sm bg-grey-90 text-white"
-          )}
-        >
-          {message.body || ""}
-        </div>
+        {!!message.body && (
+          <div
+            className={cn(
+              "mt-1 whitespace-pre-wrap break-words rounded-large px-3.5 py-2 text-sm leading-relaxed",
+              isContact && "rounded-tl-sm border border-grey-20 bg-white text-grey-90",
+              isAi && "rounded-tr-sm bg-sky-50 text-sky-900",
+              !isContact && !isAi && "rounded-tr-sm bg-grey-90 text-white"
+            )}
+          >
+            {message.body}
+          </div>
+        )}
+
+        {/* The shopper sees these as rich cards in the widget. The merchant has to
+            see the same thing — otherwise the AI's "Here's what I found:" reads
+            as a message that recommended nothing at all. */}
+        {productsOf(message.media).length > 0 && (
+          <div className="mt-1.5 space-y-1.5">
+            {productsOf(message.media).map((product) => (
+              <ProductChip key={product.id} product={product} />
+            ))}
+          </div>
+        )}
         {(failed || notDelivered) && (
           <p
             className={cn(
@@ -145,6 +212,8 @@ export function ChatPanel({
   notice,
   currentUserId,
   cannedResponses,
+  contextCollapsed,
+  composerRef,
   onSelectNone,
   onRetry,
   onSend,
@@ -153,6 +222,7 @@ export function ChatPanel({
   onReturnToAi,
   onStatus,
   onToggleStar,
+  onShowContext,
 }: {
   conversation: InboxConversation | null
   messages: InboxMessage[]
@@ -161,6 +231,8 @@ export function ChatPanel({
   notice: { tone: "info" | "error"; text: string } | null
   currentUserId: string | null
   cannedResponses: CannedResponse[]
+  contextCollapsed: boolean
+  composerRef?: React.RefObject<HTMLTextAreaElement | null>
   onSelectNone: () => void
   onRetry: () => void
   onSend: (text: string) => Promise<boolean>
@@ -169,6 +241,7 @@ export function ChatPanel({
   onReturnToAi: () => Promise<void>
   onStatus: (status: InboxStatus) => Promise<void>
   onToggleStar: () => Promise<void>
+  onShowContext: () => void
 }) {
   const [text, setText] = useState("")
   const [sending, setSending] = useState(false)
@@ -176,7 +249,10 @@ export function ChatPanel({
   const [draftIsSuggestion, setDraftIsSuggestion] = useState(false)
   const [acting, setActing] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const localInputRef = useRef<HTMLTextAreaElement>(null)
+  // The page owns the keyboard shortcuts, so it needs a handle on the composer
+  // to focus it. Same node either way.
+  const inputRef = composerRef ?? localInputRef
 
   const conversationId = conversation?.id ?? null
 
@@ -227,6 +303,7 @@ export function ChatPanel({
   const channel = channelMeta(conversation.channel)
   const handler = handlerMeta(conversation.handler_mode)
   const HandlerIcon = handler.icon
+  const handoff = handoffCopy(conversation.handoff_reason)
   const isVoice = conversation.channel === "voice"
   const mine =
     conversation.handler_mode === "human" &&
@@ -402,6 +479,17 @@ export function ChatPanel({
           >
             <ArrowPath className={cn("h-4 w-4", loading && "animate-spin")} />
           </button>
+
+          {contextCollapsed && (
+            <button
+              type="button"
+              onClick={onShowContext}
+              className="hidden items-center gap-1.5 rounded-base border border-grey-20 px-2.5 py-1.5 text-xs font-medium text-grey-70 transition-colors hover:bg-grey-10 hover:text-grey-90 xl:flex"
+            >
+              <SidebarRight className="h-4 w-4" />
+              Details
+            </button>
+          )}
         </div>
       </div>
 
@@ -420,10 +508,44 @@ export function ChatPanel({
         </div>
       )}
 
-      {conversation.handoff_reason && (
-        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
-          <span className="font-medium">Handoff requested:</span>{" "}
-          {conversation.handoff_reason}
+      {/* The raw column says "ai_unavailable". That is a token for a log file, not
+          a sentence for a shop owner — it names a failure without saying whose it
+          is or what to do about it. Say it in words, and put the fix next to it. */}
+      {handoff && (
+        <div
+          className={cn(
+            "flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5 text-xs",
+            handoff.action
+              ? "border-rose-200 bg-rose-50"
+              : "border-amber-200 bg-amber-50"
+          )}
+        >
+          <div className="min-w-0">
+            <p
+              className={cn(
+                "font-semibold",
+                handoff.action ? "text-rose-900" : "text-amber-900"
+              )}
+            >
+              {handoff.title}
+            </p>
+            <p
+              className={cn(
+                "mt-0.5 leading-relaxed",
+                handoff.action ? "text-rose-800" : "text-amber-800"
+              )}
+            >
+              {handoff.detail}
+            </p>
+          </div>
+          {handoff.action && (
+            <Link
+              href={handoff.action.href}
+              className="shrink-0 rounded-base bg-grey-90 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-grey-80"
+            >
+              {handoff.action.label}
+            </Link>
+          )}
         </div>
       )}
 

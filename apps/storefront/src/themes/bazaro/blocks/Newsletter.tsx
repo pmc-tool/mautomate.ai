@@ -43,16 +43,17 @@ const Newsletter = (props: NewsletterData) => {
               <span className="aq-section-subtitle ff-satoshi-med mb-10">
                 Newsletter
               </span>
-              <h4 className="aq-section-title ff-satoshi-med fs-38 mb-10">
+              <h4 data-el="heading" className="aq-section-title ff-satoshi-med fs-38 mb-10">
                 {title}
               </h4>
-              {subtitle ? <p className="mb-0">{subtitle}</p> : null}
+              {subtitle ? <p data-el="text" className="mb-0">{subtitle}</p> : null}
             </div>
 
             <div className="aq-footer-widget-input-box">
               <form>
                 <div className="aq-footer-widget-input p-relative">
                   <input
+                    data-el="input"
                     className="aq-form-control brr-0 h-56"
                     type="email"
                     name="mail"
@@ -62,6 +63,7 @@ const Newsletter = (props: NewsletterData) => {
                     required
                   />
                   <button
+                    data-el="button"
                     className="aq-btn-subscribe"
                     type="submit"
                     aria-label={buttonLabel}

@@ -29,9 +29,15 @@ export function publicOrigin(req: { headers: Record<string, any> }): string {
  * editor URL stops working once the embedded `exp` passes, instead of granting
  * permanent access like the raw secret did.
  */
-function mintEditorToken(secret: string): string {
+function mintEditorToken(secret: string, tenantId?: string): string {
+  // `t` binds the token to ONE store; the storefront refuses it on any other
+  // store's domain. An unbound token (no storefront resolved — single-tenant
+  // dev) is only accepted by storefronts running with MULTI_TENANT off.
   const payload = Buffer.from(
-    JSON.stringify({ exp: Date.now() + TOKEN_TTL_MS })
+    JSON.stringify({
+      exp: Date.now() + TOKEN_TTL_MS,
+      ...(tenantId ? { t: tenantId } : {}),
+    })
   ).toString("base64url")
   const sig = crypto
     .createHmac("sha256", secret)
@@ -82,6 +88,7 @@ export const GET = async (
   const requestedStorefront = normalizeStorefront(req.query.storefront as string)
 
   let storefront = publicOrigin(req) || process.env.STOREFRONT_URL || "http://localhost:8000"
+  let tenantId: string | undefined
 
   if (requestedStorefront) {
     const requestedHost = new URL(requestedStorefront).host
@@ -94,13 +101,14 @@ export const GET = async (
       return res.status(400).json({ message: "Storefront is not live" })
     }
     storefront = requestedStorefront
+    tenantId = resolved.tenant_id
   }
 
   const secret = process.env.CMS_PREVIEW_SECRET || ""
   if (!secret) {
     return res.status(500).json({ message: "CMS preview secret is not configured" })
   }
-  const key = mintEditorToken(secret)
+  const key = mintEditorToken(secret, tenantId)
 
   // Bounce through the storefront's cookie gate: /api/editor-auth stores the
   // token in an httpOnly session cookie and redirects to `to`, so the editor

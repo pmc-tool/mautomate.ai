@@ -15,14 +15,31 @@
 
 import React, { useState } from "react"
 import { WIDGET_SCHEMAS } from "@modules/cms/schema/widgets"
-import { PaletteIcon } from "./palette-icons"
+import { PaletteIcon, UiIcon } from "./palette-icons"
 import { setCardDragImage } from "./drag-ghost"
 import AddSectionPicker from "./AddSectionPicker"
+import {
+  accent,
+  eyebrow,
+  font,
+  grey,
+  hairline,
+  motion,
+  radius,
+  surface,
+  type,
+} from "@modules/cms/editor/design"
 
 /** DnD mime shared with the canvas + ContainerColumnsEditor. */
 const WIDGET_DND_MIME = "application/x-ff-widget"
 
-function WidgetMiniCard({ type, label }: { type: string; label: string }) {
+function WidgetMiniCard({
+  type: widgetType,
+  label,
+}: {
+  type: string
+  label: string
+}) {
   const [hover, setHover] = useState(false)
   return (
     <div
@@ -30,7 +47,10 @@ function WidgetMiniCard({ type, label }: { type: string; label: string }) {
       tabIndex={0}
       draggable
       onDragStart={(e) => {
-        e.dataTransfer.setData(WIDGET_DND_MIME, JSON.stringify({ widget_type: type }))
+        e.dataTransfer.setData(
+          WIDGET_DND_MIME,
+          JSON.stringify({ widget_type: widgetType })
+        )
         e.dataTransfer.effectAllowed = "copy"
         setCardDragImage(e, label)
       }}
@@ -38,24 +58,35 @@ function WidgetMiniCard({ type, label }: { type: string; label: string }) {
       onMouseLeave={() => setHover(false)}
       title="Drag into a container column on the page"
       style={{
-        border: `1px solid ${hover ? "#93003f" : "#e6e8ea"}`,
-        borderRadius: 3,
-        padding: "12px 4px 10px",
-        background: "#fff",
-        textAlign: "center",
+        ...surface(),
+        borderRadius: radius.md,
+        borderColor: hover ? grey[30] : grey[20],
+        background: hover ? grey[5] : grey[0],
+        minHeight: 64,
+        padding: "12px 8px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
         cursor: "grab",
         userSelect: "none",
-        transform: hover ? "translateY(-1px)" : "none",
-        boxShadow: hover ? "0 3px 8px rgba(147, 0, 63, 0.10)" : "none",
-        transition: "border-color .12s, transform .12s, box-shadow .12s",
+        transition: `background ${motion.fast}, border-color ${motion.fast}`,
       }}
     >
-      <div style={{ color: hover ? "#93003f" : "#515962" }}>
-        <PaletteIcon type={type} size={22} />
-      </div>
-      <div style={{ fontSize: 11, fontWeight: 500, color: "#515962", marginTop: 6, lineHeight: 1.2 }}>
+      <span style={{ color: grey[50], display: "inline-flex" }}>
+        <PaletteIcon type={widgetType} size={20} />
+      </span>
+      <span
+        style={{
+          ...type.label,
+          fontFamily: font,
+          color: grey[80],
+          textAlign: "center",
+        }}
+      >
         {label}
-      </div>
+      </span>
     </div>
   )
 }
@@ -79,7 +110,7 @@ export default function ElementsPalette({
       {/* Elements / Navigator switch */}
       <div
         role="tablist"
-        style={{ display: "flex", borderBottom: "1px solid #e6e8ea", marginBottom: 10 }}
+        style={{ display: "flex", borderBottom: hairline, marginBottom: 12 }}
       >
         {(
           [
@@ -95,18 +126,17 @@ export default function ElementsPalette({
               aria-selected={on}
               onClick={() => setTab(t.key)}
               style={{
+                ...type.micro,
+                fontFamily: font,
                 flex: 1,
                 border: 0,
-                borderBottom: on ? "2px solid #93003f" : "2px solid transparent",
+                borderBottom: `2px solid ${on ? accent.base : "transparent"}`,
                 marginBottom: -1,
                 background: "transparent",
-                color: on ? "#93003f" : "#6d7882",
-                fontSize: 11,
-                fontWeight: on ? 700 : 500,
-                textTransform: "uppercase",
-                letterSpacing: 0.6,
+                color: on ? accent.base : grey[50],
                 padding: "8px 4px",
                 cursor: "pointer",
+                transition: `color ${motion.fast}, border-color ${motion.fast}`,
               }}
             >
               {t.label}
@@ -130,22 +160,20 @@ export default function ElementsPalette({
               justifyContent: "space-between",
               background: "none",
               border: 0,
-              padding: "4px 0 6px",
+              padding: "4px 0 8px",
               cursor: "pointer",
             }}
           >
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#6d7882", textTransform: "uppercase", letterSpacing: 0.6 }}>
-              Basic elements
-            </span>
+            <span style={eyebrow()}>Basic elements</span>
             <span
               style={{
-                fontSize: 10,
-                color: "#9ca3af",
-                transform: basicOpen ? "rotate(90deg)" : "none",
-                transition: "transform 0.15s",
+                color: grey[40],
+                display: "inline-flex",
+                transform: basicOpen ? "none" : "rotate(-90deg)",
+                transition: `transform ${motion.fast}`,
               }}
             >
-              ▸
+              <UiIcon name="chevron-down" size={14} />
             </span>
           </button>
           {basicOpen && (
@@ -154,7 +182,7 @@ export default function ElementsPalette({
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
                 gap: 8,
-                marginBottom: 6,
+                marginBottom: 8,
               }}
             >
               {widgets.map((w) => (

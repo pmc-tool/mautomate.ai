@@ -131,7 +131,7 @@ const Testimonials = (props: TestimonialsData) => {
                   <div className="swiper-wrapper">
                     <div className="swiper-slide">
                       {/* Testimonial Item Start */}
-                      <div className="testimonial-item">
+                      <div data-el="item" data-el-item={`items:${active}`} className="testimonial-item">
                         <div className="testimonial-item-content-box">
                           <div className="testimonial-item-rating">
                             <Stars count={starCount(item.rating)} />
@@ -148,7 +148,9 @@ const Testimonials = (props: TestimonialsData) => {
                             >
                               <i className="fa-solid fa-quote-left" />
                             </span>
-                            {item.quote ? <p>{item.quote}</p> : null}
+                            {item.quote ? (
+                              <p data-el="quote">{item.quote}</p>
+                            ) : null}
                           </div>
                         </div>
                         <div className="testimonial-item-author">
@@ -158,7 +160,7 @@ const Testimonials = (props: TestimonialsData) => {
                             </figure>
                           </div>
                           <div className="testimonial-author-content">
-                            <h2>{item.author}</h2>
+                            <h2 data-el="author">{item.author}</h2>
                             {item.role ? <p>{item.role}</p> : null}
                           </div>
                         </div>

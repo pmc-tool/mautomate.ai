@@ -16,8 +16,10 @@ function slugify(value: string): string {
   return value
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-_]/g, "")
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^\p{Ll}\p{Lo}\p{Lm}\p{N}-]/gu, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
 }
 
 function byRank(a: any, b: any): number {

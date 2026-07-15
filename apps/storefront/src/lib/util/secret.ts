@@ -38,6 +38,46 @@ export function safeKeyEqual(
  * (`/admin/cms/visual-editor`) mints those tokens behind real admin auth, so
  * production access never needs the raw secret.
  */
+/**
+ * Verify a signed editor token's signature + expiry and return its payload
+ * (`exp`, and `t` = the tenant the token was minted for), or null.
+ */
+export function editorKeyPayload(
+  provided: string | null | undefined
+): { exp: number; t?: string } | null {
+  const secret = process.env.CMS_PREVIEW_SECRET
+  if (!secret || typeof provided !== "string" || !provided) {
+    return null
+  }
+  const dot = provided.lastIndexOf(".")
+  if (dot <= 0) {
+    return null
+  }
+  const payloadB64 = provided.slice(0, dot)
+  const sig = provided.slice(dot + 1)
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(payloadB64)
+    .digest("base64url")
+  if (!safeKeyEqual(sig, expected)) {
+    return null
+  }
+  try {
+    const payload = JSON.parse(
+      Buffer.from(payloadB64, "base64url").toString("utf8")
+    )
+    if (typeof payload.exp !== "number" || payload.exp <= Date.now()) {
+      return null
+    }
+    return {
+      exp: payload.exp,
+      ...(typeof payload.t === "string" && payload.t ? { t: payload.t } : {}),
+    }
+  } catch {
+    return null
+  }
+}
+
 export function isValidEditorKey(provided: string | null | undefined): boolean {
   const secret = process.env.CMS_PREVIEW_SECRET
   if (!secret || typeof provided !== "string" || !provided) {
@@ -48,28 +88,7 @@ export function isValidEditorKey(provided: string | null | undefined): boolean {
   if (process.env.NODE_ENV !== "production" && safeKeyEqual(provided, secret)) {
     return true
   }
-  // Signed, expiring token.
-  const dot = provided.lastIndexOf(".")
-  if (dot <= 0) {
-    return false
-  }
-  const payloadB64 = provided.slice(0, dot)
-  const sig = provided.slice(dot + 1)
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(payloadB64)
-    .digest("base64url")
-  if (!safeKeyEqual(sig, expected)) {
-    return false
-  }
-  try {
-    const payload = JSON.parse(
-      Buffer.from(payloadB64, "base64url").toString("utf8")
-    )
-    return typeof payload.exp === "number" && payload.exp > Date.now()
-  } catch {
-    return false
-  }
+  return editorKeyPayload(provided) !== null
 }
 
 /**
@@ -86,11 +105,51 @@ export function getEditorKeyFromRequest(req: NextRequest): string | null {
   return req.cookies.get(EDITOR_KEY_COOKIE)?.value || null
 }
 
+const MULTI_TENANT =
+  process.env.MULTI_TENANT === "1" || process.env.MULTI_TENANT === "true"
+
 /**
- * Gate an editor API request: valid when the query key OR the session cookie
- * holds a key that passes isValidEditorKey. Expired cookies simply fail
- * validation, so a stale session degrades to today's 401 behavior.
+ * Gate an editor API request: the query key OR the session cookie must hold a
+ * valid signed token, AND — in multi-tenant mode — that token must be BOUND
+ * (`t` in its payload) to the tenant that owns the domain the request came in
+ * on. Without the binding, a merchant's own editor token was valid verbatim
+ * against every other store on the platform: publish, autosave, media upload
+ * and AI-credit spend, all cross-tenant. Tokens without `t` (minted before
+ * this fix) are refused in multi-tenant mode — re-open the editor to get a
+ * bound one.
  */
-export function isValidEditorRequest(req: NextRequest): boolean {
-  return isValidEditorKey(getEditorKeyFromRequest(req))
+export async function isValidEditorRequest(req: NextRequest): Promise<boolean> {
+  return isValidEditorKeyForRequest(getEditorKeyFromRequest(req), req)
+}
+
+/**
+ * Same gate for an EXPLICIT key (the /api/editor-auth cookie seeder validates
+ * the ?key= it is about to store, so a cross-store gate URL fails at the door
+ * instead of planting a cookie that every later request would refuse anyway).
+ */
+export async function isValidEditorKeyForRequest(
+  provided: string | null | undefined,
+  req: NextRequest
+): Promise<boolean> {
+  const secret = process.env.CMS_PREVIEW_SECRET
+  if (!secret || !provided) {
+    return false
+  }
+  // Dev raw-secret path (never enabled in production).
+  if (process.env.NODE_ENV !== "production" && safeKeyEqual(provided, secret)) {
+    return true
+  }
+  const payload = editorKeyPayload(provided)
+  if (!payload) {
+    return false
+  }
+  if (!MULTI_TENANT) {
+    return true
+  }
+  if (!payload.t) {
+    return false
+  }
+  const { resolveEditorTenant } = await import("./editor-tenant")
+  const tenant = await resolveEditorTenant(req)
+  return !!tenant.tenantId && payload.t === tenant.tenantId
 }

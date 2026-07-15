@@ -38,7 +38,7 @@ const Newsletter = (props: NewsletterData) => {
                   {subtitle}
                 </p>
               ) : null}
-              <form className="mc-form widget-subscibe2 learts-mt-20">
+              <form className="mc-form widget-subscibe2 learts-mt-20" data-el="form">
                 <input
                   data-el="input"
                   autoComplete="off"

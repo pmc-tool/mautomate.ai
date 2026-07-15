@@ -82,8 +82,12 @@ export default function CallCenterOverviewPage() {
           icon={Clock}
         />
         <KpiCard
-          label="Today's cost"
-          value={loading ? "—" : formatCost(dashboard?.total_cost)}
+          label="Credits used today"
+          value={
+            loading
+              ? "—"
+              : `${Number(dashboard?.credits_today ?? dashboard?.total_cost ?? 0).toLocaleString()} cr`
+          }
           icon={ChartBar}
           tone="grey"
         />

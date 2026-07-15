@@ -72,7 +72,10 @@ const ProductCard = ({ product }: { product: HttpTypes.StoreProduct }) => {
   const category = product.categories?.[0]
 
   return (
-    <div className="tp-product-item p-relative transition-3 mb-25 group">
+    <div
+      data-el="card"
+      className="tp-product-item p-relative transition-3 mb-25 group"
+    >
       <div className="tp-product-thumb p-relative fix m-img">
         <LocalizedClientLink href={href}>
           <img src={mainImage} alt={product.title} />
@@ -179,9 +182,9 @@ const tabCss = (scope: string, count: number): string => {
 }
 
 const ProductTabsView = (props: ProductTabsViewProps) => {
-  const groups = (Array.isArray(props.groups) ? props.groups : []).filter(
-    (group) => group.products.length > 0
-  )
+  const groups = (Array.isArray(props.groups) ? props.groups : [])
+    .map((group, i) => ({ group, i }))
+    .filter(({ group }) => group.products.length > 0)
 
   if (!groups.length) {
     return null
@@ -211,14 +214,14 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
         ) : null}
 
         {multi
-          ? groups.map((group, i) => (
+          ? groups.map(({ group }, idx) => (
               <input
-                key={`radio-${i}`}
+                key={`radio-${idx}`}
                 type="radio"
-                id={`${scope}-tab-${i}`}
+                id={`${scope}-tab-${idx}`}
                 name={`${scope}-tabs`}
                 className="tp-product-tabs-radio"
-                defaultChecked={i === 0}
+                defaultChecked={idx === 0}
                 aria-label={group.label}
               />
             ))
@@ -263,10 +266,15 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
               <div className="col-xl-7 col-lg-6 col-md-7">
                 <div className="tp-product-tab tp-product-tab-border mb-45 tp-tab d-flex justify-content-md-end">
                   <ul className="nav nav-tabs justify-content-sm-end">
-                    {groups.map((group, i) => (
-                      <li className="nav-item" key={`pill-${i}`}>
+                    {groups.map(({ group, i }, idx) => (
+                      <li
+                        className="nav-item"
+                        key={`pill-${idx}`}
+                        data-el-item={`tabs:${i}`}
+                      >
                         <label
-                          htmlFor={`${scope}-tab-${i}`}
+                          data-el="tab"
+                          htmlFor={`${scope}-tab-${idx}`}
                           className="nav-link"
                         >
                           {group.label}
@@ -283,10 +291,10 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
           <div className="row">
             <div className="col-xl-12">
               <div className="tp-product-tab-content">
-                {groups.map((group, i) => (
+                {groups.map(({ group }, idx) => (
                   <div
-                    key={group.label || i}
-                    className={`tp-product-tabs-panel tp-product-tabs-panel-${i}`}
+                    key={group.label || idx}
+                    className={`tp-product-tabs-panel tp-product-tabs-panel-${idx}`}
                   >
                     <div className="row">
                       {group.products.map((product) => (

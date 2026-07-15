@@ -653,9 +653,23 @@ const INHERITED_TEXT_PROPS = new Set([
 const TEXT_DESCENDANTS =
   ':where(p,li,span,h1,h2,h3,h4,h5,h6,blockquote,small,label,a:not([class*="btn"]))'
 
-/** Double the scope's leading class (`.x …` → `.x.x …`) to outrank theme rules. */
+/**
+ * Repeat the scope's leading class to outrank theme rules (`.x …` → `.x.x.x.x …`).
+ *
+ * It used to double the class, giving (0,3,0) for an element rule. That is NOT
+ * enough: Learts styles its text through deep descendant chains — e.g.
+ * `.learts-blockquote .inner .desc p` at (0,3,1) — which outranks it on the
+ * element count. The result was silent and maddening: the merchant set a font
+ * size, it was stored, the CSS was emitted, and the text did not move, because
+ * the theme won the cascade by one element selector.
+ *
+ * Four repetitions put our rule at (0,5,0), which beats any realistic theme
+ * chain, and ties still fall to us because this CSS is emitted after the theme's
+ * stylesheets. Specificity, not !important — so a merchant's own custom CSS can
+ * still override it, which is the whole point of having custom CSS.
+ */
 function boostSel(sel: string): string {
-  return sel.replace(/^(\.[A-Za-z0-9_-]+)/, "$1$1")
+  return sel.replace(/^(\.[A-Za-z0-9_-]+)/, "$1$1$1$1")
 }
 
 /** The inherited-text subset of a declaration list. */
@@ -849,17 +863,41 @@ export function buildWidgetCss(
   style?: StyleBag | null,
   advanced?: AdvancedBag | null
 ): string {
+  return buildWidgetCssPath(sectionScope, [col, wi], style, advanced)
+}
+
+/**
+ * Widget CSS addressed by PATH, so a widget nested inside an inner section is
+ * styleable exactly like a top-level one.
+ *
+ * The path is the chain of (column, widget) indices from the section down to
+ * the widget: `[0,1]` is column 0 / widget 1; `[0,1,2,3]` is the widget at
+ * column 2 / index 3 INSIDE the inner-section widget at column 0 / index 1.
+ * It serializes to the same `data-w="w-…"` marker the DOM carries, so a
+ * two-element path produces byte-identical CSS to the old signature — nothing
+ * already published changes.
+ */
+export function buildWidgetCssPath(
+  sectionScope: string,
+  path: number[],
+  style?: StyleBag | null,
+  advanced?: AdvancedBag | null
+): string {
   if (!hasStyle(style, advanced)) {
     return ""
   }
   // Same character class as element keys — safe inside an attribute selector.
   const scope = sanitizeElementKey(sectionScope)
-  const c = Number(col)
-  const w = Number(wi)
-  if (!scope || !Number.isInteger(c) || c < 0 || !Number.isInteger(w) || w < 0) {
+  if (
+    !scope ||
+    !Array.isArray(path) ||
+    path.length < 2 ||
+    path.length % 2 !== 0 ||
+    !path.every((n) => Number.isInteger(n) && n >= 0)
+  ) {
     return ""
   }
-  const sel = `[data-scope="${scope}"] [data-w="w-${c}-${w}"]`
+  const sel = `[data-scope="${scope}"] [data-w="w-${path.join("-")}"]`
   return buildScopedRules(sel, style ?? undefined, advanced ?? undefined)
 }
 

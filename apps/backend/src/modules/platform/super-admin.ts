@@ -183,15 +183,41 @@ export class SuperAdminService {
   }
 
   /** Grant credits to a tenant's wallet (real ledger entry + derived-cache sync). */
-  async grantCredits(actor: Actor, tenantId: string, amount: number) {
+  /**
+   * Grant credits into a tenant's wallet.
+   *
+   * `source` decides whether they can ever expire:
+   *   grant/trial/plan — may carry an expiry (goodwill, comped allowance)
+   *   topup            — treated as PURCHASED: never expires, no matter what
+   */
+  async grantCredits(
+    actor: Actor,
+    tenantId: string,
+    amount: number,
+    opts: {
+      source?: "grant" | "topup" | "plan" | "trial"
+      expiresAt?: Date | null
+      reason?: string
+    } = {}
+  ) {
     if (!(amount > 0)) throw new Error("amount must be positive")
     const ledger = getLedger(this.container)
+    const source = opts.source ?? "grant"
     const balance = await ledger.credit(tenantId, amount, {
-      type: "grant",
+      type: source === "topup" ? "topup" : "grant",
+      source,
+      expiresAt: source === "topup" ? null : (opts.expiresAt ?? null),
       idempotencyKey: `grant_${tenantId}_${Date.now()}`,
+      meta: { granted_by: actor?.id ?? "operator", reason: opts.reason ?? null },
     })
     await this.svc().updateTenants({ id: tenantId, credit_balance: balance })
-    await this.audit(actor, "tenant.grant_credits", tenantId, "success", { amount, balance })
+    await this.audit(actor, "tenant.grant_credits", tenantId, "success", {
+      amount,
+      balance,
+      source,
+      expires_at: opts.expiresAt ?? null,
+      reason: opts.reason ?? null,
+    })
     return { tenant_id: tenantId, balance }
   }
 

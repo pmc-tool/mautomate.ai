@@ -11,6 +11,12 @@
 /* a control as `value`, and re-wraps the control's `onChange` output    */
 /* into a ResponsiveValue — so every control here is device-agnostic.    */
 /*                                                                     */
+/* Chrome comes from ONE place — @modules/cms/editor/design — so these   */
+/* controls are built from the same material as the merchant dashboard:  */
+/* Inter, the cool-grey ramp, hairline structure, 4/6/10 radii, and a    */
+/* single accent (the brand ember) spent only on the thing you are       */
+/* touching right now.                                                   */
+/*                                                                     */
 /* Emitted value shapes (must match buildSectionCss):                    */
 /*   DimensionsControl  -> { top?, right?, bottom?, left?, unit } | undefined */
 /*   UnitNumberControl  -> { value: number, unit: string } | undefined        */
@@ -28,64 +34,108 @@
 /* ------------------------------------------------------------------ */
 
 import React, { useState } from "react"
+import MediaPicker from "@modules/cms/editor/MediaPicker"
+import { UiIcon } from "@modules/cms/editor/palette-icons"
+import {
+  accent,
+  button,
+  field as fieldStyle,
+  focusRing,
+  font,
+  grey,
+  hairline,
+  iconButton,
+  motion,
+  radius,
+  surface,
+  type,
+} from "@modules/cms/editor/design"
 import type { FieldDef } from "@modules/cms/schema/types"
+
+/* ------------------------------------------------------------------ */
+/* MERCHANT DATA — not chrome.                                          */
+/* These two hexes are DEFAULT VALUES written into the merchant's own    */
+/* content (the <input type="color"> fallback and the gradient stops     */
+/* buildSectionCss falls back to). They are part of the emitted payload, */
+/* so they must stay byte-identical. Every other colour in this file      */
+/* comes from the design tokens.                                         */
+/* ------------------------------------------------------------------ */
+const DEFAULT_COLOR = "#000000"
+const DEFAULT_GRADIENT_FROM = "#ffffff"
+const DEFAULT_GRADIENT_TO = "#000000"
 
 /* ----------------------------- styles ----------------------------- */
 const input: React.CSSProperties = {
-  width: "100%",
+  ...fieldStyle(),
   boxSizing: "border-box",
-  padding: "8px 10px",
-  border: "1px solid #d1d5db",
-  borderRadius: 7,
-  fontSize: 13,
-  fontFamily: "inherit",
-  color: "#111827",
-  background: "#fff",
-  outline: "none",
 }
 const miniInput: React.CSSProperties = {
   ...input,
-  padding: "6px 7px",
-  fontSize: 12,
+  ...type.label,
+  fontFamily: font,
+  height: 28,
+  padding: "0 8px",
   textAlign: "center",
 }
 const miniSelect: React.CSSProperties = {
   ...input,
-  padding: "6px 7px",
-  fontSize: 12,
+  ...type.label,
+  fontFamily: font,
+  height: 28,
+  padding: "0 6px",
   width: "auto",
   flex: "0 0 auto",
 }
 const caption: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-  color: "#9ca3af",
+  ...type.micro,
+  fontFamily: font,
+  color: grey[50],
   textAlign: "center",
-  marginBottom: 2,
+  marginBottom: 4,
 }
 const subLabel: React.CSSProperties = {
+  ...type.label,
+  fontFamily: font,
   display: "block",
-  fontSize: 11,
-  fontWeight: 600,
-  color: "#6b7280",
-  margin: "8px 0 4px",
+  color: grey[70],
+  margin: "12px 0 6px",
 }
 const groupBox: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 9,
-  padding: "8px 10px",
-  background: "#fafafa",
+  ...surface(),
+  padding: 12,
+  background: grey[5],
 }
-const smallBtn: React.CSSProperties = {
-  border: "1px solid #d1d5db",
-  background: "#fff",
-  borderRadius: 6,
-  fontSize: 12,
-  padding: "5px 9px",
+const swatchInput: React.CSSProperties = {
+  width: 32,
+  height: 32,
+  border: hairline,
+  borderRadius: radius.sm,
+  padding: 0,
+  background: grey[0],
   cursor: "pointer",
-  color: "#374151",
+  flex: "0 0 auto",
+  boxShadow: "inset 0 0 0 1px rgba(16, 24, 40, 0.06)",
+}
+const sliderStyle: React.CSSProperties = {
+  flex: 1,
+  height: 3,
+  accentColor: accent.base,
+  background: grey[20],
+  borderRadius: radius.pill,
+  cursor: "pointer",
+}
+
+/* Focus is a real state here: the field the merchant is typing in gets the
+   ember ring, exactly like the dashboard. Done on the element itself so no
+   control has to grow a piece of React state to look focused. */
+type AnyFieldEl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+const onFieldFocus = (e: React.FocusEvent<AnyFieldEl>) => {
+  e.currentTarget.style.borderColor = accent.base
+  e.currentTarget.style.boxShadow = focusRing
+}
+const onFieldBlur = (e: React.FocusEvent<AnyFieldEl>) => {
+  e.currentTarget.style.borderColor = grey[30]
+  e.currentTarget.style.boxShadow = "none"
 }
 
 /* --------------------------- tiny helpers ------------------------- */
@@ -140,23 +190,24 @@ export function isRef(v: unknown): v is TokenRef {
 }
 
 const swatchBox: React.CSSProperties = {
-  width: 34,
-  height: 34,
-  borderRadius: 6,
-  border: "1px solid #d1d5db",
+  width: 20,
+  height: 20,
+  borderRadius: radius.sm,
+  border: hairline,
+  boxShadow: "inset 0 0 0 1px rgba(16, 24, 40, 0.06)",
   flex: "0 0 auto",
 }
 
 const linkNote: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: "#1d4ed8",
+  ...type.label,
+  fontFamily: font,
+  color: accent.base,
   display: "flex",
   alignItems: "center",
-  gap: 4,
+  gap: 6,
 }
 
-/** Globe / chain toggle shown next to a linkable color/font control. */
+/** Link-to-global-token toggle shown next to a linkable color/font control. */
 function GlobeToggle({
   active,
   title,
@@ -170,17 +221,17 @@ function GlobeToggle({
     <button
       type="button"
       title={title}
+      aria-label={title}
       onClick={onClick}
       style={{
-        ...smallBtn,
-        padding: "6px 8px",
+        ...iconButton("sm"),
         flex: "0 0 auto",
-        borderColor: active ? "#2563eb" : "#d1d5db",
-        color: active ? "#1d4ed8" : "#6b7280",
-        background: active ? "#eff6ff" : "#fff",
+        borderColor: active ? accent.base : grey[20],
+        color: active ? accent.base : grey[50],
+        background: active ? accent.tint : grey[0],
       }}
     >
-      {active ? "🔗" : "🌐"}
+      <UiIcon name="external-link" size={13} />
     </button>
   )
 }
@@ -202,11 +253,10 @@ function Segmented({
       style={{
         display: "flex",
         flexWrap: "wrap",
-        gap: 4,
-        border: "1px solid #e5e7eb",
-        borderRadius: 8,
-        padding: 3,
-        background: "#f9fafb",
+        gap: 2,
+        borderRadius: radius.md,
+        padding: 2,
+        background: grey[10],
       }}
     >
       {options.map((o) => {
@@ -216,19 +266,27 @@ function Segmented({
             key={o.value}
             type="button"
             onClick={() => onChange(o.value)}
+            onMouseEnter={(e) => {
+              if (!active) e.currentTarget.style.background = grey[0]
+            }}
+            onMouseLeave={(e) => {
+              if (!active) e.currentTarget.style.background = "transparent"
+            }}
             style={{
+              ...type.label,
+              fontFamily: font,
               flex: "1 1 auto",
               minWidth: 44,
-              border: "1px solid",
-              borderColor: active ? "#2563eb" : "transparent",
-              background: active ? "#eff6ff" : "transparent",
-              color: active ? "#1d4ed8" : "#374151",
-              borderRadius: 6,
-              fontSize: 12,
+              height: 26,
+              border: 0,
+              background: active ? grey[90] : "transparent",
+              color: active ? grey[0] : grey[60],
               fontWeight: active ? 600 : 500,
-              padding: "5px 8px",
+              borderRadius: radius.sm,
+              padding: "0 8px",
               cursor: "pointer",
               whiteSpace: "nowrap",
+              transition: `background ${motion.fast}, color ${motion.fast}`,
             }}
           >
             {o.label}
@@ -244,6 +302,27 @@ function Segmented({
 /* Emits { value, unit } or undefined. Shared by border width +         */
 /* typography font-size / letter-spacing.                               */
 /* ------------------------------------------------------------------ */
+/**
+ * Sensible drag ranges per unit, so the slider is USEFUL rather than technically
+ * present. A font-size slider that runs 0-100 in `rem` is a slider you can only
+ * ruin text with; 0.5-8rem is the range anyone actually types.
+ */
+function rangeForUnit(unit: string): { min: number; max: number; step: number } {
+  switch (unit) {
+    case "rem":
+    case "em":
+      return { min: 0.5, max: 8, step: 0.05 }
+    case "%":
+      return { min: 50, max: 300, step: 1 }
+    case "vw":
+    case "vh":
+      return { min: 1, max: 20, step: 0.5 }
+    default:
+      // px
+      return { min: 8, max: 120, step: 1 }
+  }
+}
+
 function UnitNumberInline({
   value,
   units,
@@ -277,22 +356,46 @@ function UnitNumberInline({
     onChange({ value: n, unit: u })
   }
 
+  // Font size (and letter spacing) were a number box and nothing else: to go from
+  // 16 to 42 you typed, tabbed, looked, typed again. Sizing type is a VISUAL
+  // decision — you want to drag until it looks right. So the slider leads, and
+  // the number box stays for when you know the exact value you want.
+  const r = rangeForUnit(unit)
+  const lo = min ?? r.min
+  const hi = max ?? r.max
+  const st = step ?? r.step
+
   return (
-    <div style={{ display: "flex", gap: 6 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <input
+        type="range"
+        style={{ ...sliderStyle, minWidth: 54 }}
+        // An unset size must not jump to the slider's floor the moment you drag:
+        // start from where the text actually is.
+        value={num ?? lo}
+        min={lo}
+        max={hi}
+        step={st}
+        onChange={(e) => emit(Number(e.target.value), unit)}
+      />
       <input
         type="number"
-        style={{ ...miniInput, textAlign: "left" }}
+        style={{ ...miniInput, width: 64, flex: "0 0 auto", textAlign: "left" }}
         value={num ?? ""}
-        min={min}
-        max={max}
-        step={step}
+        min={lo}
+        max={hi}
+        step={st}
         placeholder={placeholder}
+        onFocus={onFieldFocus}
+        onBlur={onFieldBlur}
         onChange={(e) => emit(toNum(e.target.value), unit)}
       />
       {units.length > 0 && (
         <select
           style={miniSelect}
           value={unit}
+          onFocus={onFieldFocus}
+          onBlur={onFieldBlur}
           onChange={(e) => emit(num, e.target.value)}
         >
           {units.map((u) => (
@@ -366,7 +469,7 @@ export function DimensionsControl({
 
   return (
     <div style={groupBox}>
-      <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
         {sides.map((s) => (
           <div key={s} style={{ flex: 1, minWidth: 0 }}>
             <div style={caption}>{SIDE_LABELS[s] ?? s}</div>
@@ -374,6 +477,8 @@ export function DimensionsControl({
               type="number"
               style={miniInput}
               value={current[s] ?? ""}
+              onFocus={onFieldFocus}
+              onBlur={onFieldBlur}
               onChange={(e) => setSide(s, e.target.value)}
             />
           </div>
@@ -381,24 +486,34 @@ export function DimensionsControl({
         <button
           type="button"
           title={linked ? "Sides linked" : "Sides independent"}
+          aria-label={linked ? "Sides linked" : "Sides independent"}
           onClick={() => setLinked((l) => !l)}
           style={{
-            ...smallBtn,
-            padding: "6px 8px",
-            borderColor: linked ? "#2563eb" : "#d1d5db",
-            color: linked ? "#1d4ed8" : "#6b7280",
-            background: linked ? "#eff6ff" : "#fff",
+            ...iconButton("sm"),
+            borderColor: linked ? accent.base : grey[20],
+            color: linked ? accent.base : grey[50],
+            background: linked ? accent.tint : grey[0],
             flex: "0 0 auto",
           }}
         >
-          {linked ? "🔗" : "⛓"}
+          <UiIcon name="resize-h" size={13} />
         </button>
       </div>
       {units.length > 1 && (
-        <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
+        <div
+          style={{
+            marginTop: 12,
+            paddingTop: 8,
+            borderTop: hairline,
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
           <select
             style={miniSelect}
             value={unit}
+            onFocus={onFieldFocus}
+            onBlur={onFieldBlur}
             onChange={(e) => emit(current, e.target.value)}
           >
             {units.map((u) => (
@@ -447,10 +562,10 @@ export function UnitNumberControl({
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <input
         type="range"
-        style={{ flex: 1, minWidth: 60 }}
+        style={{ ...sliderStyle, minWidth: 60 }}
         value={num ?? min}
         min={min}
         max={max}
@@ -459,17 +574,21 @@ export function UnitNumberControl({
       />
       <input
         type="number"
-        style={{ ...miniInput, width: 66, flex: "0 0 auto", textAlign: "left" }}
+        style={{ ...miniInput, width: 64, flex: "0 0 auto", textAlign: "left" }}
         value={num ?? ""}
         min={min}
         max={max}
         step={step}
+        onFocus={onFieldFocus}
+        onBlur={onFieldBlur}
         onChange={(e) => emit(toNum(e.target.value), unit)}
       />
       {units.length > 0 && (
         <select
           style={miniSelect}
           value={unit}
+          onFocus={onFieldFocus}
+          onBlur={onFieldBlur}
           onChange={(e) => emit(num, e.target.value)}
         >
           {units.map((u) => (
@@ -553,6 +672,8 @@ function FontFamilyField({
               fontFamily: activeToken?.value || "inherit",
             }}
             value={ref}
+            onFocus={onFieldFocus}
+            onBlur={onFieldBlur}
             onChange={(e) => onChange({ ref: e.target.value })}
           >
             {/* Preserve an unknown ref so it is never silently dropped. */}
@@ -564,7 +685,10 @@ function FontFamilyField({
             ))}
           </select>
         </div>
-        <div style={linkNote}>🔗 Linked to {activeToken?.name ?? ref}</div>
+        <div style={linkNote}>
+          <UiIcon name="external-link" size={12} />
+          Linked to {activeToken?.name ?? ref}
+        </div>
       </div>
     )
   }
@@ -583,9 +707,11 @@ function FontFamilyField({
         />
       )}
       <input
-        style={{ ...input, fontSize: 12, padding: "6px 8px", flex: 1 }}
+        style={{ ...input, ...type.label, fontFamily: font, height: 28, flex: 1 }}
         value={raw}
         placeholder='e.g. "Inter", sans-serif'
+        onFocus={onFieldFocus}
+        onBlur={onFieldBlur}
         onChange={(e) => onChange(e.target.value)}
       />
     </div>
@@ -632,19 +758,35 @@ export function TypographyControl({
         onChange={(v) => setKey("fontSize", v)}
       />
 
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
           <label style={subLabel}>Line height</label>
-          <input
-            type="number"
-            step={0.1}
-            style={{ ...miniInput, textAlign: "left" }}
-            value={rec.lineHeight ?? ""}
-            placeholder="1.5"
-            onChange={(e) =>
-              setKey("lineHeight", e.target.value === "" ? "" : Number(e.target.value))
-            }
-          />
+          {/* Same reasoning as font size: leading is judged by eye, not typed. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="range"
+              style={{ ...sliderStyle, minWidth: 44 }}
+              min={0.8}
+              max={3}
+              step={0.05}
+              value={hasNum(rec.lineHeight) ? (rec.lineHeight as number) : 1.5}
+              onChange={(e) => setKey("lineHeight", Number(e.target.value))}
+            />
+            <input
+              type="number"
+              step={0.05}
+              min={0.8}
+              max={3}
+              style={{ ...miniInput, width: 64, flex: "0 0 auto", textAlign: "left" }}
+              value={rec.lineHeight ?? ""}
+              placeholder="1.5"
+              onFocus={onFieldFocus}
+              onBlur={onFieldBlur}
+              onChange={(e) =>
+                setKey("lineHeight", e.target.value === "" ? "" : Number(e.target.value))
+              }
+            />
+          </div>
         </div>
         <div style={{ flex: 1 }}>
           <label style={subLabel}>Letter spacing</label>
@@ -657,12 +799,14 @@ export function TypographyControl({
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
           <label style={subLabel}>Weight</label>
           <select
             style={{ ...miniSelect, width: "100%" }}
             value={rec.fontWeight ?? ""}
+            onFocus={onFieldFocus}
+            onBlur={onFieldBlur}
             onChange={(e) => setKey("fontWeight", e.target.value)}
           >
             {FONT_WEIGHTS.map((o) => (
@@ -677,6 +821,8 @@ export function TypographyControl({
           <select
             style={{ ...miniSelect, width: "100%" }}
             value={rec.textTransform ?? ""}
+            onFocus={onFieldFocus}
+            onBlur={onFieldBlur}
             onChange={(e) => setKey("textTransform", e.target.value)}
           >
             {TEXT_TRANSFORMS.map((o) => (
@@ -723,23 +869,16 @@ function ColorRow({
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <input
         type="color"
-        value={value || "#000000"}
+        value={value || DEFAULT_COLOR}
         onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: 38,
-          height: 34,
-          border: "1px solid #d1d5db",
-          borderRadius: 6,
-          padding: 0,
-          background: "#fff",
-          cursor: "pointer",
-          flex: "0 0 auto",
-        }}
+        style={swatchInput}
       />
       <input
         style={input}
         value={value ?? ""}
-        placeholder={placeholder ?? "#000000"}
+        placeholder={placeholder ?? DEFAULT_COLOR}
+        onFocus={onFieldFocus}
+        onBlur={onFieldBlur}
         onChange={(e) => onChange(e.target.value)}
       />
     </div>
@@ -758,6 +897,13 @@ export function BackgroundControl({
   const rec = asObj(value)
   const allowGradient = !!field.gradient
   const allowImage = !!field.allowImage
+
+  // Background > Image offered ONE thing: a raw URL box. Everywhere else in the
+  // editor an image field gives you the media library and the AI generator — but
+  // a section background, the most visual choice on the page, made you go and
+  // find a URL by hand. Same picker, same AI, same everywhere.
+  const [pickOpen, setPickOpen] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
   const type =
     typeof rec.type === "string" && rec.type ? rec.type : "color"
 
@@ -788,8 +934,8 @@ export function BackgroundControl({
       onChange({ type: "gradient" })
       return
     }
-    const c1 = nf.trim() || "#ffffff"
-    const c2 = nt.trim() || "#000000"
+    const c1 = nf.trim() || DEFAULT_GRADIENT_FROM
+    const c2 = nt.trim() || DEFAULT_GRADIENT_TO
     onChange({
       type: "gradient",
       gradientFrom: nf,
@@ -810,7 +956,7 @@ export function BackgroundControl({
   return (
     <div style={groupBox}>
       {typeOptions.length > 1 && (
-        <div style={{ marginBottom: 8 }}>
+        <div style={{ marginBottom: 12 }}>
           <Segmented options={typeOptions} value={type} onChange={setType} />
         </div>
       )}
@@ -833,7 +979,7 @@ export function BackgroundControl({
             <label style={subLabel}>Angle ({angle}°)</label>
             <input
               type="range"
-              style={{ width: "100%" }}
+              style={{ ...sliderStyle, width: "100%" }}
               min={0}
               max={360}
               step={1}
@@ -845,12 +991,80 @@ export function BackgroundControl({
       )}
 
       {type === "image" && (
-        <input
-          style={input}
-          value={rec.image ?? ""}
-          placeholder="Image URL (https://…)"
-          onChange={(e) => emitImage(e.target.value)}
-        />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {rec.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={String(rec.image)}
+              alt=""
+              style={{
+                width: "100%",
+                height: 84,
+                objectFit: "cover",
+                borderRadius: radius.md,
+                border: hairline,
+                background: grey[5],
+              }}
+            />
+          ) : null}
+
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              style={{ ...button("secondary", "sm"), flex: 1 }}
+              onClick={() => setPickOpen(true)}
+            >
+              <UiIcon name="image" size={13} />
+              Media library
+            </button>
+            <button
+              type="button"
+              style={{ ...button("secondary", "sm"), flex: 1 }}
+              onClick={() => setAiOpen(true)}
+            >
+              <UiIcon name="sparkles" size={13} />
+              Generate with AI
+            </button>
+            {rec.image ? (
+              <button
+                type="button"
+                style={{ ...iconButton("sm"), flex: "0 0 auto" }}
+                onClick={() => emitImage("")}
+                title="Remove image"
+                aria-label="Remove image"
+              >
+                <UiIcon name="x" size={12} />
+              </button>
+            ) : null}
+          </div>
+
+          <input
+            style={input}
+            value={rec.image ?? ""}
+            placeholder="…or paste an image URL"
+            onFocus={onFieldFocus}
+            onBlur={onFieldBlur}
+            onChange={(e) => emitImage(e.target.value)}
+          />
+
+          {pickOpen ? (
+            <MediaPicker
+              value={typeof rec.image === "string" ? rec.image : undefined}
+              onChange={(url: string) => emitImage(url)}
+              onClose={() => setPickOpen(false)}
+              slot="banner"
+            />
+          ) : null}
+          {aiOpen ? (
+            <MediaPicker
+              value={typeof rec.image === "string" ? rec.image : undefined}
+              onChange={(url: string) => emitImage(url)}
+              onClose={() => setAiOpen(false)}
+              slot="banner"
+              initialTab="generate"
+            />
+          ) : null}
+        </div>
       )}
     </div>
   )
@@ -963,7 +1177,7 @@ export function BoxShadowControl({
 
   return (
     <div style={groupBox}>
-      <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
         {SHADOW_FIELDS.map(({ key, label }) => (
           <div key={key} style={{ flex: 1, minWidth: 0 }}>
             <div style={caption}>{label}</div>
@@ -971,6 +1185,8 @@ export function BoxShadowControl({
               type="number"
               style={miniInput}
               value={hasNum(rec[key]) ? rec[key] : ""}
+              onFocus={onFieldFocus}
+              onBlur={onFieldBlur}
               onChange={(e) => emit({ ...rec, [key]: toNum(e.target.value) })}
             />
           </div>
@@ -983,17 +1199,19 @@ export function BoxShadowControl({
       />
       <label
         style={{
+          ...type.body,
+          fontFamily: font,
           display: "inline-flex",
           alignItems: "center",
           gap: 8,
-          fontSize: 13,
           cursor: "pointer",
-          marginTop: 8,
-          color: "#374151",
+          marginTop: 12,
+          color: grey[70],
         }}
       >
         <input
           type="checkbox"
+          style={{ accentColor: accent.base, cursor: "pointer" }}
           checked={rec.inset === true}
           onChange={(e) => emit({ ...rec, inset: e.target.checked })}
         />
@@ -1044,15 +1262,19 @@ export function CodeControl({
       spellCheck={false}
       style={{
         ...input,
+        height: "auto",
         minHeight: 90,
+        padding: "8px 10px",
         resize: "vertical",
         fontFamily:
-          'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
         fontSize: 12,
         lineHeight: 1.5,
         whiteSpace: "pre",
       }}
       value={typeof value === "string" ? value : ""}
+      onFocus={onFieldFocus}
+      onBlur={onFieldBlur}
       onChange={(e) => onChange(e.target.value)}
     />
   )
@@ -1088,19 +1310,21 @@ export function ColorControl({
   // Linked mode: a token dropdown + swatch + chain indicator.
   if (linked) {
     const ref = (value as TokenRef).ref
-    const swatchColor = activeToken?.value || "#ffffff"
+    const swatchColor = activeToken?.value || DEFAULT_GRADIENT_FROM
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <GlobeToggle
             active
             title="Linked to a global color token — click to unlink"
-            onClick={() => onChange(activeToken?.value ?? "#000000")}
+            onClick={() => onChange(activeToken?.value ?? DEFAULT_COLOR)}
           />
           <span style={{ ...swatchBox, background: swatchColor }} />
           <select
             style={{ ...input, flex: 1 }}
             value={ref}
+            onFocus={onFieldFocus}
+            onBlur={onFieldBlur}
             onChange={(e) => onChange({ ref: e.target.value })}
           >
             {/* Preserve an unknown ref so it is never silently dropped. */}
@@ -1112,7 +1336,10 @@ export function ColorControl({
             ))}
           </select>
         </div>
-        <div style={linkNote}>🔗 Linked to {activeToken?.name ?? ref}</div>
+        <div style={linkNote}>
+          <UiIcon name="external-link" size={12} />
+          Linked to {activeToken?.name ?? ref}
+        </div>
       </div>
     )
   }
@@ -1133,23 +1360,16 @@ export function ColorControl({
       )}
       <input
         type="color"
-        value={raw || "#000000"}
+        value={raw || DEFAULT_COLOR}
         onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: 38,
-          height: 34,
-          border: "1px solid #d1d5db",
-          borderRadius: 6,
-          padding: 0,
-          background: "#fff",
-          cursor: "pointer",
-          flex: "0 0 auto",
-        }}
+        style={swatchInput}
       />
       <input
         style={input}
         value={raw}
-        placeholder="#000000"
+        placeholder={DEFAULT_COLOR}
+        onFocus={onFieldFocus}
+        onBlur={onFieldBlur}
         onChange={(e) => onChange(e.target.value)}
       />
     </div>

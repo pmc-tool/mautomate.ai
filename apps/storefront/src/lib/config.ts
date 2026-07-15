@@ -34,13 +34,67 @@ export const sdk = new Medusa({
     : process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY,
 })
 
+/* ------------------------------------------------------------------ *
+ * API-route fallback for tenant resolution.
+ *
+ * The middleware injects x-tenant-pak / x-tenant-backend / x-tenant-region-id
+ * on every PAGE request — but its matcher EXCLUDES /api/*. So a route handler
+ * (the visual-editor bridges, /api/shipping-countries, …) saw none of those
+ * headers, every store query ran key-less, and e.g. the editor canvas showed
+ * zero products while the live page showed plenty. When a header is missing
+ * server-side, resolve the tenant from the request's own Host against the
+ * SAME control-plane /tenant-config the middleware uses (cached, 60s).
+ * ------------------------------------------------------------------ */
+type HostTenantCfg = {
+  publishable_key?: string | null
+  backend_url?: string | null
+  region_id?: string | null
+}
+const hostCfgCache = new Map<
+  string,
+  { cfg: HostTenantCfg | null; ts: number }
+>()
+const HOST_CFG_TTL_MS = 60_000
+
+async function tenantCfgByHost(): Promise<HostTenantCfg | null> {
+  try {
+    const { headers: nextHeaders } = await import("next/headers")
+    const h = await nextHeaders()
+    // Behind the edge proxy the Host header is rewritten to the internal
+    // listener (127.0.0.1:8601); the tenant's real domain travels in
+    // x-forwarded-host. Prefer it.
+    const host = (h.get("x-forwarded-host") ?? h.get("host") ?? "")
+      .split(",")[0]
+      .trim()
+      .split(":")[0]
+      .toLowerCase()
+    if (!host || host === "127.0.0.1" || host === "localhost") return null
+    const hit = hostCfgCache.get(host)
+    if (hit && Date.now() - hit.ts < HOST_CFG_TTL_MS) return hit.cfg
+    const base =
+      process.env.TENANT_CONFIG_URL || `${MEDUSA_BACKEND_URL}/tenant-config`
+    const res = await fetch(`${base}?host=${encodeURIComponent(host)}`, {
+      cache: "no-store",
+    })
+    const d = res.ok ? await res.json().catch(() => null) : null
+    const cfg: HostTenantCfg | null =
+      d?.publishable_key || d?.backend_url ? (d as HostTenantCfg) : null
+    hostCfgCache.set(host, { cfg, ts: Date.now() })
+    return cfg
+  } catch {
+    return null
+  }
+}
+
 /** Resolve the current request's publishable key (multi-tenant only). */
 async function resolveTenantPublishableKey(): Promise<string | undefined> {
   if (!MULTI_TENANT) return undefined
   if (typeof window === "undefined") {
     try {
       const { headers: nextHeaders } = await import("next/headers")
-      return (await nextHeaders()).get("x-tenant-pak") ?? undefined
+      const fromMw = (await nextHeaders()).get("x-tenant-pak")
+      if (fromMw) return fromMw
+      return (await tenantCfgByHost())?.publishable_key ?? undefined
     } catch {
       return undefined
     }
@@ -59,7 +113,9 @@ export async function resolveTenantBackend(): Promise<string | undefined> {
   if (typeof window === "undefined") {
     try {
       const { headers: nextHeaders } = await import("next/headers")
-      return (await nextHeaders()).get("x-tenant-backend") ?? undefined
+      const fromMw = (await nextHeaders()).get("x-tenant-backend")
+      if (fromMw) return fromMw
+      return (await tenantCfgByHost())?.backend_url ?? undefined
     } catch {
       return undefined
     }
@@ -82,7 +138,9 @@ export async function resolveTenantRegionId(): Promise<string | undefined> {
   if (typeof window === "undefined") {
     try {
       const { headers: nextHeaders } = await import("next/headers")
-      return (await nextHeaders()).get("x-tenant-region-id") ?? undefined
+      const fromMw = (await nextHeaders()).get("x-tenant-region-id")
+      if (fromMw) return fromMw
+      return (await tenantCfgByHost())?.region_id ?? undefined
     } catch {
       return undefined
     }

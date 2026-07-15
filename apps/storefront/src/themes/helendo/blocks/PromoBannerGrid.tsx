@@ -96,6 +96,7 @@ function BannerTile({
   href,
   linkLabel,
   wide,
+  "data-el-item": dataElItem,
 }: {
   title: string
   kicker?: string
@@ -103,9 +104,14 @@ function BannerTile({
   href: string
   linkLabel?: string
   wide?: boolean
+  "data-el-item"?: string
 }) {
   return (
-    <div className={wide ? "col-lg-12" : "col-lg-6"}>
+    <div
+      data-el="item"
+      data-el-item={dataElItem}
+      className={wide ? "col-lg-12" : "col-lg-6"}
+    >
       <div className="banner-images-one mt-30" style={{ position: "relative" }}>
         <TileLink href={href} className="thumbnail">
           <img src={image} className="img-fluid w-100" alt={title} />
@@ -116,7 +122,7 @@ function BannerTile({
           </h3>
           {kicker ? <h6>{kicker}</h6> : null}
           {linkLabel ? (
-            <div className="button-box section-space--mt_60">
+            <div data-el="button" className="button-box section-space--mt_60">
               <TileLink href={href} className="text-btn-normal">
                 {linkLabel} <i className="icon-arrow-right" />
               </TileLink>
@@ -135,8 +141,9 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
   // Preserve the shared content order: intro (section header), sale, the
   // regular (non-wide) category tiles, the instagram banner, then the wide
   // tiles — same order the Cignet renderer uses.
-  const regularCats = categories.filter((c) => !c.wide)
-  const wideCats = categories.filter((c) => c.wide)
+  const indexedCats = categories.map((cat, i) => ({ cat, i }))
+  const regularCats = indexedCats.filter(({ cat }) => !cat.wide)
+  const wideCats = indexedCats.filter(({ cat }) => cat.wide)
 
   // Nothing to render -> render null (mirror the original empty guards).
   if (!intro && !sale && !instagram && categories.length === 0) {
@@ -150,12 +157,15 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           <div className="row">
             <div className="col-lg-12">
               <div className="section-title text-center mb-20">
-                <h2 className="section-title--one section-title--center">
+                <h2
+                  data-el="title"
+                  className="section-title--one section-title--center"
+                >
                   {intro.title}
                 </h2>
                 {intro.body ? <p className="mt-30">{intro.body}</p> : null}
                 {intro.href && intro.link_label ? (
-                  <div className="button-box mt-30">
+                  <div data-el="button" className="button-box mt-30">
                     <TileLink href={intro.href} className="text-btn-normal">
                       {intro.link_label} <i className="icon-arrow-right" />
                     </TileLink>
@@ -179,12 +189,13 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Regular category tiles */}
-          {regularCats.map((cat, i) => (
+          {regularCats.map(({ cat, i }, pos) => (
             <BannerTile
               key={`reg-${i}`}
+              data-el-item={`categories:${i}`}
               title={cat.title}
               kicker={cat.count_label}
-              image={tileImage(cat.image, sale ? i + 1 : i)}
+              image={tileImage(cat.image, sale ? pos + 1 : pos)}
               href={cat.href}
               linkLabel="Shop now"
             />
@@ -202,12 +213,13 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Wide category tiles */}
-          {wideCats.map((cat, i) => (
+          {wideCats.map(({ cat, i }, pos) => (
             <BannerTile
               key={`wide-${i}`}
+              data-el-item={`categories:${i}`}
               title={cat.title}
               kicker={cat.count_label}
-              image={tileImage(cat.image, i)}
+              image={tileImage(cat.image, pos)}
               href={cat.href}
               linkLabel="Shop now"
               wide

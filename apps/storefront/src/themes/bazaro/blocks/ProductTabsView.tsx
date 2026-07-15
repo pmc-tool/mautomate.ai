@@ -128,7 +128,7 @@ const ProductCard = ({ product }: { product: HttpTypes.StoreProduct }) => {
   const href = `/products/${product.handle}`
 
   return (
-    <div className="aq-product-item aq-product-main mb-60">
+    <div data-el="card" className="aq-product-item aq-product-main mb-60">
       <div className="aq-product-thumb aq-img-hover-wrap p-relative mb-10">
         {badge ? (
           <div className="aq-product-badge">
@@ -223,9 +223,9 @@ const tabCss = (scope: string, count: number): string => {
 }
 
 const ProductTabsView = (props: ProductTabsViewProps) => {
-  const groups = (Array.isArray(props.groups) ? props.groups : []).filter(
-    (group) => group.products.length > 0
-  )
+  const groups = (Array.isArray(props.groups) ? props.groups : [])
+    .map((group, i) => ({ group, i }))
+    .filter(({ group }) => group.products.length > 0)
 
   if (!groups.length) {
     return null
@@ -260,7 +260,7 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
           ) : null}
 
           {multi
-            ? groups.map((group, i) => (
+            ? groups.map(({ group }, i) => (
                 <input
                   key={`radio-${i}`}
                   type="radio"
@@ -288,8 +288,13 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
               {multi ? (
                 <div className="col-md-6">
                   <div className="aq-product-tab-btn text-center text-md-end mb-15">
-                    {groups.map((group, i) => (
-                      <label key={`pill-${i}`} htmlFor={`${scope}-tab-${i}`}>
+                    {groups.map(({ group, i: tabIndex }, i) => (
+                      <label
+                        data-el="tab"
+                        data-el-item={`tabs:${tabIndex}`}
+                        key={`pill-${tabIndex}`}
+                        htmlFor={`${scope}-tab-${i}`}
+                      >
                         {group.label}
                       </label>
                     ))}
@@ -300,7 +305,7 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
           </div>
 
           <div className="tab-content">
-            {groups.map((group, i) => (
+            {groups.map(({ group }, i) => (
               <div
                 key={group.label || i}
                 className={

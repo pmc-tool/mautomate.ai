@@ -1,4 +1,11 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef } from "react"
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 
 import NativeSelect, {
   NativeSelectProps,
@@ -37,6 +44,30 @@ const CountrySelect = forwardRef<
 >(({ placeholder = "Country", region, defaultValue, ...props }, ref) => {
   const innerRef = useRef<HTMLSelectElement>(null)
 
+  // The countries this store can actually DELIVER to. Pooled tenants share a
+  // region that lists every country on earth, so without this the form offered
+  // countries the merchant has no shipping option for — the shopper picked one,
+  // reached Delivery, saw no shipping method, and "Continue to payment" never
+  // enabled. Do not offer what cannot be shipped.
+  const [shippable, setShippable] = useState<string[] | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/shipping-countries", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && Array.isArray(d?.countries)) {
+          setShippable(d.countries)
+        }
+      })
+      .catch(() => {
+        // Unknown coverage -> fall back to the full list rather than locking the
+        // shopper out of checkout entirely.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   useImperativeHandle<HTMLSelectElement | null, HTMLSelectElement | null>(
     ref,
     () => innerRef.current
@@ -49,11 +80,23 @@ const CountrySelect = forwardRef<
     }))
     // Fall back to the full static list when the region has no countries
     // assigned (the norm in this multi-tenant setup).
-    if (fromRegion && fromRegion.length > 0) {
-      return fromRegion
+    const base =
+      fromRegion && fromRegion.length > 0 ? fromRegion : STATIC_COUNTRY_OPTIONS
+
+    // Narrow to what the store can actually ship. An EMPTY coverage list means
+    // delivery is not configured at all — in that case show everything rather
+    // than an empty dropdown, and let the merchant's checklist do the shouting.
+    if (shippable && shippable.length > 0) {
+      const allowed = new Set(shippable)
+      const narrowed = base.filter((o) =>
+        allowed.has(String(o.value).toLowerCase())
+      )
+      if (narrowed.length > 0) {
+        return narrowed
+      }
     }
-    return STATIC_COUNTRY_OPTIONS
-  }, [region])
+    return base
+  }, [region, shippable])
 
   return (
     <NativeSelect

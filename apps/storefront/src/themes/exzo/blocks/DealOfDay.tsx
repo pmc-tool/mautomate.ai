@@ -110,8 +110,11 @@ const DealOfDay = (props: DealOfDayData) => {
             <div className="simple-article size-3 grey uppercase col-xs-b5">
               Limited time offer
             </div>
-            <h3 className="h3 col-xs-b15">{title}</h3>
+            <h3 data-el="title" className="h3 col-xs-b15">
+              {title}
+            </h3>
             <div
+              data-el="countdown"
               className="countdown max-width col-xs-b20"
               style={{ display: "flex", gap: 10 }}
             >
@@ -121,13 +124,17 @@ const DealOfDay = (props: DealOfDayData) => {
               <Cell value={seconds} label="Sec" />
             </div>
             {props.description ? (
-              <div className="simple-article size-3 col-xs-b30">
+              <div
+                data-el="text"
+                className="simple-article size-3 col-xs-b30"
+              >
                 {props.description}
               </div>
             ) : null}
             {cta?.href ? (
               <div className="buttons-wrapper">
                 <LocalizedClientLink
+                  data-el="button"
                   href={cta.href}
                   className="button size-2 style-3"
                 >

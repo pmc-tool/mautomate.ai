@@ -88,6 +88,8 @@ const HeroSlider = (props: HeroSliderData) => {
         {slides.map((slide, i) => (
           <div
             key={i}
+            data-el="image"
+            data-el-item={`slides:${i}`}
             className="ec-slide-item d-flex"
             style={{
               gridArea: "1 / 1",
@@ -109,15 +111,18 @@ const HeroSlider = (props: HeroSliderData) => {
                 <div className="col-xl-6 col-lg-7 col-md-7 col-sm-7 align-self-center">
                   {/* Slide Content Start */}
                   <div className="ec-slide-content">
-                    <h1 className="ec-slide-title">
+                    <h1 data-el="title" className="ec-slide-title">
                       {renderTitle(slide.title)}
                     </h1>
                     {slide.subtitle ? (
-                      <h2 className="ec-slide-stitle">{slide.subtitle}</h2>
+                      <h2 data-el="kicker" className="ec-slide-stitle">
+                        {slide.subtitle}
+                      </h2>
                     ) : null}
                     {slide.text ? <p>{slide.text}</p> : null}
                     <LocalizedClientLink
                       href={slide.cta?.href || "/store"}
+                      data-el="button"
                       className="btn btn-lg btn-secondary"
                     >
                       {slide.cta?.label || "Order Now"}

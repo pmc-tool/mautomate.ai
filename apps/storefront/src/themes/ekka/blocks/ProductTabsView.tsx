@@ -47,7 +47,10 @@ const ProductCard = ({ product }: { product: HttpTypes.StoreProduct }) => {
   const href = `/products/${product.handle}`
 
   return (
-    <div className="col-lg-3 col-md-6 col-sm-6 col-xs-6 mb-6 ec-product-content">
+    <div
+      data-el="card"
+      className="col-lg-3 col-md-6 col-sm-6 col-xs-6 mb-6 ec-product-content"
+    >
       <div className="ec-product-inner">
         {/* Product Image Start */}
         <div className="ec-pro-image-outer">
@@ -148,9 +151,9 @@ const tabCss = (scope: string, count: number): string => {
 }
 
 const ProductTabsView = (props: ProductTabsViewProps) => {
-  const groups = (Array.isArray(props.groups) ? props.groups : []).filter(
-    (group) => group.products.length > 0
-  )
+  const groups = (Array.isArray(props.groups) ? props.groups : [])
+    .map((group, i) => ({ group, i }))
+    .filter(({ group }) => group.products.length > 0)
 
   if (!groups.length) {
     return null
@@ -199,14 +202,14 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
           ) : null}
 
           {multi
-            ? groups.map((group, i) => (
+            ? groups.map(({ group }, idx) => (
                 <input
-                  key={`radio-${i}`}
+                  key={`radio-${idx}`}
                   type="radio"
-                  id={`${scope}-tab-${i}`}
+                  id={`${scope}-tab-${idx}`}
                   name={`${scope}-tabs`}
                   className="ekka-tabs-radio"
-                  defaultChecked={i === 0}
+                  defaultChecked={idx === 0}
                   aria-label={group.label}
                 />
               ))
@@ -217,10 +220,15 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
               <div className="col-md-12 text-center">
                 {/* Tab Start */}
                 <ul className="ec-pro-tab-nav nav justify-content-center">
-                  {groups.map((group, i) => (
-                    <li className="nav-item" key={`pill-${i}`}>
+                  {groups.map(({ group, i }, idx) => (
+                    <li
+                      data-el="tab"
+                      data-el-item={`tabs:${i}`}
+                      className="nav-item"
+                      key={`pill-${idx}`}
+                    >
                       <label
-                        htmlFor={`${scope}-tab-${i}`}
+                        htmlFor={`${scope}-tab-${idx}`}
                         className="nav-link"
                       >
                         {group.label}
@@ -234,10 +242,10 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
           ) : null}
 
           <div className="ekka-tab-panels">
-            {groups.map((group, i) => (
+            {groups.map(({ group }, idx) => (
               <div
-                key={group.label || i}
-                className={`row ekka-tab-panel ekka-tab-panel-${i}`}
+                key={group.label || idx}
+                className={`row ekka-tab-panel ekka-tab-panel-${idx}`}
               >
                 {group.products.map((product) => (
                   <ProductCard key={product.id} product={product} />

@@ -55,7 +55,7 @@ export interface PromoBannerGridData {
   [key: string]: unknown
 }
 
-function CategoryTile({ cat }: { cat: PromoCategoryTile }) {
+function CategoryTile({ cat, index }: { cat: PromoCategoryTile; index: number }) {
   const colClass = cat.wide
     ? "col-xxl-6 col-xl-8 col-12 learts-mb-30"
     : "col-xxl-3 col-xl-4 col-md-6 col-12 learts-mb-30"
@@ -67,18 +67,34 @@ function CategoryTile({ cat }: { cat: PromoCategoryTile }) {
   // chooses crop (cover) vs. show-whole-image (contain).
   const fixedHeight =
     typeof cat.height === "number" && cat.height > 0 ? cat.height : null
+  const fit = cat.fit ?? "cover"
+
+  // "contain" + a forced aspect ratio is letterboxing, and letterboxing is where
+  // the huge empty gaps came from: a wide photo scaled to fit INSIDE a square
+  // tile leaves most of that square blank, on the live site and in the editor
+  // alike (which then makes the tile a big dead target that is miserable to
+  // click). So when the owner asks to see the WHOLE image and has not pinned a
+  // height, the tile hugs the image instead of boxing it — the image defines the
+  // height, and there is no dead space to leave behind.
+  const hugImage = !fixedHeight && fit === "contain"
+
   const imageStyle: CSSProperties = fixedHeight
     ? { height: `${fixedHeight}px` }
-    : { aspectRatio: cat.wide ? "845 / 407" : "1 / 1" }
-  const imgStyle: CSSProperties = {
-    width: "100%",
-    height: "100%",
-    objectFit: cat.fit ?? "cover",
-    objectPosition: "center",
-  }
+    : hugImage
+      ? {}
+      : { aspectRatio: cat.wide ? "845 / 407" : "1 / 1" }
+
+  const imgStyle: CSSProperties = hugImage
+    ? { width: "100%", height: "auto", display: "block" }
+    : {
+        width: "100%",
+        height: "100%",
+        objectFit: fit,
+        objectPosition: "center",
+      }
 
   return (
-    <div className={colClass}>
+    <div className={colClass} data-el-item={`categories:${index}`}>
       <div className="category-banner3" data-el="item">
         <LocalizedClientLink href={cat.href} className="inner">
           <div className="image" style={imageStyle}>
@@ -104,8 +120,9 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
 
   // Preserve the original Learts DOM order: intro, sale, the regular
   // (non-wide) category tiles, the instagram banner, then the wide tiles.
-  const regularCats = categories.filter((c) => !c.wide)
-  const wideCats = categories.filter((c) => c.wide)
+  const indexed = categories.map((cat, i) => ({ cat, i }))
+  const regularCats = indexed.filter(({ cat }) => !cat.wide)
+  const wideCats = indexed.filter(({ cat }) => cat.wide)
 
   return (
     <div className="section section-fluid learts-pt-30 bg-white learts-theme">
@@ -114,13 +131,13 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           {/* Intro blockquote */}
           {intro ? (
             <div className="col-xxl-6 col-xl-8 col-12 learts-mb-30">
-              <div className="learts-blockquote">
+              <div className="learts-blockquote" data-el="intro">
                 <div className="inner">
                   <h2 className="title" data-el="title">
                     {intro.title}
                   </h2>
                   {intro.body ? (
-                    <div className="desc">
+                    <div className="desc" data-el="body">
                       <p>{intro.body}</p>
                     </div>
                   ) : null}
@@ -141,7 +158,7 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           {/* Spring sale banner */}
           {sale ? (
             <div className="col-xxl-3 col-xl-4 col-md-6 col-12 learts-mb-30">
-              <div className="sale-banner3-1">
+              <div className="sale-banner3-1" data-el="sale">
                 <div className="image">
                   <img src={sale.image} alt={sale.title} />
                 </div>
@@ -161,14 +178,14 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Regular category tiles */}
-          {regularCats.map((cat, i) => (
-            <CategoryTile key={`reg-${i}`} cat={cat} />
+          {regularCats.map(({ cat, i }) => (
+            <CategoryTile key={`reg-${i}`} cat={cat} index={i} />
           ))}
 
           {/* Instagram */}
           {instagram ? (
             <div className="col-xxl-3 col-xl-4 col-md-6 col-12 order-xxl-6 learts-mb-30">
-              <div className="instagram-banner1">
+              <div className="instagram-banner1" data-el="instagram">
                 <div className="inner">
                   <div className="image">
                     <img src={instagram.image} alt={instagram.handle} />
@@ -190,8 +207,8 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Wide category tiles (e.g. Toys) */}
-          {wideCats.map((cat, i) => (
-            <CategoryTile key={`wide-${i}`} cat={cat} />
+          {wideCats.map(({ cat, i }) => (
+            <CategoryTile key={`wide-${i}`} cat={cat} index={i} />
           ))}
         </div>
       </div>

@@ -17,7 +17,7 @@ export default async function LeartsActionsWrapper({
     queryParams: {
       id: [id],
       fields:
-        "*variants.calculated_price,+variants.inventory_quantity,*variants.options,*options,*options.values,*categories,+tags,*images,description,title,handle",
+        "*variants.calculated_price,+variants.inventory_quantity,*variants.options,*options,*options.values,*categories,+tags,*images,images.variants.id,variants.thumbnail,description,title,handle",
     } as any,
     regionId: region.id,
   }).then(({ response }) => response.products[0])

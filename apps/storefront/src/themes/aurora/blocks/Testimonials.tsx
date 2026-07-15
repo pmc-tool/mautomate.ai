@@ -45,9 +45,9 @@ function Initial({ author }: { author: string }) {
   )
 }
 
-function TestimonialCard({ item }: { item: TestimonialItem }) {
+function TestimonialCard({ item, index }: { item: TestimonialItem; index: number }) {
   return (
-    <figure className="flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm transition hover:shadow-md">
+    <figure data-el="item" data-el-item={`items:${index}`} className="flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm transition hover:shadow-md">
       <span
         className="mb-6 inline-flex"
         style={{ color: "var(--aurora-accent)" }}
@@ -55,7 +55,7 @@ function TestimonialCard({ item }: { item: TestimonialItem }) {
         <QuoteMark />
       </span>
       {item.quote ? (
-        <blockquote className="flex-1 text-base leading-relaxed text-neutral-900">
+        <blockquote data-el="quote" className="flex-1 text-base leading-relaxed text-neutral-900">
           {item.quote}
         </blockquote>
       ) : (
@@ -72,7 +72,7 @@ function TestimonialCard({ item }: { item: TestimonialItem }) {
           <Initial author={item.author} />
         )}
         <div className="min-w-0">
-          <span className="block truncate text-sm font-medium text-neutral-900">
+          <span data-el="author" className="block truncate text-sm font-medium text-neutral-900">
             {item.author}
           </span>
           {item.role ? (
@@ -108,7 +108,7 @@ const Testimonials = (props: TestimonialsData) => {
         ) : null}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {items.map((item, i) => (
-            <TestimonialCard item={item} key={i} />
+            <TestimonialCard item={item} index={i} key={i} />
           ))}
         </div>
       </div>

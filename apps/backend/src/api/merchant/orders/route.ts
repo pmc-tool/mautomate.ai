@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { resolveMerchant } from "../_helpers"
-import { paymentStatusFrom, fulfillmentStatusFrom } from "./_status"
+import { paymentStatusFrom, fulfillmentStatusFrom, orderMoneyFor } from "./_status"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
@@ -48,6 +48,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     pagination: { take: 200, skip: 0, order: { created_at: "DESC" } } as any,
   })
 
+  // The graph's `total` is computed off line-item quantities it reads as 0, so it
+  // reports shipping-only totals. Read the real figures from the order's latest
+  // version before anything is shown to a merchant.
+  const money = await orderMoneyFor(
+    req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION),
+    (data || []).map((o: any) => o.id)
+  )
+
   let orders = (data || []).map((o: any) => ({
     id: o.id,
     display_id: o.display_id,
@@ -59,10 +67,13 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       ? [o.customer.first_name, o.customer.last_name].filter(Boolean).join(" ") || undefined
       : undefined,
     currency_code: o.currency_code,
-    total: Number(o.total ?? 0),
+    total: money.get(o.id)?.total ?? Number(o.total ?? 0),
     created_at: o.created_at,
     country_code: o.shipping_address?.country_code ?? null,
-    item_count: (o.items || []).reduce((s: number, i: any) => s + Number(i.quantity ?? 0), 0),
+    item_count: (o.items || []).reduce((s: number, i: any) => {
+      const q = money.get(o.id)?.quantities.get(i.id)
+      return s + (q ?? Number(i.quantity ?? 0))
+    }, 0),
   }))
 
   if (q) {

@@ -40,6 +40,10 @@ export default function BillingPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [busyPack, setBusyPack] = useState<number | null>(null)
   const [busyPlan, setBusyPlan] = useState<string | null>(null)
+  const [histOffset, setHistOffset] = useState(0)
+  const [histMore, setHistMore] = useState(false)
+  const [histBusy, setHistBusy] = useState(false)
+  const HIST_PAGE = 20
 
   const load = useCallback(async () => {
     if (!token) return
@@ -48,10 +52,12 @@ export default function BillingPage() {
     try {
       const [o, c] = await Promise.all([
         getBillingOverview(token),
-        getCredits(token).catch(() => null),
+        getCredits(token, { limit: HIST_PAGE, offset: 0 }).catch(() => null),
       ])
       setOv(o)
       setCredits(c)
+      setHistOffset(0)
+      setHistMore(!!c?.has_more)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load billing")
     } finally {
@@ -62,6 +68,25 @@ export default function BillingPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  const loadMoreHistory = async () => {
+    if (!token || !credits || histBusy) return
+    setHistBusy(true)
+    try {
+      const next = histOffset + HIST_PAGE
+      const more = await getCredits(token, { limit: HIST_PAGE, offset: next })
+      setCredits({
+        ...credits,
+        transactions: [...credits.transactions, ...more.transactions],
+      })
+      setHistOffset(next)
+      setHistMore(!!more.has_more)
+    } catch {
+      /* keep what we have */
+    } finally {
+      setHistBusy(false)
+    }
+  }
 
   const buy = async (credits: number, amount_usd: number, idx: number) => {
     if (!token) return
@@ -151,6 +176,76 @@ export default function BillingPage() {
             </div>
           )}
 
+          {/* ---- Balance hero: the two buckets, front and centre ---- */}
+          <div className="relative overflow-hidden rounded-2xl border border-grey-20 bg-gradient-to-br from-grey-90 via-grey-80 to-grey-90 p-6 text-white shadow-lg">
+            <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/5" />
+            <div className="pointer-events-none absolute -bottom-24 right-24 h-48 w-48 rounded-full bg-white/5" />
+            <div className="relative flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-widest text-white/60">
+                  Available AI credits
+                </p>
+                <p className="mt-1 text-5xl font-bold tabular-nums">
+                  {nf(ov.credits?.total ?? balance)}
+                </p>
+                {ov.wallet.reserved > 0 && (
+                  <p className="mt-1 text-sm text-white/60">
+                    {nf(ov.wallet.reserved)} credits on hold
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col gap-2 text-sm">
+                {(ov.credits?.expiring ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-amber-400/15 px-3 py-1.5 font-medium text-amber-300 ring-1 ring-inset ring-amber-400/30">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    {nf(ov.credits!.expiring)} plan credits
+                    {ov.credits?.next_expiry
+                      ? ` · expire ${new Date(ov.credits.next_expiry).toLocaleDateString()}`
+                      : ""}
+                  </span>
+                )}
+                {(ov.credits?.purchased ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/15 px-3 py-1.5 font-medium text-emerald-300 ring-1 ring-inset ring-emerald-400/30">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    {nf(ov.credits!.purchased)} purchased · never expire
+                  </span>
+                )}
+                <div className="mt-1 flex gap-2">
+                  <a
+                    href="#packs"
+                    className="rounded-lg bg-white px-4 py-2 text-center text-sm font-semibold text-grey-90 transition hover:bg-grey-10"
+                  >
+                    Buy credits
+                  </a>
+                  <a
+                    href="#plans"
+                    className="rounded-lg border border-white/25 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-white/10"
+                  >
+                    Change plan
+                  </a>
+                </div>
+              </div>
+            </div>
+            {ov.allowance.included > 0 && (
+              <div className="relative mt-5">
+                <div className="mb-1 flex justify-between text-xs text-white/60">
+                  <span>Monthly allowance</span>
+                  <span>
+                    {nf(Math.round(ov.allowance.used_this_cycle))} / {nf(ov.allowance.included)} used
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/15">
+                  <div
+                    className="h-full rounded-full bg-white"
+                    style={{
+                      width: `${Math.min(100, (ov.allowance.used_this_cycle / ov.allowance.included) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Plan + Credits side by side */}
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Current plan */}
@@ -197,6 +292,7 @@ export default function BillingPage() {
 
             {/* AI Credits */}
             <SectionCard
+              id="packs"
               title="AI credits"
               description="Spent on AI calls, content, chatbot and SMS."
             >
@@ -209,7 +305,7 @@ export default function BillingPage() {
                         credits
                       </span>
                     </p>
-                    <p className="text-sm text-grey-50">≈ {usd(balance, rate)}</p>
+
                   </div>
                   {ov.wallet.reserved > 0 && (
                     <p className="text-xs text-grey-50">
@@ -305,7 +401,7 @@ export default function BillingPage() {
                       <th className="py-2 font-medium">Feature</th>
                       <th className="py-2 text-right font-medium">Units</th>
                       <th className="py-2 text-right font-medium">Credits</th>
-                      <th className="py-2 text-right font-medium">≈ Cost</th>
+
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-grey-10">
@@ -318,9 +414,6 @@ export default function BillingPage() {
                         <td className="py-2 text-right text-grey-90">
                           {nf(Math.round(u.credits))}
                         </td>
-                        <td className="py-2 text-right text-grey-60">
-                          {usd(u.credits, rate)}
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -331,6 +424,7 @@ export default function BillingPage() {
 
           {/* Compare / change plan */}
           <SectionCard
+            id="plans"
             title="Plans"
             description="Upgrade or downgrade your subscription."
           >
@@ -415,7 +509,7 @@ export default function BillingPage() {
                   <thead className="text-grey-50">
                     <tr className="border-b border-grey-10 text-left">
                       <th className="py-2 font-medium">Date</th>
-                      <th className="py-2 font-medium">Type</th>
+                      <th className="py-2 font-medium">Activity</th>
                       <th className="py-2 text-right font-medium">Credits</th>
                     </tr>
                   </thead>
@@ -425,8 +519,8 @@ export default function BillingPage() {
                         <td className="py-2 text-grey-60">
                           {new Date(t.created_at).toLocaleDateString()}
                         </td>
-                        <td className="py-2 capitalize text-grey-90">
-                          {t.type}
+                        <td className="py-2 text-grey-90">
+                          {(t as any).label ?? t.type}
                         </td>
                         <td
                           className={cn(
@@ -441,6 +535,20 @@ export default function BillingPage() {
                     ))}
                   </tbody>
                 </table>
+                {histMore && (
+                  <button
+                    onClick={loadMoreHistory}
+                    disabled={histBusy}
+                    className="mt-3 w-full rounded-lg border border-grey-20 py-2 text-sm font-medium text-grey-70 transition hover:bg-grey-10 disabled:opacity-50"
+                  >
+                    {histBusy ? "Loading…" : "Load more"}
+                  </button>
+                )}
+                {credits?.count ? (
+                  <p className="mt-2 text-center text-xs text-grey-50">
+                    Showing {credits.transactions.length} of {credits.count}
+                  </p>
+                ) : null}
               </div>
             )}
           </SectionCard>

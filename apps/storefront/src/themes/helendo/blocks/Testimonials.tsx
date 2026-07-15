@@ -106,9 +106,14 @@ const Testimonials = (props: TestimonialsData) => {
 
         <div className="row justify-content-center">
           <div className="col-lg-8">
-            <div className="text-center mt-30">
+            <div
+              data-el="item"
+              data-el-item={`items:${active}`}
+              className="text-center mt-30"
+            >
               <Stars count={starCount(item.rating)} />
               <blockquote
+                data-el="quote"
                 style={{
                   margin: "30px 0 0",
                   fontFamily: '"Roboto", sans-serif',
@@ -134,6 +139,7 @@ const Testimonials = (props: TestimonialsData) => {
                 />
               ) : null}
               <h6
+                data-el="author"
                 className="sub-heading"
                 style={{
                   marginTop: item.avatar ? "15px" : "30px",

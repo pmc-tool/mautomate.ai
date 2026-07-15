@@ -92,12 +92,16 @@ const Testimonials = (props: TestimonialsData) => {
               ) : null}
               <div className="row justify-content-center">
                 <div className="col-xl-8 col-lg-8 col-md-10">
-                  <div className="tp-testimonial-item text-center mb-20">
+                  <div
+                    data-el="item"
+                    data-el-item={`items:${active}`}
+                    className="tp-testimonial-item text-center mb-20"
+                  >
                     <div className="tp-testimonial-rating">
                       <Stars count={starCount(item.rating)} />
                     </div>
                     <div className="tp-testimonial-content">
-                      <p>&ldquo;{item.quote}&rdquo;</p>
+                      <p data-el="quote">&ldquo;{item.quote}&rdquo;</p>
                     </div>
                     <div className="tp-testimonial-user-wrapper d-flex align-items-center justify-content-center">
                       <div className="tp-testimonial-user d-flex align-items-center">
@@ -105,7 +109,7 @@ const Testimonials = (props: TestimonialsData) => {
                           <img src={avatar} alt={item.author} />
                         </div>
                         <div className="tp-testimonial-user-info tp-testimonial-user-translate">
-                          <h3 className="tp-testimonial-user-title">
+                          <h3 data-el="author" className="tp-testimonial-user-title">
                             {item.author}
                           </h3>
                           {item.role ? (

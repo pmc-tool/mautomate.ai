@@ -9,7 +9,7 @@
 /* ------------------------------------------------------------------ */
 
 import { NextRequest, NextResponse } from "next/server"
-import { EDITOR_KEY_COOKIE, isValidEditorKey } from "@lib/util/secret"
+import { EDITOR_KEY_COOKIE, isValidEditorKeyForRequest } from "@lib/util/secret"
 import { requestOrigin } from "@lib/util/request-origin"
 
 /** Cookie lifetime — matches the 8h TTL of the admin-minted token. */
@@ -25,7 +25,7 @@ function isHttpsRequest(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   const key = req.nextUrl.searchParams.get("key")
-  if (!key || !isValidEditorKey(key)) {
+  if (!key || !(await isValidEditorKeyForRequest(key, req))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 

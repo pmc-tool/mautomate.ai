@@ -19,7 +19,16 @@ const DomainOrder = model
     price: model.number().nullable(),
     currency: model.text().nullable(),
     status: model
-      .enum(["pending", "processing", "success", "failed"])
+      .enum([
+        // A domain is bought with REAL MONEY (registrar invoice), never credits.
+        // The order waits here until the card payment clears.
+        "awaiting_payment",
+        "pending",
+        "processing",
+        "success",
+        "failed",
+        "cancelled",
+      ])
       .default("pending"),
     reseller_order_id: model.text().nullable(),
     reseller_action_id: model.text().nullable(),

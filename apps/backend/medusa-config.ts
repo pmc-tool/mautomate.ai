@@ -105,6 +105,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/cms",
     },
     {
+      resolve: "./src/modules/theme",
+    },
+    {
       resolve: "./src/modules/call-center",
     },
     {

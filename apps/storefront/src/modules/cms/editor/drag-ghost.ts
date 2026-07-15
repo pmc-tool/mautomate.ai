@@ -1,3 +1,5 @@
+import { font, ink, radius, shadow } from "./design"
+
 /** Compact card drag-image (WS5) — a small dark chip instead of the full DOM node. */
 export function setCardDragImage(e: React.DragEvent, label: string) {
   try {
@@ -8,11 +10,11 @@ export function setCardDragImage(e: React.DragEvent, label: string) {
       top: "-1000px",
       left: "-1000px",
       padding: "6px 12px",
-      background: "#26292c",
-      color: "#fff",
-      font: "600 12px system-ui, sans-serif",
-      borderRadius: "4px",
-      boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+      background: ink.base,
+      color: ink.text,
+      font: `600 12px ${font}`,
+      borderRadius: `${radius.md}px`,
+      boxShadow: shadow.chip,
       zIndex: "2147483647",
     })
     document.body.appendChild(el)

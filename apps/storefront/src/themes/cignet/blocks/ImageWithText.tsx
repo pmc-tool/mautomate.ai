@@ -104,6 +104,7 @@ const ImageWithText = (props: ImageWithTextData) => {
       <div className="position-relative">
         <figure className="image-anime" style={{ marginBottom: 0 }}>
           <img
+            data-el="image"
             src={image}
             alt={title}
             className="img-fluid w-100"
@@ -140,14 +141,22 @@ const ImageWithText = (props: ImageWithTextData) => {
           </span>
         ) : null}
         {title ? (
-          <h2 className="text-anime-style-3">{renderTitle(title)}</h2>
+          <h2 data-el="heading" className="text-anime-style-3">{renderTitle(title)}</h2>
         ) : null}
-        {props.body ? <p className="wow fadeInUp">{props.body}</p> : null}
+        {props.body ? (
+          <p data-el="text" className="wow fadeInUp">
+            {props.body}
+          </p>
+        ) : null}
       </div>
       {/* Section Title End */}
       {props.cta?.href ? (
         <div className="wow fadeInUp" style={{ marginTop: "30px" }}>
-          <LocalizedClientLink href={props.cta.href} className="btn-default">
+          <LocalizedClientLink
+            data-el="button"
+            href={props.cta.href}
+            className="btn-default"
+          >
             {props.cta.label || "Shop now"}
           </LocalizedClientLink>
         </div>

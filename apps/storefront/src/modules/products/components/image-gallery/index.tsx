@@ -1,20 +1,51 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { HttpTypes } from "@medusajs/types"
+
+import {
+  getServerVariantSelection,
+  getVariantSelection,
+  imagesForVariant,
+  subscribeVariantSelection,
+} from "@modules/products/variant-gallery"
 
 type ImageGalleryProps = {
   images: HttpTypes.StoreProductImage[]
+  /** Enables per-variant filtering. Without it the gallery behaves as before. */
+  productId?: string
 }
 
-const ImageGallery = ({ images }: ImageGalleryProps) => {
+const ImageGallery = ({ images, productId }: ImageGalleryProps) => {
   const [active, setActive] = useState(0)
 
-  if (!images?.length) {
+  // The variant the shopper has picked (published by ProductActions). On the
+  // server this is always null, so the first paint shows the full gallery and
+  // hydration is stable.
+  const selection = useSyncExternalStore(
+    subscribeVariantSelection,
+    getVariantSelection,
+    getServerVariantSelection
+  )
+  const selectedVariantId =
+    productId && selection?.productId === productId ? selection.variantId : null
+
+  const shown = useMemo(
+    () => imagesForVariant(images as any, selectedVariantId) as typeof images,
+    [images, selectedVariantId]
+  )
+
+  // Picking a different variant re-frames the gallery — start at its first
+  // photo instead of holding an index that now points at someone else's image.
+  useEffect(() => {
+    setActive(0)
+  }, [selectedVariantId])
+
+  if (!shown?.length) {
     return null
   }
 
-  const main = images[Math.min(active, images.length - 1)]
+  const main = shown[Math.min(active, shown.length - 1)]
 
   return (
     <div className="learts-product-gallery">
@@ -48,7 +79,7 @@ const ImageGallery = ({ images }: ImageGalleryProps) => {
       </div>
 
       {/* Thumbnails */}
-      {images.length > 1 && (
+      {shown.length > 1 && (
         <div
           className="learts-gallery-thumbs"
           style={{
@@ -58,7 +89,7 @@ const ImageGallery = ({ images }: ImageGalleryProps) => {
             flexWrap: "wrap",
           }}
         >
-          {images.map((image, index) => (
+          {shown.map((image, index) => (
             <button
               key={image.id}
               type="button"

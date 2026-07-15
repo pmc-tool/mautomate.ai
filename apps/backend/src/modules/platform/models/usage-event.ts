@@ -11,10 +11,11 @@ const UsageEvent = model
     id: model.id({ prefix: "uevt" }).primaryKey(),
     tenant_id: model.text(),
     action: model.text(), // e.g. ai_call_minute, sms_segment, ai_image
-    units: model.number().default(1),
+    units: model.float().default(1),
     credits: model.number().default(0),
     reservation_id: model.text().nullable(),
-    vendor_cost_usd: model.number().nullable(),
+    // USD, decimal — an image costs $0.039; integer would floor it to 0.
+    vendor_cost_usd: model.float().nullable(),
     meta: model.json().nullable(),
   })
   .indexes([

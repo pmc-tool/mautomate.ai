@@ -18,6 +18,24 @@ import React, { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 
 import {
+  accent,
+  canvas as canvasTokens,
+  chip,
+  eyebrow,
+  font,
+  grey,
+  hairline,
+  ink,
+  menuItem,
+  motion,
+  radius,
+  semantic,
+  shadow,
+  surface,
+  type,
+} from "@modules/cms/editor/design"
+import { UiIcon } from "@modules/cms/editor/palette-icons"
+import {
   getCanvasTheme,
   type CanvasTheme,
 } from "@modules/cms/editor/canvas-theme"
@@ -60,13 +78,58 @@ function anchorIdOf(advanced?: AdvancedBag): string | undefined {
   return t || undefined
 }
 
-/* Parse a widget DOM marker `data-w="w-<col>-<wi>"` into its indices
-   (Composer W1). Returns null for anything that doesn't match exactly. */
+/* Parse a widget DOM marker into its PATH — the chain of (column, widget)
+   indices from the section down to the widget. "w-0-1" is column 0 / widget 1;
+   "w-0-1-2-3" is the widget at column 2 / index 3 INSIDE the inner section at
+   column 0 / index 1. Always an even-length array. Null for anything else. */
+function parseWidgetPath(v: string | null): number[] | null {
+  const s = v ?? ""
+  if (!/^w-\d+(?:-\d+)+$/.test(s)) return null
+  const nums = s.slice(2).split("-").map(Number)
+  if (nums.length < 2 || nums.length % 2 !== 0) return null
+  return nums.every((n) => Number.isInteger(n) && n >= 0) ? nums : null
+}
+
+/* Back-compat shim: the first (column, widget) pair. */
 function parseWidgetMarker(
   v: string | null
 ): { col: number; wi: number } | null {
-  const m = /^w-(\d+)-(\d+)$/.exec(v ?? "")
-  return m ? { col: Number(m[1]), wi: Number(m[2]) } : null
+  const p = parseWidgetPath(v)
+  return p ? { col: p[0], wi: p[1] } : null
+}
+
+/* Parse a column marker `data-col="0"` (top level) or `data-col="0-1-2"`
+   (column 2 of the inner section at column 0 / widget 1). */
+function parseColPath(v: string | null): number[] | null {
+  const s = (v ?? "").trim()
+  if (!/^\d+(?:-\d+)*$/.test(s)) return null
+  const nums = s.split("-").map(Number)
+  // A column path is odd-length: [c] or [c, wi, c2] …
+  if (!nums.length || nums.length % 2 === 0) return null
+  return nums.every((n) => Number.isInteger(n) && n >= 0) ? nums : null
+}
+
+/** Is this widget path inside an inner section? (deeper than one level) */
+const isNestedPath = (p: number[]) => p.length > 2
+
+/* Parse a repeated-item DOM marker `data-el-item="<arrayProp>:<index>"` —
+   the slide / banner tile / testimonial the cursor is inside, carried as the
+   section prop array's name plus the item's ORIGINAL index in that array. */
+function parseItemMarker(
+  v: string | null
+): { field: string; index: number } | null {
+  const m = /^([A-Za-z_][A-Za-z0-9_]*):(\d+)$/.exec(v ?? "")
+  return m ? { field: m[1], index: Number(m[2]) } : null
+}
+
+/* Owner-facing name for one item of a repeatable array prop. */
+const ITEM_LABELS: Record<string, string> = {
+  slides: "Slide",
+  categories: "Banner",
+  items: "Item",
+  brands: "Brand",
+  images: "Image",
+  tabs: "Tab",
 }
 
 /* Palette drag payload MIME types (Composer W3) — the shared DnD contract
@@ -106,9 +169,48 @@ function outlineTarget(w: Element | null | undefined): HTMLElement | null {
     return null
   }
   const el = w as HTMLElement
-  return el.style.display === "contents"
+  // COMPUTED, not inline: the empty-section placeholder below overrides the
+  // inline display:contents with a real box, and an inline-only check would
+  // never see it — leaving the section unselectable exactly as before.
+  const isContents =
+    typeof window !== "undefined" &&
+    getComputedStyle(el).display === "contents"
+  let target: HTMLElement | null = isContents
     ? (el.firstElementChild as HTMLElement | null)
     : el
+
+  // A wrapper can ALSO collapse to zero height without being display:contents —
+  // when everything inside it is out of flow (the hero slider's absolutely
+  // positioned slides, the deal-of-day's floated media). The section is plainly
+  // there on screen, but the box we were outlining measured 1500x0 — so there
+  // was nothing to hover, nothing to click, and the toolbar had nowhere to sit.
+  // That is why some sections simply could not be selected at all.
+  //
+  // If the chosen target has no height, fall back to the tallest real child. A
+  // <style> tag is never a target (it is the first child of every styled block
+  // and has no box).
+  const heightOf = (n: Element | null) =>
+    n ? Math.round(n.getBoundingClientRect().height) : 0
+
+  if (heightOf(target) === 0) {
+    let best: HTMLElement | null = null
+    let bestH = 0
+    for (const child of Array.from(el.children)) {
+      if (child.tagName === "STYLE") {
+        continue
+      }
+      const h = heightOf(child)
+      if (h > bestH) {
+        bestH = h
+        best = child as HTMLElement
+      }
+    }
+    if (best) {
+      target = best
+    }
+  }
+
+  return target
 }
 
 /* One section, memoized so only the section whose object reference changed
@@ -186,6 +288,22 @@ const SECTION_LABELS: Record<string, string> = {
   container: "Container / Columns",
 }
 
+/* Leading icon for each right-click menu action. A row without one is a row you
+   have to READ; with one you recognise it, which is the whole point of a menu
+   you open a hundred times a day. */
+const CTX_ICONS: Record<string, string> = {
+  edit: "brush",
+  duplicate: "duplicate",
+  duplicateItem: "duplicate",
+  copy: "copy",
+  paste: "paste",
+  copyStyle: "brush",
+  pasteStyle: "paste",
+  resetStyle: "reset",
+  delete: "trash",
+  deleteItem: "trash",
+}
+
 /** A single button in the on-canvas floating toolbar. */
 function CanvasToolBtn({
   title,
@@ -213,18 +331,30 @@ function CanvasToolBtn({
         e.stopPropagation()
         onClick()
       }}
+      onMouseEnter={(e) => {
+        if (!disabled) {
+          e.currentTarget.style.color = danger
+            ? semantic.dangerBg
+            : ink.text
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.color = danger
+          ? semantic.dangerBorder
+          : ink.muted
+      }}
       style={{
+        ...type.label,
+        fontFamily: font,
         minWidth: wide ? undefined : 24,
         height: 24,
         padding: wide ? "0 8px" : 0,
         border: 0,
-        borderRadius: 4,
+        borderRadius: radius.sm,
         background: "transparent",
-        color: danger ? "#b91c1c" : "#0c0d0e",
+        color: danger ? semantic.dangerBorder : ink.muted,
         cursor: disabled ? "default" : "pointer",
         opacity: disabled ? 0.35 : 1,
-        fontSize: 13,
-        fontWeight: 600,
         lineHeight: 1,
         display: "inline-flex",
         alignItems: "center",
@@ -239,17 +369,179 @@ function CanvasToolBtn({
 const zoneBtn = (bg: string): React.CSSProperties => ({
   width: 40,
   height: 40,
-  borderRadius: 20,
+  borderRadius: radius.pill,
   border: 0,
   background: bg,
-  color: "#fff",
-  fontSize: 20,
-  lineHeight: 1,
+  color: accent.on,
   cursor: "pointer",
+  boxShadow: shadow.sm,
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
 })
+
+
+/**
+ * The add-section affordance, BETWEEN sections.
+ *
+ * `AddSectionZone` only exists once, after the last section. On a real page —
+ * thirty-odd sections, ~18,000px — that is somewhere below the footer, and a
+ * merchant who wants a section in the MIDDLE of their page has no way to say so:
+ * they add at the bottom and then drag it up past thirty neighbours.
+ *
+ * So every seam between sections gets its own insert bar: invisible until you
+ * approach it, then a line with the same two doors as the zone at the bottom —
+ * a plus for a fresh container, a template icon for a saved layout — both
+ * inserting AT THIS SEAM.
+ */
+function SectionInsertBar({ index }: { index: number }) {
+  const [hot, setHot] = useState(false)
+  const [structure, setStructure] = useState(false)
+  const post = (msg: Record<string, unknown>) =>
+    window.parent?.postMessage(msg, "*")
+
+  const dot = (bg: string): React.CSSProperties => ({
+    border: 0,
+    width: 22,
+    height: 22,
+    borderRadius: radius.pill,
+    background: bg,
+    color: accent.on,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: shadow.sm,
+    pointerEvents: "auto",
+  })
+
+  return (
+    // ZERO HEIGHT, always. The first version grew from 12px to 34px on hover —
+    // which reflowed every section below it, so the page visibly jumped as the
+    // pointer crossed a seam. An affordance must never move the thing it is
+    // pointing at. The hit strip and the buttons are therefore absolutely
+    // positioned OUT of flow, and the seam itself occupies no space.
+    <div style={{ position: "relative", height: 0 }}>
+      <div
+        onMouseEnter={() => setHot(true)}
+        onMouseLeave={() => {
+          setHot(false)
+          setStructure(false)
+        }}
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: -11,
+          height: 22,
+          // Under the section toolbar (2147483100) on purpose: where they
+          // overlap, the toolbar you are already using stays on top.
+          zIndex: 2147482000,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: font,
+        }}
+      >
+        {hot ? (
+          <>
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 10,
+                height: 2,
+                background: accent.base,
+                opacity: 0.3,
+              }}
+            />
+            {!structure ? (
+              // CENTRED. The section below owns both ends of its top edge — the
+              // name badge sits top-LEFT, the toolbar (Edit / duplicate / delete)
+              // top-RIGHT. Offsetting left dodged the toolbar and landed straight
+              // on the badge. The middle is the only lane nothing else claims.
+              <div
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  gap: 6,
+                  pointerEvents: "auto",
+                }}
+              >
+                <button
+                  title="Add a section here"
+                  onClick={() => {
+                    // Arm this seam. Whatever the merchant reaches for next — a
+                    // column structure below, or a section from the Elements
+                    // palette — lands HERE, not at the bottom of the page.
+                    post({ type: "cms:setAddTarget", index })
+                    setStructure(true)
+                  }}
+                  style={dot(accent.base)}
+                >
+                  <UiIcon name="plus" size={14} />
+                </button>
+                <button
+                  title="Insert a template here"
+                  onClick={() => post({ type: "cms:openTemplates", at: index })}
+                  style={dot(grey[60])}
+                >
+                  <UiIcon name="template" size={14} />
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  ...surface("md"),
+                  position: "relative",
+                  display: "flex",
+                  gap: 6,
+                  padding: "4px 6px",
+                  borderRadius: radius.md,
+                  pointerEvents: "auto",
+                }}
+              >
+                {[1, 2, 3, 4].map((n) => (
+                  <button
+                    key={n}
+                    title={`${n} column${n > 1 ? "s" : ""}`}
+                    onClick={() => {
+                      post({ type: "cms:insertContainerAt", index, cols: n })
+                      setStructure(false)
+                    }}
+                    style={{
+                      border: hairline,
+                      borderRadius: radius.sm,
+                      background: grey[5],
+                      padding: 4,
+                      cursor: "pointer",
+                      display: "flex",
+                      gap: 2,
+                    }}
+                  >
+                    {Array.from({ length: n }).map((_, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          width: Math.max(8, 34 / n),
+                          height: 16,
+                          background: grey[30],
+                          borderRadius: 1,
+                          display: "inline-block",
+                        }}
+                      />
+                    ))}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        ) : null}
+      </div>
+    </div>
+  )
+}
 
 /** Persistent Elementor-style add-section zone: plus -> structure picker. */
 function AddSectionZone({ count }: { count: number }) {
@@ -262,28 +554,28 @@ function AddSectionZone({ count }: { count: number }) {
         margin: "28px auto 48px",
         maxWidth: 880,
         padding: "36px 24px",
-        border: "2px dashed #d5d8dc",
-        borderRadius: 6,
+        border: `2px dashed ${grey[20]}`,
+        borderRadius: radius.lg,
         textAlign: "center",
-        fontFamily: "system-ui, sans-serif",
-        background: "#fff",
+        fontFamily: font,
+        background: grey[0],
       }}
     >
       {view === "choose" ? (
         <>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 12 }}>
-            <button title="Add new section" onClick={() => setView("structure")} style={zoneBtn("#d004d4")}>
-              +
+            <button title="Add new section" onClick={() => setView("structure")} style={zoneBtn(accent.base)}>
+              <UiIcon name="plus" size={18} />
             </button>
-            <button title="Add template" onClick={() => post({ type: "cms:openTemplates" })} style={zoneBtn("#69727d")}>
-              ▤
+            <button title="Add template" onClick={() => post({ type: "cms:openTemplates" })} style={zoneBtn(grey[60])}>
+              <UiIcon name="template" size={18} />
             </button>
           </div>
-          <div style={{ fontSize: 13, fontStyle: "italic", color: "#9ca3af" }}>Drag widget here</div>
+          <div style={{ ...type.body, fontStyle: "italic", color: grey[40] }}>Drag widget here</div>
         </>
       ) : (
         <>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#515962", marginBottom: 14 }}>
+          <div style={{ ...type.title, color: grey[70], marginBottom: 16 }}>
             Select your structure
           </div>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
@@ -296,19 +588,19 @@ function AddSectionZone({ count }: { count: number }) {
                   setView("choose")
                 }}
                 style={{
-                  border: "1px solid #e6e8ea",
-                  borderRadius: 4,
-                  background: "#f9fafa",
+                  border: hairline,
+                  borderRadius: radius.md,
+                  background: grey[5],
                   padding: 8,
                   cursor: "pointer",
                   display: "flex",
-                  gap: 3,
+                  gap: 4,
                 }}
               >
                 {Array.from({ length: n }).map((_, i) => (
                   <span
                     key={i}
-                    style={{ width: Math.max(14, 60 / n), height: 34, background: "#d5d8dc", borderRadius: 2, display: "inline-block" }}
+                    style={{ width: Math.max(14, 60 / n), height: 34, background: grey[30], borderRadius: radius.sm, display: "inline-block" }}
                   />
                 ))}
               </button>
@@ -316,7 +608,7 @@ function AddSectionZone({ count }: { count: number }) {
           </div>
           <button
             onClick={() => setView("choose")}
-            style={{ marginTop: 12, border: 0, background: "none", color: "#9ca3af", fontSize: 12, cursor: "pointer" }}
+            style={{ ...type.label, fontFamily: font, marginTop: 12, border: 0, background: "none", color: grey[50], cursor: "pointer" }}
           >
             Cancel
           </button>
@@ -326,25 +618,25 @@ function AddSectionZone({ count }: { count: number }) {
   )
 }
 
-function LiveDataPlaceholder({ type }: { type: string }) {
+function LiveDataPlaceholder({ type: blockType }: { type: string }) {
   return (
     <div
       style={{
         padding: "48px 24px",
         margin: "8px auto",
         maxWidth: 1140,
-        border: "1px dashed #cbd5e1",
-        borderRadius: 10,
-        background: "#f8fafc",
+        border: `1px dashed ${grey[20]}`,
+        borderRadius: radius.lg,
+        background: grey[5],
         textAlign: "center",
-        fontFamily: "system-ui, sans-serif",
-        color: "#475569",
+        fontFamily: font,
+        color: grey[60],
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>
-        {LABELS[type] ?? type}
+      <div style={{ ...type.micro }}>
+        {LABELS[blockType] ?? blockType}
       </div>
-      <div style={{ fontSize: 13, marginTop: 6, color: "#94a3b8" }}>
+      <div style={{ ...type.body, marginTop: 6, color: grey[40] }}>
         Shows live products on the storefront. Edit its settings in the panel.
       </div>
     </div>
@@ -381,6 +673,95 @@ export default function EditorCanvas() {
   const [hovered, setHovered] = useState<number | null>(null)
   // Edit-pencil badge over the hovered/selected [data-el] element (Elementor).
   const [elBadge, setElBadge] = useState<{ top: number; right: number; sel: boolean } | null>(null)
+
+  /**
+   * Right-click menu (Elementor's context menu).
+   *
+   * Everything it offers already exists as a section action in the editor — this
+   * is a faster road to them, not a second implementation. Copy / Paste move a
+   * whole section; Copy Style / Paste Style move ONLY the appearance, which is
+   * how you make five sections match without rebuilding each one.
+   */
+  const [ctxMenu, setCtxMenu] = useState<
+    {
+      x: number
+      y: number
+      index: number
+      scope: "section" | "widget" | "element" | "chrome" | "chromeElement"
+      label: string
+      path?: number[]
+      elementKey?: string
+      region?: string
+      /** Repeated-item context (slide / tile / testimonial under the cursor). */
+      itemField?: string
+      itemIndex?: number
+      itemLabel?: string
+    } | null
+  >(null)
+  const [clip, setClip] = useState<{
+    hasSection: boolean
+    hasWidget: boolean
+    hasStyle: boolean
+  }>({ hasSection: false, hasWidget: false, hasStyle: false })
+
+  // A menu pinned to a viewport point must not outlive that point: scrolling or
+  // Escape closes it, or it hangs over unrelated content.
+  useEffect(() => {
+    if (!ctxMenu) return
+    const close = () => setCtxMenu(null)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close()
+    }
+    window.addEventListener("scroll", close, true)
+    window.addEventListener("keydown", onKey)
+    return () => {
+      window.removeEventListener("scroll", close, true)
+      window.removeEventListener("keydown", onKey)
+    }
+  }, [ctxMenu])
+
+  /**
+   * ON-CANVAS FONT SIZE (Elementor's inline handle).
+   *
+   * The sidebar slider is fine, but resizing type is something you do by LOOKING
+   * at the text — and the sidebar is a panel away, so you drag, glance across,
+   * drag again. This puts the handle ON the words: select a text element, grab
+   * the pill that appears above it, drag right to grow / left to shrink, and the
+   * text resizes under your cursor in real time.
+   *
+   * `px` is what the element is showing right now (seeded from the computed
+   * style, so an untouched heading starts at ITS size, not at some default).
+   */
+  const [fontPill, setFontPill] = useState<
+    { top: number; left: number; px: number } | null
+  >(null)
+  const fontDragRef = useRef<{ startX: number; startPx: number } | null>(null)
+  /** Which element the pill's number belongs to ("idx:key"), so a re-measure
+   *  repositions the pill without resetting the size the user just chose. */
+  const fontPillOwner = useRef<string | null>(null)
+  /** The size the user has actually chosen. A ref, not state, because the
+   *  measure effect runs from a closure that would otherwise read a stale value
+   *  and quietly undo the last nudge. */
+  const fontPxRef = useRef<number | null>(null)
+
+  /**
+   * Hand the element back to the stylesheet.
+   *
+   * The drag paints `style.fontSize` inline for instant feedback — but an inline
+   * style BEATS the scoped rule the editor writes from the style bag. Leave it
+   * behind and the element is pinned to the last dragged value forever: the +/-
+   * buttons commit correctly, the CSS updates correctly, and nothing moves,
+   * because the inline paint is still on top. So once the real value is stored,
+   * the temporary paint is removed.
+   */
+  const releaseInlineFont = (index: number, key: string) => {
+    const node = rootRef.current?.querySelector<HTMLElement>(
+      `[data-cms-idx="${index}"] [data-el="${key}"]`
+    )
+    // A beat, so the editor's patched CSS has landed before the paint comes off
+    // (otherwise the text visibly snaps back to its old size for one frame).
+    window.setTimeout(() => node?.style.removeProperty("font-size"), 220)
+  }
   // Preview mode: hide every editor affordance so the page renders clean —
   // an accurate preview of UNSAVED changes (the canvas renders live state).
   const [previewMode, setPreviewMode] = useState(false)
@@ -397,16 +778,16 @@ export default function EditorCanvas() {
   } | null>(null)
   // Widget-level selection (Composer W1): the specific [data-w] widget inside
   // a container section being edited / hovered. Kept separate from the section
-  // and element selections so its (emerald) outline is visually distinct.
+  // and element selections so its own ember outline is the only one showing.
+  // A widget is addressed by its PATH (see parseWidgetPath), so a widget inside
+  // an inner section is selectable/hoverable exactly like a top-level one.
   const [selectedW, setSelectedW] = useState<{
     index: number
-    col: number
-    wi: number
+    path: number[]
   } | null>(null)
   const [hoveredW, setHoveredW] = useState<{
     index: number
-    col: number
-    wi: number
+    path: number[]
   } | null>(null)
   // Chrome element-level selection (F1): the specific [data-el] element inside a
   // chrome region ([data-cms-chrome]) the user is styling / hovering. Kept
@@ -428,7 +809,7 @@ export default function EditorCanvas() {
   } | null>(null)
   const [dropCol, setDropCol] = useState<{
     index: number
-    col: number
+    colPath: number[]
     wi: number
     lineTop: number | null
     rect: { top: number; left: number; width: number; height: number }
@@ -492,6 +873,13 @@ export default function EditorCanvas() {
   // Live edits + selection from the parent editor.
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
+      if (e.data?.type === "cms:clipboard") {
+        setClip({
+          hasSection: !!e.data.hasSection,
+          hasWidget: !!e.data.hasWidget,
+          hasStyle: !!e.data.hasStyle,
+        })
+      }
       const m = e.data
       if (!m || typeof m !== "object") return
       // Full replace — initial load + structural changes (add/remove/reorder).
@@ -587,17 +975,16 @@ export default function EditorCanvas() {
       // clears it. Mirrors cms:selectElement.
       if (m.type === "cms:selectWidget") {
         const idx = typeof m.index === "number" ? m.index : null
-        const col = typeof m.col === "number" ? m.col : null
-        const wi = typeof m.wi === "number" ? m.wi : null
-        if (idx != null && col != null && wi != null) {
-          setSelectedW({ index: idx, col, wi })
+        const path = Array.isArray(m.path) ? (m.path as number[]) : null
+        if (idx != null && path && path.length >= 2) {
+          setSelectedW({ index: idx, path })
           setSelected(null)
           setSelectedChrome(null)
           setSelectedEl(null)
           setSelectedChromeEl(null)
           requestAnimationFrame(() => {
             const el = rootRef.current?.querySelector(
-              `[data-cms-idx="${idx}"] [data-w="w-${col}-${wi}"]`
+              `[data-cms-idx="${idx}"] [data-w="w-${path.join("-")}"]`
             ) as HTMLElement | null
             el?.scrollIntoView({ behavior: "smooth", block: "center" })
           })
@@ -624,23 +1011,24 @@ export default function EditorCanvas() {
       const isSel = idx === selected
       const isHov = idx === hovered && !isSel
       el.style.outline = isSel
-        ? "2px solid #d004d4"
+        ? canvasTokens.selected
         : isHov
-        ? "1px solid #f0abfc"
+        ? canvasTokens.hover
         : ""
       el.style.outlineOffset = isSel || isHov ? "-2px" : ""
     })
   }, [selected, hovered, content])
 
-  // Outline the selected / hovered ELEMENT ([data-el]) inside a section. Uses a
-  // distinct colour from the section outline (magenta vs blue) so element-level
-  // selection reads clearly, and a lighter hover hint so [data-el] elements feel
-  // clickable. Runs over every [data-el]; unmatched ones are cleared.
+  // Outline the selected / hovered ELEMENT ([data-el]) inside a section. Same
+  // ember language as sections and widgets — weight, not hue, carries the
+  // meaning (2px = selected, 1px tint = hover). Runs over every [data-el];
+  // unmatched ones are cleared.
   useEffect(() => {
     const root = rootRef.current
     if (!root) return
     const els = root.querySelectorAll<HTMLElement>("[data-el]")
     let badge: { top: number; right: number; sel: boolean } | null = null
+    let pill: { top: number; left: number; px: number } | null = null
     els.forEach((el) => {
       const w = el.closest("[data-cms-idx]") as HTMLElement | null
       const key = el.getAttribute("data-el")
@@ -658,7 +1046,7 @@ export default function EditorCanvas() {
           key === hoveredEl.key
       } else {
         // Element inside a chrome region ([data-cms-chrome]) — matched against
-        // the chrome element selection (same magenta treatment as sections).
+        // the chrome element selection (same ember treatment as sections).
         const cw = el.closest("[data-cms-chrome]") as HTMLElement | null
         const region = cw?.getAttribute("data-cms-chrome") ?? null
         isSel =
@@ -672,50 +1060,72 @@ export default function EditorCanvas() {
           key === hoveredChromeEl.key
       }
       el.style.outline = isSel
-        ? "2px solid #d004d4"
+        ? canvasTokens.selected
         : isHov
-        ? "1px solid #f0abfc"
+        ? canvasTokens.hover
         : ""
       el.style.outlineOffset = isSel || isHov ? "-2px" : ""
       if (isSel || isHov) {
         const r = el.getBoundingClientRect()
         badge = { top: r.top, right: r.right, sel: isSel }
       }
+
+      // The size handle only belongs on things made of words.
+      if (isSel) {
+        const hasText = (el.textContent ?? "").trim().length > 0
+        if (hasText) {
+          const owner = `${w?.dataset.cmsIdx ?? "?"}:${key}`
+          const r = el.getBoundingClientRect()
+          const sameElement = fontPillOwner.current === owner
+          const px =
+            sameElement && fontPxRef.current != null
+              ? fontPxRef.current // keep what the user just set
+              : Math.round(
+                  parseFloat(window.getComputedStyle(el).fontSize) || 16
+                )
+          fontPillOwner.current = owner
+          fontPxRef.current = px
+          pill = { top: r.top, left: r.left, px }
+        } else {
+          fontPillOwner.current = null
+          fontPxRef.current = null
+          pill = null
+        }
+      }
     })
     setElBadge(badge)
+    setFontPill(pill)
   }, [selectedEl, hoveredEl, selectedChromeEl, hoveredChromeEl, content, chrome, measureTick])
 
   // Outline the selected / hovered WIDGET ([data-w]) inside a container
-  // section (Composer W1). Uses a third distinct colour (emerald) so widget
-  // selection reads clearly against sections (blue) and elements (magenta).
-  // Runs over every [data-w]; unmatched ones are cleared.
+  // section (Composer W1). Shares the ember selection language with sections
+  // and elements — the innermost match is the only one drawn, so there is
+  // nothing to disambiguate by hue. Unmatched ones are cleared.
   useEffect(() => {
     const root = rootRef.current
     if (!root) return
     const els = root.querySelectorAll<HTMLElement>("[data-w]")
     els.forEach((el) => {
       const w = el.closest("[data-cms-idx]") as HTMLElement | null
-      const parsed = parseWidgetMarker(el.getAttribute("data-w"))
+      const parsed = parseWidgetPath(el.getAttribute("data-w"))
+      const samePath = (a: number[] | undefined, b: number[] | undefined) =>
+        !!a && !!b && a.length === b.length && a.every((n, i) => n === b[i])
       let isSel = false
       let isHov = false
       if (w && parsed) {
         const idx = Number(w.dataset.cmsIdx)
         isSel =
-          !!selectedW &&
-          idx === selectedW.index &&
-          parsed.col === selectedW.col &&
-          parsed.wi === selectedW.wi
+          !!selectedW && idx === selectedW.index && samePath(parsed, selectedW.path)
         isHov =
           !isSel &&
           !!hoveredW &&
           idx === hoveredW.index &&
-          parsed.col === hoveredW.col &&
-          parsed.wi === hoveredW.wi
+          samePath(parsed, hoveredW.path)
       }
       el.style.outline = isSel
-        ? "2px solid #d004d4"
+        ? canvasTokens.selected
         : isHov
-        ? "1px solid #f0abfc"
+        ? canvasTokens.hover
         : ""
       el.style.outlineOffset = isSel || isHov ? "-2px" : ""
     })
@@ -749,20 +1159,43 @@ export default function EditorCanvas() {
     setMeasureTick((t) => t + 1)
   }, [content, device])
 
-  // Forward undo/redo keystrokes to the parent editor (keyboard focus can be
-  // inside this iframe). Ignore when typing in a field.
+  // Forward editing keystrokes to the parent editor (keyboard focus can be
+  // inside this iframe): undo/redo, and the clipboard set (Cmd+C/V/D,
+  // Delete) acting on the current selection. Ignore when typing in a field;
+  // copying real selected text keeps its native meaning.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const meta = e.metaKey || e.ctrlKey
-      if (!meta || e.key.toLowerCase() !== "z") return
       const el = e.target as HTMLElement | null
       const tag = el?.tagName
-      if (tag === "INPUT" || tag === "TEXTAREA" || el?.isContentEditable) return
-      e.preventDefault()
-      window.parent?.postMessage(
-        { type: e.shiftKey ? "cms:redo" : "cms:undo" },
-        "*"
-      )
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) {
+        return
+      }
+      const meta = e.metaKey || e.ctrlKey
+      const k = e.key.toLowerCase()
+      if (meta && k === "z") {
+        e.preventDefault()
+        window.parent?.postMessage(
+          { type: e.shiftKey ? "cms:redo" : "cms:undo" },
+          "*"
+        )
+        return
+      }
+      if (meta && (k === "c" || k === "v" || k === "d")) {
+        if (k === "c" && (window.getSelection()?.toString() ?? "")) return
+        e.preventDefault()
+        window.parent?.postMessage(
+          {
+            type: "cms:key",
+            action: k === "c" ? "copy" : k === "v" ? "paste" : "duplicate",
+          },
+          "*"
+        )
+        return
+      }
+      if (!meta && (e.key === "Delete" || e.key === "Backspace")) {
+        e.preventDefault()
+        window.parent?.postMessage({ type: "cms:key", action: "delete" }, "*")
+      }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
@@ -927,19 +1360,21 @@ export default function EditorCanvas() {
       return h && h.region === region && h.key === key ? h : { region, key }
     })
     // Track the hovered [data-w] widget (within a section) for its outline.
+    // The INNERMOST widget under the cursor: a widget inside an inner section
+    // must hover as itself, not as the inner section that holds it.
     const ww = t.closest("[data-w]") as HTMLElement | null
-    const wParsed =
+    const wPath =
       ww && idx != null && w?.contains(ww)
-        ? parseWidgetMarker(ww.getAttribute("data-w"))
+        ? parseWidgetPath(ww.getAttribute("data-w"))
         : null
     setHoveredW((h) => {
-      if (!wParsed || idx == null) return h == null ? h : null
-      return h &&
+      if (!wPath || idx == null) return h == null ? h : null
+      const same =
+        h &&
         h.index === idx &&
-        h.col === wParsed.col &&
-        h.wi === wParsed.wi
-        ? h
-        : { index: idx, col: wParsed.col, wi: wParsed.wi }
+        h.path.length === wPath.length &&
+        h.path.every((n, i) => n === wPath[i])
+      return same ? h : { index: idx, path: wPath }
     })
   }
 
@@ -976,20 +1411,24 @@ export default function EditorCanvas() {
   // from the dragover/drop target via the data-col marker Container renders.
   const columnAt = (
     target: EventTarget | null
-  ): { index: number; col: number; el: HTMLElement } | null => {
+  ): { index: number; colPath: number[]; el: HTMLElement } | null => {
     const t = target as HTMLElement | null
+    // closest() finds the INNERMOST column, so dropping into an inner section's
+    // column targets that column, not the outer one holding it.
     const colEl = t?.closest?.("[data-col]") as HTMLElement | null
     const secEl = colEl?.closest("[data-cms-idx]") as HTMLElement | null
     if (!colEl || !secEl) return null
     const index = Number(secEl.dataset.cmsIdx)
-    const col = Number(colEl.dataset.col)
-    if (!Number.isInteger(index) || !Number.isInteger(col)) return null
-    return { index, col, el: colEl }
+    const colPath = parseColPath(colEl.getAttribute("data-col"))
+    if (!Number.isInteger(index) || !colPath) return null
+    return { index, colPath, el: colEl }
   }
 
   /** Insertion position within a column: before the first widget whose
    *  midpoint the pointer is above (Elementor-style). */
   const widgetInsertPos = (colEl: HTMLElement, clientY: number) => {
+    // :scope > — a widget nested inside an inner section in this column is NOT
+    // a drop sibling of this column's own widgets.
     const kids = Array.from(colEl.querySelectorAll<HTMLElement>(":scope > [data-w]"))
     let wi = kids.length
     let lineTop: number | null =
@@ -1013,8 +1452,8 @@ export default function EditorCanvas() {
       el.textContent = label
       Object.assign(el.style, {
         position: "fixed", top: "-1000px", left: "-1000px", padding: "6px 12px",
-        background: "#26292c", color: "#fff", font: "600 12px system-ui, sans-serif",
-        borderRadius: "4px", boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+        background: ink.base, color: ink.text, font: `600 12px ${font}`,
+        borderRadius: `${radius.md}px`, boxShadow: shadow.chip,
       })
       document.body.appendChild(el)
       e.dataTransfer.setDragImage(el, 12, 12)
@@ -1061,7 +1500,7 @@ export default function EditorCanvas() {
       const pos = widgetInsertPos(hit.el, e.clientY)
       return {
         index: hit.index,
-        col: hit.col,
+        colPath: hit.colPath,
         wi: pos.wi,
         lineTop: pos.lineTop,
         rect: { top: r.top, left: r.left, width: r.width, height: r.height },
@@ -1109,18 +1548,30 @@ export default function EditorCanvas() {
         const payload = JSON.parse(e.dataTransfer.getData(WIDGET_MIME) || "{}")
         const hit = columnAt(e.target)
         const target = hit
-          ? { index: hit.index, col: hit.col, wi: widgetInsertPos(hit.el, e.clientY).wi }
+          ? {
+              index: hit.index,
+              colPath: hit.colPath,
+              wi: widgetInsertPos(hit.el, e.clientY).wi,
+            }
           : dropCol
         if (
           target &&
           typeof payload.widget_type === "string" &&
           payload.widget_type
         ) {
+          // An inner section cannot hold another one — one level of nesting.
+          if (
+            payload.widget_type === "inner_section" &&
+            target.colPath.length > 1
+          ) {
+            clearDropHints()
+            return
+          }
           window.parent?.postMessage(
             {
               type: "cms:insertWidgetAt",
               index: target.index,
-              col: target.col,
+              colPath: target.colPath,
               wi: target.wi,
               widget_type: payload.widget_type,
             },
@@ -1164,18 +1615,18 @@ export default function EditorCanvas() {
     // <a data-w="w-0-1">) is selectable without navigating.
     const wEl = t.closest("[data-w]") as HTMLElement | null
     if (wEl && bodyEl && bodyEl.contains(wEl)) {
-      const parsed = parseWidgetMarker(wEl.getAttribute("data-w"))
-      if (parsed) {
+      const path = parseWidgetPath(wEl.getAttribute("data-w"))
+      if (path) {
         e.preventDefault()
         e.stopPropagation()
         const idx = Number(bodyEl.dataset.cmsIdx)
-        setSelectedW({ index: idx, col: parsed.col, wi: parsed.wi })
+        setSelectedW({ index: idx, path })
         setSelected(null)
         setSelectedChrome(null)
         setSelectedEl(null)
         setSelectedChromeEl(null)
         window.parent?.postMessage(
-          { type: "cms:clickedWidget", index: idx, col: parsed.col, wi: parsed.wi },
+          { type: "cms:clickedWidget", index: idx, path },
           "*"
         )
         return
@@ -1275,11 +1726,17 @@ export default function EditorCanvas() {
   }
 
   if (!content) {
-    return <div style={{ padding: 40, fontFamily: "system-ui" }}>Loading…</div>
+    return (
+      <div style={{ ...type.body, padding: 40, fontFamily: font, color: grey[50] }}>
+        Loading…
+      </div>
+    )
   }
 
   const chromeOutline = (k: string): React.CSSProperties | undefined =>
-    selectedChrome === k ? { outline: "2px solid #d004d4", outlineOffset: -2 } : undefined
+    selectedChrome === k
+      ? { outline: canvasTokens.selected, outlineOffset: -2 }
+      : undefined
 
   const activeBlock =
     activeIdx != null && content[activeIdx] ? content[activeIdx] : null
@@ -1294,6 +1751,105 @@ export default function EditorCanvas() {
   return (
     <div
       ref={rootRef}
+      onContextMenu={(e) => {
+        if (previewMode) return
+        const t = e.target as HTMLElement
+        const w = t.closest<HTMLElement>("[data-cms-idx]")
+
+        // Not in a section: maybe in the header / top bar / footer (chrome).
+        if (!w) {
+          const cw = t.closest<HTMLElement>("[data-cms-chrome]")
+          const region = cw?.getAttribute("data-cms-chrome")
+          if (!cw || !region) return
+          e.preventDefault()
+          const regionLabel =
+            region === "topbar" ? "Top Bar" : region === "footer" ? "Footer" : "Header"
+          const elEl = t.closest<HTMLElement>("[data-el]")
+          const elKey = elEl?.getAttribute("data-el")
+          if (elEl && elKey && cw.contains(elEl)) {
+            setCtxMenu({
+              x: e.clientX,
+              y: e.clientY,
+              index: -1,
+              scope: "chromeElement",
+              label: `${regionLabel} — ${elKey.replace(/[_-]+/g, " ")}`,
+              region,
+              elementKey: elKey,
+            })
+            return
+          }
+          setCtxMenu({
+            x: e.clientX,
+            y: e.clientY,
+            index: -1,
+            scope: "chrome",
+            label: regionLabel,
+            region,
+          })
+          return
+        }
+
+        const idx = Number(w.dataset.cmsIdx)
+        if (!Number.isFinite(idx)) return
+        e.preventDefault()
+
+        // Repeated-item context: is the cursor inside one slide / tile /
+        // testimonial? Carried alongside whatever scope resolves below, so the
+        // menu can offer "Duplicate Slide" on top of the element's own actions.
+        const itemEl = t.closest<HTMLElement>("[data-el-item]")
+        const item =
+          itemEl && w.contains(itemEl)
+            ? parseItemMarker(itemEl.getAttribute("data-el-item"))
+            : null
+        const itemInfo = item
+          ? {
+              itemField: item.field,
+              itemIndex: item.index,
+              itemLabel: `${ITEM_LABELS[item.field] ?? "Item"} ${item.index + 1}`,
+            }
+          : {}
+
+        // Resolve the INNERMOST thing under the cursor. Right-clicking a button
+        // and being offered "duplicate the whole section" is not what anybody
+        // means: a widget beats an element beats the section.
+        const widgetEl = t.closest<HTMLElement>("[data-w]")
+        const wPath = widgetEl ? parseWidgetPath(widgetEl.getAttribute("data-w")) : null
+        if (widgetEl && wPath) {
+          setCtxMenu({
+            x: e.clientX,
+            y: e.clientY,
+            index: idx,
+            scope: "widget",
+            label: isNestedPath(wPath) ? "Widget (in inner section)" : "Widget",
+            path: wPath,
+          })
+          return
+        }
+
+        const elEl = t.closest<HTMLElement>("[data-el]")
+        const elKey = elEl?.getAttribute("data-el")
+        if (elEl && elKey && w.contains(elEl)) {
+          setCtxMenu({
+            x: e.clientX,
+            y: e.clientY,
+            index: idx,
+            scope: "element",
+            label: `Element — ${elKey.replace(/[_-]+/g, " ")}`,
+            elementKey: elKey,
+            ...itemInfo,
+          })
+          return
+        }
+
+        setCtxMenu({
+          x: e.clientX,
+          y: e.clientY,
+          index: idx,
+          scope: "section",
+          label: "Section",
+          ...itemInfo,
+        })
+      }}
       onClickCapture={handleClickCapture}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => {
@@ -1356,30 +1912,22 @@ export default function EditorCanvas() {
             inset: 0,
             zIndex: 2147482000,
             pointerEvents: "none",
-            fontFamily: "system-ui, sans-serif",
+            fontFamily: font,
           }}
         >
           {hiddenBadges.map(({ idx, rect }) => (
             <div
               key={`cms-hidden-${idx}`}
               style={{
+                ...chip(),
                 position: "absolute",
                 top: Math.max(2, rect.top + 6),
                 left: Math.max(6, rect.left + 6),
-                display: "inline-flex",
-                alignItems: "center",
                 gap: 4,
-                background: "#7c3aed",
-                color: "#fff",
-                fontSize: 11,
-                fontWeight: 600,
-                padding: "3px 8px",
-                borderRadius: 4,
-                whiteSpace: "nowrap",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+                color: ink.muted,
               }}
             >
-              <span aria-hidden>⦸</span>
+              <UiIcon name="eye" size={14} />
               Hidden on {device}
             </div>
           ))}
@@ -1402,22 +1950,20 @@ export default function EditorCanvas() {
             style={{
               position: "absolute",
               top: Math.max(0, dropLine.top - 1.5),
-              transition: "top 90ms ease",
               left: 0,
               right: 0,
               height: 3,
-              borderRadius: 2,
-              background: "#2563eb",
-              boxShadow:
-                "0 0 0 1px rgba(255,255,255,0.65), 0 1px 6px rgba(37,99,235,0.55)",
-              transition: "top 120ms ease",
+              borderRadius: radius.sm,
+              background: canvasTokens.dropLine,
+              boxShadow: `0 0 0 1px rgba(255,255,255,0.65), 0 1px 6px ${accent.ring}`,
+              transition: "top 90ms ease",
             }}
           />
         </div>
       ) : null}
 
       {/* Palette drag (W3): inset highlight over the container column a
-          dragged widget card would drop into (emerald = widget colour). */}
+          dragged widget card would drop into (ember tint = the drop target). */}
       {dropCol ? (
         <div
           style={{
@@ -1428,10 +1974,10 @@ export default function EditorCanvas() {
             height: dropCol.rect.height,
             zIndex: 2147483200,
             pointerEvents: "none",
-            outline: "2px solid #d004d4",
+            outline: canvasTokens.selected,
             outlineOffset: -2,
-            background: "rgba(208, 4, 212, 0.05)",
-            borderRadius: 4,
+            background: canvasTokens.dropFill,
+            borderRadius: radius.sm,
           }}
         />
       ) : null}
@@ -1443,9 +1989,9 @@ export default function EditorCanvas() {
             left: dropCol.rect.left + 6,
             width: dropCol.rect.width - 12,
             height: 3,
-            borderRadius: 2,
-            background: "#d004d4",
-            boxShadow: "0 0 8px rgba(208, 4, 212, 0.5)",
+            borderRadius: radius.sm,
+            background: canvasTokens.dropLine,
+            boxShadow: `0 0 8px ${accent.ring}`,
             zIndex: 2147483201,
             pointerEvents: "none",
             transition: "top 90ms ease",
@@ -1461,21 +2007,18 @@ export default function EditorCanvas() {
             inset: 0,
             zIndex: 2147483000,
             pointerEvents: "none",
-            fontFamily: "system-ui, sans-serif",
+            fontFamily: font,
           }}
         >
           <div
             style={{
+              ...chip(),
               position: "absolute",
               top: Math.max(0, activeRect.top),
               left: Math.max(0, activeRect.left),
-              background: "#f0abfc",
-              color: "#0c0d0e",
-              fontSize: 11,
-              fontWeight: 600,
-              padding: "3px 8px",
-              borderRadius: "0 0 4px 0",
-              whiteSpace: "nowrap",
+              height: 24,
+              borderRadius: `0 0 ${radius.md}px 0`,
+              color: ink.muted,
             }}
           >
             {SECTION_LABELS[activeBlock.block_type] ?? activeBlock.block_type}
@@ -1483,17 +2026,15 @@ export default function EditorCanvas() {
           <div
             data-cms-overlay="1"
             style={{
+              ...chip(),
               position: "absolute",
               top: Math.max(2, activeRect.top + 6),
               left: activeRect.left + activeRect.width / 2,
               transform: "translateX(-50%)",
-              display: "flex",
+              height: 30,
               gap: 2,
-              background: "#f0abfc",
-              borderRadius: 3,
-              padding: 3,
+              padding: "0 4px",
               pointerEvents: "auto",
-              boxShadow: "0 2px 10px rgba(0,0,0,0.28)",
             }}
           >
             <div
@@ -1504,29 +2045,29 @@ export default function EditorCanvas() {
                 e.dataTransfer.effectAllowed = "move"
                 setDragGhost(e, SECTION_LABELS[activeBlock.block_type] ?? activeBlock.block_type)
               }}
-              style={{ display: "flex", alignItems: "center", padding: "0 5px", color: "#0c0d0e", fontSize: 14, cursor: "grab", userSelect: "none" }}
+              style={{ display: "flex", alignItems: "center", padding: "0 4px", color: ink.muted, cursor: "grab", userSelect: "none" }}
             >
-              ⠿
+              <UiIcon name="grip" size={14} />
             </div>
             <CanvasToolBtn
               title="Move up"
               disabled={activeIdx === 0}
               onClick={() => canvasAction("up", activeIdx)}
             >
-              ↑
+              <UiIcon name="arrow-up" size={14} />
             </CanvasToolBtn>
             <CanvasToolBtn
               title="Move down"
               disabled={activeIdx === content.length - 1}
               onClick={() => canvasAction("down", activeIdx)}
             >
-              ↓
+              <UiIcon name="arrow-down" size={14} />
             </CanvasToolBtn>
             <CanvasToolBtn
               title="Duplicate"
               onClick={() => canvasAction("duplicate", activeIdx)}
             >
-              ⧉
+              <UiIcon name="duplicate" size={14} />
             </CanvasToolBtn>
             <CanvasToolBtn
               title="Edit"
@@ -1539,14 +2080,14 @@ export default function EditorCanvas() {
               title="Add section below"
               onClick={() => canvasAction("addBelow", activeIdx)}
             >
-              +
+              <UiIcon name="plus" size={14} />
             </CanvasToolBtn>
             <CanvasToolBtn
               title="Delete"
               danger
               onClick={() => canvasAction("delete", activeIdx)}
             >
-              ✕
+              <UiIcon name="x" size={14} />
             </CanvasToolBtn>
           </div>
         </div>
@@ -1561,21 +2102,350 @@ export default function EditorCanvas() {
             transform: "translate(-100%, -100%)",
             zIndex: 2147483100,
             pointerEvents: "none",
-            background: elBadge.sel ? "#d004d4" : "#f0abfc",
-            color: elBadge.sel ? "#fff" : "#0c0d0e",
-            width: 20,
-            height: 20,
-            borderRadius: 3,
+            background: elBadge.sel ? accent.base : ink.base,
+            color: elBadge.sel ? accent.on : ink.muted,
+            width: 22,
+            height: 22,
+            borderRadius: radius.sm,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 11,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
+            boxShadow: shadow.chip,
           }}
         >
-          ✎
+          <UiIcon name="brush" size={14} />
         </div>
       ) : null}
+
+      {/* On-canvas font-size handle — drag right to grow, left to shrink. */}
+      {!previewMode && fontPill && selectedEl ? (
+        <div
+          style={{
+            ...chip(),
+            position: "fixed",
+            top: Math.max(0, fontPill.top - 32),
+            left: Math.max(0, fontPill.left),
+            zIndex: 2147483100,
+            height: 28,
+            gap: 2,
+            padding: "0 4px 0 6px",
+            userSelect: "none",
+          }}
+        >
+          <span
+            title="Drag to resize the text"
+            onPointerDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+              fontDragRef.current = { startX: e.clientX, startPx: fontPill.px }
+            }}
+            onPointerMove={(e) => {
+              const d = fontDragRef.current
+              if (!d) return
+              // 2px of travel per 1px of type: fine enough to land on a value,
+              // coarse enough to cross a heading's range without a marathon.
+              const next = Math.min(
+                200,
+                Math.max(8, Math.round(d.startPx + (e.clientX - d.startX) / 2))
+              )
+              if (next === fontPill.px) return
+              fontPxRef.current = next
+              setFontPill({ ...fontPill, px: next })
+              // Paint it NOW so the text moves under the cursor. The editor is
+              // the source of truth and will push the authoritative CSS back;
+              // this is just so the drag does not feel dead.
+              const node = rootRef.current?.querySelector<HTMLElement>(
+                `[data-cms-idx="${selectedEl.index}"] [data-el="${selectedEl.key}"]`
+              )
+              if (node) node.style.fontSize = `${next}px`
+            }}
+            onPointerUp={(e) => {
+              const d = fontDragRef.current
+              fontDragRef.current = null
+              if (!d) return
+              ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+              // Commit through the editor so it lands in the element's style bag
+              // (undo, autosave and the responsive device all keep working).
+              window.parent?.postMessage(
+                {
+                  type: "cms:fontSize",
+                  index: selectedEl.index,
+                  elementKey: selectedEl.key,
+                  px: fontPill.px,
+                },
+                "*"
+              )
+              releaseInlineFont(selectedEl.index, selectedEl.key)
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              cursor: "ew-resize",
+              padding: "0 4px",
+              color: ink.muted,
+              fontWeight: 600,
+            }}
+          >
+            <UiIcon
+              name="resize-h"
+              size={14}
+              style={{ pointerEvents: "none" }}
+            />
+            <span style={{ color: accent.base, pointerEvents: "none" }}>
+              {fontPill.px}px
+            </span>
+          </span>
+
+          {[-1, 1].map((step) => (
+            <button
+              key={step}
+              type="button"
+              title={step < 0 ? "Smaller" : "Bigger"}
+              onClick={(e) => {
+                e.stopPropagation()
+                const next = Math.min(200, Math.max(8, fontPill.px + step))
+                fontPxRef.current = next
+                setFontPill({ ...fontPill, px: next })
+                window.parent?.postMessage(
+                  {
+                    type: "cms:fontSize",
+                    index: selectedEl.index,
+                    elementKey: selectedEl.key,
+                    px: next,
+                  },
+                  "*"
+                )
+                // Any inline paint left over from a drag would outrank the CSS
+                // the editor is about to write, and the nudge would do nothing.
+                releaseInlineFont(selectedEl.index, selectedEl.key)
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = ink.text
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = ink.muted
+              }}
+              style={{
+                border: 0,
+                background: "transparent",
+                color: ink.muted,
+                width: 20,
+                height: 20,
+                borderRadius: radius.sm,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <UiIcon name={step < 0 ? "minus" : "plus"} size={14} />
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+
+      {/* Right-click menu — Elementor parity. */}
+      {!previewMode && ctxMenu ? (
+        <>
+          <div
+            onClick={() => setCtxMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setCtxMenu(null)
+            }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 2147483200,
+            }}
+          />
+          <div
+            style={{
+              ...surface("md"),
+              ...type.body,
+              position: "fixed",
+              // Keep the menu on screen when the click is near an edge.
+              top: Math.min(ctxMenu.y, window.innerHeight - 300),
+              left: Math.min(ctxMenu.x, window.innerWidth - 220),
+              zIndex: 2147483201,
+              width: 200,
+              padding: 6,
+              fontFamily: font,
+              color: grey[80],
+            }}
+          >
+            <div
+              style={{
+                ...eyebrow(),
+                padding: "4px 8px 8px",
+                borderBottom: hairline,
+                marginBottom: 4,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {ctxMenu.label}
+            </div>
+            {(() => {
+              const scope = ctxMenu.scope
+              const canPaste =
+                scope === "widget" ? clip.hasWidget : clip.hasSection
+
+              // The style trio is universal — every scope can carry a look.
+              const styleTrio = [
+                { action: "copyStyle", label: "Copy Style" },
+                {
+                  action: "pasteStyle",
+                  label: "Paste Style",
+                  disabled: !clip.hasStyle,
+                },
+                { action: "resetStyle", label: "Reset Style" },
+              ]
+
+              // The cursor was inside one repeated item (a slide, a banner
+              // tile, a testimonial): offer to duplicate or delete THAT item —
+              // the thing "duplicate a content" has always meant here.
+              const itemOps = ctxMenu.itemField
+                ? [
+                    {
+                      action: "duplicateItem",
+                      label: `Duplicate ${ctxMenu.itemLabel}`,
+                    },
+                    {
+                      action: "deleteItem",
+                      label: `Delete ${ctxMenu.itemLabel}`,
+                      danger: true,
+                    },
+                    { action: "sepItem", label: "-" },
+                  ]
+                : []
+
+              // A theme ELEMENT (a heading inside a hero, say) is a field of its
+              // section, not a free-standing object: it cannot be duplicated or
+              // deleted on its own. Offering those would be a lie. Its appearance
+              // CAN be copied around, so that is what it gets. Chrome regions
+              // (header/footer) are singletons — same deal.
+              const items =
+                scope === "element" || scope === "chromeElement"
+                  ? [
+                      { action: "edit", label: "Edit Element" },
+                      { action: "sep1", label: "-" },
+                      ...itemOps,
+                      ...styleTrio,
+                    ]
+                  : scope === "chrome"
+                    ? [
+                        { action: "edit", label: `Edit ${ctxMenu.label}` },
+                        { action: "sep1", label: "-" },
+                        ...styleTrio,
+                      ]
+                    : [
+                        {
+                          action: "edit",
+                          label: scope === "widget" ? "Edit Widget" : "Edit Section",
+                        },
+                        ...(scope === "section" ? itemOps : []),
+                        { action: "duplicate", label: "Duplicate", hint: "⌘D" },
+                        { action: "copy", label: "Copy", hint: "⌘C" },
+                        {
+                          action: "paste",
+                          label: "Paste",
+                          hint: "⌘V",
+                          disabled: !canPaste,
+                        },
+                        { action: "sep1", label: "-" },
+                        ...styleTrio,
+                        { action: "sep2", label: "-" },
+                        { action: "delete", label: "Delete", danger: true },
+                      ]
+              return items as {
+                action: string
+                label: string
+                hint?: string
+                disabled?: boolean
+                danger?: boolean
+              }[]
+            })().map((item) =>
+              item.label === "-" ? (
+                <div
+                  key={item.action}
+                  style={{
+                    borderTop: hairline,
+                    margin: "6px 0",
+                  }}
+                />
+              ) : (
+                <button
+                  key={item.action}
+                  type="button"
+                  disabled={item.disabled}
+                  onClick={() => {
+                    window.parent?.postMessage(
+                      {
+                        type: "cms:ctxAction",
+                        action: item.action,
+                        scope: ctxMenu.scope,
+                        index: ctxMenu.index,
+                        path: ctxMenu.path,
+                        elementKey: ctxMenu.elementKey,
+                        region: ctxMenu.region,
+                        itemField: ctxMenu.itemField,
+                        itemIndex: ctxMenu.itemIndex,
+                      },
+                      "*"
+                    )
+                    setCtxMenu(null)
+                  }}
+                  style={menuItem({
+                    disabled: item.disabled,
+                    danger: item.danger,
+                  })}
+                  onMouseEnter={(e) => {
+                    if (!item.disabled) {
+                      e.currentTarget.style.background = grey[10]
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "none"
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      minWidth: 0,
+                    }}
+                  >
+                    {CTX_ICONS[item.action] ? (
+                      <UiIcon name={CTX_ICONS[item.action]} size={14} />
+                    ) : null}
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {item.label}
+                    </span>
+                  </span>
+                  {item.hint ? (
+                    <span style={{ ...type.micro, color: grey[40] }}>
+                      {item.hint}
+                    </span>
+                  ) : null}
+                </button>
+              )
+            )}
+          </div>
+        </>
+      ) : null}
+
       {/* Header (editable chrome) — the ACTIVE theme's own client header, so the
           canvas chrome matches the live storefront for this store's theme. */}
       <div data-cms-chrome="header" style={chromeOutline("header")}>
@@ -1591,42 +2461,76 @@ export default function EditorCanvas() {
       {/* Page body — under the active theme's body className (FIX 1). */}
       <div className={canvasTheme.bodyClassName}>
         {content.map((block, i) => (
-          <SectionItem key={i} idx={i} block={block} blocks={canvasTheme.blocks} />
+          <React.Fragment key={i}>
+            {!previewMode && <SectionInsertBar index={i} />}
+            <SectionItem idx={i} block={block} blocks={canvasTheme.blocks} />
+          </React.Fragment>
         ))}
         {!previewMode && (
         <style>{`
-          .ff-container-col:empty {
-            min-height: 84px;
-            border: 1px dashed #babfc5;
-            border-radius: 3px;
+          /* An embedded player is a black hole for the mouse: every click lands
+             inside YouTube's iframe, so the widget holding it can never be
+             selected, dragged or deleted — you can only watch the video. While
+             EDITING, the canvas takes the pointer back; Preview hands it over so
+             the video still plays for real. */
+          [data-cms-idx] iframe,
+          [data-cms-chrome] iframe,
+          [data-w] iframe {
+            pointer-events: none;
+          }
+          /* A section that renders NOTHING (a category showcase with no
+             categories, say) has no box — so it is invisible AND unselectable,
+             which means it cannot even be deleted. It just sits in the page
+             forever. Give it a body while editing so it can be seen, selected
+             and removed. The important flag is required because the wrapper
+             carries an INLINE display:contents that would otherwise win. */
+          [data-cms-idx]:empty {
+            display: block !important;
+            min-height: 72px;
+            margin: 8px 0;
+            border: 1px dashed ${grey[20]};
+            border-radius: ${radius.md}px;
+            background: ${grey[5]};
+          }
+          [data-cms-idx]:empty::after {
+            content: "Empty section — click to select, edit or delete";
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(240, 171, 252, 0.05);
+            height: 72px;
+            font: italic 500 12px ${font};
+            color: ${grey[40]};
+          }
+          .ff-container-col:empty {
+            min-height: 84px;
+            border: 1px dashed ${grey[20]};
+            border-radius: ${radius.sm}px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: ${accent.soft};
           }
           .ff-container-col:empty::after {
             content: "Drag widget here";
-            font: italic 500 12px system-ui, sans-serif;
-            color: #9ca3af;
+            font: italic 500 12px ${font};
+            color: ${grey[40]};
           }
         `}</style>
         )}
         {content.length === 0 && (
           <div
             style={{
+              ...type.title,
               margin: "56px auto",
               maxWidth: 720,
               padding: "72px 32px",
               textAlign: "center",
-              fontFamily: "system-ui, sans-serif",
-              border: `2px dashed ${dropLine ? "#2563eb" : "#cbd5e1"}`,
-              borderRadius: 12,
-              background: dropLine ? "#eff6ff" : "#f8fafc",
-              color: dropLine ? "#1d4ed8" : "#64748b",
-              fontSize: 14,
-              fontWeight: 600,
-              transition:
-                "border-color 120ms ease, background 120ms ease, color 120ms ease",
+              fontFamily: font,
+              border: `2px dashed ${dropLine ? accent.base : grey[20]}`,
+              borderRadius: radius.lg,
+              background: dropLine ? accent.tint : grey[5],
+              color: dropLine ? accent.active : grey[50],
+              transition: `border-color ${motion.fast}, background ${motion.fast}, color ${motion.fast}`,
             }}
           >
             Drag a section here — or use + Add section

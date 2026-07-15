@@ -86,6 +86,7 @@ const HeroSlider = (props: HeroSliderData) => {
         {slides.map((slide, i) => (
           <div
             key={i}
+            data-el-item={`slides:${i}`}
             className={
               i === active ? "swiper-slide swiper-slide-active" : "swiper-slide"
             }
@@ -101,6 +102,7 @@ const HeroSlider = (props: HeroSliderData) => {
             <div className="aqf-slider-item p-relative">
               <div className="aqf-slider-thumb">
                 <img
+                  data-el="image"
                   className="w-100"
                   src={slide.image || DEFAULT_BG}
                   alt={slide.title}
@@ -111,15 +113,16 @@ const HeroSlider = (props: HeroSliderData) => {
                   <div className="col-xl-6 col-lg-8 col-md-8">
                     <div className="aqf-slider-content text-center text-md-start z-index-1">
                       {slide.subtitle ? (
-                        <span className="aq-section-subtitle ff-satoshi-reg mb-10">
+                        <span data-el="kicker" className="aq-section-subtitle ff-satoshi-reg mb-10">
                           {slide.subtitle}
                         </span>
                       ) : null}
-                      <h3 className="aq-section-title ff-satoshi-reg mb-30">
+                      <h3 data-el="title" className="aq-section-title ff-satoshi-reg mb-30">
                         {renderTitle(slide.title)}
                       </h3>
                       {slide.text ? <p className="mb-30">{slide.text}</p> : null}
                       <LocalizedClientLink
+                        data-el="button"
                         className="aq-btn-black"
                         href={slide.cta?.href || "/store"}
                       >

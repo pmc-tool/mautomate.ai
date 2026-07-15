@@ -196,15 +196,33 @@ const applyOrderWrite = async (
   return { order_id: orderId, tags }
 }
 
-/** Normalized order projection returned to the voice runtime (WISMO-friendly). */
+/**
+ * Normalized order projection returned to the voice runtime (WISMO-friendly).
+ *
+ * The raw `status` / `payment_status` / `fulfillment_status` flags are NOT here,
+ * on purpose. They routinely disagree — "pending" + "not_paid" + "shipped" on an
+ * order that was paid in full and is already in transit — and an agent handed a
+ * contradiction will say it out loud. It did: a customer was told their payment
+ * had not been received about a parcel that had already left the warehouse.
+ *
+ * `progress` is that question already answered, by the gateway, from the order's
+ * latest version. Say that instead.
+ */
 const normalizeOrder = (o: NonNullable<Awaited<ReturnType<CommerceGateway["getOrder"]>>>) => {
   const md = o.metadata ?? {}
   return {
     id: o.id,
     display_id: o.display_id,
-    status: o.status,
-    payment_status: o.payment_status,
-    fulfillment_status: o.fulfillment_status,
+    status: o.progress?.headline ?? "Status unavailable",
+    status_detail: o.progress?.detail ?? "",
+    awaiting_payment: o.progress?.awaiting_payment ?? false,
+    tracking: (o.tracking ?? []).filter((t) => t.number),
+    // The structured status travels with the projection: the chat runtime renders
+    // it as an order card, and a downstream reader must never have to re-derive
+    // it from flags this projection deliberately no longer carries.
+    progress: o.progress ?? null,
+    shipped_at: o.shipped_at ?? null,
+    delivered_at: o.delivered_at ?? null,
     total: o.total,
     currency_code: o.currency_code,
     email: o.email,
@@ -213,6 +231,12 @@ const normalizeOrder = (o: NonNullable<Awaited<ReturnType<CommerceGateway["getOr
     shipping_address: o.shipping_address,
     created_at: o.created_at,
     tags: Array.isArray(md.cc_tags) ? md.cc_tags : [],
+    note:
+      "`status` and `status_detail` are the whole truth about where this order " +
+      "stands. Do NOT mention payment unless `awaiting_payment` is true — once a " +
+      "parcel has shipped the money is settled, and raising it only alarms the " +
+      "caller. If `tracking` is empty there is no tracking number: say so and " +
+      "offer to follow up. Never invent one, and never invent a delivery date.",
   }
 }
 
@@ -279,18 +303,37 @@ const getOrderStatus: Tool = {
     if (!order) {
       return { error: `order ${orderId} was not found` }
     }
+    // The summary is spoken almost verbatim, so it has to be a SENTENCE, not a
+    // pair of internal enum values glued together with "and". This used to render
+    // as "Order 7 is pending and shipped." — which is not English, not true, and
+    // not an answer to "where is my order".
+    const tracking = (order.tracking ?? []).filter((t) => t.number)
+    const progress = order.progress
+    const summary = progress
+      ? [
+          `Order ${order.display_id ?? order.id}: ${progress.headline}.`,
+          progress.detail,
+          tracking.length
+            ? `Tracking number ${tracking[0].number}.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : `I do not have a current status for order ${order.display_id ?? order.id}.`
+
     return {
       result: {
         order_id: order.id,
         display_id: order.display_id,
-        status: order.status,
-        fulfillment_status: order.fulfillment_status,
-        payment_status: order.payment_status,
-        summary: `Order ${
-          order.display_id ?? order.id
-        } is ${order.status ?? "unknown"} and ${
-          order.fulfillment_status ?? "not_fulfilled"
-        }.`,
+        status: progress?.headline ?? "unknown",
+        status_detail: progress?.detail ?? "",
+        awaiting_payment: progress?.awaiting_payment ?? false,
+        tracking,
+        summary,
+        note:
+          "Say the summary in your own words. Do NOT mention payment unless " +
+          "`awaiting_payment` is true. Never invent a tracking number or a " +
+          "delivery date.",
       },
     }
   },
@@ -303,15 +346,28 @@ const getOrderStatus: Tool = {
 /** Cap for list results returned to the voice runtime (spoken aloud). */
 const READ_LIST_CAP = 5
 
-/** One-line, spoken-friendly summary of an order. */
+/**
+ * One-line, spoken-friendly summary of an order — used for LIST results
+ * (findOrders / listCustomerOrders).
+ *
+ * The raw `status` / `payment_status` / `fulfillment_status` flags are gone from
+ * here for the same reason they are gone from `normalizeOrder`: an agent handed
+ * `status: "pending"` will SAY "pending", and "pending" is Medusa's word for
+ * "not archived" — not "not shipped", and certainly not "not paid". A caller was
+ * told his order was pending while the parcel was already in transit.
+ *
+ * This projection was the last one still leaking them, and it is the one the
+ * voice agent actually reaches for when a caller reads out an order number.
+ */
 const summarizeOrder = (
   o: NonNullable<Awaited<ReturnType<CommerceGateway["getOrder"]>>>
 ) => ({
   id: o.id,
   display_id: o.display_id,
-  status: o.status,
-  fulfillment_status: o.fulfillment_status,
-  payment_status: o.payment_status,
+  status: o.progress?.headline ?? "Status unavailable",
+  status_detail: o.progress?.detail ?? "",
+  awaiting_payment: o.progress?.awaiting_payment ?? false,
+  tracking: (o.tracking ?? []).filter((t) => t.number),
   total: o.total,
   currency_code: o.currency_code,
   created_at: o.created_at,
@@ -467,10 +523,11 @@ const searchProducts: Tool = {
   risk: "none",
   write: false,
   handler: async (ctx, args) => {
-    const query = asString(args.query) ?? asString(args.q)
-    if (!query) {
-      return { error: "query is required (what the caller is looking for)" }
-    }
+    // Callers speak like people, not search engines: "what do you sell",
+    // "something under 1000", "anything for the kitchen". An empty or vague
+    // query must LIST the catalogue, never fail — a shop assistant who answers
+    // "I need a keyword" is useless.
+    const query = asString(args.query) ?? asString(args.q) ?? ""
     const rawLimit = Number(args.limit)
     const limit =
       Number.isFinite(rawLimit) && rawLimit > 0

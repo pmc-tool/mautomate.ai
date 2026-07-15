@@ -242,8 +242,38 @@ export class OtpService {
       normalizePhone(phone),
       `Your Forever Finds verification code is ${code}`
     )
+    // Carrier fees are real money — an SMS is never free to give away.
+    await this.chargeSms(tenantId)
 
     return { sent: true }
+  }
+
+  /** SMS costs carrier money — trials don't get it. */
+  private async smsAllowed(tenantId: string): Promise<boolean> {
+    const container = (this as any).container_ ?? (this as any).container
+    if (!container) return true
+    try {
+      const { checkPlanGate } = await import("../../platform/billing/plan-gate")
+      const g = await checkPlanGate(container, tenantId, "sms")
+      return g.allowed
+    } catch {
+      return true
+    }
+  }
+
+  /** Debit one SMS segment. Never throws — billing must not break delivery. */
+  private async chargeSms(tenantId: string): Promise<void> {
+    const container = (this as any).container_ ?? (this as any).container
+    if (!container) return
+    try {
+      const { getLedger } = await import("../../platform/credits/metering")
+      const ledger = getLedger(container)
+      const rid = `cres_sms_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const r = await ledger.reserve(tenantId, "sms_segment", 1, { reservationId: rid })
+      if (r.ok) await ledger.commit(rid)
+    } catch {
+      /* metering must never break an OTP */
+    }
   }
 
   /**

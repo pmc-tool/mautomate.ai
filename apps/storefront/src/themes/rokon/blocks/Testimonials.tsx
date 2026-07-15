@@ -83,7 +83,12 @@ const Testimonials = (props: TestimonialsData) => {
             style={{ rowGap: "30px" }}
           >
             {items.map((item, i) => (
-              <div className="col" key={i}>
+              <div
+                data-el="item"
+                data-el-item={`items:${i}`}
+                className="col"
+                key={i}
+              >
                 <article className="testimonial__card text-center">
                   <div className="testimonial__card--thumbnail">
                     <img
@@ -94,11 +99,11 @@ const Testimonials = (props: TestimonialsData) => {
                   </div>
                   <div className="testimonial__content">
                     {item.quote ? (
-                      <p className="testimonial__content--desc">
+                      <p data-el="quote" className="testimonial__content--desc">
                         {item.quote}
                       </p>
                     ) : null}
-                    <h3 className="testimonial__content--title">
+                    <h3 data-el="author" className="testimonial__content--title">
                       {item.author}
                     </h3>
                     {item.role ? (

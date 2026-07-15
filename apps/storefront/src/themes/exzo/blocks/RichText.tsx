@@ -203,6 +203,7 @@ const RichText = (props: RichTextData) => {
               <>
                 <div className="col-md-5 col-xs-b30 col-md-b0">
                   <div
+                    data-el="content"
                     className="simple-article size-3"
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(raw) }}
                   />
@@ -230,6 +231,7 @@ const RichText = (props: RichTextData) => {
         <div className="row">
           <div className={col}>
             <div
+              data-el="content"
               className="simple-article size-3"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(raw) }}
             />

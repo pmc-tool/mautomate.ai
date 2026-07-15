@@ -162,6 +162,9 @@ const FULL_FIELDS = [
   "images.id",
   "images.url",
   "images.rank",
+  // Which variants each image belongs to — drives per-variant gallery
+  // filtering on the storefront and the "assign to variants" admin UI.
+  "images.variants.id",
   "options.id",
   "options.title",
   "options.values.id",
@@ -169,6 +172,7 @@ const FULL_FIELDS = [
   "options.values.rank",
   "variants.id",
   "variants.title",
+  "variants.thumbnail",
   "variants.sku",
   "variants.barcode",
   "variants.ean",

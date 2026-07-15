@@ -6,7 +6,7 @@ import Image from "next/image"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import { listThemes, updateTheme, Theme, apiUrl } from "@lib/merchant-admin/api"
 import { AuthGate } from "../../../components/merchant-admin/auth-gate"
-import { CheckCircleSolid, PencilSquare, Spinner, ExclamationCircle, CheckCircle, Photo } from "@medusajs/icons"
+import { CheckCircleSolid, PencilSquare, Spinner, ExclamationCircle, CheckCircle, Photo, Eye } from "@medusajs/icons"
 
 function classNames(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ")
@@ -75,6 +75,22 @@ function DesignPageContent() {
   useEffect(() => {
     fetchThemes()
   }, [token])
+
+  const previewTheme = (themeId: string) => {
+    // Open the store on its OWN domain (so the tenant middleware resolves the
+    // right store) with a preview override — the merchant sees their real
+    // content in the candidate theme, nothing published.
+    if (typeof window === "undefined") return
+    const rootDomain = window.location.host.replace(/^merchant\./, "")
+    const storeHost =
+      me?.store?.domain ||
+      (me?.store?.slug ? `${me.store.slug}.${rootDomain}` : window.location.host)
+    window.open(
+      `https://${storeHost}/?preview_theme=${encodeURIComponent(themeId)}`,
+      "_blank",
+      "noopener"
+    )
+  }
 
   const activateTheme = async (themeId: string) => {
     if (!token || themeId === activeTheme) return
@@ -245,11 +261,20 @@ function DesignPageContent() {
                       {theme.description && (
                         <p className="text-sm text-grey-50 mt-1 line-clamp-2">{theme.description}</p>
                       )}
+                      <div className="mt-4 flex gap-2">
+                      <button
+                        onClick={() => previewTheme(theme.id)}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-base text-sm font-medium border border-grey-20 bg-white text-grey-70 transition-all hover:bg-grey-10 hover:border-grey-30 hover:text-grey-90"
+                        title="Preview this theme with your real content — nothing is published"
+                      >
+                        <Eye className="w-4 h-4" />
+                        Preview
+                      </button>
                       <button
                         onClick={() => activateTheme(theme.id)}
                         disabled={isActive || saving === theme.id}
                         className={classNames(
-                          "mt-4 w-full inline-flex items-center justify-center px-3 py-2 rounded-base text-sm font-medium transition-all",
+                          "flex-1 inline-flex items-center justify-center px-3 py-2 rounded-base text-sm font-medium transition-all",
                           isActive
                             ? "bg-grey-10 text-grey-50 cursor-default"
                             : "bg-grey-90 text-white hover:bg-grey-80 hover:shadow-sm disabled:opacity-50 disabled:hover:shadow-none"
@@ -269,6 +294,7 @@ function DesignPageContent() {
                           "Activate theme"
                         )}
                       </button>
+                      </div>
                     </div>
                   </div>
                 )

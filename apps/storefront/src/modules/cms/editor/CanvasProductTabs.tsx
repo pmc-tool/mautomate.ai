@@ -6,6 +6,7 @@ import { HttpTypes } from "@medusajs/types"
 
 import LeartsProductTabs from "@modules/home/components/learts/product-tabs"
 import { PRODUCT_TABS_VIEWS } from "./canvas-views"
+import { font } from "./design"
 
 /* ------------------------------------------------------------------ */
 /* Editor-canvas preview of the product_tabs block.                     */
@@ -195,7 +196,7 @@ function EmptyState({ label }: { label: string }) {
         textAlign: "center",
         color: "#94a3b8",
         fontSize: 14,
-        fontFamily: "system-ui, sans-serif",
+        fontFamily: font,
       }}
     >
       {label}

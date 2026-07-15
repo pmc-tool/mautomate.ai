@@ -7,6 +7,10 @@
 /* BlockSchema — proper typed widgets (text, textarea, range, color,    */
 /* select, image, url, object, list/repeater) grouped into sections.    */
 /* This REPLACES the old guess-from-JSON FieldEditor.                   */
+/*                                                                     */
+/* Every colour, radius, size and weight below comes from the shared    */
+/* editor design system (./design) — the same ramp the merchant         */
+/* dashboard ships, with ONE accent (the ember). No local hexes.        */
 /* ------------------------------------------------------------------ */
 
 import React, { useEffect, useRef, useState } from "react"
@@ -29,52 +33,58 @@ import {
 } from "@modules/cms/editor/style-controls"
 import type { Tokens } from "@modules/cms/editor/style-controls"
 import { IconButton, UiIcon } from "@modules/cms/editor/palette-icons"
+import { AiFieldButton } from "@modules/cms/editor/AiFieldButton"
+import {
+  accent,
+  button,
+  eyebrow,
+  field as fieldStyle,
+  font,
+  grey,
+  hairline,
+  motion,
+  radius,
+  semantic,
+  shadow,
+  surface,
+  type,
+} from "@modules/cms/editor/design"
 
 /* ----------------------------- styles ----------------------------- */
 const label: React.CSSProperties = {
+  ...type.micro,
+  fontFamily: font,
   display: "block",
-  fontSize: 11,
-  fontWeight: 600,
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-  color: "#6b7280",
-  margin: "12px 0 5px",
+  color: grey[50],
+  margin: "12px 0 6px",
 }
 const input: React.CSSProperties = {
-  width: "100%",
+  ...fieldStyle(),
   boxSizing: "border-box",
+  height: "auto",
   padding: "8px 10px",
-  border: "1px solid #d1d5db",
-  borderRadius: 7,
-  fontSize: 13,
-  fontFamily: "inherit",
-  color: "#111827",
-  background: "#fff",
-  outline: "none",
 }
-const help: React.CSSProperties = { fontSize: 11, color: "#9ca3af", marginTop: 3 }
+const help: React.CSSProperties = {
+  ...type.label,
+  fontFamily: font,
+  color: grey[40],
+  marginTop: 4,
+}
 const groupBox: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 9,
-  padding: "10px 12px",
+  ...surface(),
+  borderRadius: radius.md,
+  padding: "12px",
   margin: "8px 0",
-  background: "#fafafa",
+  background: grey[5],
 }
 const itemBox: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 9,
+  ...surface(),
+  borderRadius: radius.md,
   margin: "8px 0",
-  background: "#fff",
   overflow: "hidden",
 }
 const smallBtn: React.CSSProperties = {
-  border: "1px solid #d1d5db",
-  background: "#fff",
-  borderRadius: 6,
-  fontSize: 12,
-  padding: "3px 9px",
-  cursor: "pointer",
-  color: "#374151",
+  ...button("secondary", "sm"),
 }
 
 /* --------------------------- rich text ---------------------------- */
@@ -129,24 +139,27 @@ function RichTextControl({
     if (ref.current) onChange(ref.current.innerHTML)
   }
   const tb: React.CSSProperties = {
-    border: "1px solid #e5e7eb",
-    background: "#fff",
-    borderRadius: 5,
+    ...type.label,
+    fontFamily: font,
+    border: hairline,
+    background: grey[0],
+    color: grey[70],
+    borderRadius: radius.sm,
     minWidth: 28,
     height: 26,
     cursor: "pointer",
-    fontSize: 12,
     padding: "0 6px",
+    transition: `background ${motion.fast}, border-color ${motion.fast}`,
   }
   const keepSel = (e: React.MouseEvent) => e.preventDefault()
   return (
-    <div style={{ border: "1px solid #d1d5db", borderRadius: 7, overflow: "hidden" }}>
-      <div style={{ display: "flex", gap: 3, padding: 5, borderBottom: "1px solid #e5e7eb", background: "#f9fafb", flexWrap: "wrap", alignItems: "center" }}>
+    <div style={{ border: `1px solid ${grey[30]}`, borderRadius: radius.md, overflow: "hidden" }}>
+      <div style={{ display: "flex", gap: 4, padding: 6, borderBottom: hairline, background: grey[5], flexWrap: "wrap", alignItems: "center" }}>
         <button type="button" onMouseDown={keepSel} onClick={() => cmd("bold")} style={tb}><b>B</b></button>
         <button type="button" onMouseDown={keepSel} onClick={() => cmd("italic")} style={{ ...tb, fontStyle: "italic" }}>I</button>
         <button type="button" onMouseDown={keepSel} onClick={() => cmd("formatBlock", "<h2>")} style={tb}>H2</button>
         <button type="button" onMouseDown={keepSel} onClick={() => cmd("formatBlock", "<p>")} style={tb}>P</button>
-        <button type="button" onMouseDown={keepSel} onClick={() => cmd("insertUnorderedList")} style={tb}>• List</button>
+        <button type="button" onMouseDown={keepSel} onClick={() => cmd("insertUnorderedList")} style={tb}>List</button>
         <button
           type="button"
           onMouseDown={keepSel}
@@ -158,13 +171,13 @@ function RichTextControl({
         >
           Link
         </button>
-        <span style={{ width: 1, alignSelf: "stretch", background: "#e5e7eb", margin: "0 2px" }} />
+        <span style={{ width: 1, alignSelf: "stretch", background: grey[20], margin: "0 2px" }} />
         <label
           title="Text color"
           onMouseDown={saveSel}
           style={{ ...tb, display: "inline-flex", alignItems: "center", gap: 4, padding: "0 6px" }}
         >
-          <span style={{ fontWeight: 700 }}>A</span>
+          <span style={{ fontWeight: 600 }}>A</span>
           <input
             type="color"
             aria-label="Text color"
@@ -191,7 +204,7 @@ function RichTextControl({
           <option value="6">X-Large</option>
           <option value="7">Huge</option>
         </select>
-        <span style={{ width: 1, alignSelf: "stretch", background: "#e5e7eb", margin: "0 2px" }} />
+        <span style={{ width: 1, alignSelf: "stretch", background: grey[20], margin: "0 2px" }} />
         <button type="button" title="Align left" onMouseDown={keepSel} onClick={() => styleCmd("justifyLeft")} style={tb}>L</button>
         <button type="button" title="Align center" onMouseDown={keepSel} onClick={() => styleCmd("justifyCenter")} style={tb}>C</button>
         <button type="button" title="Align right" onMouseDown={keepSel} onClick={() => styleCmd("justifyRight")} style={tb}>R</button>
@@ -205,7 +218,7 @@ function RichTextControl({
         }}
         onKeyUp={saveSel}
         onMouseUp={saveSel}
-        style={{ minHeight: 80, padding: "8px 10px", fontSize: 13, outline: "none", lineHeight: 1.5 }}
+        style={{ ...type.body, fontFamily: font, color: grey[90], minHeight: 80, padding: "8px 10px", outline: "none" }}
       />
     </div>
   )
@@ -236,15 +249,67 @@ function PickerControl({
 }
 
 /* ----------------------------- image ------------------------------ */
+/** The block being edited — an image's slot depends far more on WHICH BLOCK it
+ *  lives in than on the field's name. A hero slide's field is literally called
+ *  "Background image", and treating that as an abstract background produced a
+ *  gradient blur instead of a hero photo. */
+const BlockTypeCtx = React.createContext<string>("")
+
+/** What KIND of image belongs in this slot — drives size, framing, transparency. */
+function slotFor(blockType?: string, name?: string, label?: string): string {
+  const s = `${name ?? ""} ${label ?? ""}`.toLowerCase()
+
+  // Field-level intent always wins for these two.
+  if (/logo|brand mark|favicon/.test(s)) return "logo"
+  if (/avatar|author|portrait|person|headshot/.test(s)) return "portrait"
+
+  // The block decides. This is the reliable signal.
+  switch (blockType) {
+    case "hero_slider":
+      return "hero"
+    case "deal_of_day":
+      return "product"
+    case "image_with_text":
+      return "lifestyle"
+    case "brand_strip":
+      return "logo"
+    case "testimonials":
+      return "portrait"
+    case "promo_banner_grid":
+      // The big "sale" banner is wide; the category tiles are square.
+      return /sale|promo|banner/.test(s) ? "banner" : "square"
+    case "instagram_grid":
+    case "image_gallery":
+    case "category_showcase":
+    case "product_tabs":
+      return "square"
+  }
+
+  // No block context (chrome/theme fields) — fall back to the field wording.
+  if (/hero|slide/.test(s)) return "hero"
+  if (/banner|promo|sale/.test(s)) return "banner"
+  if (/product|item photo/.test(s)) return "product"
+  if (/lifestyle|about|story/.test(s)) return "lifestyle"
+  if (/pattern|texture|backdrop/.test(s)) return "background"
+  return "square"
+}
+
 function ImageControl({
   value,
   onChange,
+  fieldName,
+  fieldLabel,
 }: {
   value: string
   onChange: (v: string) => void
+  fieldName?: string
+  fieldLabel?: string
 }) {
   const [open, setOpen] = useState(false)
+  const [openAi, setOpenAi] = useState(false)
   const [showUrl, setShowUrl] = useState(false)
+  const blockType = React.useContext(BlockTypeCtx)
+  const slot = slotFor(blockType, fieldName, fieldLabel)
   return (
     <div>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
@@ -253,22 +318,32 @@ function ImageControl({
           <img
             src={value}
             alt=""
-            style={{ height: 46, width: 46, borderRadius: 7, border: "1px solid #e5e7eb", objectFit: "cover", display: "block", flex: "0 0 auto" }}
+            style={{ height: 48, width: 48, borderRadius: radius.md, border: hairline, objectFit: "cover", display: "block", flex: "0 0 auto" }}
           />
         ) : (
-          <div style={{ height: 46, width: 46, borderRadius: 7, border: "1px dashed #d1d5db", background: "#fafafa", flex: "0 0 auto" }} />
+          <div style={{ height: 48, width: 48, borderRadius: radius.md, border: `1px dashed ${grey[30]}`, background: grey[5], flex: "0 0 auto" }} />
         )}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <button
             type="button"
-            style={{ ...smallBtn, borderColor: "#2563eb", color: "#2563eb" }}
+            style={smallBtn}
             onClick={() => setOpen(true)}
           >
+            <UiIcon name="image" size={13} />
             Choose image
           </button>
           <button
             type="button"
-            style={{ ...smallBtn, fontSize: 11 }}
+            title="Create this image with AI"
+            style={{ ...smallBtn, borderColor: accent.base, color: accent.base }}
+            onClick={() => setOpenAi(true)}
+          >
+            <UiIcon name="sparkles" size={13} />
+            Generate with AI
+          </button>
+          <button
+            type="button"
+            style={{ ...button("ghost", "sm"), color: grey[50] }}
             onClick={() => setShowUrl((s) => !s)}
           >
             {showUrl ? "Hide URL" : "Edit URL"}
@@ -277,7 +352,7 @@ function ImageControl({
       </div>
       {showUrl ? (
         <input
-          style={{ ...input, marginTop: 7 }}
+          style={{ ...input, marginTop: 8 }}
           value={value ?? ""}
           placeholder="Image URL"
           onChange={(e) => onChange(e.target.value)}
@@ -288,6 +363,16 @@ function ImageControl({
           value={value}
           onChange={onChange}
           onClose={() => setOpen(false)}
+          slot={slot}
+        />
+      ) : null}
+      {openAi ? (
+        <MediaPicker
+          value={value}
+          onChange={onChange}
+          onClose={() => setOpenAi(false)}
+          slot={slot}
+          initialTab="generate"
         />
       ) : null}
     </div>
@@ -295,6 +380,19 @@ function ImageControl({
 }
 
 /* ------------------------- single control ------------------------- */
+/** The preset colour swatches — the product's own ramp + the one accent. */
+const SWATCHES: string[] = [
+  grey[90],
+  accent.base,
+  semantic.successFg,
+  semantic.dangerFg,
+  semantic.warnFg,
+  semantic.infoFg,
+  grey[60],
+  grey[40],
+  grey[0],
+]
+
 function Control({
   field,
   value,
@@ -312,7 +410,7 @@ function Control({
     case "textarea":
       return (
         <textarea
-          style={{ ...input, minHeight: 70, resize: "vertical" }}
+          style={{ ...input, minHeight: 72, resize: "vertical" }}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -331,17 +429,17 @@ function Control({
       )
     case "range":
       return (
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <input
             type="range"
-            style={{ flex: 1 }}
+            style={{ flex: 1, accentColor: accent.base }}
             value={(value as number) ?? field.min ?? 0}
             min={field.min ?? 0}
             max={field.max ?? 100}
             step={field.step ?? 1}
             onChange={(e) => onChange(Number(e.target.value))}
           />
-          <span style={{ fontSize: 12, color: "#374151", minWidth: 54, textAlign: "right" }}>
+          <span style={{ ...type.label, fontFamily: font, color: grey[70], minWidth: 54, textAlign: "right" }}>
             {String(value ?? field.min ?? 0)}
             {field.unit ?? ""}
           </span>
@@ -349,7 +447,7 @@ function Control({
       )
     case "boolean":
       return (
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <button
             type="button"
             role="switch"
@@ -358,13 +456,13 @@ function Control({
             style={{
               width: 38,
               height: 21,
-              borderRadius: 11,
+              borderRadius: radius.pill,
               border: "none",
               padding: 0,
               cursor: "pointer",
               position: "relative",
-              background: value ? "#2563eb" : "#cbd5e1",
-              transition: "background 0.15s ease",
+              background: value ? accent.base : grey[30],
+              transition: `background ${motion.fast}`,
               flexShrink: 0,
             }}
           >
@@ -376,13 +474,13 @@ function Control({
                 width: 17,
                 height: 17,
                 borderRadius: "50%",
-                background: "#fff",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.25)",
-                transition: "left 0.15s ease",
+                background: grey[0],
+                boxShadow: shadow.xs,
+                transition: `left ${motion.fast}`,
               }}
             />
           </button>
-          <span style={{ fontSize: 12, color: "#6b7280" }}>{value ? "On" : "Off"}</span>
+          <span style={{ ...type.label, fontFamily: font, color: grey[50] }}>{value ? "On" : "Off"}</span>
         </div>
       )
     case "select":
@@ -401,27 +499,34 @@ function Control({
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <input
               type="color"
-              value={(value as string) || "#000000"}
+              value={(value as string) || grey[90]}
               onChange={(e) => onChange(e.target.value)}
-              style={{ width: 38, height: 34, border: "1px solid #d1d5db", borderRadius: 6, padding: 0, background: "#fff", cursor: "pointer" }}
+              style={{ width: 38, height: 34, border: `1px solid ${grey[30]}`, borderRadius: radius.md, padding: 0, background: grey[0], cursor: "pointer" }}
             />
             <input style={input} value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />
           </div>
-          <div style={{ display: "flex", gap: 5, marginTop: 7, flexWrap: "wrap" }}>
-            {["#111827", "#2563eb", "#059669", "#dc2626", "#d97706", "#7c3aed", "#0891b2", "#64748b", "#ffffff"].map((c) => (
+          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+            {SWATCHES.map((c) => (
               <button
                 key={c}
                 type="button"
                 title={c}
                 onClick={() => onChange(c)}
-                style={{ width: 18, height: 18, borderRadius: 4, border: "1px solid #e5e7eb", background: c, cursor: "pointer", padding: 0 }}
+                style={{ width: 18, height: 18, borderRadius: radius.sm, border: hairline, background: c, cursor: "pointer", padding: 0 }}
               />
             ))}
           </div>
         </div>
       )
     case "image":
-      return <ImageControl value={(value as string) ?? ""} onChange={onChange} />
+      return (
+        <ImageControl
+          value={(value as string) ?? ""}
+          onChange={onChange}
+          fieldName={field.name}
+          fieldLabel={field.label}
+        />
+      )
     case "product":
       return <PickerControl kind="product" value={(value as string) ?? ""} onChange={onChange} />
     case "collection":
@@ -476,40 +581,43 @@ function ListField({
       {items.map((item, i) => (
         <div key={i} style={itemBox}>
           <div
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", background: "#f9fafb", cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: grey[5], cursor: "pointer" }}
             onClick={() => setOpen((o) => (o === i ? null : i))}
           >
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
+            <span aria-hidden style={{ color: grey[40], display: "inline-flex", flexShrink: 0 }}>
+              <UiIcon name="grip" size={13} />
+            </span>
+            <span style={{ ...type.bodyStrong, fontFamily: font, color: grey[80] }}>
               {itemLabel} {i + 1}
             </span>
             <span style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
               <IconButton
                 icon="arrow-up"
                 label="Move up"
-                size={22}
-                iconSize={12}
+                size={24}
+                iconSize={13}
                 onClick={(e) => { e.stopPropagation(); if (i > 0) { const n = [...items]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; onChange(n) } }}
               />
               <IconButton
                 icon="arrow-down"
                 label="Move down"
-                size={22}
-                iconSize={12}
+                size={24}
+                iconSize={13}
                 onClick={(e) => { e.stopPropagation(); if (i < items.length - 1) { const n = [...items]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; onChange(n) } }}
               />
               <IconButton
                 icon="duplicate"
                 label="Duplicate"
-                size={22}
-                iconSize={12}
+                size={24}
+                iconSize={13}
                 onClick={(e) => { e.stopPropagation(); const n = [...items]; n.splice(i + 1, 0, JSON.parse(JSON.stringify(items[i]))); onChange(n) }}
               />
               <IconButton
-                icon="x"
+                icon="trash"
                 label="Remove"
                 danger
-                size={22}
-                iconSize={12}
+                size={24}
+                iconSize={13}
                 onClick={(e) => { e.stopPropagation(); onChange(items.filter((_, idx) => idx !== i)) }}
               />
             </span>
@@ -528,9 +636,10 @@ function ListField({
       {(!field.maxItems || items.length < field.maxItems) && (
         <button
           onClick={() => { onChange([...items, blankItem()]); setOpen(items.length) }}
-          style={{ width: "100%", border: 0, background: "#26292c", color: "#fff", borderRadius: 3, fontSize: 12, fontWeight: 500, padding: "9px", cursor: "pointer", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+          style={{ ...button("primary", "md"), width: "100%", marginTop: 8 }}
         >
-          + Add {itemLabel.toLowerCase()}
+          <UiIcon name="plus" size={13} />
+          Add {itemLabel.toLowerCase()}
         </button>
       )}
     </div>
@@ -582,10 +691,25 @@ function FieldList({
         </div>
       )
     }
+    // Text-ish fields get the AI (sparkle) button on their label row — one-tap
+    // rewrite/shorten/translate, or a custom instruction, for THIS field only.
+    const aiable = f.type === "text" || f.type === "textarea" || f.type === "richText"
     return (
       <div key={f.name}>
-        <label style={label}>{f.label}</label>
-        <Control field={f} value={props[f.name]} props={props} onChange={(v) => set(f.name, v)} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <label style={{ ...label, marginBottom: 0 }}>{f.label}</label>
+          {aiable && (
+            <AiFieldButton
+              value={typeof props[f.name] === "string" ? (props[f.name] as string) : ""}
+              label={f.label}
+              html={f.type === "richText"}
+              onResult={(text) => set(f.name, text)}
+            />
+          )}
+        </div>
+        <div style={{ marginTop: 6 }}>
+          <Control field={f} value={props[f.name]} props={props} onChange={(v) => set(f.name, v)} />
+        </div>
         {f.help ? <div style={help}>{f.help}</div> : null}
       </div>
     )
@@ -604,7 +728,7 @@ function FieldList({
   )
 }
 
-/* Collapsible control section (Elementor-style accordion group). */
+/* Collapsible control section (accordion group). */
 function GroupSection({
   name,
   fields,
@@ -616,10 +740,11 @@ function GroupSection({
 }) {
   const [open, setOpen] = React.useState(true)
   return (
-    <div style={{ marginTop: 8, borderTop: "1px solid #f1f5f9" }}>
+    <div style={{ marginTop: 8, borderTop: hairline }}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         style={{
           width: "100%",
           display: "flex",
@@ -627,15 +752,21 @@ function GroupSection({
           justifyContent: "space-between",
           background: "none",
           border: "none",
-          padding: "11px 0 7px",
+          padding: "12px 0 8px",
           cursor: "pointer",
         }}
       >
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.6 }}>
-          {name}
-        </span>
-        <span style={{ fontSize: 10, color: "#9ca3af", transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>
-          ▸
+        <span style={eyebrow()}>{name}</span>
+        <span
+          aria-hidden
+          style={{
+            color: grey[40],
+            display: "inline-flex",
+            transform: open ? "rotate(0deg)" : "rotate(-90deg)",
+            transition: `transform ${motion.fast}`,
+          }}
+        >
+          <UiIcon name="chevron-down" size={13} />
         </span>
       </button>
       {open && <div>{fields.map(render)}</div>}
@@ -717,10 +848,9 @@ function Accordion({
   return (
     <div
       style={{
-        border: "1px solid #e5e7eb",
-        borderRadius: 9,
+        ...surface(),
+        borderRadius: radius.md,
         margin: "8px 0",
-        background: "#fff",
         overflow: "hidden",
       }}
     >
@@ -729,19 +859,16 @@ function Accordion({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         style={{
+          ...eyebrow(),
           display: "flex",
           alignItems: "center",
-          gap: 6,
+          gap: 8,
           width: "100%",
           border: 0,
-          background: "#f9fafb",
-          padding: "8px 12px",
+          background: grey[5],
+          padding: "10px 12px",
           cursor: "pointer",
-          fontSize: 11,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-          color: "#374151",
+          color: grey[70],
         }}
       >
         <span>{title}</span>
@@ -749,10 +876,10 @@ function Accordion({
           aria-hidden
           style={{
             marginLeft: "auto",
-            color: "#9ca3af",
+            color: grey[40],
             display: "inline-flex",
             transform: open ? "rotate(0deg)" : "rotate(-90deg)",
-            transition: "transform .15s",
+            transition: `transform ${motion.fast}`,
           }}
         >
           <UiIcon name="chevron" size={13} />
@@ -770,15 +897,20 @@ function Accordion({
 /* the per-field reset deletes the key. Defaults are NEVER pre-seeded.   */
 /* ------------------------------------------------------------------ */
 const resetBtn: React.CSSProperties = {
+  ...type.label,
+  fontFamily: font,
   marginLeft: "auto",
-  border: "1px solid #e5e7eb",
-  background: "#fff",
-  color: "#6b7280",
-  borderRadius: 5,
-  fontSize: 11,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
+  border: hairline,
+  background: grey[0],
+  color: grey[50],
+  borderRadius: radius.sm,
   lineHeight: 1,
-  padding: "3px 7px",
+  padding: "4px 8px",
   cursor: "pointer",
+  transition: `color ${motion.fast}, border-color ${motion.fast}`,
 }
 
 function isEmptyValue(v: unknown): boolean {
@@ -841,11 +973,12 @@ function StyleFieldList({
               title={`Reset ${f.label}`}
               onClick={() => setKey(f.name, undefined)}
             >
-              ↺ Reset
+              <UiIcon name="reset" size={12} />
+              Reset
             </button>
           ) : null}
         </div>
-        <div style={{ marginTop: 5 }}>
+        <div style={{ marginTop: 6 }}>
           <ResponsiveFieldWrapper
             field={f}
             value={bag[f.name]}
@@ -895,14 +1028,18 @@ function TabHeader({
   active: PanelTab
   onSelect: (t: PanelTab) => void
 }) {
-  const ICONS: Record<string, string> = { content: "✎", style: "◐", advanced: "⚙" }
+  const ICONS: Record<string, string> = {
+    content: "text",
+    style: "brush",
+    advanced: "settings",
+  }
   return (
     <div
       role="tablist"
       style={{
         display: "flex",
-        borderBottom: "1px solid #e6e8ea",
-        marginBottom: 12,
+        borderBottom: hairline,
+        marginBottom: 16,
       }}
     >
       {tabs.map((t) => {
@@ -915,24 +1052,27 @@ function TabHeader({
             aria-selected={on}
             onClick={() => onSelect(t.key)}
             style={{
+              ...type.label,
+              fontFamily: font,
               flex: 1,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: 3,
+              gap: 4,
               border: 0,
-              borderBottom: on ? "2px solid #93003f" : "2px solid transparent",
+              borderBottom: `2px solid ${on ? accent.base : "transparent"}`,
               marginBottom: -1,
               background: "transparent",
-              color: on ? "#93003f" : "#6d7882",
-              fontSize: 11,
+              color: on ? grey[90] : grey[50],
               fontWeight: on ? 600 : 500,
-              padding: "9px 4px 8px",
+              padding: "10px 4px 8px",
               cursor: "pointer",
-              transition: "color .12s, border-color .12s",
+              transition: `color ${motion.fast}, border-color ${motion.fast}`,
             }}
           >
-            <span style={{ fontSize: 15, lineHeight: 1 }}>{ICONS[t.key] ?? ""}</span>
+            <span style={{ display: "inline-flex", color: on ? accent.base : grey[40] }}>
+              <UiIcon name={ICONS[t.key] ?? "settings"} size={14} />
+            </span>
             {t.label}
           </button>
         )
@@ -958,6 +1098,7 @@ export default function SchemaPanel({
   contentExtra,
   blockLabel,
   elementLabel,
+  elementKey,
   onBackToSection,
 }: {
   /** Content schema. Optional in element mode (there is no Content tab). */
@@ -1002,17 +1143,23 @@ export default function SchemaPanel({
   blockLabel?: string
   /** Breadcrumb: the selected element's label (e.g. "Heading"). */
   elementLabel?: string
+  /** The selected element's key — its own fields are hoisted to the top. */
+  elementKey?: string
   /** Return to editing the whole section (clears the element selection). */
   onBackToSection?: () => void
 }) {
-  const [tab, setTab] = useState<PanelTab>(elementMode ? "style" : "content")
+  const [tab, setTab] = useState<PanelTab>("content")
 
   const contentFieldList = schema?.fields ?? contentFields
   const tabs: { key: PanelTab; label: string }[] = []
-  // Content tab in section mode (block schema) and widget mode (widget
-  // content fields) — element content lives in the block, so element mode
-  // stays Style/Advanced-only.
-  if (!elementMode && contentFieldList && onChange) {
+  // Element mode used to be Style/Advanced ONLY, on the theory that "element
+  // content lives in the block". True — but it meant that clicking a heading to
+  // change its words dropped you in a panel that could not change words, and the
+  // only way out was "← Back to Hero Slider". Every text edit cost a round trip.
+  //
+  // The element's content IS the section's content, so the section's fields are
+  // shown right here, with THIS element's fields hoisted to the top.
+  if (contentFieldList && onChange) {
     tabs.push({ key: "content", label: "Content" })
   }
   if (onStyleChange) tabs.push({ key: "style", label: "Style" })
@@ -1037,16 +1184,47 @@ export default function SchemaPanel({
     ? tab
     : tabs[0]?.key ?? "style"
 
+  /**
+   * In element mode, put the fields that belong to THIS element first.
+   *
+   * The panel shows the whole section's content, which is correct — a heading's
+   * text lives on the section. But dumping twenty fields on someone who clicked
+   * one heading is only marginally better than sending them "back". So the
+   * element's own fields are hoisted to the top; the rest of the section follows
+   * underneath, still reachable, no navigation required.
+   */
+  const orderedContentFields = (() => {
+    const fields = contentFieldList ?? []
+    if (!elementMode || !elementKey || !fields.length) {
+      return fields
+    }
+    const key = elementKey.toLowerCase()
+    const relevant = (f: any): boolean => {
+      const k = String(f?.key ?? "").toLowerCase()
+      if (!k) return false
+      return k === key || k.includes(key) || key.includes(k)
+    }
+    const mine = fields.filter(relevant)
+    if (!mine.length) {
+      return fields
+    }
+    return [...mine, ...fields.filter((f) => !relevant(f))]
+  })()
+
   return (
-    <div>
+    <div style={{ fontFamily: font }}>
       {elementMode || widgetMode ? (
-        <div style={{ marginBottom: 10 }}>
+        <div style={{ marginBottom: 12 }}>
           <button
             type="button"
             onClick={onBackToSection}
             style={{
-              fontSize: 12,
-              color: "#2563eb",
+              ...type.label,
+              fontFamily: font,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              color: accent.base,
               background: "none",
               border: 0,
               cursor: "pointer",
@@ -1054,13 +1232,14 @@ export default function SchemaPanel({
               marginBottom: 6,
             }}
           >
-            ← Back to {blockLabel ?? "section"}
+            <UiIcon name="arrow-left" size={12} />
+            Back to {blockLabel ?? "section"}
           </button>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
-            <span style={{ color: "#9ca3af", fontWeight: 500 }}>
+          <div style={{ ...type.title, fontFamily: font, color: grey[90] }}>
+            <span style={{ color: grey[40], fontWeight: 500 }}>
               {blockLabel ?? "Section"}
             </span>
-            <span style={{ color: "#d1d5db", margin: "0 6px" }}>›</span>
+            <span style={{ color: grey[30], margin: "0 6px" }}>›</span>
             {elementLabel ?? "Element"}
           </div>
         </div>
@@ -1069,14 +1248,14 @@ export default function SchemaPanel({
       <TabHeader tabs={tabs} active={activeTab} onSelect={setTab} />
 
       {activeTab === "content" && contentFieldList && onChange ? (
-        <>
+        <BlockTypeCtx.Provider value={schema?.type ?? ""}>
           <FieldList
-            fields={contentFieldList}
+            fields={orderedContentFields}
             props={props ?? {}}
             onChange={onChange}
           />
           {contentExtra}
-        </>
+        </BlockTypeCtx.Provider>
       ) : null}
 
       {activeTab === "style" && onStyleChange ? (

@@ -86,15 +86,21 @@ const DealOfDay = (props: DealOfDayData) => {
         <div className="row">
           <div className="col-lg-6 col-md-8">
             <div className="deals__content">
-              <h2 className="deals__content--title text-white mb-20">
+              <h2
+                data-el="title"
+                className="deals__content--title text-white mb-20"
+              >
                 {title}
               </h2>
               {props.description ? (
-                <p className="deals__content--desc text-white mb-20">
+                <p
+                  data-el="text"
+                  className="deals__content--desc text-white mb-20"
+                >
                   {props.description}
                 </p>
               ) : null}
-              <div className="deals__countdown d-flex mb-50">
+              <div data-el="countdown" className="deals__countdown d-flex mb-50">
                 <Cell value={days} label="Days" />
                 <Cell value={hours} label="Hrs" />
                 <Cell value={minutes} label="Min" />
@@ -102,6 +108,7 @@ const DealOfDay = (props: DealOfDayData) => {
               </div>
               {cta?.href ? (
                 <LocalizedClientLink
+                  data-el="button"
                   className="deals__content--btn primary__btn"
                   href={cta.href}
                 >

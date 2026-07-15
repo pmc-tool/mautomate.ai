@@ -41,7 +41,7 @@ const BrandStrip = (props: BrandStripData) => {
           style={{ gap: "20px 0" }}
         >
           {brands.map((brand, i) => (
-            <div className="col" key={i}>
+            <div className="col" key={i} data-el-item={`brands:${i}`}>
               <div className="brand-item text-center" data-el="logo">
                 <LocalizedClientLink href={brand.href || "#"}>
                   <img src={brand.image} alt="Brand" />

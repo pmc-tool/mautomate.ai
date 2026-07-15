@@ -83,6 +83,8 @@ const BrandStrip = (props: BrandStripData) => {
         return (
           <div
             className="aqf-text-slide-item"
+            data-el="logo"
+            data-el-item={`brands:${i}`}
             key={i}
             style={{ paddingInlineEnd: 90 }}
           >
@@ -111,7 +113,7 @@ const BrandStrip = (props: BrandStripData) => {
           <div className="row">
             <div className="col-xl-12">
               <div className="aqf-collection-title-box text-center pt-40 mb-10">
-                <h4 className="aq-section-title ff-satoshi-med fs-38 mb-0">
+                <h4 data-el="title" className="aq-section-title ff-satoshi-med fs-38 mb-0">
                   {title}
                 </h4>
               </div>

@@ -54,7 +54,7 @@ const ProductCard = ({ product }: { product: HttpTypes.StoreProduct }) => {
     .join(",")
 
   return (
-    <article className="product__card">
+    <article data-el="card" className="product__card">
       <div className="product__card--thumbnail">
         <LocalizedClientLink
           className="product__card--thumbnail__link display-block"
@@ -127,9 +127,9 @@ const tabCss = (scope: string, count: number): string => {
 }
 
 const ProductTabsView = (props: ProductTabsViewProps) => {
-  const groups = (Array.isArray(props.groups) ? props.groups : []).filter(
-    (group) => group.products.length > 0
-  )
+  const groups = (Array.isArray(props.groups) ? props.groups : [])
+    .map((group, i) => ({ group, i }))
+    .filter(({ group }) => group.products.length > 0)
 
   if (!groups.length) {
     return null
@@ -172,14 +172,14 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
           ) : null}
 
           {multi
-            ? groups.map((group, i) => (
+            ? groups.map(({ group, i }, pos) => (
                 <input
                   key={`radio-${i}`}
                   type="radio"
-                  id={`${scope}-tab-${i}`}
+                  id={`${scope}-tab-${pos}`}
                   name={`${scope}-tabs`}
                   className="rokon-product-tabs__radio"
-                  defaultChecked={i === 0}
+                  defaultChecked={pos === 0}
                   aria-label={group.label}
                 />
               ))
@@ -187,10 +187,12 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
 
           {multi ? (
             <div className="rokon-product-tabs__nav project__tab--btn d-flex justify-content-center mb-40">
-              {groups.map((group, i) => (
+              {groups.map(({ group, i }, pos) => (
                 <label
                   key={`pill-${i}`}
-                  htmlFor={`${scope}-tab-${i}`}
+                  data-el="tab"
+                  data-el-item={`tabs:${i}`}
+                  htmlFor={`${scope}-tab-${pos}`}
                   className="project__tab--btn__list"
                 >
                   {group.label}
@@ -200,12 +202,12 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
           ) : null}
 
           <div className="rokon-product-tabs__panels">
-            {groups.map((group, i) => (
+            {groups.map(({ group, i }, pos) => (
               <div
                 key={group.label || i}
                 className={
                   multi
-                    ? `row row-cols-lg-3 row-cols-md-3 row-cols-2 mb--n30 rokon-product-tabs__panel rokon-product-tabs__panel-${i}`
+                    ? `row row-cols-lg-3 row-cols-md-3 row-cols-2 mb--n30 rokon-product-tabs__panel rokon-product-tabs__panel-${pos}`
                     : "row row-cols-lg-3 row-cols-md-3 row-cols-2 mb--n30"
                 }
               >

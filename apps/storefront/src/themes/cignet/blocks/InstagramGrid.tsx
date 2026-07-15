@@ -31,7 +31,9 @@ export interface InstagramGridData {
 const InstagramGrid = (props: InstagramGridData) => {
   const { handle, heading } = props
   const images = Array.isArray(props.images)
-    ? props.images.filter((m) => m && typeof m.image === "string" && m.image)
+    ? props.images
+        .map((m, i) => ({ item: m, i }))
+        .filter(({ item }) => item && typeof item.image === "string" && item.image)
     : []
 
   if (images.length === 0) {
@@ -54,7 +56,7 @@ const InstagramGrid = (props: InstagramGridData) => {
                   </span>
                 ) : null}
                 {handle ? (
-                  <h2 className="text-anime-style-3">{handle}</h2>
+                  <h2 data-el="title" className="text-anime-style-3">{handle}</h2>
                 ) : null}
               </div>
               {/* Section Title End */}
@@ -63,7 +65,7 @@ const InstagramGrid = (props: InstagramGridData) => {
         ) : null}
 
         <div className="row">
-          {images.map((item, i) => {
+          {images.map(({ item, i }) => {
             const href =
               typeof item.href === "string" && item.href && item.href !== "#"
                 ? item.href
@@ -77,7 +79,7 @@ const InstagramGrid = (props: InstagramGridData) => {
             )
 
             return (
-              <div className="col-xl-4 col-md-6" key={i}>
+              <div data-el="item" data-el-item={`images:${i}`} className="col-xl-4 col-md-6" key={i}>
                 {/* Post Item Start */}
                 <div className="post-item wow fadeInUp">
                   <div className="post-featured-image">

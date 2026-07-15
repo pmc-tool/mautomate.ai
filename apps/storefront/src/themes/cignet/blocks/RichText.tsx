@@ -168,6 +168,7 @@ const RichText = (props: RichTextData) => {
                   {/* FAQ Content Box Start */}
                   <div className="faqs-content-box">
                     <div
+                      data-el="content"
                       className="section-title"
                       dangerouslySetInnerHTML={{ __html: sanitizeHtml(raw) }}
                     />
@@ -194,6 +195,7 @@ const RichText = (props: RichTextData) => {
         <div className="row justify-content-center">
           <div className={col}>
             <div
+              data-el="content"
               className="post-entry"
               style={{
                 borderBottom: "none",

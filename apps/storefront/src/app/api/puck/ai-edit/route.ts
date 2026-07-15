@@ -5,7 +5,7 @@ import { resolveEditorTenant } from "@lib/util/editor-tenant"
 /* AI page-edit proxy — forwards to the backend gateway with the server-only
  * secret + tenant pak. The Novita key never exists on this side at all. */
 export async function POST(req: NextRequest) {
-  if (!isValidEditorRequest(req)) {
+  if (!(await isValidEditorRequest(req))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
   const { backend, pubKey } = await resolveEditorTenant(req)

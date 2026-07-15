@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { CALL_CENTER_MODULE } from "../../../../modules/call-center"
 import { resolveMerchant } from "../../_helpers"
+import { checkPlanGate } from "../../../../modules/platform/billing/plan-gate"
 
 /**
  * /merchant/call-center/phone-numbers
@@ -36,6 +37,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
   const tenant_id = ctx.merchant.tenant_id
+
+  // A phone number is a real monthly bill from Twilio — paid plans only.
+  const gate = await checkPlanGate(req.scope, tenant_id, "phone")
+  if (!gate.allowed) {
+    return res.status(402).json({ message: gate.reason, upgrade_to: gate.upgrade_to })
+  }
 
   const body = (req.body ?? {}) as Record<string, unknown>
   const e164 = typeof body.e164 === "string" ? body.e164.trim() : ""

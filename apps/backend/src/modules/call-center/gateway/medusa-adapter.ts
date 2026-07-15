@@ -14,8 +14,10 @@ import {
   CommerceProduct,
   CommerceProductVariant,
   CustomerOrderLookup,
+  deriveOrderProgress,
   OrderFilter,
   OrderLookup,
+  OrderTracking,
 } from "./commerce-gateway"
 
 /**
@@ -113,14 +115,26 @@ const deriveFulfillmentStatus = (order: any): string | null => {
   return "fulfilled"
 }
 
-/** Derive an accurate payment status from the order's payment collections. */
+/**
+ * Derive an accurate payment status from the order's payment collections.
+ *
+ * "completed" is a PAID collection — it is the status Medusa writes when a
+ * collection has been captured in full, and it is what the payment provider
+ * leaves behind on a normal checkout. It was missing from the ladder below, so
+ * every fully-paid order fell through to the final `return "not_paid"`.
+ *
+ * That single missing case is why a customer whose parcel had already shipped
+ * was told "payment has not been received yet". Nothing was wrong with their
+ * money; the word for it was simply not on this list.
+ */
 const derivePaymentStatus = (order: any): string | null => {
   const pcs = order?.payment_collections
   if (Array.isArray(pcs) && pcs.length) {
     const st = pcs.map((p: any) => p?.status).filter(Boolean)
     if (st.length) {
-      if (st.every((s: string) => s === "captured")) return "captured"
-      if (st.some((s: string) => s === "captured" || s === "partially_captured"))
+      const isPaid = (s: string) => s === "captured" || s === "completed"
+      if (st.every(isPaid)) return "captured"
+      if (st.some((s: string) => isPaid(s) || s === "partially_captured"))
         return "partially_captured"
       if (st.some((s: string) => s === "refunded")) return "refunded"
       if (st.some((s: string) => s === "authorized")) return "authorized"
@@ -160,6 +174,11 @@ const PRODUCT_FIELDS = [
   "description",
   "status",
   "thumbnail",
+  // A product can carry images while its `thumbnail` column is empty (the
+  // thumbnail is only set on some import paths). Without the gallery we showed a
+  // placeholder next to a product that HAS a photo.
+  "images.url",
+  "images.rank",
   "variants.id",
   "variants.title",
   "variants.sku",
@@ -339,10 +358,23 @@ export class MedusaCommerceGateway implements CommerceGateway {
     if (!scId) {
       return null
     }
+
+    // Callers say "order 8", not "order_01KX5WANNZYQM7DDQH2NWHF6Q8". Accept the
+    // ORDER NUMBER (display_id) as well as the internal id — the agent was
+    // reporting "order 8 was not found" for orders that plainly exist.
+    const raw = String(orderId ?? "").trim()
+    const isInternalId = raw.startsWith("order_")
+    const displayId = Number(raw.replace(/^#/, ""))
+    const byNumber = !isInternalId && Number.isFinite(displayId) && displayId > 0
+
+    const filters: Record<string, unknown> = byNumber
+      ? { display_id: displayId, sales_channel_id: scId }
+      : { id: raw, sales_channel_id: scId }
+
     const { data } = await this.query.graph({
       entity: "order",
       fields: ORDER_DETAIL_FIELDS,
-      filters: { id: orderId, sales_channel_id: scId },
+      filters: filters as any,
     })
 
     const order = data?.[0]
@@ -350,7 +382,186 @@ export class MedusaCommerceGateway implements CommerceGateway {
     if (!order || order.sales_channel_id !== scId) {
       return null
     }
-    return this.toCommerceOrder(order)
+    return await this.enrichOrder(this.toCommerceOrder(order))
+  }
+
+  /**
+   * Replace what the graph got wrong, and add what it never had.
+   *
+   * An order in Medusa is VERSIONED: its money lives in `order_summary` and its
+   * quantities in `order_item`, one row per revision. The computed fields the
+   * graph hands back (`total`, `payment_status`, `items[].quantity`) are read off
+   * a stale version, so a real, fully-paid, already-shipped order came back as
+   * total $500 (it is $4,500), payment_status "not_paid" (it was paid in full,
+   * days earlier) and quantity 0 (it is 4). An agent repeated all of that to the
+   * customer, because an agent can only be as truthful as its data.
+   *
+   * So the numbers are read from the LATEST version, straight from the tables
+   * that hold them, and the shipment facts (which the order row simply does not
+   * carry) come from the fulfillments.
+   *
+   * Best-effort by construction: any failure here leaves the order exactly as the
+   * graph gave it. A missing tracking number must never cost us the order lookup.
+   */
+  private async enrichOrder(order: CommerceOrder): Promise<CommerceOrder> {
+    const [enriched] = await this.enrichOrders([order])
+    return enriched ?? order
+  }
+
+  /**
+   * Batched: THREE queries no matter how many orders. A per-order enrich would be
+   * an N+1 on every list the agent reads.
+   */
+  private async enrichOrders(orders: CommerceOrder[]): Promise<CommerceOrder[]> {
+    if (!orders.length) {
+      return orders
+    }
+    try {
+      const pg: any = this.container.resolve(
+        ContainerRegistrationKeys.PG_CONNECTION
+      )
+      const ids = orders.map((o) => o.id)
+
+      const [summaryRows, itemRows, shipmentRows] = await Promise.all([
+        // The latest summary version per order — DISTINCT ON does the "max
+        // version" pick in one pass.
+        pg
+          .select("order_id", "totals")
+          .from("order_summary")
+          .distinctOn("order_id")
+          .whereIn("order_id", ids)
+          .whereNull("deleted_at")
+          .orderBy([
+            { column: "order_id" },
+            { column: "version", order: "desc" },
+          ]),
+        pg
+          .select(
+            "oi.order_id as order_id",
+            "oli.title as title",
+            "oi.quantity as quantity"
+          )
+          .from("order_item as oi")
+          .join("order_line_item as oli", "oli.id", "oi.item_id")
+          .whereIn("oi.order_id", ids)
+          .whereNull("oi.deleted_at")
+          .andWhereRaw(
+            "oi.version = (select max(version) from order_item x where x.order_id = oi.order_id)"
+          ),
+        pg
+          .select(
+            "of2.order_id as order_id",
+            "f.shipped_at as shipped_at",
+            "f.delivered_at as delivered_at",
+            "l.tracking_number as tracking_number",
+            "l.tracking_url as tracking_url"
+          )
+          .from("order_fulfillment as of2")
+          .join("fulfillment as f", "f.id", "of2.fulfillment_id")
+          .leftJoin("fulfillment_label as l", "l.fulfillment_id", "f.id")
+          .whereIn("of2.order_id", ids)
+          .whereNull("f.canceled_at")
+          .whereNull("f.deleted_at"),
+      ])
+
+      const num = (v: any): number | null =>
+        v == null || Number.isNaN(Number(v)) ? null : Number(v)
+
+      const totalsById = new Map<string, any>()
+      for (const row of Array.isArray(summaryRows) ? summaryRows : []) {
+        totalsById.set(String(row.order_id), row.totals ?? null)
+      }
+
+      const itemsById = new Map<string, { title: string; quantity: number }[]>()
+      for (const row of Array.isArray(itemRows) ? itemRows : []) {
+        const key = String(row.order_id)
+        const list = itemsById.get(key) ?? []
+        list.push({
+          title: row.title ?? null,
+          quantity: row.quantity != null ? Number(row.quantity) : 0,
+        })
+        itemsById.set(key, list)
+      }
+
+      type Shipment = {
+        tracking: OrderTracking[]
+        shippedAt: string | null
+        deliveredAt: string | null
+      }
+      const shipById = new Map<string, Shipment>()
+      for (const row of Array.isArray(shipmentRows) ? shipmentRows : []) {
+        const key = String(row.order_id)
+        const s: Shipment = shipById.get(key) ?? {
+          tracking: [],
+          shippedAt: null,
+          deliveredAt: null,
+        }
+        if (row.shipped_at && !s.shippedAt) {
+          s.shippedAt = new Date(row.shipped_at).toISOString()
+        }
+        if (row.delivered_at && !s.deliveredAt) {
+          s.deliveredAt = new Date(row.delivered_at).toISOString()
+        }
+        if (row.tracking_number) {
+          s.tracking.push({
+            number: String(row.tracking_number),
+            url: row.tracking_url ? String(row.tracking_url) : null,
+          })
+        }
+        shipById.set(key, s)
+      }
+
+      return orders.map((order) => {
+        const totals = totalsById.get(order.id) ?? null
+        const ship: Shipment = shipById.get(order.id) ?? {
+          tracking: [],
+          shippedAt: null,
+          deliveredAt: null,
+        }
+
+        const total = num(totals?.current_order_total) ?? order.total
+        const paidTotal = num(totals?.paid_total)
+        const pending = num(totals?.pending_difference)
+        // Settled when nothing is still owed. THIS — not `payment_status` — is
+        // the truth about whether the customer's money arrived.
+        const paid =
+          pending != null
+            ? pending <= 0
+            : paidTotal != null && total != null
+              ? paidTotal >= total
+              : String(order.payment_status ?? "") !== "not_paid"
+
+        const trueItems = itemsById.get(order.id) ?? []
+        const items: CommerceLineItem[] = trueItems.length
+          ? trueItems.map((r, i) => ({
+              ...(order.items?.[i] ?? ({} as CommerceLineItem)),
+              title: r.title ?? order.items?.[i]?.title ?? null,
+              quantity: r.quantity,
+            }))
+          : order.items
+
+        return {
+          ...order,
+          total: total ?? order.total,
+          items,
+          paid_total: paidTotal,
+          pending_difference: pending,
+          tracking: ship.tracking,
+          shipped_at: ship.shippedAt,
+          delivered_at: ship.deliveredAt,
+          progress: deriveOrderProgress({
+            status: order.status ?? null,
+            fulfillment_status: order.fulfillment_status ?? null,
+            paid,
+            tracking: ship.tracking,
+            shipped_at: ship.shippedAt,
+            delivered_at: ship.deliveredAt,
+          }),
+        }
+      })
+    } catch {
+      return orders
+    }
   }
 
   async queryOrders(
@@ -406,7 +617,7 @@ export class MedusaCommerceGateway implements CommerceGateway {
       )
     }
 
-    return orders
+    return await this.enrichOrders(orders)
   }
 
   async findOrders(
@@ -467,7 +678,7 @@ export class MedusaCommerceGateway implements CommerceGateway {
     // Anchored by order NUMBER or CODE -> return as-is; the agent then verifies
     // identity conversationally. (A mangled email must NOT hide a real order.)
     if (displayId !== null || code) {
-      return orders.slice(0, 20)
+      return await this.enrichOrders(orders.slice(0, 20))
     }
 
     // Email-only / phone-only fallback: fuzzy match, tolerant of STT errors.
@@ -505,6 +716,9 @@ export class MedusaCommerceGateway implements CommerceGateway {
     }
 
     const filters: Record<string, unknown> = { sales_channel_id: scId }
+    if (lookup.customer_id) {
+      filters.customer_id = lookup.customer_id
+    }
     if (lookup.email) {
       filters.email = lookup.email
     }
@@ -529,7 +743,7 @@ export class MedusaCommerceGateway implements CommerceGateway {
       )
     }
 
-    return orders
+    return await this.enrichOrders(orders)
   }
 
   async searchProducts(
@@ -559,18 +773,72 @@ export class MedusaCommerceGateway implements CommerceGateway {
 
     const q = (query ?? "").trim().toLowerCase()
     let rows = data ?? []
-    if (q) {
-      rows = rows.filter((p: any) => {
-        const hay = [p.title, p.handle, p.description]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-        return hay.includes(q)
-      })
+
+    // Stop-words: a caller saying "what do you sell" or "do you have anything
+    // nice" is asking to SEE THE CATALOGUE, not to match those words.
+    const STOP = new Set([
+      "what", "whats", "do", "you", "sell", "have", "got", "any", "anything",
+      "something", "some", "show", "me", "the", "a", "an", "your", "store",
+      "shop", "products", "product", "items", "item", "list", "of", "for",
+      "is", "are", "there", "please", "can", "i", "buy", "looking", "want",
+      "need", "under", "below", "less", "than", "over", "above", "around",
+      "cheap", "cheapest", "expensive", "price", "priced", "cost", "costs",
+      "and", "or", "with", "in", "on", "at", "to", "it", "that", "this",
+    ])
+
+    // Price intent — "under 1000", "less than 50", "cheaper than 20".
+    const priceMatch = q.match(/(?:under|below|less than|cheaper than|max)\s*\$?\s*(\d+(?:\.\d+)?)/)
+    const maxPrice = priceMatch ? Number(priceMatch[1]) : null
+    const minMatch = q.match(/(?:over|above|more than|at least|from)\s*\$?\s*(\d+(?:\.\d+)?)/)
+    const minPrice = minMatch ? Number(minMatch[1]) : null
+
+    // Meaningful words only (drop the conversational filler + bare numbers).
+    const words = q
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !STOP.has(w) && !/^\d+$/.test(w))
+
+    if (words.length) {
+      const scored = rows
+        .map((p: any) => {
+          const hay = [p.title, p.handle, p.description, p.subtitle]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+          // Score by how many of the caller's words the product matches, so a
+          // partial match still surfaces rather than returning nothing.
+          const hits = words.filter((w) => hay.includes(w)).length
+          return { p, hits }
+        })
+        .filter((x) => x.hits > 0)
+        .sort((a, b) => b.hits - a.hits)
+
+      // If nothing matched the words, fall back to the whole catalogue rather
+      // than telling the caller we have no products — we do have products.
+      rows = scored.length ? scored.map((x) => x.p) : rows
     }
+    // else: no meaningful words -> the caller wants the catalogue. Keep rows.
 
     const capped = rows.slice(0, Math.max(1, limit))
-    return this.toCommerceProducts(tenantId, capped)
+    const products = await this.toCommerceProducts(tenantId, capped)
+
+    // Price filter runs on the PRICED results (the price lives on the variant).
+    if (maxPrice != null || minPrice != null) {
+      const inRange = products.filter((p: any) => {
+        // Medusa v2 stores price amounts in MAJOR units (amount 1000 == $1,000),
+        // and `min_price` is that amount verbatim. Dividing by 100 here treated a
+        // $1,000 product as $10, so "under $50" matched the whole catalogue.
+        const price = Number(p.min_price ?? 0)
+        if (maxPrice != null && price > maxPrice) return false
+        if (minPrice != null && price < minPrice) return false
+        return true
+      })
+      // Only apply the filter if it leaves something — an empty result would
+      // read to the caller as "we sell nothing", which is false.
+      if (inRange.length) return inRange
+    }
+
+    return products
   }
 
   async getProduct(
@@ -964,13 +1232,21 @@ export class MedusaCommerceGateway implements CommerceGateway {
         .filter((n): n is number => typeof n === "number")
       const minPrice = priced.length ? Math.min(...priced) : null
 
+      // Prefer the thumbnail; fall back to the first image in the gallery.
+      const gallery = Array.isArray(p.images) ? p.images : []
+      const firstImage =
+        [...gallery]
+          .sort((a: any, b: any) => Number(a?.rank ?? 0) - Number(b?.rank ?? 0))
+          .map((im: any) => im?.url)
+          .find((u: any) => typeof u === "string" && u.trim().length > 0) ?? null
+
       return {
         id: p.id,
         title: p.title ?? null,
         handle: p.handle ?? null,
         description: p.description ?? null,
         status: p.status ?? null,
-        thumbnail: p.thumbnail ?? null,
+        thumbnail: p.thumbnail || firstImage || null,
         variants,
         min_price: minPrice,
         currency_code: minPrice != null ? currency : null,

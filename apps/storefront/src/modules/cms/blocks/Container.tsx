@@ -32,7 +32,7 @@ import React from "react"
 
 import { sanitizeHtml } from "@lib/util/sanitize-html"
 import {
-  buildWidgetCss,
+  buildWidgetCssPath,
   unitNumberToCss,
   type AdvancedBag,
   type StyleBag,
@@ -147,8 +147,67 @@ function resolveVideo(
   return null
 }
 
-/** Render ONE widget. `mark` is the `data-w="w-<col>-<wi>"` DOM marker. */
-function renderWidget(w: ContainerWidget, mark: string): React.ReactNode {
+/**
+ * Render ONE widget. `mark` is its `data-w="w-…"` DOM marker — a PATH, so a
+ * widget inside an inner section is addressed exactly like a top-level one
+ * (see buildWidgetCssPath). `path` is the same thing as numbers, needed to
+ * mark the inner section's own columns and children.
+ */
+function renderWidget(
+  w: ContainerWidget,
+  mark: string,
+  path: number[]
+): React.ReactNode {
+  // A container INSIDE a column (Elementor's Inner Section). Renders the same
+  // flex row as the section-level container, one level down. Its children's
+  // markers extend this widget's path, so selection, styling, drag-drop and
+  // the context menu all work on them with no special cases.
+  if (w.widget_type === "inner_section") {
+    const cols = Array.isArray(w.columns)
+      ? (w.columns as ContainerColumn[]).filter(
+          (c): c is ContainerColumn => !!c && typeof c === "object"
+        )
+      : []
+    const gap = unitNumberToCss(w.gap as any, "px") ?? "20px"
+    return (
+      <div
+        data-w={mark}
+        className="ff-inner-section"
+        style={{
+          display: "flex",
+          width: "100%",
+          minWidth: 0,
+          gap,
+          alignItems: alignItemsFor(w.verticalAlign),
+        }}
+      >
+        {cols.map((col, c) => {
+          const widgets = Array.isArray(col.widgets) ? col.widgets : []
+          const colPath = [...path, c]
+          return (
+            <div
+              key={c}
+              className="ff-container-col ff-inner-col"
+              data-col={colPath.join("-")}
+              style={{ flex: 1, minWidth: 0 }}
+            >
+              {widgets.map((cw, i) =>
+                cw && typeof cw === "object" ? (
+                  <React.Fragment key={`w-${colPath.join("-")}-${i}`}>
+                    {renderWidget(cw, `w-${[...colPath, i].join("-")}`, [
+                      ...colPath,
+                      i,
+                    ])}
+                  </React.Fragment>
+                ) : null
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   switch (w.widget_type) {
     case "heading": {
       const text = typeof w.text === "string" ? w.text : ""
@@ -274,26 +333,58 @@ const Container = (props: ContainerData) => {
   // ONE <style> tag: per-widget scoped CSS (shared engine — buildWidgetCss
   // returns "" for widgets with no style/advanced and for an empty scope) plus
   // a small stacking rule so columns wrap to a single column on mobile.
+  // Walk columns → widgets, and DOWN INTO any inner section's own columns, so a
+  // nested widget's style is emitted exactly like a top-level one. The path is
+  // what makes that possible: it is both the CSS selector and the DOM marker.
   let css = ""
-  columns.forEach((col, c) => {
-    const widgets = Array.isArray(col.widgets) ? col.widgets : []
-    widgets.forEach((w, i) => {
-      if (w && typeof w === "object") {
-        css += buildWidgetCss(scope, c, i, w.style, w.advanced)
-      }
+  const collect = (cols: ContainerColumn[], base: number[]) => {
+    cols.forEach((col, c) => {
+      const widgets = Array.isArray(col.widgets) ? col.widgets : []
+      widgets.forEach((w, i) => {
+        if (!w || typeof w !== "object") {
+          return
+        }
+        const path = [...base, c, i]
+        css += buildWidgetCssPath(scope, path, w.style, w.advanced)
+        if (w.widget_type === "inner_section" && Array.isArray(w.columns)) {
+          collect(
+            (w.columns as ContainerColumn[]).filter(
+              (x): x is ContainerColumn => !!x && typeof x === "object"
+            ),
+            path
+          )
+        }
+      })
     })
-  })
+  }
+  collect(columns, [])
+
   if (scope && columns.length > 1) {
     css += `@media (max-width:767px){[data-scope="${scope}"] .ff-container-row{flex-direction:column}}`
+  }
+  // Inner sections stack on mobile too — a 2-column inner section inside an
+  // already-narrow column is unreadable otherwise.
+  if (scope) {
+    css += `@media (max-width:767px){[data-scope="${scope}"] .ff-inner-section{flex-direction:column}}`
   }
 
   return (
     <div className="ff-container" data-scope={scope || undefined}>
       {css ? <style dangerouslySetInnerHTML={{ __html: css }} /> : null}
+      {/* width:100% + minWidth:0 are LOAD-BEARING, not decoration.
+          A flex row with an auto width sits in a shrink-to-fit context the moment
+          anything above or inside it says so — and pasted foreign markup can do
+          exactly that. When it happens the row collapses to ZERO width, every
+          word inside wraps one character per line, and the section becomes a
+          several-hundred-pixel blank ribbon with the content invisible inside it.
+          Pinning the width means no content, however badly behaved, can collapse
+          the layout that holds it. */}
       <div
         className="ff-container-row"
         style={{
           display: "flex",
+          width: "100%",
+          minWidth: 0,
           gap,
           alignItems: alignItemsFor(props.verticalAlign),
         }}
@@ -304,13 +395,13 @@ const Container = (props: ContainerData) => {
             <div
               key={c}
               className="ff-container-col"
-              data-col={c}
+              data-col={String(c)}
               style={{ flex: 1, minWidth: 0 }}
             >
               {widgets.map((w, i) =>
                 w && typeof w === "object" ? (
                   <React.Fragment key={`w-${c}-${i}`}>
-                    {renderWidget(w, `w-${c}-${i}`)}
+                    {renderWidget(w, `w-${c}-${i}`, [c, i])}
                   </React.Fragment>
                 ) : null
               )}

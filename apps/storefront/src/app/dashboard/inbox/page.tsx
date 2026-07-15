@@ -2,10 +2,12 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
+import { Sidebar } from "@components/merchant-admin/sidebar"
 import {
   ApiError,
   createInboxNote,
   getInboxConversation,
+  getInboxCounts,
   listCannedResponses,
   listInboxConversations,
   listInboxNotes,
@@ -18,12 +20,15 @@ import {
   takeOverInboxConversation,
   type CannedResponse,
   type InboxConversation,
+  type InboxCounts,
   type InboxCustomer360,
   type InboxMessage,
   type InboxNote,
   type InboxStatus,
+  type ListInboxConversationsParams,
 } from "@lib/merchant-admin/api"
 import { ConversationList, type InboxFilters } from "./conversation-list"
+import { InboxRail, type InboxView } from "./inbox-rail"
 import { ChatPanel } from "./chat-panel"
 import { ContactPanel } from "./contact-panel"
 
@@ -34,12 +39,34 @@ const POLL_MS = 8000
 const LIST_LIMIT = 100
 
 const DEFAULT_FILTERS: InboxFilters = {
-  channel: "",
-  status: "",
-  assignment: "all",
   unreadOnly: false,
   search: "",
   sort: "newest",
+}
+
+/**
+ * A view is a database query, not a client-side sieve. Filtering a page of rows
+ * that the server already truncated would quietly hide conversations — "Needs
+ * you (0)" while a customer waits on page two is worse than no view at all.
+ */
+function paramsForView(view: InboxView): ListInboxConversationsParams {
+  switch (view) {
+    case "needs_you":
+      return { handlerMode: "queued", excludeClosed: true }
+    case "unassigned":
+      return { assigned: "none", excludeClosed: true }
+    case "mine":
+      return { assigned: "me", excludeClosed: true }
+    case "starred":
+      return { starred: true }
+    case "open":
+      return { status: "open" }
+    case "closed":
+      return { status: "closed" }
+    case "all":
+    default:
+      return {}
+  }
 }
 
 type Notice = { tone: "info" | "error"; text: string }
@@ -48,10 +75,18 @@ export default function InboxPage() {
   const { token, me, logout } = useMerchantAuth()
   const currentUserId = me?.merchant.id ?? null
 
+  // "Needs you" is the landing view on purpose: the AI answers nearly everything,
+  // so the threads it handed back ARE the merchant's job list.
+  const [view, setView] = useState<InboxView>("needs_you")
+  const [channel, setChannel] = useState("")
   const [filters, setFilters] = useState<InboxFilters>(DEFAULT_FILTERS)
   const [debouncedSearch, setDebouncedSearch] = useState("")
 
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [contextCollapsed, setContextCollapsed] = useState(false)
+
   const [conversations, setConversations] = useState<InboxConversation[]>([])
+  const [counts, setCounts] = useState<InboxCounts | null>(null)
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState<string | null>(null)
 
@@ -67,6 +102,9 @@ export default function InboxPage() {
   const [canned, setCanned] = useState<CannedResponse[]>([])
 
   const [notice, setNotice] = useState<Notice | null>(null)
+
+  const searchRef = useRef<HTMLInputElement | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Every 401 -> logout transition happens inside an effect or an event
   // handler, never during render.
@@ -92,9 +130,10 @@ export default function InboxPage() {
       if (!silent) setListLoading(true)
       try {
         const res = await listInboxConversations(token, {
+          ...paramsForView(view),
           limit: LIST_LIMIT,
-          channel: filters.channel || undefined,
-          status: filters.status || undefined,
+          channel: channel || undefined,
+          unread: filters.unreadOnly || undefined,
           q: debouncedSearch || undefined,
         })
         setConversations(res.conversations || [])
@@ -105,8 +144,18 @@ export default function InboxPage() {
         if (!silent) setListLoading(false)
       }
     },
-    [token, filters.channel, filters.status, debouncedSearch, handleError]
+    [token, view, channel, filters.unreadOnly, debouncedSearch, handleError]
   )
+
+  const loadCounts = useCallback(async () => {
+    if (!token) return
+    try {
+      setCounts(await getInboxCounts(token))
+    } catch {
+      // The badges are a convenience. A failure here must not take the inbox
+      // down — the rail simply shows no numbers.
+    }
+  }, [token])
 
   const loadDetail = useCallback(
     async (id: string, silent = false) => {
@@ -151,6 +200,11 @@ export default function InboxPage() {
 
   useEffect(() => {
     if (!token) return
+    void loadCounts()
+  }, [token, loadCounts])
+
+  useEffect(() => {
+    if (!token) return
     let cancelled = false
     listCannedResponses(token)
       .then((res) => {
@@ -167,15 +221,11 @@ export default function InboxPage() {
 
   // Refs keep the polling interval stable: a new timer is not created on every
   // keystroke or refetch.
-  const pollRef = useRef<{ list: () => void; detail: () => void }>({
-    list: () => {},
-    detail: () => {},
-  })
+  const pollRef = useRef<{ tick: () => void }>({ tick: () => {} })
   pollRef.current = {
-    list: () => {
+    tick: () => {
       void loadList(true)
-    },
-    detail: () => {
+      void loadCounts()
       if (selectedId) void loadDetail(selectedId, true)
     },
   }
@@ -183,8 +233,7 @@ export default function InboxPage() {
   useEffect(() => {
     const tick = () => {
       if (typeof document !== "undefined" && document.hidden) return
-      pollRef.current.list()
-      pollRef.current.detail()
+      pollRef.current.tick()
     }
     const id = setInterval(tick, POLL_MS)
     return () => clearInterval(id)
@@ -204,13 +253,14 @@ export default function InboxPage() {
         setConversations((prev) =>
           prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c))
         )
+        void loadCounts()
       } catch (err) {
         // A failed read receipt must not block reading the thread; the badge is
         // corrected on the next poll.
         handleError(err, "Failed to mark the conversation read")
       }
     },
-    [conversations, loadDetail, loadNotes, token, handleError]
+    [conversations, loadDetail, loadNotes, loadCounts, token, handleError]
   )
 
   const applyConversation = useCallback((next: InboxConversation) => {
@@ -222,8 +272,9 @@ export default function InboxPage() {
 
   const refreshSelected = useCallback(async () => {
     await loadList(true)
+    void loadCounts()
     if (selectedId) await loadDetail(selectedId, true)
-  }, [loadList, loadDetail, selectedId])
+  }, [loadList, loadCounts, loadDetail, selectedId])
 
   const toggleStar = useCallback(
     async (id: string) => {
@@ -231,6 +282,7 @@ export default function InboxPage() {
       try {
         const res = await starInboxConversation(token, id)
         applyConversation(res.conversation)
+        void loadCounts()
       } catch (err) {
         setNotice({
           tone: "error",
@@ -238,7 +290,7 @@ export default function InboxPage() {
         })
       }
     },
-    [token, applyConversation, handleError]
+    [token, applyConversation, loadCounts, handleError]
   )
 
   const takeOver = useCallback(async () => {
@@ -252,6 +304,7 @@ export default function InboxPage() {
         text: "You are handling this conversation now. The AI assistant stays silent until you return it.",
       })
       await loadDetail(selectedId, true)
+      void loadCounts()
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         // Lost the race: re-read the row so the UI never claims we hold a
@@ -274,6 +327,7 @@ export default function InboxPage() {
     selectedId,
     applyConversation,
     loadDetail,
+    loadCounts,
     refreshSelected,
     handleError,
   ])
@@ -284,7 +338,12 @@ export default function InboxPage() {
     try {
       const res = await returnInboxConversationToAi(token, selectedId)
       applyConversation(res.conversation)
+      setNotice({
+        tone: "info",
+        text: "Handed back to the AI assistant. It answers this thread from the next message on.",
+      })
       await loadDetail(selectedId, true)
+      void loadCounts()
     } catch (err) {
       setNotice({
         tone: "error",
@@ -297,6 +356,7 @@ export default function InboxPage() {
     selectedId,
     applyConversation,
     loadDetail,
+    loadCounts,
     refreshSelected,
     handleError,
   ])
@@ -309,6 +369,7 @@ export default function InboxPage() {
         const res = await setInboxConversationStatus(token, selectedId, status)
         applyConversation(res.conversation)
         await loadDetail(selectedId, true)
+        void loadCounts()
       } catch (err) {
         setNotice({
           tone: "error",
@@ -316,7 +377,7 @@ export default function InboxPage() {
         })
       }
     },
-    [token, selectedId, applyConversation, loadDetail, handleError]
+    [token, selectedId, applyConversation, loadDetail, loadCounts, handleError]
   )
 
   const send = useCallback(
@@ -382,111 +443,167 @@ export default function InboxPage() {
     [token, selectedId, handleError]
   )
 
-  // Channel, status and the search term are pushed to the API. Assignment,
-  // star and unread are not filters the list endpoint supports, so they are
-  // applied to the fetched page here, as is the sort direction.
+  // The view, the channel and the search are all resolved in the database. Only
+  // the sort direction is ours to apply.
   const visible = useMemo(() => {
-    let list = conversations
-    if (filters.assignment === "mine") {
-      list = list.filter(
-        (c) => !!currentUserId && c.assigned_user_id === currentUserId
-      )
-    } else if (filters.assignment === "unassigned") {
-      list = list.filter((c) => !c.assigned_user_id)
-    } else if (filters.assignment === "starred") {
-      list = list.filter((c) => c.starred)
-    }
-    if (filters.unreadOnly) {
-      list = list.filter((c) => (c.unread_count ?? 0) > 0)
-    }
-    return [...list].sort((a, b) => {
+    return [...conversations].sort((a, b) => {
       const at = a.last_message_at ? Date.parse(a.last_message_at) : 0
       const bt = b.last_message_at ? Date.parse(b.last_message_at) : 0
       return filters.sort === "newest" ? bt - at : at - bt
     })
-  }, [
-    conversations,
-    filters.assignment,
-    filters.unreadOnly,
-    filters.sort,
-    currentUserId,
-  ])
+  }, [conversations, filters.sort])
+
+  // Keyboard: j/k walk the list, / jumps to search, r to the composer, Escape
+  // backs out. Never while the merchant is typing — an inbox that eats letters
+  // is worse than one with no shortcuts.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      const typing =
+        !!el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "SELECT" ||
+          el.isContentEditable)
+
+      if (e.key === "Escape") {
+        if (typing) (el as HTMLElement).blur()
+        else if (menuOpen) setMenuOpen(false)
+        else setSelectedId(null)
+        return
+      }
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return
+
+      if (e.key === "/") {
+        e.preventDefault()
+        searchRef.current?.focus()
+        return
+      }
+      if (e.key === "r") {
+        e.preventDefault()
+        composerRef.current?.focus()
+        return
+      }
+      if (e.key !== "j" && e.key !== "k") return
+
+      e.preventDefault()
+      if (!visible.length) return
+      const at = visible.findIndex((c) => c.id === selectedId)
+      const next =
+        e.key === "j"
+          ? Math.min(at + 1, visible.length - 1)
+          : Math.max(at - 1, 0)
+      const target = visible[at === -1 ? 0 : next]
+      if (target && target.id !== selectedId) void selectConversation(target.id)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [visible, selectedId, selectConversation, menuOpen])
 
   return (
-    <div className="-mx-4 -my-6 flex h-[calc(100vh-4rem)] flex-col sm:-mx-6 lg:-mx-8 lg:h-screen">
-      <div className="border-b border-grey-20 bg-white px-4 py-3 sm:px-6">
-        <h1 className="text-lg font-semibold text-grey-90">Inbox</h1>
-        <p className="text-xs text-grey-50">
-          Every conversation with your customers, on every channel, with human
-          take-over.
-        </p>
+    <div className="flex h-full min-h-0">
+      {/* The main dashboard nav, on loan. It is not mounted while the merchant is
+          working the inbox — that column is the rail's — and comes back over the
+          top the moment they ask for it. */}
+      {menuOpen && <Sidebar overlay onClose={() => setMenuOpen(false)} />}
+
+      <InboxRail
+        counts={counts}
+        view={view}
+        channel={channel}
+        onView={(v) => {
+          setView(v)
+          setSelectedId(null)
+        }}
+        onChannel={(c) => {
+          setChannel(c)
+          setSelectedId(null)
+        }}
+        onOpenMenu={() => setMenuOpen(true)}
+      />
+
+      <div
+        className={
+          selectedId === null
+            ? "flex min-h-0 w-full lg:w-auto"
+            : "hidden min-h-0 lg:flex"
+        }
+      >
+        <ConversationList
+          conversations={visible}
+          totalCount={visible.length}
+          selectedId={selectedId}
+          loading={listLoading}
+          error={listError}
+          filters={filters}
+          view={view}
+          channel={channel}
+          searchRef={searchRef}
+          onFiltersChange={setFilters}
+          onView={(v) => {
+            setView(v)
+            setSelectedId(null)
+          }}
+          onChannel={(c) => {
+            setChannel(c)
+            setSelectedId(null)
+          }}
+          onSelect={(id) => {
+            void selectConversation(id)
+          }}
+          onToggleStar={(id) => {
+            void toggleStar(id)
+          }}
+          onRetry={() => {
+            void loadList()
+            void loadCounts()
+          }}
+        />
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <div
-          className={
-            selectedId === null
-              ? "flex min-h-0 w-full lg:w-auto"
-              : "hidden min-h-0 lg:flex"
-          }
-        >
-          <ConversationList
-            conversations={visible}
-            totalCount={visible.length}
-            selectedId={selectedId}
-            loading={listLoading}
-            error={listError}
-            filters={filters}
-            onFiltersChange={setFilters}
-            onSelect={(id) => {
-              void selectConversation(id)
-            }}
-            onToggleStar={(id) => {
-              void toggleStar(id)
-            }}
-            onRetry={() => {
-              void loadList()
-            }}
-          />
-        </div>
+      <div
+        className={
+          selectedId === null
+            ? "hidden min-h-0 min-w-0 flex-1 lg:flex"
+            : "flex min-h-0 min-w-0 flex-1"
+        }
+      >
+        <ChatPanel
+          conversation={conversation}
+          messages={messages}
+          loading={detailLoading}
+          error={detailError}
+          notice={notice}
+          currentUserId={currentUserId}
+          cannedResponses={canned}
+          contextCollapsed={contextCollapsed}
+          composerRef={composerRef}
+          onSelectNone={() => setSelectedId(null)}
+          onRetry={() => {
+            if (selectedId) void loadDetail(selectedId)
+          }}
+          onSend={send}
+          onSuggest={suggest}
+          onTakeOver={takeOver}
+          onReturnToAi={returnToAi}
+          onStatus={changeStatus}
+          onToggleStar={async () => {
+            if (selectedId) await toggleStar(selectedId)
+          }}
+          onShowContext={() => setContextCollapsed(false)}
+        />
 
-        <div
-          className={
-            selectedId === null
-              ? "hidden min-h-0 min-w-0 flex-1 lg:flex"
-              : "flex min-h-0 min-w-0 flex-1"
-          }
-        >
-          <ChatPanel
-            conversation={conversation}
-            messages={messages}
-            loading={detailLoading}
-            error={detailError}
-            notice={notice}
-            currentUserId={currentUserId}
-            cannedResponses={canned}
-            onSelectNone={() => setSelectedId(null)}
-            onRetry={() => {
-              if (selectedId) void loadDetail(selectedId)
-            }}
-            onSend={send}
-            onSuggest={suggest}
-            onTakeOver={takeOver}
-            onReturnToAi={returnToAi}
-            onStatus={changeStatus}
-            onToggleStar={async () => {
-              if (selectedId) await toggleStar(selectedId)
-            }}
-          />
-
+        {!contextCollapsed && (
           <ContactPanel
             conversation={conversation}
             customer360={customer360}
+            messages={messages}
             notes={notes}
             notesError={notesError}
             onAddNote={addNote}
+            onCollapse={() => setContextCollapsed(true)}
           />
-        </div>
+        )}
       </div>
     </div>
   )

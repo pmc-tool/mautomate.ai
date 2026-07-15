@@ -73,7 +73,12 @@ const ImageWithText = (props: ImageWithTextData) => {
       }`}
     >
       <div className="product-thumbnail">
-        <img src={image} className="img-fluid" alt={title || "Featured"} />
+        <img
+          data-el="image"
+          src={image}
+          className="img-fluid"
+          alt={title || "Featured"}
+        />
       </div>
     </div>
   ) : null
@@ -93,13 +98,20 @@ const ImageWithText = (props: ImageWithTextData) => {
           <h6 className="sub-heading mb-2">{props.eyebrow}</h6>
         ) : null}
         {title ? (
-          <h2 className="section-title--one">{renderTitle(title)}</h2>
+          <h2 data-el="heading" className="section-title--one">
+            {renderTitle(title)}
+          </h2>
         ) : null}
-        {props.body ? <p className="mt-30">{props.body}</p> : null}
+        {props.body ? (
+          <p data-el="text" className="mt-30">
+            {props.body}
+          </p>
+        ) : null}
         {props.cta?.href ? (
           <div className="button-box section-space--mt_60">
             <LocalizedClientLink
               href={props.cta.href}
+              data-el="button"
               className="btn btn--md btn--border_1"
             >
               {props.cta.label || "Shop now"} <i className="icon-arrow-right" />

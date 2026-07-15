@@ -146,7 +146,7 @@ const RichText = (props: RichTextData) => {
             ) : null}
             <div className="row">
               <div className="col-xl-8 col-lg-10 mx-auto">
-                <div className="accordion__container">
+                <div data-el="content" className="accordion__container">
                   {faqItems.map((item, i) => {
                     const expanded = open === i
                     return (
@@ -199,6 +199,7 @@ const RichText = (props: RichTextData) => {
         <div className="row justify-content-center">
           <div className={col}>
             <div
+              data-el="content"
               className="rokon-rich-text__body"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(raw) }}
             />

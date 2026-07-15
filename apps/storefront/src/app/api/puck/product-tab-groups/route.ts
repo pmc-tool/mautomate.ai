@@ -15,7 +15,7 @@ import {
 } from "@modules/cms/blocks/product-tabs-fetch"
 
 export async function POST(req: NextRequest) {
-  if (!isValidEditorRequest(req)) {
+  if (!(await isValidEditorRequest(req))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
   const body = await req.json().catch(() => ({}))

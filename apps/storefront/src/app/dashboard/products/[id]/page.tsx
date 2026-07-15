@@ -48,6 +48,7 @@ import {
   listProductTypes,
   listShippingProfilesLite,
   listStoreCurrencies,
+  setImageVariants,
   updateProduct,
   updateProductOption,
   uploadProductMedia,
@@ -198,6 +199,14 @@ export default function ProductDetailPage() {
 
   // Media edit modal
   const [mediaOpen, setMediaOpen] = useState(false)
+  // "Assign to variants" — which image is open, and the variants ticked for it.
+  // An image linked to NO variants is shown for every variant (Medusa's rule),
+  // which is why a fresh product needs no tagging at all to keep working.
+  const [imgVariantsFor, setImgVariantsFor] = useState<{
+    id: string
+    url: string
+  } | null>(null)
+  const [imgVariantIds, setImgVariantIds] = useState<Set<string>>(new Set())
   const [queued, setQueued] = useState<QueuedImage[]>([])
 
   // Options manage modal
@@ -395,10 +404,17 @@ export default function ProductDetailPage() {
       url: img.url,
       isThumbnail: !!thumb && img.url === thumb,
       synthetic: false,
+      variantIds: (img.variants || []).map((v) => v.id),
     }))
     // A thumbnail not present in images[] is prepended as a synthetic item.
     if (thumb && !images.some((img) => img.url === thumb)) {
-      items.unshift({ id: "synthetic_thumbnail", url: thumb, isThumbnail: true, synthetic: true })
+      items.unshift({
+        id: "synthetic_thumbnail",
+        url: thumb,
+        isThumbnail: true,
+        synthetic: true,
+        variantIds: [],
+      })
     }
     return items
   }, [product])
@@ -406,6 +422,40 @@ export default function ProductDetailPage() {
   function openMediaEdit() {
     setQueued([])
     setMediaOpen(true)
+  }
+
+  /** Open the "shown for which variants" picker for one image. */
+  function openImageVariants(img: { id: string; url: string; variantIds: string[] }) {
+    setImgVariantsFor({ id: img.id, url: img.url })
+    setImgVariantIds(new Set(img.variantIds))
+  }
+
+  /** Persist the tick-boxes as an add/remove diff against what was linked. */
+  async function saveImageVariants() {
+    if (!token || !product || !imgVariantsFor) return
+    const before = new Set(
+      (product.images || []).find((i) => i.id === imgVariantsFor.id)?.variants?.map(
+        (v) => v.id
+      ) ?? []
+    )
+    const add = [...imgVariantIds].filter((id) => !before.has(id))
+    const remove = [...before].filter((id) => !imgVariantIds.has(id))
+    if (!add.length && !remove.length) {
+      setImgVariantsFor(null)
+      return
+    }
+    setBusy("save-image-variants")
+    try {
+      await setImageVariants(token, product.id, imgVariantsFor.id, { add, remove })
+      showMessage("success", "Image variants were updated.")
+      await load(false)
+      setImgVariantsFor(null)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) logout()
+      showMessage("error", "Failed to update the image's variants. Please try again.")
+    } finally {
+      setBusy(null)
+    }
   }
 
   function closeMediaEdit() {
@@ -667,9 +717,26 @@ export default function ProductDetailPage() {
       {
         key: "title",
         header: "Title",
-        render: (v: ProductFullVariant) => (
-          <span className="font-medium text-grey-90">{v.title}</span>
-        ),
+        render: (v: ProductFullVariant) => {
+          // The variant's own image when it has one, else the product's — the
+          // same fallback the storefront and the cart use, so what a merchant
+          // sees here is what a shopper gets.
+          const img = v.thumbnail || product?.thumbnail || null
+          return (
+            <span className="flex items-center gap-2">
+              {img ? (
+                <img
+                  src={img}
+                  alt=""
+                  className="h-8 w-8 shrink-0 rounded-base border border-grey-20 object-cover"
+                />
+              ) : (
+                <span className="h-8 w-8 shrink-0 rounded-base border border-grey-20 bg-grey-10" />
+              )}
+              <span className="font-medium text-grey-90">{v.title}</span>
+            </span>
+          )
+        },
       },
       {
         key: "sku",
@@ -1130,19 +1197,41 @@ export default function ProductDetailPage() {
         >
           {mediaItems.length > 0 ? (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3">
-              {mediaItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="relative aspect-square overflow-hidden rounded-base border border-grey-20 bg-grey-10"
-                >
-                  <img src={item.url} alt="" className="h-full w-full object-cover" />
-                  {item.isThumbnail && (
-                    <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-grey-70 shadow-sm">
-                      Thumbnail
-                    </span>
-                  )}
-                </div>
-              ))}
+              {mediaItems.map((item) => {
+                const variantCount = item.variantIds.length
+                const totalVariants = (product.variants || []).length
+                return (
+                  <div
+                    key={item.id}
+                    className="relative aspect-square overflow-hidden rounded-base border border-grey-20 bg-grey-10"
+                  >
+                    <img src={item.url} alt="" className="h-full w-full object-cover" />
+                    {item.isThumbnail && (
+                      <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-grey-70 shadow-sm">
+                        Thumbnail
+                      </span>
+                    )}
+                    {/* Which variants this image is shown for. An untagged image
+                        shows for all of them, so "All variants" is the honest
+                        default label — not "0". */}
+                    {!item.synthetic && totalVariants > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => openImageVariants(item)}
+                        title="Choose which variants show this image"
+                        className="absolute inset-x-0 bottom-0 bg-black/60 px-1.5 py-1 text-[10px] font-medium text-white opacity-0 transition-opacity hover:bg-black/75 focus:opacity-100 group-hover:opacity-100"
+                        style={{ opacity: 1 }}
+                      >
+                        {variantCount === 0
+                          ? "All variants"
+                          : variantCount === 1
+                            ? "1 variant"
+                            : `${variantCount} variants`}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           ) : (
             <EmptyState
@@ -1931,6 +2020,90 @@ export default function ProductDetailPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Which variants show this image */}
+      <Modal
+        open={!!imgVariantsFor}
+        onClose={() => setImgVariantsFor(null)}
+        title="Image variants"
+        description="Choose which variants show this image. An image with no variants selected is shown for all of them."
+        size="sm"
+      >
+        {imgVariantsFor && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              void saveImageVariants()
+            }}
+            className="space-y-4"
+          >
+            <div className="flex items-center gap-3">
+              <img
+                src={imgVariantsFor.url}
+                alt=""
+                className="h-16 w-16 rounded-base border border-grey-20 object-cover"
+              />
+              <p className="text-sm text-grey-50">
+                Shoppers who pick one of the selected variants will see this image.
+              </p>
+            </div>
+
+            <div className="max-h-64 space-y-1 overflow-y-auto rounded-base border border-grey-20 p-2">
+              {(product.variants || []).map((v) => {
+                const on = imgVariantIds.has(v.id)
+                return (
+                  <label
+                    key={v.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-base px-2 py-1.5 text-sm hover:bg-grey-10"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() =>
+                        setImgVariantIds((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(v.id)) {
+                            next.delete(v.id)
+                          } else {
+                            next.add(v.id)
+                          }
+                          return next
+                        })
+                      }
+                    />
+                    <span>{v.title}</span>
+                    {v.sku && <span className="text-grey-40">· {v.sku}</span>}
+                  </label>
+                )
+              })}
+            </div>
+
+            {imgVariantIds.size === 0 && (
+              <p className="text-xs text-grey-50">
+                No variants selected — this image is shown for every variant.
+              </p>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setImgVariantsFor(null)}
+                disabled={busy === "save-image-variants"}
+                className={cancelButton}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={busy === "save-image-variants"}
+                className={primaryButton}
+              >
+                {busy === "save-image-variants" ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* Edit attributes drawer */}

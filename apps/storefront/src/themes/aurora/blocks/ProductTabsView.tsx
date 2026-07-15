@@ -46,6 +46,7 @@ const ProductCard = ({ product }: { product: HttpTypes.StoreProduct }) => {
 
   return (
     <LocalizedClientLink
+      data-el="card"
       href={href}
       className="group flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition hover:shadow-md"
     >
@@ -103,7 +104,7 @@ const ProductGroup = ({
   return (
     <div className="mt-16 first:mt-0">
       <div className="mb-8 flex items-end justify-between border-b border-neutral-200 pb-4">
-        <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-neutral-900">
+        <h2 data-el="tab" className="text-3xl md:text-4xl font-semibold tracking-tight text-neutral-900">
           {label}
         </h2>
         <span className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">

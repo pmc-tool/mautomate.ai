@@ -69,20 +69,22 @@ function TileLink({
   href,
   className,
   children,
+  dataEl,
 }: {
   href: string
   className?: string
   children: ReactNode
+  dataEl?: string
 }) {
   if (isExternal(href)) {
     return (
-      <a href={href} className={className}>
+      <a href={href} className={className} data-el={dataEl}>
         {children}
       </a>
     )
   }
   return (
-    <LocalizedClientLink href={href} className={className}>
+    <LocalizedClientLink href={href} className={className} data-el={dataEl}>
       {children}
     </LocalizedClientLink>
   )
@@ -95,6 +97,7 @@ function CollectionItem({
   href,
   linkLabel,
   wide,
+  itemIndex,
 }: {
   title: string
   body?: string
@@ -102,9 +105,16 @@ function CollectionItem({
   href: string
   linkLabel?: string
   wide?: boolean
+  itemIndex?: number
 }) {
   return (
-    <div className={wide ? "col-lg-12" : "col-lg-6"}>
+    <div
+      data-el="item"
+      data-el-item={
+        typeof itemIndex === "number" ? `categories:${itemIndex}` : undefined
+      }
+      className={wide ? "col-lg-12" : "col-lg-6"}
+    >
       {/* Collection Item Start */}
       <div className="collection-item wow fadeInUp">
         {/* Collection Item Content Start */}
@@ -114,7 +124,7 @@ function CollectionItem({
           </div>
           {linkLabel ? (
             <div className="collection-item-button">
-              <TileLink href={href} className="btn-default">
+              <TileLink href={href} className="btn-default" dataEl="button">
                 {linkLabel}
               </TileLink>
             </div>
@@ -151,8 +161,9 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
   // Preserve the shared content order: intro (section header), sale, the
   // regular (non-wide) category tiles, the instagram banner, then the wide
   // tiles — same order Aurora renders.
-  const regularCats = categories.filter((c) => !c.wide)
-  const wideCats = categories.filter((c) => c.wide)
+  const indexedCats = categories.map((cat, i) => ({ cat, i }))
+  const regularCats = indexedCats.filter(({ cat }) => !cat.wide)
+  const wideCats = indexedCats.filter(({ cat }) => cat.wide)
 
   // Nothing to render -> render null (mirror the original empty guards).
   if (!intro && !sale && !instagram && categories.length === 0) {
@@ -170,13 +181,13 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
                 <span className="section-sub-title wow fadeInUp">
                   Our collection
                 </span>
-                <h2 className="text-anime-style-3">{intro.title}</h2>
+                <h2 data-el="title" className="text-anime-style-3">{intro.title}</h2>
                 {intro.body ? (
                   <p className="wow fadeInUp">{intro.body}</p>
                 ) : null}
                 {intro.href && intro.link_label ? (
                   <div style={{ marginTop: 30 }}>
-                    <TileLink href={intro.href} className="btn-default">
+                    <TileLink href={intro.href} className="btn-default" dataEl="button">
                       {intro.link_label}
                     </TileLink>
                   </div>
@@ -200,14 +211,15 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Regular category tiles */}
-          {regularCats.map((cat, i) => (
+          {regularCats.map(({ cat, i }, pos) => (
             <CollectionItem
               key={`reg-${i}`}
               title={cat.title}
               body={cat.count_label}
-              image={tileImage(cat.image, sale ? i + 1 : i)}
+              image={tileImage(cat.image, sale ? pos + 1 : pos)}
               href={cat.href}
               linkLabel="Shop Now"
+              itemIndex={i}
             />
           ))}
 
@@ -223,15 +235,16 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Wide category tiles */}
-          {wideCats.map((cat, i) => (
+          {wideCats.map(({ cat, i }, pos) => (
             <CollectionItem
               key={`wide-${i}`}
               title={cat.title}
               body={cat.count_label}
-              image={tileImage(cat.image, i)}
+              image={tileImage(cat.image, pos)}
               href={cat.href}
               linkLabel="Shop Now"
               wide
+              itemIndex={i}
             />
           ))}
         </div>

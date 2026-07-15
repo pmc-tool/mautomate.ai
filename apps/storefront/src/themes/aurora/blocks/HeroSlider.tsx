@@ -78,6 +78,7 @@ const HeroSlider = (props: HeroSliderData) => {
             {slides.map((slide, i) => (
               <div
                 key={i}
+                data-el-item={`slides:${i}`}
                 className={`absolute inset-0 transition-opacity duration-700 ease-out ${
                   i === active
                     ? "opacity-100 z-10"
@@ -86,6 +87,7 @@ const HeroSlider = (props: HeroSliderData) => {
                 aria-hidden={i === active ? undefined : true}
               >
                 <img
+                  data-el="image"
                   src={slide.image}
                   alt=""
                   className="absolute inset-0 h-full w-full object-cover"
@@ -94,16 +96,17 @@ const HeroSlider = (props: HeroSliderData) => {
                 <div className="relative z-10 flex h-full items-center">
                   <div className="max-w-2xl px-6 sm:px-10 md:px-16">
                     {slide.subtitle ? (
-                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">
+                      <p data-el="kicker" className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">
                         {slide.subtitle}
                       </p>
                     ) : null}
-                    <h2 className="mt-4 text-3xl md:text-5xl font-semibold tracking-tight text-neutral-900">
+                    <h2 data-el="title" className="mt-4 text-3xl md:text-5xl font-semibold tracking-tight text-neutral-900">
                       {renderTitle(slide.title)}
                     </h2>
                     {slide.cta?.href ? (
                       <div className="mt-8">
                         <LocalizedClientLink
+                          data-el="button"
                           href={slide.cta.href}
                           className="inline-flex items-center justify-center rounded-full bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700 transition"
                         >

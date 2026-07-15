@@ -114,7 +114,7 @@ const ShofyProduct: React.FC<ProductTemplateProps> = ({
                 {/* Shared gallery replaces the template's Bootstrap thumb
                     tabs (dropped per the brief). */}
                 <div className="tp-product-details-thumb-wrapper">
-                  <ImageGallery images={galleryImages} />
+                  <ImageGallery images={galleryImages} productId={product?.id} />
                 </div>
               </div>
               <div className="col-xl-5 col-lg-6">

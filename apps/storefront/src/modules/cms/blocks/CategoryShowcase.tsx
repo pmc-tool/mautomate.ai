@@ -53,7 +53,7 @@ const CategoryShowcase = async (props: CategoryShowcaseData) => {
 
   // Build the renderable tiles, dropping dangling category references.
   const tiles = items
-    .map((item) => {
+    .map((item, index) => {
       const cat = item.category_id ? byId.get(item.category_id) : undefined
 
       // Dangling ref: the tile points at a category that no longer exists.
@@ -71,6 +71,7 @@ const CategoryShowcase = async (props: CategoryShowcaseData) => {
         image: item.image,
         href,
         count,
+        index,
       }
     })
     .filter((t): t is NonNullable<typeof t> => t !== null)
@@ -93,17 +94,21 @@ const CategoryShowcase = async (props: CategoryShowcaseData) => {
 
         <div className="row row-cols-xl-5 row-cols-lg-3 row-cols-sm-2 row-cols-1 learts-mb-n40">
           {tiles.map((tile, i) => (
-            <div className="col learts-mb-40" key={i}>
+            <div
+              className="col learts-mb-40"
+              key={i}
+              data-el-item={`items:${tile.index}`}
+            >
               <div className="category-banner5" data-el="tile">
                 <LocalizedClientLink href={tile.href} className="inner">
-                  <div className="image">
+                  <div className="image" data-el="image">
                     <img
                       src={tile.image || FALLBACK_IMAGES[i % FALLBACK_IMAGES.length]}
                       alt={tile.label}
                     />
                   </div>
                   <div className="content">
-                    <h3 className="title">{tile.label}</h3>
+                    <h3 className="title" data-el="label">{tile.label}</h3>
                     <span className="number">
                       {typeof tile.count === "number"
                         ? `${tile.count} Items`

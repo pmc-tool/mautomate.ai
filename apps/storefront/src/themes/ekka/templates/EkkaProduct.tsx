@@ -105,7 +105,7 @@ const EkkaProduct: React.FC<ProductTemplateProps> = ({
                 <div className="single-pro-inner">
                   <div className="row">
                     <div className="single-pro-img">
-                      <ImageGallery images={galleryImages} />
+                      <ImageGallery images={galleryImages} productId={product?.id} />
                     </div>
                     <div className="single-pro-desc">
                       <div className="single-pro-content">

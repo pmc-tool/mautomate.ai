@@ -28,6 +28,10 @@ export interface CategoryShowcaseItem {
 
 /** A resolved, theme-neutral showcase tile (each View skins it). */
 export interface CategoryTile {
+  /** The tile's ORIGINAL index in the block's `items` prop. Dangling-ref
+   *  tiles are dropped from the result, so the render position can drift —
+   *  per-item editor ops (duplicate/delete THIS tile) must use this. */
+  index: number
   label: string
   image: string
   href: string
@@ -51,7 +55,7 @@ export async function fetchCategoryTiles(
   )
 
   return items
-    .map((item): CategoryTile | null => {
+    .map((item, index): CategoryTile | null => {
       const cat = item.category_id ? byId.get(item.category_id) : undefined
 
       // Dangling ref: the tile points at a category that no longer exists.
@@ -64,6 +68,7 @@ export async function fetchCategoryTiles(
         item.href || (cat?.handle ? `/categories/${cat.handle}` : "/store")
 
       return {
+        index,
         label: item.label || cat?.name || "",
         image: item.image,
         href,

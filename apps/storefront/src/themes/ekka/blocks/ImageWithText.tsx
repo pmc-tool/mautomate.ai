@@ -108,6 +108,7 @@ const ImageWithText = (props: ImageWithTextData) => {
     <div className="col-lg-6 align-self-center">
       <div style={{ position: "relative" }}>
         <img
+          data-el="image"
           src={image}
           alt={title}
           style={{ maxWidth: "100%", width: "100%" }}
@@ -151,15 +152,20 @@ const ImageWithText = (props: ImageWithTextData) => {
       {/* Section Title Start */}
       <div className="section-title" style={{ marginBottom: 20 }}>
         {title ? <h2 className="ec-bg-title">{title}</h2> : null}
-        {title ? <h2 className="ec-title">{renderTitle(title)}</h2> : null}
+        {title ? (
+          <h2 data-el="heading" className="ec-title">
+            {renderTitle(title)}
+          </h2>
+        ) : null}
         {props.eyebrow ? <p className="sub-title">{props.eyebrow}</p> : null}
       </div>
       {/* Section Title End */}
-      {props.body ? <p>{props.body}</p> : null}
+      {props.body ? <p data-el="text">{props.body}</p> : null}
       {props.cta?.href ? (
         <div style={{ marginTop: 25 }}>
           <LocalizedClientLink
             href={props.cta.href}
+            data-el="button"
             className="btn btn-primary"
           >
             {props.cta.label || "Shop Now"}

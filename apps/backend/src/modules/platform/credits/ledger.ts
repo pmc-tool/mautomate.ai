@@ -1,4 +1,9 @@
-import { BillableAction, creditsFor } from "../pricing/price-book"
+import {
+  BillableAction,
+  creditsFor,
+  creditsPerUnit,
+  vendorCostFor,
+} from "../pricing/price-book"
 
 /**
  * CreditLedgerService — the money-safe credit wallet (plan §06).
@@ -44,6 +49,35 @@ export interface WalletStore {
   /** idempotency: returns true if this key was already applied. */
   seenIdempotencyKey(tenantId: string, key: string): Promise<boolean>
   recordIdempotencyKey(tenantId: string, key: string): Promise<void>
+  /** Optional: pull operator-edited rates so EVERY charge path sees them. */
+  refreshRates?(): Promise<void>
+  /** Optional: credit-lot layer (source + expiry). */
+  createLot?(row: {
+    tenant_id: string
+    source: string
+    amount: number
+    expires_at?: Date | null
+    meta?: Record<string, unknown> | null
+  }): Promise<void>
+  /** Lots with credits left, SOONEST-EXPIRING first (never-expiring last). */
+  listOpenLots?(tenantId: string): Promise<
+    { id: string; remaining: number; expires_at: Date | null; source: string }[]
+  >
+  setLotRemaining?(id: string, remaining: number): Promise<void>
+  /** Lots past their expiry that still hold credits. */
+  listExpiredLots?(nowMs: number): Promise<
+    { id: string; tenant_id: string; remaining: number; source: string }[]
+  >
+  /** Optional: record the billed action — the margin dashboard's data source. */
+  recordUsage?(row: {
+    tenant_id: string
+    action: string
+    units: number
+    credits: number
+    reservation_id?: string | null
+    vendor_cost_usd?: number | null
+    meta?: Record<string, unknown> | null
+  }): Promise<void>
   appendTx(row: {
     tenant_id: string
     type: string
@@ -76,6 +110,8 @@ export class CreditLedgerService {
     units: number,
     opts: { reservationId: string; nowMs?: number }
   ): Promise<ReserveResult> {
+    // Operator rate edits must reach EVERY charge path, not just the guard's.
+    await this.store.refreshRates?.()
     await this.store.ensureWallet(tenantId)
     const credits = creditsFor(action, units)
     const ok = await this.store.atomicReserve(tenantId, credits)
@@ -110,7 +146,7 @@ export class CreditLedgerService {
   async commit(
     reservationId: string,
     actualUnits?: number,
-    opts: { idempotencyKey?: string } = {}
+    opts: { idempotencyKey?: string; meta?: Record<string, unknown> } = {}
   ): Promise<{ committed: number; refunded: number; overrun: number; balance: number }> {
     const r = await this.store.getReservation(reservationId)
     if (!r) throw new Error(`unknown reservation ${reservationId}`)
@@ -154,6 +190,24 @@ export class CreditLedgerService {
       idempotency_key: opts.idempotencyKey,
       action: r.action,
     })
+    // ONE usage row per billed action, emitted HERE — not by scattered call
+    // sites (which wrote the wrong keys and produced dead rows). Units are
+    // derived from the credits charged when the caller didn't measure them.
+    const act = r.action as BillableAction
+    const perUnit = creditsPerUnit(act)
+    const units = actualUnits ?? (perUnit > 0 ? actual / perUnit : 1)
+    await this.store.recordUsage?.({
+      tenant_id: r.tenant_id,
+      action: r.action,
+      units,
+      credits: actual,
+      reservation_id: reservationId,
+      vendor_cost_usd: vendorCostFor(act, units),
+      meta: opts.meta ?? null,
+    })
+    // Spend the credits that would expire soonest, so the ones the merchant
+    // PAID for are always the last to be consumed.
+    await this.burnLots(r.tenant_id, actual)
     return { committed: actual, refunded, overrun, balance: w.balance }
   }
 
@@ -180,6 +234,10 @@ export class CreditLedgerService {
     amount: number,
     opts: {
       type?: "grant" | "topup" | "refund"
+      /** Where these credits came from — decides whether they can expire. */
+      source?: "plan" | "topup" | "trial" | "grant" | "legacy"
+      /** null/undefined = never expires (what PURCHASED credits must be). */
+      expiresAt?: Date | null
       idempotencyKey?: string
       meta?: Record<string, any>
     } = {}
@@ -191,6 +249,17 @@ export class CreditLedgerService {
       }
       await this.store.recordIdempotencyKey(tenantId, opts.idempotencyKey)
     }
+    // Every credit that enters the wallet belongs to a lot, so we always know
+    // whether it expires. Purchased (topup) credits carry no expiry — ever.
+    const source =
+      opts.source ?? (opts.type === "topup" ? "topup" : opts.type === "refund" ? "topup" : "grant")
+    await this.store.createLot?.({
+      tenant_id: tenantId,
+      source,
+      amount,
+      expires_at: source === "topup" ? null : opts.expiresAt ?? null,
+      meta: opts.meta ?? null,
+    })
     await this.store.applyDelta(tenantId, amount, 0)
     const w = await this.store.getWallet(tenantId)
     await this.store.appendTx({
@@ -209,6 +278,97 @@ export class CreditLedgerService {
    * was reversed. Allowed to drive the balance negative; returns whether the
    * tenant should be suspended. Idempotent on key.
    */
+  /**
+   * Consume `amount` credits from the tenant's lots, SOONEST-EXPIRING FIRST
+   * (never-expiring lots last). The wallet balance was already moved by the
+   * caller — this keeps the lot allocation consistent with it.
+   */
+  private async burnLots(tenantId: string, amount: number): Promise<void> {
+    if (!this.store.listOpenLots || !this.store.setLotRemaining || amount <= 0) return
+    let left = amount
+    const lots = await this.store.listOpenLots(tenantId)
+    for (const lot of lots) {
+      if (left <= 0) break
+      const take = Math.min(lot.remaining, left)
+      await this.store.setLotRemaining(lot.id, lot.remaining - take)
+      left -= take
+    }
+    // `left > 0` means the wallet went negative (bounded overrun/clawback):
+    // there is nothing left to burn, which is correct — the debt sits on the
+    // wallet balance, not on a lot.
+  }
+
+  /** Balance split by whether it can expire — what the merchant should see. */
+  async balanceBreakdown(
+    tenantId: string
+  ): Promise<{ total: number; expiring: number; permanent: number; next_expiry: Date | null }> {
+    const w = await this.store.getWallet(tenantId)
+    if (!this.store.listOpenLots) {
+      return { total: w.balance, expiring: 0, permanent: w.balance, next_expiry: null }
+    }
+    const lots = await this.store.listOpenLots(tenantId)
+    let expiring = 0
+    let permanent = 0
+    let next: Date | null = null
+    for (const l of lots) {
+      if (l.expires_at) {
+        expiring += l.remaining
+        if (!next || l.expires_at < next) next = l.expires_at
+      } else {
+        permanent += l.remaining
+      }
+    }
+    return { total: w.balance, expiring, permanent, next_expiry: next }
+  }
+
+  /**
+   * Expire lots past their date: zero the lot and remove those credits from the
+   * wallet. Purchased credits have no expiry date, so they are never touched.
+   */
+  async expireLots(nowMs: number = Date.now()): Promise<{ tenants: number; credits: number }> {
+    if (!this.store.listExpiredLots || !this.store.setLotRemaining) {
+      return { tenants: 0, credits: 0 }
+    }
+    const expired = await this.store.listExpiredLots(nowMs)
+    const tenants = new Set<string>()
+    let credits = 0
+    for (const lot of expired) {
+      if (lot.remaining <= 0) continue
+      await this.store.setLotRemaining(lot.id, 0)
+      await this.store.applyDelta(lot.tenant_id, -lot.remaining, 0)
+      const w = await this.store.getWallet(lot.tenant_id)
+      await this.store.appendTx({
+        tenant_id: lot.tenant_id,
+        type: "adjust",
+        amount: -lot.remaining,
+        balance_after: w.balance,
+        meta: { reason: "credit_expiry", lot_id: lot.id, source: lot.source },
+      })
+      tenants.add(lot.tenant_id)
+      credits += lot.remaining
+    }
+    return { tenants: tenants.size, credits }
+  }
+
+  /** Post-paid settlement (voice minutes) — record the usage it represents. */
+  async settleUsage(
+    tenantId: string,
+    action: BillableAction,
+    units: number,
+    credits: number,
+    meta?: Record<string, unknown>
+  ): Promise<void> {
+    await this.store.recordUsage?.({
+      tenant_id: tenantId,
+      action,
+      units,
+      credits,
+      reservation_id: null,
+      vendor_cost_usd: vendorCostFor(action, units),
+      meta: meta ?? null,
+    })
+  }
+
   async clawback(
     tenantId: string,
     amount: number,
@@ -223,6 +383,8 @@ export class CreditLedgerService {
       await this.store.recordIdempotencyKey(tenantId, opts.idempotencyKey)
     }
     await this.store.applyDelta(tenantId, -amount, 0)
+    // Keep lots consistent with the balance (voice minutes settle this way).
+    await this.burnLots(tenantId, amount)
     const w = await this.store.getWallet(tenantId)
     await this.store.appendTx({
       tenant_id: tenantId,

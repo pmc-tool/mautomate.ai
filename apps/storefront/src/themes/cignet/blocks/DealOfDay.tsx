@@ -127,9 +127,10 @@ const DealOfDay = (props: DealOfDayData) => {
                 <div className="limited-offer-item-body">
                   <div className="limited-offer-item-content">
                     <span>Limited Time Offer</span>
-                    <h2>{title}</h2>
+                    <h2 data-el="title">{title}</h2>
                     {props.description ? (
                       <p
+                        data-el="text"
                         style={{
                           maxWidth: 640,
                           margin: "20px auto 0",
@@ -141,6 +142,7 @@ const DealOfDay = (props: DealOfDayData) => {
                     ) : null}
                   </div>
                   <div
+                    data-el="countdown"
                     className="limited-offer-countdown"
                     style={{
                       display: "flex",
@@ -161,6 +163,7 @@ const DealOfDay = (props: DealOfDayData) => {
                   {cta?.href ? (
                     <div className="limited-offer-btn">
                       <LocalizedClientLink
+                        data-el="button"
                         href={cta.href}
                         className="btn-default btn-highlighted"
                       >

@@ -5,7 +5,7 @@ import { resolveEditorTenant } from "@lib/util/editor-tenant"
 /* Visual editor autosave proxy — forwards the editor's current Puck data to the
  * backend draft buffer (/cms/visual-autosave). Server-only secret + tenant pak. */
 export async function POST(req: NextRequest) {
-  if (!isValidEditorRequest(req)) {
+  if (!(await isValidEditorRequest(req))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
   const { backend, pubKey } = await resolveEditorTenant(req)

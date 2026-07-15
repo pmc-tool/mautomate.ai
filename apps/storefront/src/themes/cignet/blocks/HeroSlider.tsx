@@ -82,6 +82,8 @@ const HeroSlider = (props: HeroSliderData) => {
       {slides.map((slide, i) => (
         <div
           key={i}
+          data-el="image"
+          data-el-item={`slides:${i}`}
           className="hero dark-section"
           style={{
             gridArea: "1 / 1",
@@ -101,11 +103,11 @@ const HeroSlider = (props: HeroSliderData) => {
                   {/* Section Title Start */}
                   <div className="section-title">
                     {slide.subtitle ? (
-                      <span className="section-sub-title wow fadeInUp">
+                      <span data-el="kicker" className="section-sub-title wow fadeInUp">
                         {slide.subtitle}
                       </span>
                     ) : null}
-                    <h1 className="text-anime-style-3">
+                    <h1 data-el="title" className="text-anime-style-3">
                       {renderTitle(slide.title)}
                     </h1>
                     {slide.text ? (
@@ -119,6 +121,7 @@ const HeroSlider = (props: HeroSliderData) => {
                     {/* Hero Button Start */}
                     <div className="hero-btn">
                       <LocalizedClientLink
+                        data-el="button"
                         href={slide.cta?.href || "/store"}
                         className="btn-default btn-highlighted"
                       >

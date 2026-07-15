@@ -74,14 +74,14 @@ const DealOfDay = (props: DealOfDayData) => {
       <div className="container">
         <div className="row align-items-center learts-mb-n30">
           <div className="col-lg-6 col-12 learts-mb-30">
-            <div className="product-deal-image text-center">
+            <div className="product-deal-image text-center" data-el="image">
               {props.image ? (
                 <img src={props.image} alt={title} />
               ) : null}
             </div>
           </div>
           <div className="col-lg-6 col-12 learts-mb-30">
-            <div className="product-deal-content">
+            <div className="product-deal-content" data-el="content">
               <h2 className="title" data-el="title">
                 {title}
               </h2>

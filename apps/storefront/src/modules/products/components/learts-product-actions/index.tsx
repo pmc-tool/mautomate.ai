@@ -7,6 +7,7 @@ import { isEqual } from "lodash"
 import { useParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { setVariantSelection } from "@modules/products/variant-gallery"
 
 type Props = {
   product: HttpTypes.StoreProduct
@@ -41,6 +42,14 @@ const LeartsProductActions = ({ product, region }: Props) => {
       isEqual(optionsAsKeymap(v.options), options)
     )
   }, [product.variants, options])
+
+  // Tell the gallery which variant is selected, so it shows that variant's own
+  // photos. This theme has its OWN actions component — wiring only the shared
+  // one left every learts-family store (most of them) unfiltered.
+  useEffect(() => {
+    setVariantSelection(product.id, selectedVariant?.id ?? null)
+    return () => setVariantSelection(undefined, null)
+  }, [product.id, selectedVariant?.id])
 
   const setOptionValue = (optionId: string, value: string) => {
     setOptions((prev) => ({ ...prev, [optionId]: value }))

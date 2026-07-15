@@ -101,7 +101,7 @@ const BazaroProduct: React.FC<ProductTemplateProps> = ({
           <div className="row">
             <div className="col-lg-6 order-lg-1 order-2">
               <div className="product-details-slider-wrap">
-                <ImageGallery images={galleryImages} />
+                <ImageGallery images={galleryImages} productId={product?.id} />
               </div>
             </div>
             <div className="col-lg-6 order-lg-2 order-1">

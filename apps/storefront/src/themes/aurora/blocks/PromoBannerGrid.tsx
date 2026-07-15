@@ -87,11 +87,13 @@ function InstagramIcon() {
   )
 }
 
-function CategoryTile({ cat }: { cat: PromoCategoryTile }) {
+function CategoryTile({ cat, index }: { cat: PromoCategoryTile; index: number }) {
   const spanClass = cat.wide ? "sm:col-span-2" : ""
 
   return (
     <LocalizedClientLink
+      data-el="item"
+      data-el-item={`categories:${index}`}
       href={cat.href}
       className={`group relative flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition hover:shadow-md ${spanClass}`}
     >
@@ -122,8 +124,9 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
 
   // Preserve the original Learts content order: intro, sale, the regular
   // (non-wide) category tiles, the instagram banner, then the wide tiles.
-  const regularCats = categories.filter((c) => !c.wide)
-  const wideCats = categories.filter((c) => c.wide)
+  const indexedCats = categories.map((cat, i) => ({ cat, i }))
+  const regularCats = indexedCats.filter(({ cat }) => !cat.wide)
+  const wideCats = indexedCats.filter(({ cat }) => cat.wide)
 
   // Nothing to render -> render null (mirror the original empty guards).
   if (!intro && !sale && !instagram && categories.length === 0) {
@@ -137,7 +140,7 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           {/* Intro editorial blockquote */}
           {intro ? (
             <div className="flex flex-col justify-center rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm sm:col-span-2">
-              <h2 className="text-3xl font-semibold tracking-tight text-neutral-900 md:text-4xl">
+              <h2 data-el="title" className="text-3xl font-semibold tracking-tight text-neutral-900 md:text-4xl">
                 {intro.title}
               </h2>
               {intro.body ? (
@@ -147,6 +150,7 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
               ) : null}
               {intro.href ? (
                 <LocalizedClientLink
+                  data-el="button"
                   href={intro.href}
                   className="mt-6 inline-flex w-fit items-center justify-center gap-2 rounded-full bg-neutral-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-neutral-700"
                 >
@@ -159,7 +163,7 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
 
           {/* Sale highlight */}
           {sale ? (
-            <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition hover:shadow-md">
+            <div data-el="item" className="group relative flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition hover:shadow-md">
               <div className="aspect-[4/3] overflow-hidden">
                 <img
                   src={sale.image}
@@ -193,13 +197,13 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Regular category tiles */}
-          {regularCats.map((cat, i) => (
-            <CategoryTile key={`reg-${i}`} cat={cat} />
+          {regularCats.map(({ cat, i }) => (
+            <CategoryTile key={`reg-${i}`} cat={cat} index={i} />
           ))}
 
           {/* Instagram */}
           {instagram ? (
-            <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition hover:shadow-md">
+            <div data-el="item" className="group relative flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition hover:shadow-md">
               <div className="aspect-[4/3] overflow-hidden">
                 <img
                   src={instagram.image}
@@ -232,8 +236,8 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Wide category tiles (e.g. Toys) */}
-          {wideCats.map((cat, i) => (
-            <CategoryTile key={`wide-${i}`} cat={cat} />
+          {wideCats.map(({ cat, i }) => (
+            <CategoryTile key={`wide-${i}`} cat={cat} index={i} />
           ))}
         </div>
       </div>

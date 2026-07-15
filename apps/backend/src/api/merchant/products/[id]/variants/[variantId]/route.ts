@@ -14,6 +14,8 @@ const PriceSchema = z.object({
 
 const UpdateVariantSchema = z.object({
   title: z.string().min(1).optional(),
+  // The variant's own thumbnail — a URL already in the product's gallery.
+  thumbnail: z.string().nullable().optional(),
   material: z.string().nullable().optional(),
   sku: z.string().nullable().optional(),
   barcode: z.string().nullable().optional(),
@@ -114,6 +116,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const update: any = { id: variantId }
 
   if (body.title !== undefined) update.title = body.title
+  if (body.thumbnail !== undefined) {
+    update.thumbnail =
+      body.thumbnail === null || body.thumbnail.trim() === ''
+        ? null
+        : body.thumbnail
+  }
 
   const nullableStringKeys = [
     "material",

@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { resolveMerchant } from "../../_helpers"
-import { paymentStatusFrom, fulfillmentStatusFrom } from "../_status"
+import { paymentStatusFrom, fulfillmentStatusFrom, orderMoneyFor } from "../_status"
 
 /**
  * GET /merchant/orders/:id — full order detail, tenant-scoped.
@@ -233,6 +233,31 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
+  // The graph computes item_total off quantities it reads as 0, so `total` comes
+  // back as shipping alone (a 4 x $1,000 order reported as $500) and every line
+  // renders "0 x". Read the real quantities and total from the order's latest
+  // version, and rebuild the item money from them.
+  const money = await orderMoneyFor(
+    req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION),
+    [order.id]
+  )
+  const facts = money.get(order.id) ?? null
+  const qtyOf = (i: any): number =>
+    facts?.quantities.get(i.id) ?? Number(i.quantity ?? 0)
+  const lineTotalOf = (i: any): number => {
+    const q = qtyOf(i)
+    const graphTotal = num(i.total)
+    // Trust the graph's line total only when it is consistent with a real
+    // quantity; otherwise recompute it from unit price x quantity.
+    return graphTotal > 0 ? graphTotal : q * num(i.unit_price)
+  }
+  const itemsTotal = (order.items || []).reduce(
+    (s: number, i: any) => s + lineTotalOf(i),
+    0
+  )
+  const orderTotal =
+    facts?.total ?? (num(order.total) || itemsTotal + num(order.shipping_total))
+
   res.json({
     order: {
       id: order.id,
@@ -247,10 +272,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       updated_at: order.updated_at,
       canceled_at: order.canceled_at ?? null,
       // totals
-      total: num(order.total),
-      subtotal: num(order.subtotal),
-      item_subtotal: num(order.item_subtotal),
-      item_total: num(order.item_total),
+      total: orderTotal,
+      subtotal: num(order.subtotal) || itemsTotal,
+      item_subtotal: num(order.item_subtotal) || itemsTotal,
+      item_total: num(order.item_total) || itemsTotal,
       item_tax_total: num(order.item_tax_total),
       shipping_total: num(order.shipping_total),
       shipping_subtotal: num(order.shipping_subtotal),
@@ -300,10 +325,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         variant_title: i.variant_title ?? null,
         sku: i.variant_sku ?? null,
         product_id: i.product_id ?? null,
-        quantity: i.quantity,
+        quantity: qtyOf(i),
         unit_price: num(i.unit_price),
-        subtotal: num(i.subtotal),
-        total: num(i.total),
+        subtotal: num(i.subtotal) || lineTotalOf(i),
+        total: lineTotalOf(i),
         tax_total: num(i.tax_total),
         discount_total: num(i.discount_total),
         original_total: num(i.original_total),

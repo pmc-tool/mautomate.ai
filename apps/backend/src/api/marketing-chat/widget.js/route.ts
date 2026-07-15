@@ -113,6 +113,10 @@ const SCRIPT = String.raw`(function () {
 
   function injectStyles(config) {
     var side = config.position === "left" ? "left" : "right";
+    // The widget is injected into the merchant storefront, whose theme CSS
+    // (Bootstrap etc) targets bare inputs and was stretching ours into an oval,
+    // so every visual property below is pinned with !important. The mac-typing
+    // rules are the "agent is typing" dots.
     var css =
       ".mac-root{position:fixed;bottom:20px;" + side + ":20px;z-index:2147483000;" +
       "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;" +
@@ -150,9 +154,21 @@ const SCRIPT = String.raw`(function () {
       ".mac-mine .mac-meta{text-align:right;}" +
       ".mac-note{margin:auto;color:#6b7280;font-size:13px;text-align:center;padding:0 12px;}" +
       ".mac-form{display:flex;gap:8px;padding:10px;border-top:1px solid #e5e7eb;background:#fff;}" +
-      ".mac-input{flex:1 1 auto;min-width:0;border:1px solid #e5e7eb;border-radius:20px;padding:9px 14px;" +
-      "font-size:13px;outline:none;color:#1f2937;background:#f9fafb;}" +
-      ".mac-input:focus{border-color:" + config.color + ";}" +
+      ".mac-input{flex:1 1 auto !important;min-width:0 !important;width:auto !important;" +
+      "height:38px !important;box-sizing:border-box !important;margin:0 !important;" +
+      "border:1px solid #e5e7eb !important;border-radius:19px !important;padding:0 14px !important;" +
+      "font-size:13px !important;line-height:38px !important;outline:none !important;" +
+      "color:#1f2937 !important;background:#f9fafb !important;box-shadow:none !important;" +
+      "font-family:inherit !important;appearance:none !important;-webkit-appearance:none !important;}" +
+      ".mac-input:focus{border-color:" + config.color + " !important;box-shadow:none !important;}" +
+      ".mac-typing{display:flex;align-items:center;gap:4px;padding:10px 14px;background:#fff;" +
+      "border:1px solid #eef0f2;border-radius:14px;width:fit-content;}" +
+      ".mac-typing span{width:6px;height:6px;border-radius:50%;background:#9ca3af;display:inline-block;" +
+      "animation:mac-blink 1.2s infinite ease-in-out;}" +
+      ".mac-typing span:nth-child(2){animation-delay:.18s;}" +
+      ".mac-typing span:nth-child(3){animation-delay:.36s;}" +
+      "@keyframes mac-blink{0%,80%,100%{opacity:.25;transform:translateY(0);}" +
+      "40%{opacity:1;transform:translateY(-2px);}}" +
       ".mac-send{border:0;border-radius:50%;width:38px;height:38px;flex:0 0 auto;cursor:pointer;color:#fff;" +
       "background:" + config.color + ";display:flex;align-items:center;justify-content:center;padding:0;}" +
       ".mac-send:disabled{opacity:.45;cursor:default;}" +
@@ -318,12 +334,37 @@ const SCRIPT = String.raw`(function () {
       list.appendChild(row);
     });
 
+    // "Agent is typing" — shown from the moment the customer sends until a
+    // reply actually lands, so nobody stares at a dead window wondering.
+    if (state.typing) {
+      var trow = document.createElement("div");
+      trow.className = "mac-row";
+      var tbub = document.createElement("div");
+      tbub.className = "mac-typing";
+      tbub.appendChild(document.createElement("span"));
+      tbub.appendChild(document.createElement("span"));
+      tbub.appendChild(document.createElement("span"));
+      trow.appendChild(tbub);
+      list.appendChild(trow);
+    }
+
     list.scrollTop = list.scrollHeight;
   }
 
   function merge(incoming) {
     if (!incoming || !incoming.length) {
       return;
+    }
+    // A reply landed — stop the dots.
+    var fromThem = incoming.some(function (m) {
+      return !(m.direction === "inbound" || m.author === "contact");
+    });
+    if (fromThem) {
+      state.typing = false;
+      if (state.typingTimer) {
+        window.clearTimeout(state.typingTimer);
+        state.typingTimer = null;
+      }
     }
     incoming.forEach(function (m) {
       if (state.ids[m.id]) {
@@ -402,6 +443,7 @@ const SCRIPT = String.raw`(function () {
     }
     els.input.value = "";
     state.sending = true;
+    state.typing = true; // the assistant is composing — show it
     els.send.disabled = true;
 
     messages.push({
@@ -440,6 +482,15 @@ const SCRIPT = String.raw`(function () {
       .then(function () {
         state.sending = false;
         els.send.disabled = false;
+        // Keep the dots up until a reply actually arrives (poll clears them);
+        // give up after a while so they can never spin forever.
+        if (state.typingTimer) {
+          window.clearTimeout(state.typingTimer);
+        }
+        state.typingTimer = window.setTimeout(function () {
+          state.typing = false;
+          paint();
+        }, 45000);
       });
   }
 

@@ -237,6 +237,72 @@ export const WIDGET_SCHEMAS: Record<string, WidgetDef> = {
     ],
     defaults: { html: "" },
   },
+
+  /**
+   * A container INSIDE a column (Elementor's Inner Section).
+   *
+   * Its `columns` have exactly the same shape as the section-level container's,
+   * so the renderer, the columns manager and every widget op recurse into it
+   * unchanged. Nesting is capped at ONE level (an inner section cannot hold
+   * another): two levels covers real layouts, and unbounded nesting is a
+   * performance and UX trap that Elementor itself resists.
+   */
+  inner_section: {
+    type: "inner_section",
+    label: "Inner Section",
+    icon: "Columns",
+    fields: [
+      {
+        name: "layout",
+        type: "select",
+        label: "Columns",
+        default: "2",
+        group: "Content",
+        options: [
+          { label: "1 column", value: "1" },
+          { label: "2 columns", value: "2" },
+          { label: "3 columns", value: "3" },
+          { label: "4 columns", value: "4" },
+        ],
+      },
+      {
+        name: "gap",
+        type: "unitNumber",
+        label: "Gap",
+        default: { value: 20, unit: "px" },
+        group: "Content",
+        units: ["px", "rem", "em"],
+        min: 0,
+        max: 120,
+        step: 1,
+      },
+      {
+        name: "verticalAlign",
+        type: "select",
+        label: "Vertical align",
+        default: "top",
+        group: "Content",
+        options: [
+          { label: "Top", value: "top" },
+          { label: "Middle", value: "center" },
+          { label: "Bottom", value: "bottom" },
+        ],
+      },
+    ],
+    defaults: {
+      layout: "2",
+      gap: { value: 20, unit: "px" },
+      verticalAlign: "top",
+      columns: [{ widgets: [] }, { widgets: [] }],
+    },
+  },
+}
+
+/** Widget types that hold their own columns of widgets (recursive render). */
+export const NESTED_WIDGET_TYPES = new Set(["inner_section"])
+
+export function isNestedWidget(type: unknown): boolean {
+  return typeof type === "string" && NESTED_WIDGET_TYPES.has(type)
 }
 
 export function getWidgetSchema(type: string): WidgetDef | undefined {

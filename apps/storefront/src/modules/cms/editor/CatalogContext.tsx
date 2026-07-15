@@ -4,7 +4,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react"
 
-type Opt = { id: string; label: string }
+type Opt = { id: string; label: string; thumbnail?: string | null }
 type Catalog = { products: Opt[]; categories: Opt[] }
 
 const CatalogCtx = createContext<Catalog>({ products: [], categories: [] })

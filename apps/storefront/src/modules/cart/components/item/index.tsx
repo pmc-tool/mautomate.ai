@@ -54,8 +54,12 @@ const Item = ({ item, type = "full", currencyCode }: ItemProps) => {
             "small:w-24 w-12": type === "full",
           })}
         >
+          {/* The line item's thumbnail is stamped when it is ADDED to the cart.
+              If the merchant tags a variant image afterwards, the item in an
+              existing cart would still show the old picture — so prefer the
+              variant's current thumbnail and fall back to what was stamped. */}
           <Thumbnail
-            thumbnail={item.thumbnail}
+            thumbnail={(item.variant as any)?.thumbnail || item.thumbnail}
             images={item.variant?.product?.images}
             size="square"
           />

@@ -125,7 +125,14 @@ export default async function ProductPage(props: Props) {
 
   const pricedProduct = await listProducts({
     countryCode: params.countryCode,
-    queryParams: { handle: params.handle },
+    queryParams: {
+      handle: params.handle,
+      // The variant<->image links + per-variant thumbnails. Without these the
+      // gallery has no idea which photo belongs to which variant and simply
+      // shows everything — which is exactly what it did before.
+      fields:
+        "*variants.calculated_price,*variants.options,*variants.images,variants.thumbnail,*options,*options.values,*images,images.variants.id,*categories,+tags,description,title,handle,thumbnail",
+    } as any,
   }).then(({ response }) => response.products[0])
 
   if (!pricedProduct) {

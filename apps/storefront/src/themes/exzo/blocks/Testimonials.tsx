@@ -99,6 +99,8 @@ const Testimonials = (props: TestimonialsData) => {
             >
               <div className="swiper-slide">
                 <div
+                  data-el="item"
+                  data-el-item={`items:${active}`}
                   className="icon-description-shortcode style-2"
                   style={{ maxWidth: "770px", margin: "0 auto" }}
                 >
@@ -115,11 +117,18 @@ const Testimonials = (props: TestimonialsData) => {
                   />
                   <div className="content">
                     {item.quote ? (
-                      <div className="description simple-article size-3">
+                      <div
+                        data-el="quote"
+                        className="description simple-article size-3"
+                      >
                         <p>&ldquo;{item.quote}&rdquo;</p>
                       </div>
                     ) : null}
-                    <h6 className="title h6" style={{ marginBottom: 5 }}>
+                    <h6
+                      data-el="author"
+                      className="title h6"
+                      style={{ marginBottom: 5 }}
+                    >
                       {item.author}
                     </h6>
                     {item.role ? (

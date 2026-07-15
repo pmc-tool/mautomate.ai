@@ -171,12 +171,16 @@ const Testimonials = (props: TestimonialsData) => {
                 </div>
               ) : null}
 
-              <div className="aqf-testimonial-item text-center">
+              <div
+                data-el="item"
+                data-el-item={`items:${active}`}
+                className="aqf-testimonial-item text-center"
+              >
                 <span className="aqf-testimonial-quote">
                   <QuoteIcon />
                 </span>
                 <div className="aqf-testimonial-text">
-                  {item.quote ? <p>{item.quote}</p> : null}
+                  {item.quote ? <p data-el="quote">{item.quote}</p> : null}
                 </div>
                 <div className="aqf-testimonial-ratting">
                   {Array.from({ length: starCount(item.rating) }).map(
@@ -188,7 +192,7 @@ const Testimonials = (props: TestimonialsData) => {
                   )}
                 </div>
                 <div className="aqf-testimonial-info">
-                  <span>
+                  <span data-el="author">
                     {item.author}
                     {item.role ? ` - ${item.role}` : ""}
                   </span>

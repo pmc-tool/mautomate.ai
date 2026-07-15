@@ -58,6 +58,20 @@ class Settings:
     elevenlabs_api_key: str
     elevenlabs_voice_id: str
 
+    # --- LLM failover ---
+    # The brain is the ONE service with no redundancy: STT (Deepgram) and TTS
+    # (ElevenLabs) are separate vendors, so when the OpenAI account ran dry the
+    # agent could still hear the caller and still speak — it simply had nothing
+    # to say, and sat there in silence for two entire calls.
+    #
+    # Novita is OpenAI-wire-compatible, so a second brain costs one base_url.
+    novita_api_key: str
+    novita_model: str
+    novita_base_url: str
+    # "auto" (default) = use OpenAI, fall back to Novita when OpenAI is unusable.
+    # "openai" / "novita" pin one provider explicitly.
+    llm_provider: str
+
     # --- Safety / behaviour ---
     max_call_seconds: int
     bot_name: str
@@ -80,7 +94,13 @@ class Settings:
         telephony_secret = required("TELEPHONY_WEBHOOK_SECRET")
         daily_api_key = required("DAILY_API_KEY")
         deepgram_api_key = required("DEEPGRAM_API_KEY")
-        openai_api_key = required("OPENAI_API_KEY")
+        # No longer `required`: a store with a Novita key alone is a valid setup,
+        # and refusing to boot without OpenAI would be the same single point of
+        # failure one level up.
+        openai_api_key = _get("OPENAI_API_KEY", "") or ""
+        novita_api_key = _get("NOVITA_API_KEY", "") or ""
+        if not openai_api_key and not novita_api_key:
+            missing.append("OPENAI_API_KEY or NOVITA_API_KEY")
         elevenlabs_api_key = required("ELEVENLABS_API_KEY")
 
         settings = Settings(
@@ -93,6 +113,17 @@ class Settings:
             deepgram_api_key=deepgram_api_key,
             openai_api_key=openai_api_key,
             openai_model=_get("OPENAI_MODEL", "gpt-4o") or "gpt-4o",
+            novita_api_key=novita_api_key,
+            # Proven tool-caller on Novita (the chat runtime uses the same model,
+            # and a voice agent without working tools cannot answer a single
+            # question about an order).
+            novita_model=_get("NOVITA_MODEL", "moonshotai/kimi-k2.7-code")
+            or "moonshotai/kimi-k2.7-code",
+            novita_base_url=(
+                _get("NOVITA_BASE_URL", "https://api.novita.ai/v3/openai")
+                or "https://api.novita.ai/v3/openai"
+            ).rstrip("/"),
+            llm_provider=(_get("VOICE_LLM_PROVIDER", "auto") or "auto").lower(),
             elevenlabs_api_key=elevenlabs_api_key,
             # Ultimate fallback voice when a playbook ships a non-ElevenLabs
             # placeholder voice_id (e.g. "bn-female-warm"). See bot.resolve_voice_id.

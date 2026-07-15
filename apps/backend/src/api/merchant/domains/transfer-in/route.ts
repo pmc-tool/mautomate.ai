@@ -8,7 +8,8 @@ import {
 } from "../../../../modules/domains/domain-service"
 import { DOMAINS_MODULE } from "../../../../modules/domains"
 import { isResellerConfigured } from "../../../../modules/domains/provider"
-import { getLedger } from "../../../../modules/platform/credits/metering"
+import { gatewayForCountry } from "../../../../modules/platform/billing/provider"
+import { EncryptedConfigService } from "../../../../modules/platform/secure-config"
 
 const FALLBACK_PRICE_USD = Number(process.env.DOMAIN_FALLBACK_PRICE_USD ?? "12")
 const MANUAL_APPROVAL_ENABLED =
@@ -86,115 +87,66 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     unitPriceUsd = rawPrice > 0 ? rawPrice : FALLBACK_PRICE_USD
   }
 
-  // Reseller markup applied to the registrar cost before charging.
+  // Reseller markup applied to the registrar cost.
   const totalUsd = applyMarkup(unitPriceUsd) * years
 
-  const ledger = getLedger(req.scope)
-  const reservationId = `domx_${ctx.tenant.id}_${Date.now()}_${Math.random()
-    .toString(36)
-    .slice(2, 10)}`
-
-  const reserve = await ledger.reserve(
-    ctx.tenant.id,
-    "domain_purchase_usd" as any,
-    totalUsd,
-    { reservationId }
-  )
-  if (!reserve.ok) {
-    return res.status(402).json({
-      message: "insufficient credits",
-      balance_credits: reserve.credits,
-    })
-  }
-
-  try {
-    if (configured) {
-      const transfer = await transferInDomain(req.scope, {
-        tenantId: ctx.tenant.id,
-        domainName: domain,
-        authCode,
-        years,
-        privacy,
-        autoRenew,
-        userId: ctx.merchant.id,
-      })
-
-      if (!transfer.ok) {
-        await ledger.release(reservationId)
-        return res.status(502).json({ message: transfer.error ?? "transfer failed" })
-      }
-
-      await ledger.commit(reservationId, totalUsd, { idempotencyKey: reservationId })
-
-      return res.json({
-        ok: true,
-        manual_approval: false,
-        order: transfer.data?.order ?? null,
-        domain: transfer.data?.domain ?? null,
-      })
-    }
-
-    // ---- manual-approval fallback ----------------------------------------
-    if (!MANUAL_APPROVAL_ENABLED) {
-      await ledger.release(reservationId)
-      return res.status(503).json({
-        message: "domain registrar is not configured and manual approval is disabled",
-      })
-    }
-
-    const [order] = await domainsModule.createDomainOrders([
-      {
-        tenant_id: ctx.tenant.id,
-        domain_name: domain,
-        tld,
-        action: "transfer",
-        years,
-        status: "processing",
-        price: totalUsd,
-        currency: "USD",
-        meta: { manual_approval: true, requested_by: ctx.merchant.id },
-        created_by_user_id: ctx.merchant.id,
-      },
-    ] as any)
-
-    const existing = await domainsModule.listDomainModels({
+  // A transfer is a registrar fee — REAL MONEY, not AI credits. Same rule as a
+  // purchase: take the card first, move the domain only once payment clears.
+  const [order] = await domainsModule.createDomainOrders([
+    {
       tenant_id: ctx.tenant.id,
       domain_name: domain,
-    })
-    if (!existing?.length) {
-      await domainsModule.createDomainModels([
-        {
-          tenant_id: ctx.tenant.id,
-          domain_name: domain,
-          tld,
-          status: "pending_transfer",
-          source: "transferred",
-          years,
-          currency: "USD",
-          auto_renew: autoRenew,
-          privacy_enabled: privacy,
-          meta: {
-            manual_approval: true,
-            requested_by: ctx.merchant.id,
-            auth_code: authCode,
-          },
-        },
-      ] as any)
-    }
+      tld,
+      action: "transfer",
+      years,
+      status: "awaiting_payment",
+      price: totalUsd,
+      currency: "USD",
+      meta: {
+        requested_by: ctx.merchant.id,
+        privacy,
+        auto_renew: autoRenew,
+        auth_code: authCode,
+      },
+      created_by_user_id: ctx.merchant.id,
+    },
+  ] as any)
 
-    await ledger.commit(reservationId, totalUsd, { idempotencyKey: reservationId })
+  const cfg = new EncryptedConfigService(req.scope)
+  const gateway = gatewayForCountry(ctx.tenant.billing_country ?? "US", cfg)
 
-    return res.json({
-      ok: true,
-      manual_approval: true,
-      order,
-      domain: { domain_name: domain, tld, status: "pending_transfer" },
-      note:
-        "Your transfer request is pending manual approval by the platform team. " +
-        "We will submit it at the registrar using the auth code you provided.",
+  if (!(await gateway.isConfigured()) || !gateway.createPurchaseCheckout) {
+    await domainsModule.updateDomainOrders({ id: order.id, status: "cancelled" })
+    return res.status(503).json({
+      message:
+        "Domain transfers are paid by card, and card payments aren't switched on yet. Please contact support.",
     })
-  } catch (e: any) {
-    await ledger.release(reservationId).catch(() => undefined)
-    return res.status(500).json({ message: e?.message ?? "domain transfer failed" })
   }
+
+  const base =
+    process.env.MERCHANT_APP_URL || `https://${ctx.tenant.slug}.mautomate.ai`
+  const checkout = await gateway.createPurchaseCheckout({
+    tenant_id: ctx.tenant.id,
+    kind: "domain_transfer",
+    ref: order.id,
+    description: `${domain} — transfer in (${years} year${years === 1 ? "" : "s"})`,
+    amount_usd: totalUsd,
+    success_url: `${base}/dashboard/domains?transferred=${encodeURIComponent(domain)}`,
+    cancel_url: `${base}/dashboard/domains?cancelled=1`,
+  })
+
+  if (!checkout.ok) {
+    await domainsModule.updateDomainOrders({ id: order.id, status: "cancelled" })
+    return res.status(502).json({ message: checkout.error ?? "could not start checkout" })
+  }
+
+  return res.json({
+    ok: true,
+    awaiting_payment: true,
+    order_id: order.id,
+    domain,
+    price_usd: totalUsd,
+    years,
+    checkout_url: checkout.data!.url,
+  })
 }

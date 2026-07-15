@@ -107,12 +107,12 @@ const DealOfDay = (props: DealOfDayData) => {
                     </div>
                   </div>
                   <div className="ec-fs-pro-content col-lg-6 col-md-6 col-sm-6">
-                    <h5 className="ec-fs-pro-title">
+                    <h5 data-el="title" className="ec-fs-pro-title">
                       <LocalizedClientLink href={cta?.href || "/store"}>
                         {title}
                       </LocalizedClientLink>
                     </h5>
-                    <div className="countdowntimer">
+                    <div data-el="countdown" className="countdowntimer">
                       <span>
                         <span className="timerDisplay">
                           <Cell value={days} label="Days" />
@@ -123,12 +123,15 @@ const DealOfDay = (props: DealOfDayData) => {
                       </span>
                     </div>
                     {props.description ? (
-                      <div className="ec-fs-pro-desc">{props.description}</div>
+                      <div data-el="text" className="ec-fs-pro-desc">
+                        {props.description}
+                      </div>
                     ) : null}
                     {cta?.href ? (
                       <div className="ec-fs-pro-btn">
                         <LocalizedClientLink
                           href={cta.href}
+                          data-el="button"
                           className="btn btn-lg btn-primary"
                         >
                           {cta.label || "Shop Now"}

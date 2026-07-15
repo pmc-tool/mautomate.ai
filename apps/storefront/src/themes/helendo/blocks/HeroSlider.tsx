@@ -93,6 +93,8 @@ const HeroSlider = (props: HeroSliderData) => {
               {slides.map((slide, i) => (
                 <div
                   key={i}
+                  data-el="image"
+                  data-el-item={`slides:${i}`}
                   className={`single-hero-slider-one bg-img has-bg-image${
                     i === active ? " slick-current" : ""
                   }`}
@@ -111,11 +113,14 @@ const HeroSlider = (props: HeroSliderData) => {
                       <div className="col-lg-12">
                         <div className="hero-text-one">
                           {slide.subtitle ? (
-                            <h6 className="text-color-primary mb-10">
+                            <h6
+                              data-el="kicker"
+                              className="text-color-primary mb-10"
+                            >
                               {slide.subtitle}
                             </h6>
                           ) : null}
-                          <h1 className="hero-title">
+                          <h1 data-el="title" className="hero-title">
                             {renderTitle(slide.title)}
                           </h1>
                           {slide.text ? (
@@ -124,6 +129,7 @@ const HeroSlider = (props: HeroSliderData) => {
                           <div className="button-box mt-30">
                             <LocalizedClientLink
                               href={slide.cta?.href || "/store"}
+                              data-el="button"
                               className="hero-btn-one btn"
                             >
                               {slide.cta?.label || "Shop now"}{" "}

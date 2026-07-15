@@ -14,7 +14,9 @@ export default function ImageGallery(props: {
   aspect?: string
   items?: Item[]
 }) {
-  const items = Array.isArray(props.items) ? props.items.filter((i) => i && i.image) : []
+  const items = Array.isArray(props.items)
+    ? props.items.map((it, i) => ({ it, i })).filter(({ it }) => it && it.image)
+    : []
   const cols = Math.max(1, Math.min(6, Number(props.columns) || 3))
   const gap = Number(props.gap)
   const g = Number.isFinite(gap) ? gap : 12
@@ -60,7 +62,7 @@ export default function ImageGallery(props: {
             gap: g,
           }}
         >
-          {items.map((it, i) => {
+          {items.map(({ it, i }) => {
             const img = (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -77,7 +79,7 @@ export default function ImageGallery(props: {
               />
             )
             return (
-              <figure key={i} style={{ margin: 0 }}>
+              <figure key={i} data-el="item" data-el-item={`items:${i}`} style={{ margin: 0 }}>
                 {it.href ? (
                   <a href={it.href} style={{ display: "block" }}>
                     {img}
@@ -86,7 +88,7 @@ export default function ImageGallery(props: {
                   img
                 )}
                 {it.caption ? (
-                  <figcaption style={{ fontSize: 12, color: "var(--ff-c-text, #666)", marginTop: 6, textAlign: "center" }}>
+                  <figcaption data-el="caption" style={{ fontSize: 12, color: "var(--ff-c-text, #666)", marginTop: 6, textAlign: "center" }}>
                     {it.caption}
                   </figcaption>
                 ) : null}

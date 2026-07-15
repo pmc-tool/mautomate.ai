@@ -91,7 +91,7 @@ const CignetProduct: React.FC<ProductTemplateProps> = ({
                 <div className="product-single-info-box">
                   {/* Product Single Image Box Start */}
                   <div className="product-single-image-box wow fadeInUp">
-                    <ImageGallery images={galleryImages} />
+                    <ImageGallery images={galleryImages} productId={product?.id} />
                   </div>
                   {/* Product Single Image Box End */}
 

@@ -41,8 +41,12 @@ const Newsletter = (props: NewsletterData) => {
             {/* Section Title Start */}
             <div className="section-title section-title-center">
               <span className="section-sub-title wow fadeInUp">Newsletter</span>
-              <h2 className="text-anime-style-3">{title}</h2>
-              {subtitle ? <p className="wow fadeInUp">{subtitle}</p> : null}
+              <h2 data-el="heading" className="text-anime-style-3">{title}</h2>
+              {subtitle ? (
+                <p data-el="text" className="wow fadeInUp">
+                  {subtitle}
+                </p>
+              ) : null}
             </div>
             {/* Section Title End */}
 
@@ -54,6 +58,7 @@ const Newsletter = (props: NewsletterData) => {
               <form>
                 <div className="form-group">
                   <input
+                    data-el="input"
                     type="email"
                     name="mail"
                     className="form-control"
@@ -63,6 +68,7 @@ const Newsletter = (props: NewsletterData) => {
                     required
                   />
                   <button
+                    data-el="button"
                     type="submit"
                     className="newsletter-btn"
                     aria-label={buttonLabel}

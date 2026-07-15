@@ -1,6 +1,18 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { UiIcon } from "@modules/cms/editor/palette-icons"
+import {
+  accent,
+  eyebrow,
+  font,
+  grey,
+  hairline,
+  menuItem,
+  radius,
+  shadow,
+  type,
+} from "@modules/cms/editor/design"
 
 export type Command = {
   id: string
@@ -99,7 +111,7 @@ export function CommandPalette({
         position: "fixed",
         inset: 0,
         zIndex: 10001,
-        background: "rgba(15,23,42,0.5)",
+        background: "rgba(15, 19, 25, 0.5)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
@@ -112,38 +124,44 @@ export function CommandPalette({
         style={{
           width: 560,
           maxWidth: "92vw",
-          background: "#fff",
-          borderRadius: 12,
-          boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
+          fontFamily: font,
+          background: grey[0],
+          border: hairline,
+          borderRadius: radius.lg,
+          boxShadow: shadow.lg,
           overflow: "hidden",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: "1px solid #eef0f3" }}>
-          <span style={{ color: "#94a3b8", fontSize: 16 }}>⌕</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: hairline }}>
+          <span style={{ color: grey[40], display: "inline-flex" }}>
+            <UiIcon name="search" size={16} />
+          </span>
           <input
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search actions and pages…"
             style={{
+              ...type.title,
+              fontWeight: 400,
+              fontFamily: font,
               flex: 1,
               border: "none",
               outline: "none",
-              fontSize: 15,
-              color: "#0f172a",
+              color: grey[90],
               background: "transparent",
             }}
           />
-          <kbd style={{ fontSize: 11, color: "#94a3b8", border: "1px solid #e2e8f0", borderRadius: 4, padding: "1px 6px" }}>Esc</kbd>
+          <kbd style={{ ...type.micro, fontFamily: font, color: grey[50], border: hairline, borderRadius: radius.sm, padding: "2px 6px" }}>Esc</kbd>
         </div>
 
         <div ref={listRef} style={{ maxHeight: 400, overflowY: "auto", padding: "6px 0" }}>
           {filtered.length === 0 && (
-            <div style={{ padding: "18px 16px", color: "#94a3b8", fontSize: 13 }}>No matches.</div>
+            <div style={{ ...type.body, fontFamily: font, padding: "20px 16px", color: grey[40] }}>No matches.</div>
           )}
           {groups.map((g) => (
             <div key={g.cat}>
-              <div style={{ padding: "8px 16px 4px", fontSize: 10, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: "#94a3b8" }}>
+              <div style={{ ...eyebrow(), padding: "8px 16px 4px" }}>
                 {g.cat}
               </div>
               {g.items.map(({ cmd, index }) => (
@@ -156,18 +174,17 @@ export function CommandPalette({
                     cmd.run()
                   }}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                    padding: "9px 16px",
-                    cursor: "pointer",
-                    background: index === active ? "#eef2ff" : "transparent",
+                    ...menuItem(),
+                    height: 34,
+                    borderRadius: 0,
+                    padding: "0 16px",
+                    background: index === active ? accent.tint : "transparent",
+                    color: index === active ? grey[90] : grey[80],
                   }}
                 >
-                  <span style={{ fontSize: 14, color: "#0f172a" }}>{cmd.label}</span>
+                  <span>{cmd.label}</span>
                   {cmd.hint && (
-                    <span style={{ fontSize: 11, color: "#94a3b8" }}>{cmd.hint}</span>
+                    <span style={{ ...type.label, fontFamily: font, color: grey[50] }}>{cmd.hint}</span>
                   )}
                 </div>
               ))}

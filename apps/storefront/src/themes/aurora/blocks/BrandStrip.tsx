@@ -38,7 +38,7 @@ const BrandStrip = (props: BrandStripData) => {
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">
               Trusted by
             </p>
-            <h2 className="mt-3 text-3xl md:text-4xl font-semibold tracking-tight text-neutral-900">
+            <h2 data-el="title" className="mt-3 text-3xl md:text-4xl font-semibold tracking-tight text-neutral-900">
               {title}
             </h2>
           </div>
@@ -47,6 +47,8 @@ const BrandStrip = (props: BrandStripData) => {
           {brands.map((brand, i) => (
             <LocalizedClientLink
               key={i}
+              data-el="logo"
+              data-el-item={`brands:${i}`}
               href={brand.href || "#"}
               className="group flex items-center justify-center bg-white px-6 py-10 transition hover:bg-neutral-50"
             >

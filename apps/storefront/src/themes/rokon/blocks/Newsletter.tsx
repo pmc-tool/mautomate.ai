@@ -35,11 +35,12 @@ const Newsletter = (props: NewsletterData) => {
         <div className="row row-cols-md-2 row-cols-1 align-items-center">
           <div className="col">
             <div className="newsletter__content position__relative">
-              <h2 className="newsletter__content--title text-white">
+              <h2 data-el="heading" className="newsletter__content--title text-white">
                 {title}
               </h2>
               {subtitle ? (
                 <p
+                  data-el="text"
                   className="newsletter__content--desc text-white"
                   style={{ marginTop: "10px", opacity: 0.8 }}
                 >
@@ -56,6 +57,7 @@ const Newsletter = (props: NewsletterData) => {
               >
                 <label>
                   <input
+                    data-el="input"
                     className="newsletter__subscribe--input style2"
                     placeholder={placeholder || "Enter Your Email"}
                     aria-label={placeholder || "Enter Your Email"}
@@ -66,6 +68,7 @@ const Newsletter = (props: NewsletterData) => {
                   />
                 </label>
                 <button
+                  data-el="button"
                   className="newsletter__subscribe--button style2 primary__btn"
                   type="submit"
                 >

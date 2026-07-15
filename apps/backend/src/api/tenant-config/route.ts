@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { PLATFORM_MODULE } from "../../modules/platform"
 import { HostResolver } from "../../modules/platform/host-resolver"
@@ -78,6 +79,63 @@ const activeChatbotPublicKey = async (
  * Returns 404 for an unknown/unroutable host so the storefront can show a
  * "store not found" page instead of leaking another tenant's data.
  */
+
+/**
+ * The countries this store can ACTUALLY deliver to.
+ *
+ * Pooled tenants share one region that lists every country on earth, so the
+ * storefront's address form happily offered all of them — including countries the
+ * merchant has no delivery option for. The shopper picked one, reached Delivery,
+ * saw an empty shipping list, and "Continue to payment" simply never enabled.
+ * They could not buy, and nothing on the page said why.
+ *
+ * A country you cannot ship to should never be offered in the first place. This
+ * is the list the address form is allowed to show: the geo zones of the tenant's
+ * OWN locations that carry at least one live, non-return shipping option.
+ *
+ * Empty array = the merchant has not set up delivery anywhere yet. Never throws.
+ */
+const shippableCountries = async (
+  scope: any,
+  tenantId: string
+): Promise<string[]> => {
+  try {
+    const pg: any = scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+    const rows = await pg
+      .select("gz.country_code")
+      .from("stock_location as sl")
+      .join("location_fulfillment_set as lfs", "lfs.stock_location_id", "sl.id")
+      .join("fulfillment_set as fs", "fs.id", "lfs.fulfillment_set_id")
+      .join("service_zone as sz", "sz.fulfillment_set_id", "fs.id")
+      .join("geo_zone as gz", "gz.service_zone_id", "sz.id")
+      .join("shipping_option as so", "so.service_zone_id", "sz.id")
+      .whereRaw("sl.metadata->>'tenant_id' = ?", [tenantId])
+      .whereNull("sl.deleted_at")
+      .whereNull("sz.deleted_at")
+      .whereNull("gz.deleted_at")
+      .whereNull("so.deleted_at")
+      .whereNotExists(function (this: any) {
+        // A return option is not a delivery option.
+        this.select(pg.raw("1"))
+          .from("shipping_option_rule as sor")
+          .whereRaw("sor.shipping_option_id = so.id")
+          .andWhere("sor.attribute", "is_return")
+          .andWhereRaw("sor.value::text like '%true%'")
+          .whereNull("sor.deleted_at")
+      })
+
+    return Array.from(
+      new Set(
+        (Array.isArray(rows) ? rows : [])
+          .map((r: any) => String(r.country_code || "").toLowerCase())
+          .filter(Boolean)
+      )
+    ).sort()
+  } catch {
+    return []
+  }
+}
+
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const host = String(
     (req.query.host as string) ?? req.headers["x-forwarded-host"] ?? req.headers.host ?? ""
@@ -110,8 +168,13 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     req.scope,
     resolved.tenant_id
   )
+  const shipCountries = await shippableCountries(req.scope, resolved.tenant_id)
+
   res.json({
     tenant_id: resolved.tenant_id,
+    // Countries the storefront may offer at checkout. Anything else dead-ends at
+    // "Continue to payment" with no shipping method.
+    shipping_countries: shipCountries,
     // Public embed key of the chatbot this tenant has switched ON for its own
     // storefront (its active "web_widget" channel binding). Null => no live bot
     // and the storefront renders no chat widget at all. Additive + backwards

@@ -13,7 +13,7 @@ async function be(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!isValidEditorRequest(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  if (!(await isValidEditorRequest(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   const url = new URL(req.url)
   const slug = url.searchParams.get("slug") || "home"
   const lang = url.searchParams.get("lang") || "en"
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isValidEditorRequest(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  if (!(await isValidEditorRequest(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   const body = await req.json().catch(() => ({}))
   const slug = body?.slug || "home"
   const lang = body?.locale || "en"

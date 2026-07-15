@@ -4,6 +4,8 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { requireWriteTenant } from "../../../modules/cms/tenant-scope"
 import { validateBlockData } from "../../../modules/cms/registry"
 import { PLATFORM_MODULE } from "../../../modules/platform"
+import { getLedger } from "../../../modules/platform/credits/metering"
+import { creditsFor } from "../../../modules/platform/pricing/price-book"
 
 /**
  * POST /cms/ai-edit — AI page editor gateway (TWO-STAGE, token-lean).
@@ -224,6 +226,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
   const tenantId = await requireWriteTenant(req)
 
+  // An AI page edit runs a two-stage LLM call — it was free until now.
+  const ledger = getLedger(req.scope)
+  const editRid = `cres_edit_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+  const editReserve = await ledger.reserve(tenantId, "ai_page_edit", 1, {
+    reservationId: editRid,
+  })
+  if (!editReserve.ok) {
+    return res.status(402).json({
+      error: `You're out of AI credits (this needs ${creditsFor("ai_page_edit")}). Top up in Billing.`,
+    })
+  }
+  const releaseEdit = () => ledger.release(editRid).catch(() => {})
+  const commitEdit = () => ledger.commit(editRid).catch(() => {})
+
   const b = (req.body ?? {}) as Json
   const instruction = typeof b.instruction === "string" ? b.instruction.slice(0, 1000) : ""
   const blocks: Json[] = Array.isArray(b.blocks) ? b.blocks : []
@@ -353,20 +369,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       })
     }
 
-    // Usage metering (best-effort; never blocks the edit).
-    try {
-      const platform: any = req.scope.resolve(PLATFORM_MODULE)
-      await platform.createUsageEvents({
-        tenant_id: tenantId,
-        kind: "ai_edit",
-        quantity: 1,
-        meta: { tokens, model: EDIT_MODEL(), patches: patches.length },
-      })
-    } catch {
-      /* metering is best-effort */
-    }
-
+    // Nothing was delivered, so nothing is charged.
     if (!patches.length) {
+      await releaseEdit()
       return res.json({
         summary:
           cannot ||
@@ -376,6 +381,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         cannot: true,
       })
     }
+    await commitEdit()
     res.json({
       summary: (typeof plan.note === "string" && plan.note) || "Updated the page.",
       patches,

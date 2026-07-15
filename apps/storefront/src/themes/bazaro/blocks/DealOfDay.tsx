@@ -91,7 +91,7 @@ const DealOfDay = (props: DealOfDayData) => {
             </div>
             <div className="col-xl-7 col-lg-6">
               <div className="aqf-deals-slider-main pt-60 pb-60">
-                <div className="aqf-deals-countbox d-flex align-items-center mb-25">
+                <div data-el="countdown" className="aqf-deals-countbox d-flex align-items-center mb-25">
                   <div className="aq-countdown-text mr-20">
                     <span>Ends in</span>
                   </div>
@@ -106,16 +106,16 @@ const DealOfDay = (props: DealOfDayData) => {
                     ))}
                   </div>
                 </div>
-                <h4 className="aq-section-title ff-satoshi-med fs-38 mb-15">
+                <h4 data-el="title" className="aq-section-title ff-satoshi-med fs-38 mb-15">
                   {title}
                 </h4>
                 {props.description ? (
-                  <p className="mb-30" style={{ maxWidth: 480 }}>
+                  <p data-el="text" className="mb-30" style={{ maxWidth: 480 }}>
                     {props.description}
                   </p>
                 ) : null}
                 {cta?.href ? (
-                  <LocalizedClientLink className="aq-btn-black" href={cta.href}>
+                  <LocalizedClientLink data-el="button" className="aq-btn-black" href={cta.href}>
                     {cta.label || "Shop Now"}
                   </LocalizedClientLink>
                 ) : null}

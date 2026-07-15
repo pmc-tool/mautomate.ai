@@ -54,6 +54,7 @@ const ImageWithText = (props: ImageWithTextData) => {
       {image ? (
         <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition hover:shadow-md">
           <img
+            data-el="image"
             src={image}
             alt={title}
             className="h-full w-full object-cover"
@@ -72,18 +73,19 @@ const ImageWithText = (props: ImageWithTextData) => {
           </p>
         ) : null}
         {title ? (
-          <h2 className="mt-3 text-3xl md:text-4xl font-semibold tracking-tight text-neutral-900">
+          <h2 data-el="heading" className="mt-3 text-3xl md:text-4xl font-semibold tracking-tight text-neutral-900">
             {renderTitle(title)}
           </h2>
         ) : null}
         {props.body ? (
-          <p className="mt-4 text-base leading-relaxed text-neutral-500">
+          <p data-el="text" className="mt-4 text-base leading-relaxed text-neutral-500">
             {props.body}
           </p>
         ) : null}
         {props.cta?.href ? (
           <div className="mt-8">
             <LocalizedClientLink
+              data-el="button"
               href={props.cta.href}
               className="inline-flex items-center justify-center gap-2 rounded-full bg-neutral-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-neutral-700"
             >

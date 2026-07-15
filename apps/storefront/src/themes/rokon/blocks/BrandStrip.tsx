@@ -47,7 +47,10 @@ const BrandStrip = (props: BrandStripData) => {
       <div className="container">
         {title ? (
           <div className="section__heading text-center mb-50">
-            <h2 className="section__heading--maintitle text__secondary mb-10">
+            <h2
+              data-el="title"
+              className="section__heading--maintitle text__secondary mb-10"
+            >
               {title}
             </h2>
           </div>
@@ -65,11 +68,13 @@ const BrandStrip = (props: BrandStripData) => {
           {brands.map((brand, i) => (
             <LocalizedClientLink
               key={i}
+              data-el="logo"
               href={brand.href || "#"}
               className="rokon-brand__item"
               style={{ display: "inline-flex", alignItems: "center" }}
             >
               <img
+                data-el-item={`brands:${i}`}
                 src={brand.image}
                 alt="Brand"
                 style={{

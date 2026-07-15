@@ -30,11 +30,11 @@ const Newsletter = (props: NewsletterData) => {
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">
             Newsletter
           </p>
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-900 md:text-4xl">
+          <h2 data-el="heading" className="mt-4 text-3xl font-semibold tracking-tight text-neutral-900 md:text-4xl">
             {title}
           </h2>
           {subtitle ? (
-            <p className="mt-4 text-base text-neutral-500">{subtitle}</p>
+            <p data-el="text" className="mt-4 text-base text-neutral-500">{subtitle}</p>
           ) : null}
           <form className="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-center">
             <div className="relative flex-1 sm:max-w-sm">
@@ -55,6 +55,7 @@ const Newsletter = (props: NewsletterData) => {
                 </svg>
               </span>
               <input
+                data-el="input"
                 autoComplete="off"
                 type="email"
                 placeholder={placeholder || "Enter your email address"}
@@ -62,6 +63,7 @@ const Newsletter = (props: NewsletterData) => {
               />
             </div>
             <button
+              data-el="button"
               type="submit"
               className="inline-flex items-center justify-center rounded-full bg-neutral-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-neutral-700"
             >

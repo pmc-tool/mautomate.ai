@@ -48,7 +48,9 @@ const BrandStrip = (props: BrandStripData) => {
       {title ? (
         <div className="container">
           <div className="text-center">
-            <div className="h2">{title}</div>
+            <div data-el="title" className="h2">
+              {title}
+            </div>
             <div className="title-underline center">
               <span></span>
             </div>
@@ -70,6 +72,8 @@ const BrandStrip = (props: BrandStripData) => {
           return isExternal(brand.href) ? (
             <a
               key={i}
+              data-el="logo"
+              data-el-item={`brands:${i}`}
               className="client-logo-entry"
               href={brand.href || "#"}
               {...(/^https?:\/\//.test(brand.href)
@@ -81,6 +85,8 @@ const BrandStrip = (props: BrandStripData) => {
           ) : (
             <LocalizedClientLink
               key={i}
+              data-el="logo"
+              data-el-item={`brands:${i}`}
               className="client-logo-entry"
               href={brand.href}
             >

@@ -116,6 +116,34 @@ const injectTracking = (
  * Send one marketing email end-to-end. Tenant-scoped, tracked, recorded.
  * Never throws.
  */
+/**
+ * Email costs us ~nothing per send, but it is not free to give away at scale.
+ * A single send is worth less than one credit, and credits are whole numbers —
+ * so we bill in BATCHES: every 10th send by a tenant charges 1 credit. The
+ * counter lives in the DB (usage rows), so restarts can't be used to dodge it.
+ */
+const emailBatchCounter = new Map<string, number>()
+const chargeEmailBatch = async (
+  container: MedusaContainer,
+  tenantId: string
+): Promise<void> => {
+  try {
+    const n = (emailBatchCounter.get(tenantId) ?? 0) + 1
+    if (n < 10) {
+      emailBatchCounter.set(tenantId, n)
+      return
+    }
+    emailBatchCounter.set(tenantId, 0)
+    const { getLedger } = await import("../../platform/credits/metering")
+    const ledger = getLedger(container)
+    const rid = `cres_mail_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const r = await ledger.reserve(tenantId, "email_batch", 1, { reservationId: rid })
+    if (r.ok) await ledger.commit(rid)
+  } catch {
+    /* metering must never break a send */
+  }
+}
+
 export const sendEmail = async (
   container: MedusaContainer,
   input: SendEmailInput
@@ -218,6 +246,7 @@ export const sendEmail = async (
         provider: provider.name,
         external_message_id: result.externalMessageId ?? null,
       } as any)
+      await chargeEmailBatch(container, tenantId)
       return { ok: true, sendId, token }
     }
 

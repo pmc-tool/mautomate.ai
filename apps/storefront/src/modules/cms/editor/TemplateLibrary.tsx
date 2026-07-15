@@ -1,6 +1,20 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { UiIcon } from "@modules/cms/editor/palette-icons"
+import {
+  button,
+  eyebrow,
+  field,
+  font,
+  grey,
+  hairline,
+  iconButton,
+  motion,
+  semantic,
+  shadow,
+  type,
+} from "@modules/cms/editor/design"
 
 type Tpl = { id: string; name: string; category: string; blocks: number; is_global?: boolean; data: { blocks?: unknown[] } }
 
@@ -62,47 +76,51 @@ export function TemplateLibrary({
     load()
   }
 
-  const btn: React.CSSProperties = { fontSize: 12, fontWeight: 500, borderRadius: 6, padding: "5px 11px", cursor: "pointer" }
+  const note: React.CSSProperties = { ...type.body, fontFamily: font, color: grey[50] }
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(15,23,42,0.45)", display: "flex", justifyContent: "flex-end" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 400, maxWidth: "92vw", height: "100%", background: "#fff", boxShadow: "-8px 0 28px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "16px 18px", borderBottom: "1px solid #eef0f3", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontWeight: 600, fontSize: 15, color: "#0f172a" }}>Templates</div>
-          <button onClick={onClose} aria-label="Close" style={{ border: "none", background: "none", fontSize: 20, cursor: "pointer", color: "#64748b" }}>×</button>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(15, 19, 25, 0.45)", display: "flex", justifyContent: "flex-end" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 400, maxWidth: "92vw", height: "100%", background: grey[0], boxShadow: shadow.lg, display: "flex", flexDirection: "column", fontFamily: font }}>
+        <div style={{ padding: "16px 20px", borderBottom: hairline, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ ...type.heading, fontFamily: font, color: grey[90] }}>Templates</div>
+          <button onClick={onClose} aria-label="Close" style={{ ...iconButton("sm"), border: 0, background: "none", color: grey[50] }}>
+            <UiIcon name="x" size={16} />
+          </button>
         </div>
 
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "#94a3b8", marginBottom: 7 }}>Save current page</div>
+        <div style={{ padding: "16px 20px", borderBottom: hairline, background: grey[5] }}>
+          <div style={{ ...eyebrow(), marginBottom: 8 }}>Save current page</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Template name" style={{ flex: 1, border: "1px solid #e2e8f0", borderRadius: 6, padding: "7px 10px", fontSize: 13, outline: "none" }} />
-            <button onClick={save} disabled={busy || !name.trim()} style={{ ...btn, background: "#2563eb", color: "#fff", border: "none", opacity: busy || !name.trim() ? 0.5 : 1 }}>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Template name" style={{ ...field(), flex: 1 }} />
+            <button onClick={save} disabled={busy || !name.trim()} style={{ ...button("accent", "sm"), opacity: busy || !name.trim() ? 0.5 : 1, cursor: busy || !name.trim() ? "default" : "pointer" }}>
               {busy ? "Saving…" : "Save"}
             </button>
           </div>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {err && <div style={{ padding: 14, color: "#b91c1c", fontSize: 13 }}>{err}</div>}
-          {list === null && <div style={{ padding: 16, color: "#64748b", fontSize: 13 }}>Loading…</div>}
-          {list && list.length === 0 && <div style={{ padding: 18, color: "#64748b", fontSize: 13 }}>No saved templates yet. Save the current page above to start your library.</div>}
+          {err && <div style={{ ...type.body, fontFamily: font, padding: 16, color: semantic.dangerFg }}>{err}</div>}
+          {list === null && <div style={{ ...note, padding: 16 }}>Loading…</div>}
+          {list && list.length === 0 && <div style={{ ...note, padding: 20 }}>No saved templates yet. Save the current page above to start your library.</div>}
           {list && [
             { label: "Library", items: list.filter((t) => t.is_global) },
             { label: "My templates", items: list.filter((t) => !t.is_global) },
           ].filter((g) => g.items.length > 0).map((g) => (
             <div key={g.label}>
-              <div style={{ padding: "10px 16px 4px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "#94a3b8" }}>
+              <div style={{ ...eyebrow(), padding: "12px 20px 4px" }}>
                 {g.label}
               </div>
               {g.items.map((t) => (
-                <div key={t.id} style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 10 }}>
+                <div key={t.id} style={{ padding: "12px 20px", borderBottom: hairline, display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, color: "#0f172a", fontWeight: 500 }}>{t.name}</div>
-                    <div style={{ fontSize: 11, color: "#94a3b8" }}>{t.category} · {t.blocks} block{t.blocks === 1 ? "" : "s"}</div>
+                    <div style={{ ...type.bodyStrong, fontFamily: font, color: grey[90] }}>{t.name}</div>
+                    <div style={{ ...type.label, fontFamily: font, color: grey[50] }}>{t.category} · {t.blocks} block{t.blocks === 1 ? "" : "s"}</div>
                   </div>
-                  <button onClick={() => { onInsert(t.data?.blocks ?? []); onClose() }} style={{ ...btn, background: "#fff", border: "1px solid #e2e8f0", color: "#0f172a" }}>Insert</button>
+                  <button onClick={() => { onInsert(t.data?.blocks ?? []); onClose() }} style={button("secondary", "sm")}>Insert</button>
                   {!t.is_global && (
-                    <button onClick={() => remove(t.id)} title="Delete" style={{ ...btn, background: "none", border: "none", color: "#cbd5e1", padding: "5px 4px" }}>✕</button>
+                    <button onClick={() => remove(t.id)} title="Delete" aria-label="Delete template" style={{ ...iconButton("sm"), border: 0, background: "none", color: grey[40], transition: `color ${motion.fast}` }}>
+                      <UiIcon name="trash" size={14} />
+                    </button>
                   )}
                 </div>
               ))}

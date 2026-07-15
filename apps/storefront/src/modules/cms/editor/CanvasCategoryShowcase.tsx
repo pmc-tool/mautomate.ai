@@ -30,6 +30,9 @@ interface Item {
 }
 
 interface CategoryTile {
+  /** The tile's ORIGINAL index in props.items — dangling refs are dropped by
+   *  the resolver, so render position can drift from stored position. */
+  index: number
   label: string
   image: string
   href: string
@@ -128,7 +131,11 @@ function LeartsCategoryShowcasePreview(props: {
   items?: Item[]
 }) {
   const items = Array.isArray(props.items) ? props.items : []
-  const tiles = items.filter((it) => it && (it.label || it.image))
+  // Original index survives the validity filter — per-item editor ops
+  // (duplicate/delete THIS tile) must address props.items, not the render row.
+  const tiles = items
+    .map((it, i) => ({ it, i }))
+    .filter(({ it }) => it && (it.label || it.image))
 
   if (!tiles.length) {
     return null
@@ -149,25 +156,29 @@ function LeartsCategoryShowcasePreview(props: {
         </div>
 
         <div className="row row-cols-xl-5 row-cols-lg-3 row-cols-sm-2 row-cols-1 learts-mb-n40">
-          {tiles.map((tile, i) => (
+          {tiles.map(({ it, i }, pos) => (
             <div className="col learts-mb-40" key={i}>
-              <div className="category-banner5" data-el="tile">
+              <div
+                className="category-banner5"
+                data-el="tile"
+                data-el-item={`items:${i}`}
+              >
                 <LocalizedClientLink
-                  href={tile.href || "/store"}
+                  href={it.href || "/store"}
                   className="inner"
                 >
-                  <div className="image">
+                  <div className="image" data-el="image">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={
-                        tile.image ||
-                        FALLBACK_IMAGES[i % FALLBACK_IMAGES.length]
+                        it.image ||
+                        FALLBACK_IMAGES[pos % FALLBACK_IMAGES.length]
                       }
-                      alt={tile.label || ""}
+                      alt={it.label || ""}
                     />
                   </div>
                   <div className="content">
-                    <h3 className="title">{tile.label}</h3>
+                    <h3 className="title" data-el="label">{it.label}</h3>
                     <span className="number" />
                   </div>
                 </LocalizedClientLink>

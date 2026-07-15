@@ -124,6 +124,7 @@ const RichText = (props: RichTextData) => {
               <div className="col-md-12 text-center">
                 {/* Section Title Start */}
                 <div
+                  data-el="content"
                   className="section-title"
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(raw) }}
                 />
@@ -180,6 +181,7 @@ const RichText = (props: RichTextData) => {
         <div className="row justify-content-center">
           <div className={col}>
             <div
+              data-el="content"
               className="ekka-rich-text-entry"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(raw) }}
             />

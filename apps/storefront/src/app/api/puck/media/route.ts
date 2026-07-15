@@ -13,7 +13,7 @@ import { resolveEditorTenant } from "@lib/util/editor-tenant"
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
-  if (!isValidEditorRequest(req)) {
+  if (!(await isValidEditorRequest(req))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
   const { backend, pubKey } = await resolveEditorTenant(req)
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isValidEditorRequest(req)) {
+  if (!(await isValidEditorRequest(req))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
   const { backend, pubKey } = await resolveEditorTenant(req)

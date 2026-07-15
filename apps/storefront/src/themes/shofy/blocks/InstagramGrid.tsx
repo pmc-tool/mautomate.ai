@@ -32,7 +32,11 @@ export interface InstagramGridData {
 const InstagramGrid = (props: InstagramGridData) => {
   const { handle, heading } = props
   const images = Array.isArray(props.images)
-    ? props.images.filter((m) => m && typeof m.image === "string" && m.image)
+    ? props.images
+        .map((item, i) => ({ item, i }))
+        .filter(
+          ({ item }) => item && typeof item.image === "string" && item.image
+        )
     : []
 
   if (images.length === 0) {
@@ -60,7 +64,9 @@ const InstagramGrid = (props: InstagramGridData) => {
                   </span>
                 ) : null}
                 {handle ? (
-                  <h3 className="tp-section-title">{handle}</h3>
+                  <h3 data-el="title" className="tp-section-title">
+                    {handle}
+                  </h3>
                 ) : null}
               </div>
             </div>
@@ -68,7 +74,7 @@ const InstagramGrid = (props: InstagramGridData) => {
         ) : null}
 
         <div className="row row-cols-lg-5 row-cols-md-3 row-cols-sm-2 row-cols-1">
-          {images.map((item, i) => {
+          {images.map(({ item, i }) => {
             const href =
               typeof item.href === "string" && item.href && item.href !== "#"
                 ? item.href
@@ -86,8 +92,11 @@ const InstagramGrid = (props: InstagramGridData) => {
             )
 
             return (
-              <div className="col" key={i}>
-                <div className="tp-instagram-item p-relative z-index-1 fix mb-30 w-img">
+              <div className="col" key={i} data-el-item={`images:${i}`}>
+                <div
+                  data-el="item"
+                  className="tp-instagram-item p-relative z-index-1 fix mb-30 w-img"
+                >
                   <img src={item.image} alt={alt} />
                   <div className="tp-instagram-icon">{icon}</div>
                 </div>

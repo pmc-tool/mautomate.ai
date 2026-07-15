@@ -222,6 +222,104 @@ export function PaletteIcon({
 /* ------------------------------------------------------------------ */
 
 const UI_ICONS: Record<string, React.ReactNode> = {
+  /* Added for the Studio design pass: every text glyph the editor used to
+     draw (⠿ ⧉ ✕ ▤ ✎ ⇔ − ▾) is now a real 24-grid icon, so weight, optical
+     size and alignment match the dashboard's icon set instead of inheriting
+     whatever the system font felt like. */
+  copy: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+    </>
+  ),
+  paste: (
+    <>
+      <path d="M9 4h6v3H9z" />
+      <path d="M9 5.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7.5a2 2 0 0 0-2-2h-2" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+    </>
+  ),
+  template: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18M9 9v11" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="6" />
+      <path d="M20 20l-3.5-3.5" />
+    </>
+  ),
+  sparkles: (
+    <>
+      <path d="M12 4l1.4 3.6L17 9l-3.6 1.4L12 14l-1.4-3.6L7 9l3.6-1.4z" />
+      <path d="M18 15l.7 1.8L20.5 17.5l-1.8.7L18 20l-.7-1.8L15.5 17.5l1.8-.7z" />
+    </>
+  ),
+  image: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="8.5" cy="10" r="1.5" />
+      <path d="M21 16l-5-5-4 4-2-2-4 4" />
+    </>
+  ),
+  brush: (
+    <>
+      <path d="M14 4l6 6-8 8H6v-6z" />
+      <path d="M12 6l6 6" />
+    </>
+  ),
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v2.5M12 18.5V21M4.2 7.5l2.2 1.2M17.6 15.3l2.2 1.2M4.2 16.5l2.2-1.2M17.6 8.7l2.2-1.2" />
+    </>
+  ),
+  text: (
+    <>
+      <path d="M5 6h14M9 6v13M12 12h7M15 12v7" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8v4.5l3 1.8" />
+    </>
+  ),
+  columns: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M9 5v14M15 5v14" />
+    </>
+  ),
+  minus: <path d="M5 12h14" />,
+  "chevron-down": <polyline points="6 9 12 15 18 9" />,
+  "external-link": (
+    <>
+      <path d="M14 5h5v5" />
+      <path d="M19 5l-8 8" />
+      <path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
+    </>
+  ),
+  "resize-h": (
+    <>
+      <path d="M8 8L4 12l4 4M16 8l4 4-4 4" />
+      <path d="M4 12h16" />
+    </>
+  ),
+  reset: (
+    <>
+      <path d="M4 12a8 8 0 1 0 2.6-5.9" />
+      <polyline points="4 4 4 9 9 9" />
+    </>
+  ),
   "arrow-up": (
     <>
       <line x1="12" y1="19" x2="12" y2="5" />
@@ -355,7 +453,7 @@ const UI_ICONS: Record<string, React.ReactNode> = {
 export function UiIcon({
   name,
   size = 14,
-  strokeWidth = 2,
+  strokeWidth = 1.6,
   style,
 }: {
   name: string

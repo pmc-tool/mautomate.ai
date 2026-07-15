@@ -45,6 +45,188 @@ from logging_config import get_logger
 log = get_logger("voice.bot")
 
 
+# ---------------------------------------------------------------------------
+# Never leave a caller listening to silence
+# ---------------------------------------------------------------------------
+
+# What the agent says when its brain is unreachable. Deliberately honest and
+# short: the caller's time is worth more than an excuse.
+LLM_FAILURE_SPEECH = (
+    "I'm really sorry — I'm having a technical problem on my side and I can't "
+    "answer that right now. Please try again in a few minutes, and someone from "
+    "the team will follow up with you."
+)
+
+
+class LLMFailureGuard:
+    """
+    Speak when the LLM cannot.
+
+    When OpenAI ran out of quota, the pipeline did exactly what it was told: the
+    LLM raised, pipecat logged "Something went wrong", and the ErrorFrame died in
+    the task. Nobody told the CALLER. Two people sat on the phone listening to an
+    open line, said their order number into nothing, and hung up.
+
+    Dead air is the worst failure mode a phone agent has: silence reads as "this
+    business is broken", not "this service is degraded". So the error is caught on
+    its way upstream, the agent apologises out loud in its own voice (TTS is a
+    different vendor and is still perfectly alive), and the call is ended cleanly
+    instead of left hanging.
+    """
+
+    def __init__(self, session: "BotSession") -> None:
+        from pipecat.processors.frame_processor import FrameProcessor
+
+        guard_self = self
+        self._session = session
+        self._handled = False
+
+        class _Guard(FrameProcessor):
+            async def process_frame(self, frame, direction):
+                await super().process_frame(frame, direction)
+                await guard_self._maybe_speak(self, frame, direction)
+                await self.push_frame(frame, direction)
+
+        self.processor = _Guard()
+
+    async def _maybe_speak(self, processor, frame, direction) -> None:
+        from pipecat.frames.frames import ErrorFrame, TTSSpeakFrame
+        from pipecat.processors.frame_processor import FrameDirection
+
+        if not isinstance(frame, ErrorFrame) or self._handled:
+            return
+        self._handled = True
+
+        log.error(
+            "llm failed mid-call — speaking the fallback instead of going silent",
+            extra={
+                "call_id": self._session.params.call_id,
+                "error": str(getattr(frame, "error", ""))[:300],
+            },
+        )
+
+        try:
+            await processor.push_frame(
+                TTSSpeakFrame(LLM_FAILURE_SPEECH), FrameDirection.DOWNSTREAM
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("could not speak the fallback", extra={"error": str(exc)})
+
+        # Give the sentence time to actually reach the caller, then hang up.
+        async def _end_after_speaking() -> None:
+            await asyncio.sleep(9)
+            await self._session.stop("llm_unavailable")
+
+        asyncio.create_task(_end_after_speaking())
+
+
+# ---------------------------------------------------------------------------
+# LLM provider selection + failover
+# ---------------------------------------------------------------------------
+
+# The result of the last provider health probe, so we do not pay for one on
+# every call: (provider_name, expires_at_monotonic).
+_LLM_HEALTH_CACHE: Dict[str, float] = {}
+_LLM_HEALTH_TTL_SECONDS = 300
+
+
+async def _openai_is_usable(settings: Settings) -> bool:
+    """
+    Is the OpenAI account actually able to answer right now?
+
+    A key can be perfectly valid and still be useless: when the account runs out
+    of credit OpenAI returns 429 `insufficient_quota` on every completion. That is
+    exactly what happened here — the agent kept its keys, kept its voice, and went
+    silent for two whole calls because the ONE service with no redundancy had
+    quietly stopped answering.
+
+    So we ask it, cheaply (1 token), before we bet a phone call on it. The answer
+    is cached for five minutes: a call must not pay for this probe every time.
+    """
+    if not settings.openai_api_key:
+        return False
+
+    cached = _LLM_HEALTH_CACHE.get("openai_ok_until", 0.0)
+    if cached > time.monotonic():
+        return True
+    failed_until = _LLM_HEALTH_CACHE.get("openai_bad_until", 0.0)
+    if failed_until > time.monotonic():
+        return False
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                json={
+                    "model": settings.openai_model,
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "max_tokens": 1,
+                },
+                timeout=aiohttp.ClientTimeout(total=8),
+            ) as resp:
+                ok = resp.status == 200
+                if not ok:
+                    body = (await resp.text())[:200]
+                    log.warning(
+                        "openai health probe failed",
+                        extra={"status": resp.status, "body": body},
+                    )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("openai health probe errored", extra={"error": str(exc)})
+        ok = False
+
+    key = "openai_ok_until" if ok else "openai_bad_until"
+    _LLM_HEALTH_CACHE[key] = time.monotonic() + _LLM_HEALTH_TTL_SECONDS
+    return ok
+
+
+async def _make_llm(settings: Settings, call_id: str):
+    """
+    Build the LLM service for THIS call, on a provider that is actually working.
+
+    Novita is OpenAI-wire-compatible, so the fallback is the same service class
+    with a different base_url — and it is a proven tool-caller, which matters:
+    a voice agent that cannot call getOrder cannot answer the only questions
+    anyone phones about.
+    """
+    from pipecat.services.openai.llm import OpenAILLMService
+
+    provider = settings.llm_provider
+    if provider == "auto":
+        provider = "openai" if await _openai_is_usable(settings) else "novita"
+
+    if provider == "novita" and settings.novita_api_key:
+        log.info(
+            "llm provider selected",
+            extra={
+                "call_id": call_id,
+                "provider": "novita",
+                "model": settings.novita_model,
+            },
+        )
+        return OpenAILLMService(
+            api_key=settings.novita_api_key,
+            model=settings.novita_model,
+            base_url=settings.novita_base_url,
+        )
+
+    log.info(
+        "llm provider selected",
+        extra={
+            "call_id": call_id,
+            "provider": "openai",
+            "model": settings.openai_model,
+        },
+    )
+    return OpenAILLMService(
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
+    )
+
+
+
+
 @dataclass
 class StartParams:
     """Body of POST /api/pipelines/start."""
@@ -233,10 +415,7 @@ class BotSession:
         )
 
         # 4. LLM (OpenAI) with the pulled system prompt + tools as function schemas.
-        llm = OpenAILLMService(
-            api_key=settings.openai_api_key,
-            model=settings.openai_model,
-        )
+        llm = await _make_llm(settings, self.params.call_id)
 
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": config.system_prompt},
@@ -263,11 +442,16 @@ class BotSession:
         #    so it captures BOTH the caller's mic and the agent's spoken audio,
         #    exactly as heard (lossless PCM — never re-synthesized).
         audiobuffer = self._make_audio_recorder()
+        # The guard sits directly BEFORE the LLM because an ErrorFrame travels
+        # UPSTREAM — a guard placed after the LLM would never see the failure it
+        # exists to catch.
+        llm_guard = LLMFailureGuard(self)
         pipeline = Pipeline(
             [
                 transport.input(),
                 stt,
                 context_aggregator.user(),
+                llm_guard.processor,
                 llm,
                 tts,
                 transport.output(),
@@ -401,9 +585,7 @@ class BotSession:
             addons={"keepalive": "true"},
         )
 
-        llm = OpenAILLMService(
-            api_key=settings.openai_api_key, model=settings.openai_model
-        )
+        llm = await _make_llm(settings, self.params.call_id)
         messages = [{"role": "system", "content": config.system_prompt}]
         if config.first_message:
             messages.append({"role": "assistant", "content": config.first_message})
@@ -420,11 +602,16 @@ class BotSession:
         )
 
         audiobuffer = self._make_audio_recorder()
+        # The guard sits directly BEFORE the LLM because an ErrorFrame travels
+        # UPSTREAM — a guard placed after the LLM would never see the failure it
+        # exists to catch.
+        llm_guard = LLMFailureGuard(self)
         pipeline = Pipeline(
             [
                 transport.input(),
                 stt,
                 context_aggregator.user(),
+                llm_guard.processor,
                 llm,
                 tts,
                 transport.output(),

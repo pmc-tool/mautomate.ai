@@ -25,7 +25,24 @@ export type CheckoutSession = {
   provider: string
 }
 
-export type WebhookEvent = {
+/** A one-off purchase that is NOT credits (a domain registration, etc). */
+export type PurchaseEvent = {
+  /** What was bought — routes the webhook to the right fulfilment. */
+  purchase_kind?: string
+  /** Our own order id, so fulfilment is idempotent and traceable. */
+  purchase_ref?: string
+}
+
+export type SubscriptionEvent = {
+  /** Which plan the tenant is now on. */
+  plan_key?: string
+  /** End of the paid period — plan credits expire here. */
+  period_end?: Date
+  stripe_customer_id?: string
+  stripe_subscription_id?: string
+}
+
+export type WebhookEvent = SubscriptionEvent & PurchaseEvent & {
   /** provider + external event id → the ledger idempotency key */
   provider: string
   external_event_id: string
@@ -43,6 +60,29 @@ export interface PaymentGateway {
   createTopupCheckout(input: {
     tenant_id: string
     credits: number
+    amount_usd: number
+    success_url: string
+    cancel_url: string
+  }): Promise<GatewayResult<CheckoutSession>>
+  /**
+   * A one-off purchase paid with a CARD, not credits — e.g. a domain, which is
+   * a real registrar invoice we pass through with a margin. Credits are for AI;
+   * money is for money.
+   */
+  createPurchaseCheckout?(input: {
+    tenant_id: string
+    kind: string
+    ref: string
+    description: string
+    amount_usd: number
+    success_url: string
+    cancel_url: string
+  }): Promise<GatewayResult<CheckoutSession>>
+  /** Start a RECURRING subscription for a plan (the real revenue engine). */
+  createSubscriptionCheckout?(input: {
+    tenant_id: string
+    plan_key: string
+    plan_name: string
     amount_usd: number
     success_url: string
     cancel_url: string
@@ -141,6 +181,91 @@ export class StripeGateway implements PaymentGateway {
     }
   }
 
+  async createPurchaseCheckout(input: {
+    tenant_id: string
+    kind: string
+    ref: string
+    description: string
+    amount_usd: number
+    success_url: string
+    cancel_url: string
+  }): Promise<GatewayResult<CheckoutSession>> {
+    const stripe = await this.client()
+    if (!stripe) return { ok: false, error: "stripe_not_configured" }
+    try {
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: { name: input.description },
+              unit_amount: Math.round(input.amount_usd * 100),
+            },
+            quantity: 1,
+          },
+        ],
+        metadata: {
+          tenant_id: input.tenant_id,
+          purchase_kind: input.kind,
+          purchase_ref: input.ref,
+          amount_usd: String(input.amount_usd),
+        },
+        success_url: input.success_url,
+        cancel_url: input.cancel_url,
+      })
+      return { ok: true, data: { id: session.id, url: session.url || "", provider: this.name } }
+    } catch (e: any) {
+      return { ok: false, error: e?.message || "stripe_purchase_checkout_failed" }
+    }
+  }
+
+  /**
+   * A real recurring subscription. Stripe bills the card every month and sends
+   * `invoice.paid` — that webhook is what grants the monthly credit allowance,
+   * so credits and money can never drift apart.
+   */
+  async createSubscriptionCheckout(input: {
+    tenant_id: string
+    plan_key: string
+    plan_name: string
+    amount_usd: number
+    success_url: string
+    cancel_url: string
+  }): Promise<GatewayResult<CheckoutSession>> {
+    const stripe = await this.client()
+    if (!stripe) return { ok: false, error: "stripe_not_configured" }
+
+    try {
+      const session = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: { name: `mAutomate ${input.plan_name}` },
+              unit_amount: Math.round(input.amount_usd * 100),
+              recurring: { interval: "month" },
+            },
+            quantity: 1,
+          },
+        ],
+        metadata: {
+          tenant_id: input.tenant_id,
+          plan_key: input.plan_key,
+        },
+        subscription_data: {
+          metadata: { tenant_id: input.tenant_id, plan_key: input.plan_key },
+        },
+        success_url: input.success_url,
+        cancel_url: input.cancel_url,
+      })
+      return { ok: true, data: { id: session.id, url: session.url || "", provider: this.name } }
+    } catch (e: any) {
+      return { ok: false, error: e?.message || "stripe_subscription_checkout_failed" }
+    }
+  }
+
   async parseWebhook(
     rawBody: string,
     headers: Record<string, string>
@@ -161,8 +286,54 @@ export class StripeGateway implements PaymentGateway {
       return { ok: false, error: `stripe_signature_invalid: ${e?.message}` }
     }
 
+    const base = { provider: this.name, external_event_id: event.id, type: event.type }
+
+    // A renewal payment landed — this is what grants next month's credits.
+    if (event.type === "invoice.paid" || event.type === "invoice.payment_failed") {
+      const inv = event.data.object as any
+      const sub = inv.subscription as string | undefined
+      let meta: Record<string, string> = {}
+      let periodEnd: Date | undefined
+      if (sub) {
+        try {
+          const s: any = await stripe.subscriptions.retrieve(sub)
+          meta = (s.metadata || {}) as Record<string, string>
+          if (s.current_period_end) periodEnd = new Date(s.current_period_end * 1000)
+        } catch {
+          /* fall through with what the invoice carries */
+        }
+      }
+      return {
+        ok: true,
+        data: {
+          ...base,
+          tenant_id: meta.tenant_id ?? inv.metadata?.tenant_id,
+          plan_key: meta.plan_key ?? inv.metadata?.plan_key,
+          period_end: periodEnd,
+          stripe_customer_id: typeof inv.customer === "string" ? inv.customer : undefined,
+          stripe_subscription_id: sub,
+          amount_usd: typeof inv.amount_paid === "number" ? inv.amount_paid / 100 : undefined,
+        },
+      }
+    }
+
+    // Cancelled / lapsed subscription.
+    if (event.type === "customer.subscription.deleted") {
+      const s = event.data.object as any
+      const meta = (s.metadata || {}) as Record<string, string>
+      return {
+        ok: true,
+        data: {
+          ...base,
+          tenant_id: meta.tenant_id,
+          plan_key: meta.plan_key,
+          stripe_subscription_id: s.id,
+        },
+      }
+    }
+
     if (event.type !== "checkout.session.completed") {
-      return { ok: true, data: { provider: this.name, external_event_id: event.id, type: event.type } }
+      return { ok: true, data: base }
     }
 
     const session = event.data.object as Stripe.Checkout.Session
@@ -170,12 +341,17 @@ export class StripeGateway implements PaymentGateway {
     return {
       ok: true,
       data: {
-        provider: this.name,
-        external_event_id: event.id,
-        type: event.type,
+        ...base,
         tenant_id: metadata.tenant_id,
         credits: metadata.credits ? Number(metadata.credits) : undefined,
         amount_usd: metadata.amount_usd ? Number(metadata.amount_usd) : undefined,
+        plan_key: metadata.plan_key,
+        purchase_kind: metadata.purchase_kind,
+        purchase_ref: metadata.purchase_ref,
+        stripe_customer_id:
+          typeof session.customer === "string" ? session.customer : undefined,
+        stripe_subscription_id:
+          typeof session.subscription === "string" ? session.subscription : undefined,
       },
     }
   }

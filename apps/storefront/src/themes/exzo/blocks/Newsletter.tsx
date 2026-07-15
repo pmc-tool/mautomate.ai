@@ -39,9 +39,14 @@ const Newsletter = (props: NewsletterData) => {
             <div className="simple-article size-3 grey uppercase col-xs-b5">
               <span className="color">special offers</span> for subscribers
             </div>
-            <h3 className="h3 col-xs-b15">{title}</h3>
+            <h3 data-el="heading" className="h3 col-xs-b15">
+              {title}
+            </h3>
             {subtitle ? (
-              <div className="simple-article size-3 col-xs-b25">
+              <div
+                data-el="text"
+                className="simple-article size-3 col-xs-b25"
+              >
                 {subtitle}
               </div>
             ) : null}
@@ -51,6 +56,7 @@ const Newsletter = (props: NewsletterData) => {
                 style={{ maxWidth: "470px", margin: "0 auto" }}
               >
                 <input
+                  data-el="input"
                   className="simple-input"
                   type="email"
                   name="mail"
@@ -60,7 +66,7 @@ const Newsletter = (props: NewsletterData) => {
                   required
                   style={{ paddingRight: "150px" }}
                 />
-                <div className="button size-2 style-3">
+                <div data-el="button" className="button size-2 style-3">
                   <span className="button-wrapper">
                     <span className="icon">
                       <img src="/exzo/img/icon-4.png" alt="" />

@@ -164,7 +164,7 @@ const ImageWithText = (props: ImageWithTextData) => {
   const imageCol = image ? (
     <div className="col-xl-5 col-lg-6">
       <div className="aqf-summer-suit-img">
-        <img className="w-100" src={image} alt={title} />
+        <img data-el="image" className="w-100" src={image} alt={title} />
       </div>
     </div>
   ) : null
@@ -179,15 +179,15 @@ const ImageWithText = (props: ImageWithTextData) => {
             </span>
           ) : null}
           {title ? (
-            <h3 className="aq-section-title ff-satoshi-med fs-60">
+            <h3 data-el="heading" className="aq-section-title ff-satoshi-med fs-60">
               {renderTitle(title)}
             </h3>
           ) : null}
         </div>
         <div className="aqf-summer-slider-content mb-60">
-          {props.body ? <p>{props.body}</p> : null}
+          {props.body ? <p data-el="text">{props.body}</p> : null}
           {props.cta?.href ? (
-            <LocalizedClientLink className="aq-btn-black" href={props.cta.href}>
+            <LocalizedClientLink data-el="button" className="aq-btn-black" href={props.cta.href}>
               {props.cta.label || "Shop Collection"}
             </LocalizedClientLink>
           ) : null}

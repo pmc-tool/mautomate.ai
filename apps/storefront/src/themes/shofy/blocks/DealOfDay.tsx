@@ -94,7 +94,7 @@ const DealOfDay = (props: DealOfDayData) => {
         <div className="row align-items-end">
           <div className="col-xl-4 col-md-5 col-sm-6">
             <div className="tp-section-title-wrapper mb-40">
-              <h3 className="tp-section-title">
+              <h3 data-el="title" className="tp-section-title">
                 {title}{" "}
                 <svg
                   width="114"
@@ -119,6 +119,7 @@ const DealOfDay = (props: DealOfDayData) => {
               <div className="tp-product-offer-more-wrapper d-flex justify-content-sm-end p-relative z-index-1">
                 <div className="tp-product-offer-more mb-40 text-sm-end grey-bg-2">
                   <LocalizedClientLink
+                    data-el="button"
                     href={cta.href}
                     className="tp-btn tp-btn-2 tp-btn-blue"
                   >
@@ -149,12 +150,12 @@ const DealOfDay = (props: DealOfDayData) => {
                 </LocalizedClientLink>
               </h3>
               {props.description ? (
-                <p style={{ maxWidth: 560, marginTop: 10 }}>
+                <p data-el="text" style={{ maxWidth: 560, marginTop: 10 }}>
                   {props.description}
                 </p>
               ) : null}
 
-              <div className="tp-product-countdown">
+              <div data-el="countdown" className="tp-product-countdown">
                 <div className="tp-product-countdown-inner">
                   <ul>
                     <li>
@@ -176,6 +177,7 @@ const DealOfDay = (props: DealOfDayData) => {
               {cta?.href ? (
                 <div style={{ marginTop: 30 }}>
                   <LocalizedClientLink
+                    data-el="button"
                     href={cta.href}
                     className="tp-btn tp-btn-2 tp-btn-blue"
                   >

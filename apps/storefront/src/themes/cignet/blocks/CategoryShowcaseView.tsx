@@ -10,6 +10,7 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 /* ------------------------------------------------------------------ */
 
 interface CategoryTile {
+  index: number
   label: string
   image: string
   href: string
@@ -53,7 +54,11 @@ const CategoryShowcaseView = (props: CategoryShowcaseViewProps) => {
                   {sub_title}
                 </span>
               ) : null}
-              {title ? <h2 className="text-anime-style-3">{title}</h2> : null}
+              {title ? (
+                <h2 data-el="title" className="text-anime-style-3">
+                  {title}
+                </h2>
+              ) : null}
             </div>
             {/* Section Title End */}
           </div>
@@ -74,7 +79,7 @@ const CategoryShowcaseView = (props: CategoryShowcaseViewProps) => {
             {/* Top Selling Item List Start */}
             <div className="top-selling-item-list">
               {tiles.map((tile, i) => (
-                <div className="top-selling-item wow fadeInUp" key={i}>
+                <div data-el="tile" data-el-item={`items:${tile.index}`} className="top-selling-item wow fadeInUp" key={i}>
                   <div className="top-selling-item-image">
                     <LocalizedClientLink href={tile.href}>
                       <figure className="image-anime">

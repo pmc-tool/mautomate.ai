@@ -56,25 +56,43 @@ const tenantCache = new Map<
 >()
 const TENANT_TTL_MS = 60 * 1000
 
-async function resolveTenant(host: string): Promise<TenantConfig | null> {
+/**
+ * Distinguishes "the backend told us this host has no store" (permanent — show
+ * not-found) from "we could not ask the backend" (transient — e.g. a deploy
+ * restart). During a transient failure we serve the last known-good config,
+ * however stale, so a backend restart is invisible to shoppers. We NEVER cache
+ * a failure as "no store": silence is not an answer.
+ */
+async function resolveTenant(
+  host: string
+): Promise<TenantConfig | null | "backend-down"> {
   const key = host.toLowerCase()
   const hit = tenantCache.get(key)
   if (hit && Date.now() - hit.ts < TENANT_TTL_MS) return hit.config
-  let config: TenantConfig | null = null
   try {
     const base = TENANT_CONFIG_URL || `${BACKEND_URL}/tenant-config`
     const res = await fetch(`${base}?host=${encodeURIComponent(host)}`, {
       cache: "no-store",
+      signal: AbortSignal.timeout(6000),
     })
     if (res.ok) {
       const d = (await res.json()) as TenantConfig
-      if (d?.publishable_key || d?.backend_url) config = d
+      const config = d?.publishable_key || d?.backend_url ? d : null
+      tenantCache.set(key, { config, ts: Date.now() })
+      return config
     }
+    if (res.status === 404) {
+      // The backend answered and does not know this host — a real not-found.
+      tenantCache.set(key, { config: null, ts: Date.now() })
+      return null
+    }
+    // Other statuses (5xx, 502 from a proxy) = backend unhealthy: fall through.
   } catch {
-    config = null
+    /* network error / timeout — backend unreachable */
   }
-  tenantCache.set(key, { config, ts: Date.now() })
-  return config
+  // Transient failure: serve stale if we have it, do not poison the cache.
+  if (hit?.config) return hit.config
+  return "backend-down"
 }
 
 // Region map is cached PER TENANT (or "default" in single-tenant mode) so one
@@ -178,6 +196,16 @@ function htmlResponse(body: string, status: number) {
   })
 }
 
+function retryPage(host: string) {
+  return htmlResponse(
+    `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="5"><title>One moment&hellip;</title>
+<div style="font-family:sans-serif;max-width:520px;margin:12vh auto;text-align:center;color:#333">
+<h1 style="font-size:26px">One moment&hellip;</h1>
+<p style="color:#777"><b>${esc(host)}</b> is starting up. This page refreshes automatically.</p></div>`,
+    503
+  )
+}
+
 function notFoundPage(host: string) {
   return htmlResponse(
     `<!doctype html><meta charset="utf-8"><title>Store not found</title>
@@ -218,6 +246,34 @@ function settingUpPage(name: string | null) {
  * Middleware to handle tenant resolution (multi-tenant), region selection and
  * onboarding status.
  */
+/* The themes compiled into this Next.js bundle. A tenant whose active_theme is
+   NOT one of these is on an UPLOADED (Liquid) theme, and its storefront pages
+   are rendered through the theme engine (/theme-render) instead of the React
+   tree. As each is ported to the upload format (and removed here), its stores
+   move to the engine automatically. */
+const COMPILED_THEMES = new Set([
+  "learts", "aurora", "cignet", "shofy", "ekka",
+  "helendo", "bazaro", "exzo", "rokon",
+])
+
+/* Paths an uploaded theme OWNS. Checkout, account and order stay on the
+   platform's own React implementation — a theme styles them but never renders
+   the payment flow (see the developer guide, checkout section). */
+function isThemeOwnedPath(pathname: string, country: string): boolean {
+  const rest = pathname
+    .replace(new RegExp("^/" + country + "(?=/|$)", "i"), "")
+    .replace(/^\/+/, "")
+  const first = rest.split("/")[0] ?? ""
+  return (
+    rest === "" ||
+    first === "products" ||
+    first === "collections" ||
+    first === "store" ||
+    first === "search" ||
+    first === "cart"
+  )
+}
+
 export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.includes(".")) {
     return NextResponse.next()
@@ -256,7 +312,9 @@ export async function middleware(request: NextRequest) {
       request.headers.get("host") ||
       ""
     ).split(":")[0]
-    tenant = await resolveTenant(host)
+    const resolved = await resolveTenant(host)
+    if (resolved === "backend-down") return retryPage(host)
+    tenant = resolved
     if (!tenant) return notFoundPage(host)
     if (tenant.status !== "live") return unavailablePage(tenant.name)
   }
@@ -276,6 +334,15 @@ export async function middleware(request: NextRequest) {
     forwardHeaders.set("x-tenant-theme", tenant.active_theme || "")
     forwardHeaders.set("x-tenant-name", tenant.name || "")
     forwardHeaders.set("x-tenant-status", tenant.status || "")
+    // The countries this store can actually deliver to. The checkout address form
+    // may only offer these — offering a country with no shipping option is what
+    // dead-ends a shopper at "Continue to payment".
+    forwardHeaders.set(
+      "x-tenant-ship-countries",
+      Array.isArray((tenant as any).shipping_countries)
+        ? (tenant as any).shipping_countries.join(",")
+        : ""
+    )
     forwardHeaders.set("x-tenant-umami", tenant.umami_website_id || "")
     // Active chatbot's public embed key — mounts THIS tenant's chat widget.
     forwardHeaders.set("x-tenant-chatbot", tenant.chatbot_public_key || "")
@@ -352,6 +419,22 @@ export async function middleware(request: NextRequest) {
   const urlHasCountry = firstPathSegment === country.toLowerCase()
 
   if (urlHasCountry) {
+    // Uploaded (Liquid) theme + a page the theme owns: render the WHOLE page
+    // through the theme engine. The rewrite hits a Route Handler, which has no
+    // React layout, so the theme owns the entire HTML document with no chrome
+    // clash. React-themed stores are never rewritten and are untouched.
+    const active = (tenant?.active_theme || "").trim()
+    if (
+      active &&
+      !COMPILED_THEMES.has(active) &&
+      isThemeOwnedPath(request.nextUrl.pathname, country)
+    ) {
+      const url = request.nextUrl.clone()
+      url.pathname = `/theme-render${request.nextUrl.pathname}`
+      return finalize(
+        NextResponse.rewrite(url, { request: { headers: forwardHeaders } })
+      )
+    }
     return finalize(NextResponse.next({ request: { headers: forwardHeaders } }))
   }
 
@@ -366,6 +449,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|images|assets|png|svg|jpg|jpeg|gif|webp).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|images|assets|theme-assets|png|svg|jpg|jpeg|gif|webp).*)",
   ],
 }

@@ -35,6 +35,23 @@ import {
   IconButton,
 } from "@modules/cms/editor/palette-icons"
 import {
+  accent,
+  button,
+  eyebrow,
+  field,
+  font,
+  grey,
+  hairline,
+  hairlineDark,
+  iconButton,
+  ink,
+  motion,
+  radius,
+  semantic,
+  shadow,
+  type,
+} from "@modules/cms/editor/design"
+import {
   getBlockSchema,
   getWidgetSchema,
   defaultPropsFromSchema,
@@ -43,19 +60,35 @@ import { CHROME_SCHEMAS, getChromeSchema } from "@modules/cms/schema/chrome"
 import { resolveCustomTokens } from "@modules/cms/schema/chrome/theme"
 import { getElementDefs, getChromeElementDefs } from "@modules/cms/render/element-registry"
 import type { ElementStyles } from "@modules/cms/render/style-engine"
+import {
+  clipSummary,
+  deepMergeBag,
+  readClipboard,
+  writeClip,
+  type StyleClip,
+} from "@modules/cms/editor/clipboard"
 
 type Section = { block_type: string; [k: string]: unknown }
 
-// A copied section "look" = its style + advanced bags only (never content).
-// Held at module scope so it survives component re-renders; mirrored into
-// localStorage (LS_COPIED_STYLE) so it also survives page navigation.
-type CopiedStyle = {
+/**
+ * WHAT is selected, as one value. The panel and canvas used to juggle five
+ * mutually exclusive useStates, each cleared by hand at a dozen call sites —
+ * miss one and two things are "selected" at once. Selection now changes only
+ * through select() below, which derives all five from this.
+ */
+type Sel =
+  | { kind: "section"; index: number }
+  | { kind: "element"; index: number; key: string }
+  | { kind: "widget"; index: number; path: number[] }
+  | { kind: "chrome"; region: string }
+  | { kind: "chromeElement"; region: string; key: string }
+  | null
+
+type StylePreset = {
+  name: string
   style: Record<string, unknown>
   advanced: Record<string, unknown>
 }
-type StylePreset = CopiedStyle & { name: string }
-let copiedStyleRef: CopiedStyle | null = null
-const LS_COPIED_STYLE = "ff_copied_style"
 
 function getEditorKeyFromCookie(): string {
   if (typeof document === "undefined") return ""
@@ -64,36 +97,6 @@ function getEditorKeyFromCookie(): string {
 }
 
 const LS_STYLE_PRESETS = "ff_style_presets"
-
-// Deep-merge `extra` onto `base` (plain objects merge recursively; arrays and
-// scalars are replaced). Used to layer a copied/preset look onto a section's
-// existing bags without dropping keys it already had.
-const deepMergeBag = (
-  base: Record<string, unknown>,
-  extra: Record<string, unknown>
-): Record<string, unknown> => {
-  const out: Record<string, unknown> = { ...(base ?? {}) }
-  for (const k of Object.keys(extra ?? {})) {
-    const bv = out[k]
-    const ev = extra[k]
-    if (
-      bv &&
-      ev &&
-      typeof bv === "object" &&
-      typeof ev === "object" &&
-      !Array.isArray(bv) &&
-      !Array.isArray(ev)
-    ) {
-      out[k] = deepMergeBag(
-        bv as Record<string, unknown>,
-        ev as Record<string, unknown>
-      )
-    } else {
-      out[k] = ev
-    }
-  }
-  return out
-}
 
 // Where "Exit editor" returns to (the admin Site Management page).
 const BACKEND_URL =
@@ -130,6 +133,8 @@ export default function VisualEditor() {
   }, [key])
 
   const [content, setContent] = useState<Section[] | null>(null)
+  /** Seam the template library was opened at (null = use the selection/end). */
+  const [templateAt, setTemplateAt] = useState<number | null>(null)
   const [selected, setSelected] = useState<number | null>(null)
   // Element-level selection (E1): the specific [data-el] element inside a
   // section being styled. Mutually exclusive with `selected` (section) and
@@ -141,10 +146,11 @@ export default function VisualEditor() {
   // Widget-level selection (Composer W1): a specific widget inside a container
   // section's column — content[index].columns[col].widgets[wi]. Mutually
   // exclusive with the other selections. Set from cms:clickedWidget.
+  // A widget is addressed by its PATH — see widgetsAtPath. [col, wi] for a
+  // top-level widget; [col, wi, col2, wi2] for one inside an inner section.
   const [selectedWidget, setSelectedWidget] = useState<{
     index: number
-    col: number
-    wi: number
+    path: number[]
   } | null>(null)
   const [chrome, setChrome] = useState<Record<string, Record<string, unknown>>>({})
   const [selectedChrome, setSelectedChrome] = useState<string | null>(null)
@@ -163,10 +169,11 @@ export default function VisualEditor() {
   const [pages, setPages] = useState<{ slug: string; title: string }[]>([])
   const [undoStack, setUndoStack] = useState<Section[][]>([])
   const [redoStack, setRedoStack] = useState<Section[][]>([])
-  // Copy/Paste/Reset style + presets (P6). `hasCopied` only gates the Paste
-  // button; the actual payload lives in copiedStyleRef + localStorage. Presets
-  // are a local (no-backend) library keyed by name.
-  const [hasCopied, setHasCopied] = useState(false)
+  // What the shared clipboard currently holds (gates Paste buttons). The
+  // payloads live in the clipboard module (localStorage-backed, shared with
+  // the canvas context menu and the keyboard). Presets are a local
+  // (no-backend) library keyed by name.
+  const [clip, setClip] = useState(() => clipSummary())
   const [presets, setPresets] = useState<StylePreset[]>([])
   // Unsaved-changes tracking (P0 safety): true once content OR chrome has been
   // edited since the last successful publish / load. Guards navigation + unload.
@@ -180,28 +187,61 @@ export default function VisualEditor() {
   const [loadError, setLoadError] = useState(false)
   const lastSnapRef = useRef(0)
 
-  // Record an undo snapshot of the CURRENT content before a change. Rapid edits
-  // (typing) within 700ms coalesce into a single history entry.
-  const snapshot = () => {
-    if (!content) return
-    setContentDirty(true)
+  /* ------------------------------------------------------------------ *
+   * THE single write path for page content.
+   *
+   * Every mutation used to read `content` from its own render closure and
+   * call setContent + patchToCanvas itself. Two writes in the same tick then
+   * clobbered each other — the second was built from a stale array. That is
+   * how "Paste Style" on an element could erase the very style it had just
+   * pasted. contentRef is updated synchronously here, so a mutator always
+   * sees the result of the previous one, whichever render its closure came
+   * from. Nothing else may write content.
+   * ------------------------------------------------------------------ */
+  const contentRef = useRef<Section[] | null>(null)
+
+  /** Replace content outside the commit path (load / undo / redo). */
+  const setContentSynced = (next: Section[] | null) => {
+    contentRef.current = next
+    setContent(next)
+  }
+
+  const commit = (
+    updater: (cur: Section[]) => Section[] | null | undefined,
+    opts: { patch?: number } = {}
+  ) => {
+    const cur = contentRef.current
+    if (!cur) return
+    const next = updater(cur)
+    if (!next || next === cur) return
+    // History: rapid edits (typing) within 700ms coalesce into one entry.
     const now = Date.now()
-    if (now - lastSnapRef.current < 700) return
-    lastSnapRef.current = now
-    const cur = content
-    setUndoStack((s) => [...s.slice(-49), cur])
-    setRedoStack([])
+    if (now - lastSnapRef.current >= 700) {
+      lastSnapRef.current = now
+      setUndoStack((s) => [...s.slice(-49), cur])
+      setRedoStack([])
+    }
+    contentRef.current = next
+    setContent(next)
+    setContentDirty(true)
+    // Targeted patch (only that section re-renders in the canvas) when the
+    // shape allows; full sync for structural changes (add/remove/reorder).
+    if (opts.patch != null && next.length === cur.length && next[opts.patch]) {
+      patchToCanvas(opts.patch, next[opts.patch])
+    } else {
+      pushToCanvas(next)
+    }
   }
 
   const undo = () => {
     setUndoStack((u) => {
-      if (!u.length || !content) return u
+      const cur = contentRef.current
+      if (!u.length || !cur) return u
       const prev = u[u.length - 1]
-      setRedoStack((r) => [...r, content])
-      setContent(prev)
+      setRedoStack((r) => [...r, cur])
+      setContentSynced(prev)
       pushToCanvas(prev)
-      setSelected(null)
-      setSelectedWidget(null)
+      select(null)
       setContentDirty(true)
       lastSnapRef.current = 0
       return u.slice(0, -1)
@@ -210,13 +250,13 @@ export default function VisualEditor() {
 
   const redo = () => {
     setRedoStack((r) => {
-      if (!r.length || !content) return r
+      const cur = contentRef.current
+      if (!r.length || !cur) return r
       const next = r[r.length - 1]
-      setUndoStack((u) => [...u, content])
-      setContent(next)
+      setUndoStack((u) => [...u, cur])
+      setContentSynced(next)
       pushToCanvas(next)
-      setSelected(null)
-      setSelectedWidget(null)
+      select(null)
       setContentDirty(true)
       lastSnapRef.current = 0
       return r.slice(0, -1)
@@ -285,6 +325,16 @@ export default function VisualEditor() {
   const actionsRef = useRef<Record<string, (i: number) => void>>({})
   const moveToRef = useRef<(from: number, to: number) => void>(() => {})
   const insertContainerRef = useRef<(index: number, cols: number) => void>(() => {})
+  /** Latest context-menu action implementations (the message closure is stale-safe). */
+  const ctxRef = useRef<any>({})
+  /** Latest select() for the stable message listener. */
+  const selRef = useRef<(sel: Sel, opts?: { mirror?: boolean }) => void>(
+    () => {}
+  )
+  /** Latest keyboard-shortcut dispatcher (Cmd+C / Cmd+V / Cmd+D / Delete). */
+  const keyActRef = useRef<(a: "copy" | "paste" | "duplicate" | "delete") => void>(
+    () => {}
+  )
   const insertWidgetSectionRef = useRef<(index: number, widgetType: string) => void>(() => {})
   // Resolves a canvas link click to either "open that page" or "select the
   // clicked element" — assigned after the handlers below exist.
@@ -295,7 +345,12 @@ export default function VisualEditor() {
   // listener always calls the current closures — assigned after they exist.
   const insertRef = useRef<{
     section: (index: number, type: string, presetIndex?: number) => void
-    widget: (index: number, col: number, widgetType: string, wi?: number) => void
+    widget: (
+      index: number,
+      colPath: number[],
+      widgetType: string,
+      wi?: number
+    ) => void
   }>({ section: () => {}, widget: () => {} })
   // Index of the section-list row currently being dragged (for reorder).
   const dragIndexRef = useRef<number | null>(null)
@@ -308,12 +363,13 @@ export default function VisualEditor() {
       .then((r) => (r.ok ? r.json() : {}))
       .then((d: any) => {
         setBrandName(typeof d.brand_name === "string" ? d.brand_name : "")
-        setChrome({
+        chromeRef.current = {
           header: d.header ?? {},
           topbar: d.topbar ?? {},
           footer: d.footer ?? {},
           theme: d.theme ?? {},
-        })
+        }
+        setChrome(chromeRef.current)
       })
       .catch(() => {})
   }, [locale, key])
@@ -354,7 +410,7 @@ export default function VisualEditor() {
           type: string
           props?: Record<string, unknown>
         }[]
-        setContent(
+        setContentSynced(
           items.map((c) => {
             const { id, ...rest } = c.props ?? {}
             return { block_type: c.type, ...rest }
@@ -436,6 +492,34 @@ export default function VisualEditor() {
     return () => window.removeEventListener("keydown", onKey)
   }, [])
 
+  // Clipboard keyboard shortcuts (Cmd/Ctrl+C / V / D, Delete) — the hints the
+  // context menu shows are real bindings, not decoration. Typing in a field
+  // and copying selected text keep their native meaning.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) {
+        return
+      }
+      const meta = e.metaKey || e.ctrlKey
+      const k = e.key.toLowerCase()
+      if (meta && (k === "c" || k === "v" || k === "d")) {
+        // Real text selected -> let the browser's own copy work.
+        if (k === "c" && (window.getSelection()?.toString() ?? "")) return
+        e.preventDefault()
+        keyActRef.current(k === "c" ? "copy" : k === "v" ? "paste" : "duplicate")
+        return
+      }
+      if (!meta && (e.key === "Delete" || e.key === "Backspace")) {
+        e.preventDefault()
+        keyActRef.current("delete")
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
+
   // Drag-to-resize the editing panel (clamped 300–640px).
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -468,6 +552,44 @@ export default function VisualEditor() {
     iframeRef.current?.contentWindow?.postMessage({ type: "cms:patch", index, section }, "*")
   }, [])
 
+  /**
+   * THE single way selection changes. Derives all five legacy selection
+   * states (mutually exclusive by construction) and, unless the change came
+   * FROM the canvas (mirror: false — it already knows), tells the canvas to
+   * outline + scroll to the newly selected thing.
+   */
+  const select = (sel: Sel, opts: { mirror?: boolean } = {}) => {
+    setSelected(sel?.kind === "section" ? sel.index : null)
+    setSelectedElement(
+      sel?.kind === "element" ? { index: sel.index, key: sel.key } : null
+    )
+    setSelectedWidget(
+      sel?.kind === "widget" ? { index: sel.index, path: sel.path } : null
+    )
+    setSelectedChrome(sel?.kind === "chrome" ? sel.region : null)
+    setSelectedChromeElement(
+      sel?.kind === "chromeElement"
+        ? { region: sel.region, key: sel.key }
+        : null
+    )
+    if (opts.mirror === false) return
+    const post = (msg: Record<string, unknown>) =>
+      iframeRef.current?.contentWindow?.postMessage(msg, "*")
+    if (!sel) post({ type: "cms:select", index: null })
+    else if (sel.kind === "section") post({ type: "cms:select", index: sel.index })
+    else if (sel.kind === "element")
+      post({ type: "cms:selectElement", index: sel.index, elementKey: sel.key })
+    else if (sel.kind === "widget")
+      post({ type: "cms:selectWidget", index: sel.index, path: sel.path })
+    else if (sel.kind === "chrome") post({ type: "cms:selectChrome", key: sel.region })
+    else if (sel.kind === "chromeElement")
+      post({
+        type: "cms:selectChromeElement",
+        region: sel.region,
+        elementKey: sel.key,
+      })
+  }
+
   // Messages from the canvas iframe.
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -475,42 +597,83 @@ export default function VisualEditor() {
       if (!m || typeof m !== "object") return
       if (m.type === "cms:ready") {
         readyRef.current = true
-        if (content) pushToCanvas(content)
+        if (contentRef.current) pushToCanvas(contentRef.current)
+        // A reloaded canvas has no idea what is on the clipboard.
+        announceClipboard()
       }
+      // Keyboard shortcut forwarded from the canvas (focus was in the iframe).
+      if (m.type === "cms:key" && typeof m.action === "string") {
+        keyActRef.current(m.action as any)
+      }
+      // The on-canvas font-size handle. The canvas paints the drag live for feel;
+      // THIS is where it becomes real — written into the element's style bag, so
+      // undo, autosave, and per-device (desktop/tablet/mobile) all keep working
+      // exactly as they do from the sidebar. One source of truth, two ways in.
+      if (
+        m.type === "cms:fontSize" &&
+        typeof m.index === "number" &&
+        typeof m.elementKey === "string" &&
+        typeof m.px === "number"
+      ) {
+        const idx = m.index as number
+        const elKey = m.elementKey as string
+        const px = Math.min(200, Math.max(8, Math.round(m.px)))
+        const section = contentRef.current?.[idx]
+        if (section) {
+          const es = (section.elementStyles as ElementStyles | undefined) ?? {}
+          const bag = { ...((es[elKey]?.style as Record<string, unknown>) ?? {}) }
+
+          const size = { value: px, unit: "px" }
+          const prevT = bag.typography as any
+
+          if (prevT && typeof prevT === "object" && "base" in prevT) {
+            // Already responsive: write only the device being edited.
+            const leafKey = device === "desktop" ? "base" : device
+            const leaf = { ...((prevT as any)[leafKey] ?? prevT.base ?? {}) }
+            leaf.fontSize = size
+            bag.typography = { ...prevT, [leafKey]: leaf }
+          } else if (device === "desktop") {
+            bag.typography = { ...(prevT ?? {}), fontSize: size }
+          } else {
+            // First per-device override: promote to a responsive value so the
+            // desktop size is preserved rather than silently overwritten.
+            bag.typography = {
+              base: { ...(prevT ?? {}) },
+              [device]: { ...(prevT ?? {}), fontSize: size },
+            }
+          }
+
+          // Make sure the panel is showing the element we are resizing (the
+          // canvas already has it selected — no mirror needed).
+          select({ kind: "element", index: idx, key: elKey }, { mirror: false })
+          writeElementBags(idx, elKey, { style: bag })
+        }
+        return
+      }
+
       if (m.type === "cms:clicked" && typeof m.index === "number") {
-        setSelected(m.index)
-        setSelectedChrome(null)
-        setSelectedElement(null)
-        setSelectedChromeElement(null)
-        setSelectedWidget(null)
+        // A stale seam from five minutes ago must not outrank the section the
+        // merchant just clicked.
+        setAddTargetIndex(null)
+        selRef.current({ kind: "section", index: m.index }, { mirror: false })
       }
       if (m.type === "cms:clickedChrome" && typeof m.key === "string") {
-        setSelectedChrome(m.key)
-        setSelected(null)
-        setSelectedElement(null)
-        setSelectedChromeElement(null)
-        setSelectedWidget(null)
+        selRef.current({ kind: "chrome", region: m.key }, { mirror: false })
       }
       // Widget-level selection (Composer W1): the user clicked a [data-w]
-      // widget inside a container section on the canvas. Select it for
-      // editing and clear every other selection so the panel switches to
-      // widget mode.
+      // widget inside a container section on the canvas.
       if (
         m.type === "cms:clickedWidget" &&
         typeof m.index === "number" &&
-        typeof m.col === "number" &&
-        typeof m.wi === "number"
+        Array.isArray(m.path)
       ) {
-        setSelectedWidget({ index: m.index, col: m.col, wi: m.wi })
-        setSelected(null)
-        setSelectedChrome(null)
-        setSelectedElement(null)
-        setSelectedChromeElement(null)
+        selRef.current(
+          { kind: "widget", index: m.index, path: m.path as number[] },
+          { mirror: false }
+        )
       }
-      // Chrome element-level selection (F1): the user clicked a [data-el] element
-      // inside a chrome region on the canvas. Select it for styling and clear any
-      // section / element / chrome-region selection so the panel switches to
-      // chrome element mode.
+      // Chrome element-level selection (F1): the user clicked a [data-el]
+      // element inside a chrome region on the canvas.
       if (
         m.type === "cms:clickedChromeElement" &&
         typeof m.region === "string" &&
@@ -518,30 +681,100 @@ export default function VisualEditor() {
         typeof m.elementKey === "string" &&
         m.elementKey
       ) {
-        setSelectedChromeElement({ region: m.region, key: m.elementKey })
-        setSelected(null)
-        setSelectedChrome(null)
-        setSelectedElement(null)
-        setSelectedWidget(null)
+        selRef.current(
+          { kind: "chromeElement", region: m.region, key: m.elementKey },
+          { mirror: false }
+        )
       }
       // Element-level selection (E1): the user clicked a [data-el] element
-      // inside a section on the canvas. Select it for styling and clear any
-      // section / chrome selection so the panel switches to element mode.
+      // inside a section on the canvas.
       if (
         m.type === "cms:clickedElement" &&
         typeof m.index === "number" &&
         typeof m.elementKey === "string" &&
         m.elementKey
       ) {
-        setSelectedElement({ index: m.index, key: m.elementKey })
-        setSelected(null)
-        setSelectedChrome(null)
-        setSelectedChromeElement(null)
-        setSelectedWidget(null)
+        selRef.current(
+          { kind: "element", index: m.index, key: m.elementKey },
+          { mirror: false }
+        )
       }
       // Canvas floating-toolbar actions (move/duplicate/delete/edit/add).
       if (m.type === "cms:action" && typeof m.index === "number") {
         actionsRef.current[m.action]?.(m.index)
+      }
+
+      // Context menu on the thing under the cursor. `scope` says WHAT was
+      // right-clicked — a widget, a theme element, a chrome region or the
+      // section — so "Duplicate" on a button duplicates the button, not the
+      // whole section.
+      if (m.type === "cms:ctxAction" && typeof m.action === "string") {
+        const a = String(m.action)
+        const i = typeof m.index === "number" ? (m.index as number) : -1
+
+        // Repeated-item ops (Duplicate Slide / Delete Banner 2 …) — scope
+        // independent: the marker on the item's DOM root said which array
+        // prop and which original index.
+        if (
+          (a === "duplicateItem" || a === "deleteItem") &&
+          i >= 0 &&
+          typeof m.itemField === "string" &&
+          typeof m.itemIndex === "number"
+        ) {
+          ctxRef.current.itemAction(a, i, m.itemField, m.itemIndex)
+          return
+        }
+
+        if (m.scope === "widget" && Array.isArray(m.path)) {
+          const path = m.path as number[]
+          if (a === "edit") selRef.current({ kind: "widget", index: i, path })
+          else if (a === "duplicate") ctxRef.current.duplicateWidget(i, path)
+          else if (a === "delete") ctxRef.current.removeWidget(i, path)
+          else if (a === "copy") ctxRef.current.copyWidget(i, path)
+          else if (a === "paste") ctxRef.current.pasteWidget(i, path)
+          else if (a === "copyStyle" || a === "pasteStyle" || a === "resetStyle") {
+            ctxRef.current.widgetStyleAction(a, i, path)
+          }
+          return
+        }
+
+        if (m.scope === "element" && typeof m.elementKey === "string") {
+          const key = m.elementKey as string
+          if (a === "edit") {
+            selRef.current({ kind: "element", index: i, key })
+          } else if (a === "copyStyle" || a === "pasteStyle" || a === "resetStyle") {
+            ctxRef.current.elementStyleAction(a, i, key)
+          }
+          return
+        }
+
+        if (m.scope === "chrome" && typeof m.region === "string") {
+          if (a === "edit") selRef.current({ kind: "chrome", region: m.region })
+          else if (a === "copyStyle" || a === "pasteStyle" || a === "resetStyle") {
+            ctxRef.current.chromeStyleAction(a, m.region)
+          }
+          return
+        }
+
+        if (
+          m.scope === "chromeElement" &&
+          typeof m.region === "string" &&
+          typeof m.elementKey === "string"
+        ) {
+          if (a === "edit") {
+            selRef.current({
+              kind: "chromeElement",
+              region: m.region,
+              key: m.elementKey,
+            })
+          } else if (a === "copyStyle" || a === "pasteStyle" || a === "resetStyle") {
+            ctxRef.current.chromeElementStyleAction(a, m.region, m.elementKey)
+          }
+          return
+        }
+
+        if (i >= 0) actionsRef.current[a]?.(i)
+        return
       }
       if (m.type === "cms:insert" && typeof m.index === "number") {
         actionsRef.current.insert?.(m.index)
@@ -586,7 +819,17 @@ export default function VisualEditor() {
         insertWidgetSectionRef.current(m.index, m.widget_type)
       }
       // Folder button on the add-section zone opens the template library.
+      // A seam was armed on the canvas: anything added next (palette, picker)
+      // lands THERE, not at the end.
+      if (m.type === "cms:setAddTarget" && typeof m.index === "number") {
+        setAddTargetIndex(m.index)
+      }
+
       if (m.type === "cms:openTemplates") {
+        // Opened from an insert bar between two sections -> the template lands at
+        // THAT seam. Opened from the toolbar (no `at`) -> fall back to the
+        // selection, as before.
+        setTemplateAt(typeof m.at === "number" ? m.at : null)
         setShowTemplates(true)
       }
       // Palette drop (Composer W3): a widget card dropped on a container
@@ -594,13 +837,13 @@ export default function VisualEditor() {
       if (
         m.type === "cms:insertWidgetAt" &&
         typeof m.index === "number" &&
-        typeof m.col === "number" &&
+        Array.isArray(m.colPath) &&
         typeof m.widget_type === "string" &&
         m.widget_type
       ) {
         insertRef.current.widget(
           m.index,
-          m.col,
+          m.colPath as number[],
           m.widget_type,
           typeof m.wi === "number" ? m.wi : undefined
         )
@@ -617,17 +860,18 @@ export default function VisualEditor() {
     return () => window.removeEventListener("message", onMsg)
   }, [content, pushToCanvas])
 
-  const selectChrome = (k: string) => {
-    setSelectedChrome(k)
-    setSelected(null)
-    setSelectedElement(null)
-    setSelectedChromeElement(null)
-    setSelectedWidget(null)
-    iframeRef.current?.contentWindow?.postMessage({ type: "cms:selectChrome", key: k }, "*")
-  }
+  const selectChrome = (k: string) => select({ kind: "chrome", region: k })
+
+  /**
+   * The single write path for chrome (header/topbar/footer/theme) — same
+   * stale-closure discipline as commit(): chromeRef is updated synchronously
+   * so sequential writes in one tick compose instead of clobbering.
+   */
+  const chromeRef = useRef<Record<string, Record<string, unknown>>>({})
 
   const updateChrome = (k: string, data: Record<string, unknown>) => {
-    setChrome((c) => ({ ...c, [k]: data }))
+    chromeRef.current = { ...chromeRef.current, [k]: data }
+    setChrome(chromeRef.current)
     setChromeDirty((d) => new Set(d).add(k))
     iframeRef.current?.contentWindow?.postMessage({ type: "cms:chrome", key: k, data }, "*")
   }
@@ -642,7 +886,7 @@ export default function VisualEditor() {
     bagKey: "style" | "advanced",
     next: Record<string, unknown>
   ) => {
-    const prev = (chrome[region] ?? {}) as Record<string, unknown>
+    const prev = (chromeRef.current[region] ?? {}) as Record<string, unknown>
     const updated: Record<string, unknown> = { ...prev }
     if (next && Object.keys(next).length > 0) {
       updated[bagKey] = next
@@ -650,6 +894,131 @@ export default function VisualEditor() {
       delete updated[bagKey]
     }
     updateChrome(region, updated)
+  }
+
+  /** Copy / paste / reset the whole-region look (style + advanced +
+   *  elementStyles), through the shared clipboard. One write per action. */
+  const chromeStyleAction = (
+    action: "copyStyle" | "pasteStyle" | "resetStyle",
+    region: string
+  ) => {
+    const cur = (chromeRef.current[region] ?? {}) as Record<string, unknown>
+    if (action === "copyStyle") {
+      writeClip(
+        "style",
+        structuredClone({
+          source: "chrome",
+          style: cur.style as Record<string, unknown> | undefined,
+          advanced: cur.advanced as Record<string, unknown> | undefined,
+          elementStyles: cur.elementStyles as
+            | Record<string, unknown>
+            | undefined,
+        }) as StyleClip
+      )
+      syncClip()
+      setStatus("Style copied.")
+      return
+    }
+    const updated: Record<string, unknown> = { ...cur }
+    if (action === "resetStyle") {
+      delete updated.style
+      delete updated.advanced
+      delete updated.elementStyles
+    } else {
+      const c = readClipboard().style
+      if (!c) return
+      const style = deepMergeBag(
+        (cur.style as Record<string, unknown>) ?? {},
+        c.style ?? {}
+      )
+      const advanced = deepMergeBag(
+        (cur.advanced as Record<string, unknown>) ?? {},
+        c.advanced ?? {}
+      )
+      if (Object.keys(style).length) updated.style = style
+      else delete updated.style
+      if (Object.keys(advanced).length) updated.advanced = advanced
+      else delete updated.advanced
+      if (c.elementStyles && Object.keys(c.elementStyles).length) {
+        updated.elementStyles = deepMergeBag(
+          (cur.elementStyles as Record<string, unknown>) ?? {},
+          c.elementStyles
+        )
+      }
+    }
+    updateChrome(region, updated)
+    setStatus(action === "resetStyle" ? "Style reset." : "Style pasted.")
+  }
+
+  /** Write BOTH bags of a chrome element in ONE update (two sequential
+   *  single-bag writes would clobber each other). undefined leaves a bag
+   *  untouched; an empty bag deletes it. */
+  const writeChromeElementBags = (
+    region: string,
+    key: string,
+    bags: {
+      style?: Record<string, unknown>
+      advanced?: Record<string, unknown>
+    }
+  ) => {
+    const prev = (chromeRef.current[region] ?? {}) as Record<string, unknown>
+    const prevEs = (prev.elementStyles as ElementStyles | undefined) ?? {}
+    const entry: Record<string, unknown> = { ...(prevEs[key] ?? {}) }
+    for (const k of ["style", "advanced"] as const) {
+      const v = bags[k]
+      if (v === undefined) continue
+      if (v && Object.keys(v).length > 0) entry[k] = v
+      else delete entry[k]
+    }
+    const nextEs: ElementStyles = { ...prevEs }
+    if (Object.keys(entry).length > 0) nextEs[key] = entry
+    else delete nextEs[key]
+    const updated: Record<string, unknown> = { ...prev }
+    if (Object.keys(nextEs).length > 0) updated.elementStyles = nextEs
+    else delete updated.elementStyles
+    updateChrome(region, updated)
+  }
+
+  /** Style clipboard actions on a chrome ELEMENT ([data-el] in header/footer). */
+  const chromeElementStyleAction = (
+    action: "copyStyle" | "pasteStyle" | "resetStyle",
+    region: string,
+    key: string
+  ) => {
+    const prev = (chromeRef.current[region] ?? {}) as Record<string, unknown>
+    const es = (prev.elementStyles as ElementStyles | undefined) ?? {}
+    const entry = (es[key] ?? {}) as Record<string, unknown>
+    if (action === "copyStyle") {
+      writeClip(
+        "style",
+        structuredClone({
+          source: "chromeElement",
+          style: entry.style as Record<string, unknown> | undefined,
+          advanced: entry.advanced as Record<string, unknown> | undefined,
+        }) as StyleClip
+      )
+      syncClip()
+      setStatus("Style copied.")
+      return
+    }
+    if (action === "resetStyle") {
+      writeChromeElementBags(region, key, { style: {}, advanced: {} })
+      setStatus("Style reset.")
+      return
+    }
+    const c = readClipboard().style
+    if (!c) return
+    writeChromeElementBags(region, key, {
+      style: deepMergeBag(
+        (entry.style as Record<string, unknown>) ?? {},
+        c.style ?? {}
+      ),
+      advanced: deepMergeBag(
+        (entry.advanced as Record<string, unknown>) ?? {},
+        c.advanced ?? {}
+      ),
+    })
+    setStatus("Style pasted.")
   }
 
   // Element-level for a chrome region (F1): merge a namespaced diff bag into
@@ -662,29 +1031,7 @@ export default function VisualEditor() {
     key: string,
     bagKey: "style" | "advanced",
     next: Record<string, unknown>
-  ) => {
-    const prev = (chrome[region] ?? {}) as Record<string, unknown>
-    const prevEs = (prev.elementStyles as ElementStyles | undefined) ?? {}
-    const prevEntry = { ...(prevEs[key] ?? {}) }
-    if (next && Object.keys(next).length > 0) {
-      prevEntry[bagKey] = next
-    } else {
-      delete prevEntry[bagKey]
-    }
-    const nextEs: ElementStyles = { ...prevEs }
-    if (prevEntry.style || prevEntry.advanced) {
-      nextEs[key] = prevEntry
-    } else {
-      delete nextEs[key]
-    }
-    const updated: Record<string, unknown> = { ...prev }
-    if (Object.keys(nextEs).length > 0) {
-      updated.elementStyles = nextEs
-    } else {
-      delete updated.elementStyles
-    }
-    updateChrome(region, updated)
-  }
+  ) => writeChromeElementBags(region, key, { [bagKey]: next })
 
   // Leave chrome element mode → re-select the whole chrome region (outlines it
   // on the canvas and clears the chrome element selection there).
@@ -693,81 +1040,108 @@ export default function VisualEditor() {
     selectChrome(selectedChromeElement.region)
   }
 
-  const selectSection = (i: number) => {
-    setSelected(i)
-    setSelectedElement(null)
-    setSelectedChromeElement(null)
-    setSelectedWidget(null)
-    iframeRef.current?.contentWindow?.postMessage({ type: "cms:select", index: i }, "*")
-  }
+  const selectSection = (i: number) =>
+    select(i >= 0 ? { kind: "section", index: i } : null)
+
+  /**
+   * Update the section at `index`. Element mode needs this: the element belongs
+   * to a section, and editing the element's TEXT means editing that section's
+   * content — without making the user navigate back to the section first.
+   */
+  const updateSectionAt = (index: number, nextData: Record<string, unknown>) =>
+    commit(
+      (cur) => cur.map((b, i) => (i === index ? (nextData as Section) : b)),
+      { patch: index }
+    )
 
   const updateSelected = (nextData: Record<string, unknown>) => {
     if (selected == null) return
-    snapshot()
-    const next = nextData as Section
-    setContent((c) => (c ? c.map((b, i) => (i === selected ? next : b)) : c))
-    patchToCanvas(selected, next) // targeted live update — no full re-render
+    updateSectionAt(selected, nextData)
   }
 
-  // Style/Advanced (P3): merge a namespaced diff bag onto the CURRENTLY selected
-  // section and stream the whole section to the canvas so buildSectionCss +
-  // the hybrid wrapper render it live. Diff-only storage: an empty bag deletes
-  // the key entirely so an un-styled section stays byte-identical to today.
-  // Selection is unchanged (same index), so the section stays selected.
+  /**
+   * Write any of a section's THREE appearance bags (style / advanced /
+   * elementStyles) in ONE commit. undefined leaves a bag untouched; an empty
+   * bag deletes the key (diff-only storage: an un-styled section stays
+   * byte-identical to a never-styled one).
+   */
+  const writeSectionBags = (
+    idx: number,
+    bags: {
+      style?: Record<string, unknown>
+      advanced?: Record<string, unknown>
+      elementStyles?: Record<string, unknown>
+    }
+  ) =>
+    commit(
+      (cur) => {
+        const sec = cur[idx]
+        if (!sec) return cur
+        const updated: Record<string, unknown> = { ...(sec as any) }
+        for (const k of ["style", "advanced", "elementStyles"] as const) {
+          const v = bags[k]
+          if (v === undefined) continue
+          if (v && Object.keys(v).length > 0) updated[k] = v
+          else delete updated[k]
+        }
+        return cur.map((b, i) => (i === idx ? (updated as Section) : b))
+      },
+      { patch: idx }
+    )
+
   const updateSelectedBag = (
     bagKey: "style" | "advanced",
     next: Record<string, unknown>
   ) => {
-    if (selected == null || !selectedBlock) return
-    snapshot()
-    const idx = selected
-    const updated: Section = { ...selectedBlock }
-    if (next && Object.keys(next).length > 0) {
-      updated[bagKey] = next
-    } else {
-      delete updated[bagKey]
-    }
-    setContent((c) => (c ? c.map((b, i) => (i === idx ? updated : b)) : c))
-    patchToCanvas(idx, updated) // targeted live update — re-renders with style
+    if (selected == null) return
+    writeSectionBags(selected, { [bagKey]: next })
   }
 
-  // Element-level (E1): merge a namespaced diff bag into the CURRENTLY selected
-  // element's slot inside its section's `elementStyles[key]`. Same diff-only
-  // rules as the section bags: an empty bag deletes that sub-key; an empty entry
-  // deletes the element key; an empty map deletes `elementStyles` entirely so a
-  // section with no element overrides stays byte-identical to today. Streams the
-  // whole section to the canvas so buildSectionCss re-emits the descendant CSS.
+  /**
+   * Write BOTH bags of element `key` inside section `idx` in ONE commit.
+   * undefined leaves a bag untouched; an empty bag deletes it. Removing both
+   * removes the element's entry; an empty map removes `elementStyles`
+   * entirely. This replaces the old one-bag-per-call writers whose sequential
+   * use silently clobbered each other (the broken element Paste Style).
+   */
+  const writeElementBags = (
+    idx: number,
+    key: string,
+    bags: {
+      style?: Record<string, unknown>
+      advanced?: Record<string, unknown>
+    }
+  ) =>
+    commit(
+      (cur) => {
+        const section = cur[idx]
+        if (!section) return cur
+        const prevEs = (section.elementStyles as ElementStyles | undefined) ?? {}
+        const entry: Record<string, unknown> = { ...(prevEs[key] ?? {}) }
+        for (const k of ["style", "advanced"] as const) {
+          const v = bags[k]
+          if (v === undefined) continue
+          if (v && Object.keys(v).length > 0) entry[k] = v
+          else delete entry[k]
+        }
+        const nextEs: ElementStyles = { ...prevEs }
+        if (Object.keys(entry).length > 0) nextEs[key] = entry
+        else delete nextEs[key]
+        const updated: Record<string, unknown> = { ...(section as any) }
+        if (Object.keys(nextEs).length > 0) updated.elementStyles = nextEs
+        else delete updated.elementStyles
+        return cur.map((b, i) => (i === idx ? (updated as Section) : b))
+      },
+      { patch: idx }
+    )
+
   const updateSelectedElementBag = (
     key: string,
     bagKey: "style" | "advanced",
     next: Record<string, unknown>
   ) => {
-    if (selectedElement == null || !content) return
-    const idx = selectedElement.index
-    const section = content[idx]
-    if (!section) return
-    snapshot()
-    const prevEs = (section.elementStyles as ElementStyles | undefined) ?? {}
-    const prevEntry = { ...(prevEs[key] ?? {}) }
-    if (next && Object.keys(next).length > 0) {
-      prevEntry[bagKey] = next
-    } else {
-      delete prevEntry[bagKey]
-    }
-    const nextEs: ElementStyles = { ...prevEs }
-    if (prevEntry.style || prevEntry.advanced) {
-      nextEs[key] = prevEntry
-    } else {
-      delete nextEs[key]
-    }
-    const updated: Section = { ...section }
-    if (Object.keys(nextEs).length > 0) {
-      updated.elementStyles = nextEs
-    } else {
-      delete updated.elementStyles
-    }
-    setContent((c) => (c ? c.map((b, i) => (i === idx ? updated : b)) : c))
-    patchToCanvas(idx, updated)
+    if (selectedElement == null) return
+    writeElementBags(selectedElement.index, key, { [bagKey]: next })
   }
 
   // Leave element mode → re-select the containing section (outlines it on the
@@ -782,17 +1156,8 @@ export default function VisualEditor() {
   // Select a widget (from the canvas OR the columns manager): switches the
   // panel to widget mode and mirrors the selection into the canvas so it
   // outlines + scrolls that [data-w] widget into view.
-  const selectWidget = (index: number, col: number, wi: number) => {
-    setSelectedWidget({ index, col, wi })
-    setSelected(null)
-    setSelectedChrome(null)
-    setSelectedElement(null)
-    setSelectedChromeElement(null)
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "cms:selectWidget", index, col, wi },
-      "*"
-    )
-  }
+  const selectWidget = (index: number, path: number[]) =>
+    select({ kind: "widget", index, path })
 
   // Leave widget mode → re-select the containing container section.
   const backToContainer = () => {
@@ -805,65 +1170,92 @@ export default function VisualEditor() {
   // other section edit) so buildWidgetCss re-emits the widget's CSS live.
   const writeWidget = (
     index: number,
-    col: number,
-    wi: number,
+    path: number[],
     nextWidget: Widget
   ) => {
-    if (!content) return
-    const section = content[index]
-    const cols = section?.columns as Column[] | undefined
-    if (!section || !Array.isArray(cols) || !cols[col]?.widgets?.[wi]) return
-    snapshot()
-    const nextCols = cols.map((c, ci) =>
-      ci === col
-        ? {
-            ...c,
-            widgets: c.widgets.map((w, i) => (i === wi ? nextWidget : w)),
-          }
-        : c
+    const colPath = path.slice(0, -1)
+    const wi = path[path.length - 1]
+    const ws = widgetsAtPath(index, colPath)
+    if (!ws || !ws[wi]) return
+    writeWidgetsAtPath(
+      index,
+      colPath,
+      ws.map((w: any, i: number) => (i === wi ? nextWidget : w))
     )
-    const updated: Section = { ...section, columns: nextCols }
-    setContent((c) => (c ? c.map((b, i) => (i === index ? updated : b)) : c))
-    patchToCanvas(index, updated)
   }
 
   // Content-prop edit for the CURRENTLY selected widget (widget_type, style
   // and advanced are preserved — the panel only hands back content props).
   const updateSelectedWidget = (patch: Record<string, unknown>) => {
-    if (selectedWidget == null || !content) return
-    const { index, col, wi } = selectedWidget
-    const widget = (content[index]?.columns as Column[] | undefined)?.[col]
-      ?.widgets?.[wi]
+    if (selectedWidget == null) return
+    const { index, path } = selectedWidget
+    const ws = widgetsAtPath(index, path.slice(0, -1))
+    const widget = ws?.[path[path.length - 1]]
     if (!widget) return
-    writeWidget(index, col, wi, { ...widget, ...patch })
+    writeWidget(index, path, { ...widget, ...patch })
   }
 
-  // Style/Advanced diff bag for the selected widget. Same diff-only rule as
-  // sections: an empty bag deletes the key so an un-styled widget stays a
-  // tiny content-only object.
+  /** Write BOTH widget bags in ONE update. undefined leaves a bag untouched;
+   *  an empty bag deletes the key (an un-styled widget stays content-only). */
+  const writeWidgetBags = (
+    index: number,
+    path: number[],
+    bags: {
+      style?: Record<string, unknown>
+      advanced?: Record<string, unknown>
+    }
+  ) => {
+    const ws = widgetsAtPath(index, path.slice(0, -1))
+    const widget = ws?.[path[path.length - 1]]
+    if (!widget) return
+    const updated: Widget = { ...widget }
+    for (const k of ["style", "advanced"] as const) {
+      const v = bags[k]
+      if (v === undefined) continue
+      if (v && Object.keys(v).length > 0) (updated as any)[k] = v
+      else delete (updated as any)[k]
+    }
+    writeWidget(index, path, updated)
+  }
+
   const updateSelectedWidgetBag = (
     bagKey: "style" | "advanced",
     next: Record<string, unknown>
   ) => {
-    if (selectedWidget == null || !content) return
-    const { index, col, wi } = selectedWidget
-    const widget = (content[index]?.columns as Column[] | undefined)?.[col]
-      ?.widgets?.[wi]
+    if (selectedWidget == null) return
+    writeWidgetBags(selectedWidget.index, selectedWidget.path, { [bagKey]: next })
+  }
+
+  /** The widgets array of the inner section currently selected (columns editor). */
+  const setSelectedWidgetColumns = (nextCols: Column[]) => {
+    if (selectedWidget == null) return
+    const { index, path } = selectedWidget
+    const ws = widgetsAtPath(index, path.slice(0, -1))
+    const widget = ws?.[path[path.length - 1]]
     if (!widget) return
-    const updated: Widget = { ...widget }
-    if (next && Object.keys(next).length > 0) {
-      updated[bagKey] = next
-    } else {
-      delete updated[bagKey]
-    }
-    writeWidget(index, col, wi, updated)
+    writeWidget(index, path, { ...widget, columns: nextCols } as Widget)
   }
 
   // Columns manager (add/remove/reorder widgets) for the SELECTED container
   // section — replaces its `columns` array wholesale (already immutable).
   const setSelectedColumns = (nextCols: Column[]) => {
-    if (selected == null || !content?.[selected]) return
-    updateSelected({ ...content[selected], columns: nextCols })
+    if (selected == null) return
+    const sec = contentRef.current?.[selected]
+    if (!sec) return
+    updateSectionAt(selected, { ...sec, columns: nextCols })
+  }
+
+  /** Same layout→columns reconciliation for an INNER section widget. */
+  const reconcileInnerColumns = (
+    next: Record<string, unknown>,
+    current: unknown
+  ): Record<string, unknown> => {
+    const desired = parseInt(String(next.layout ?? ""), 10)
+    const cols = Array.isArray(current) ? (current as Column[]) : []
+    if (!Number.isInteger(desired) || desired < 1 || desired > 4) {
+      return { ...next, columns: cols }
+    }
+    return { ...next, columns: reconcileColumns(cols, desired) }
   }
 
   // Container layout change: grow/shrink `columns` to match the new count,
@@ -880,29 +1272,31 @@ export default function VisualEditor() {
   }
 
   const moveSection = (from: number, dir: -1 | 1) => {
-    if (!content) return
+    const cur = contentRef.current
+    if (!cur) return
     const to = from + dir
-    if (to < 0 || to >= content.length) return
-    snapshot()
-    const next = [...content]
-    ;[next[from], next[to]] = [next[to], next[from]]
-    setContent(next)
-    pushToCanvas(next) // structural change → full canvas sync
-    setSelected((s) => (s === from ? from + dir : s))
-    setSelectedWidget(null) // section indices shifted — widget path is stale
+    if (to < 0 || to >= cur.length) return
+    commit((c) => {
+      const next = [...c]
+      ;[next[from], next[to]] = [next[to], next[from]]
+      return next
+    })
+    // Section indices shifted — keep the moved section selected.
+    if (selected === from) select({ kind: "section", index: to })
+    else if (selectedWidget || selectedElement) select(null)
   }
 
   // Reorder by dropping a dragged section-list row onto another position.
   const moveSectionTo = (from: number, to: number) => {
-    if (!content || from === to || to < 0 || to >= content.length) return
-    snapshot()
-    const next = [...content]
-    const [moved] = next.splice(from, 1)
-    next.splice(to, 0, moved)
-    setContent(next)
-    pushToCanvas(next)
-    setSelected(to)
-    setSelectedWidget(null)
+    const cur = contentRef.current
+    if (!cur || from === to || to < 0 || to >= cur.length) return
+    commit((c) => {
+      const next = [...c]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+    select({ kind: "section", index: to }, { mirror: false })
   }
 
   // Insert a fresh block of `type` at `index` (clamped 0..length): schema
@@ -914,39 +1308,29 @@ export default function VisualEditor() {
     type: string,
     presetIndex?: number
   ) => {
-    if (!content) return
+    const cur = contentRef.current
+    if (!cur) return
     const schema = getBlockSchema(type)
     if (!schema) return
-    snapshot()
     const props =
       presetIndex != null && schema.presets?.[presetIndex]
         ? structuredClone(schema.presets[presetIndex].props)
         : defaultPropsFromSchema(schema)
     const block = { block_type: type, ...props } as Section
-    const at = Math.max(0, Math.min(index, content.length))
-    const next = [...content.slice(0, at), block, ...content.slice(at)]
-    setContent(next)
-    pushToCanvas(next)
+    const at = Math.max(0, Math.min(index, cur.length))
+    commit((c) => [...c.slice(0, at), block, ...c.slice(at)])
     setAdding(false)
     setAddTargetIndex(null)
-    setSelected(at)
-    setSelectedChrome(null)
-    setSelectedElement(null)
-    setSelectedChromeElement(null)
-    setSelectedWidget(null)
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "cms:select", index: at },
-      "*"
-    )
+    select({ kind: "section", index: at })
   }
 
   // Structure picker (canvas add-section zone): insert a container with N
   // empty columns at `index`, then select it (Elementor select-your-structure).
   const insertContainerAt = (index: number, colsN: number) => {
-    if (!content) return
+    const cur = contentRef.current
+    if (!cur) return
     const schema = getBlockSchema("container")
     if (!schema) return
-    snapshot()
     const n = Math.max(1, Math.min(4, colsN))
     const props = {
       ...defaultPropsFromSchema(schema),
@@ -954,28 +1338,18 @@ export default function VisualEditor() {
       columns: Array.from({ length: n }, () => ({ widgets: [] })),
     }
     const block = { block_type: "container", ...props } as Section
-    const at = Math.max(0, Math.min(index, content.length))
-    const next = [...content.slice(0, at), block, ...content.slice(at)]
-    setContent(next)
-    pushToCanvas(next)
-    setSelected(at)
-    setSelectedChrome(null)
-    setSelectedElement(null)
-    setSelectedChromeElement(null)
-    setSelectedWidget(null)
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "cms:select", index: at },
-      "*"
-    )
+    const at = Math.max(0, Math.min(index, cur.length))
+    commit((c) => [...c.slice(0, at), block, ...c.slice(at)])
+    select({ kind: "section", index: at })
   }
 
   // A widget dropped outside any container: auto-wrap it in a new 1-column
   // container at `index` (Elementor drop-anywhere), then select the widget.
   const insertWidgetAsSection = (index: number, widgetType: string) => {
-    if (!content || !getWidgetSchema(widgetType)) return
+    const cur = contentRef.current
+    if (!cur || !getWidgetSchema(widgetType)) return
     const schema = getBlockSchema("container")
     if (!schema) return
-    snapshot()
     const widget = newWidgetOf(widgetType)
     const props = {
       ...defaultPropsFromSchema(schema),
@@ -983,18 +1357,16 @@ export default function VisualEditor() {
       columns: [{ widgets: [widget] }],
     }
     const block = { block_type: "container", ...props } as Section
-    const at = Math.max(0, Math.min(index, content.length))
-    const next = [...content.slice(0, at), block, ...content.slice(at)]
-    setContent(next)
-    pushToCanvas(next)
-    selectWidget(at, 0, 0)
+    const at = Math.max(0, Math.min(index, cur.length))
+    commit((c) => [...c.slice(0, at), block, ...c.slice(at)])
+    selectWidget(at, [0, 0])
   }
 
   // Apply server-validated AI patches through the normal undo pipeline (P1).
   const applyAiPatches = (patches: any[]): number => {
-    if (!content || !Array.isArray(patches) || patches.length === 0) return 0
-    snapshot()
-    const next = [...content]
+    const cur = contentRef.current
+    if (!cur || !Array.isArray(patches) || patches.length === 0) return 0
+    const next = [...cur]
     let applied = 0
     for (const p of patches) {
       if (
@@ -1037,22 +1409,31 @@ export default function VisualEditor() {
       }
     }
     if (!applied) return 0
-    setContent(next)
-    pushToCanvas(next)
-    setContentDirty(true)
-    setSelected(null)
-    setSelectedWidget(null)
-    setSelectedElement(null)
+    commit(() => next)
+    select(null)
     return applied
   }
 
   const addSection = (type: string, presetIndex?: number) => {
+    const content = contentRef.current
     if (!content) return
-    insertSectionAt(
-      addTargetIndex != null ? addTargetIndex : content.length,
-      type,
-      presetIndex
-    )
+    // WHERE a new section lands, in order of what the merchant most recently
+    // told us:
+    //   1. the seam they clicked "+" on          (explicit)
+    //   2. just below the section they selected  (implied — they are working there)
+    //   3. the end of the page                   (nothing to go on)
+    //
+    // It used to be (1) or straight to the end. So picking anything from the
+    // Elements palette flung it below the footer of an 18,000px page, and the
+    // merchant had to drag it back up past thirty sections. Elementor keeps the
+    // insertion point where YOU are; now so does this.
+    const at =
+      addTargetIndex != null
+        ? addTargetIndex
+        : selected != null && selected >= 0 && selected < content.length
+          ? selected + 1
+          : content.length
+    insertSectionAt(at, type, presetIndex)
   }
 
   // Palette widget drop (Composer W3): append a fresh widget (schema defaults)
@@ -1060,66 +1441,420 @@ export default function VisualEditor() {
   // section to the canvas, and select the new widget for editing.
   const insertWidgetAt = (
     index: number,
-    col: number,
+    colPath: number[],
     widgetType: string,
     wi?: number
   ) => {
-    if (!content || !getWidgetSchema(widgetType)) return
-    const section = content[index]
-    const cols = section?.columns as Column[] | undefined
-    if (!section || !Array.isArray(cols) || !cols[col]) return
-    snapshot()
+    if (!contentRef.current || !getWidgetSchema(widgetType)) return
+    // One level of nesting: an inner section may not be dropped into another.
+    if (widgetType === "inner_section" && colPath.length > 1) {
+      setStatus("An inner section can't go inside another inner section.")
+      return
+    }
+    const existing = widgetsAtPath(index, colPath)
+    if (!existing) return
     const widget = newWidgetOf(widgetType)
-    const existing = Array.isArray(cols[col].widgets) ? cols[col].widgets : []
     // Positional drop (Elementor): splice at the insertion index, else append.
-    const at = wi == null ? existing.length : Math.max(0, Math.min(wi, existing.length))
-    const nextCols = cols.map((c, ci) =>
-      ci === col
-        ? {
-            ...c,
-            widgets: [...existing.slice(0, at), widget, ...existing.slice(at)],
-          }
-        : c
+    const at =
+      wi == null ? existing.length : Math.max(0, Math.min(wi, existing.length))
+    writeWidgetsAtPath(index, colPath, [
+      ...existing.slice(0, at),
+      widget,
+      ...existing.slice(at),
+    ])
+    selectWidget(index, [...colPath, at])
+  }
+
+  /**
+   * The clipboard is a shared module (localStorage-backed, one for the whole
+   * editor — panel strip, context menu, keyboard). These wrappers add the two
+   * things the module can't know: refresh the Paste gating (panel + canvas)
+   * and narrate what happened.
+   */
+  const syncClip = () => {
+    setClip(clipSummary())
+    announceClipboard()
+  }
+
+  /** Tell the canvas what is on the clipboard, so it can grey out dead menu items. */
+  const announceClipboard = () => {
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "cms:clipboard", ...clipSummary() },
+      "*"
     )
-    const updated: Section = { ...section, columns: nextCols }
-    setContent((c) => (c ? c.map((b, i) => (i === index ? updated : b)) : c))
-    patchToCanvas(index, updated)
-    selectWidget(index, col, at)
+  }
+
+  const copySection = (i: number) => {
+    const cur = contentRef.current
+    if (!cur || i < 0 || i >= cur.length) return
+    writeClip("section", structuredClone(cur[i]) as Record<string, unknown>)
+    syncClip()
+    setStatus("Section copied.")
+  }
+
+  const pasteSection = (i: number) => {
+    const clipSection = readClipboard().section
+    const cur = contentRef.current
+    if (!cur || !clipSection) return
+    const at = Math.min(Math.max(i + 1, 0), cur.length)
+    commit((c) => [
+      ...c.slice(0, at),
+      structuredClone(clipSection) as Section,
+      ...c.slice(at),
+    ])
+    select({ kind: "section", index: at })
+    setStatus("Section pasted.")
+  }
+
+  const copySectionStyle = (i: number) => {
+    const cur = contentRef.current
+    if (!cur || i < 0 || i >= cur.length) return
+    const b = cur[i] as Record<string, unknown>
+    writeClip(
+      "style",
+      structuredClone({
+        source: "section",
+        style: b.style,
+        advanced: b.advanced,
+        elementStyles: b.elementStyles,
+      }) as StyleClip
+    )
+    syncClip()
+    setStatus("Style copied — paste it onto any section, widget or element.")
+  }
+
+  const pasteSectionStyle = (i: number) => {
+    const c = readClipboard().style
+    const cur = contentRef.current
+    if (!cur || !c || i < 0 || i >= cur.length) return
+    const b = cur[i] as Record<string, unknown>
+    // Only the appearance travels — the target's CONTENT is untouched. Merge,
+    // so pasting a background doesn't erase the target's font settings.
+    const style = deepMergeBag(
+      (b.style as Record<string, unknown>) ?? {},
+      c.style ?? {}
+    )
+    const advanced = deepMergeBag(
+      (b.advanced as Record<string, unknown>) ?? {},
+      c.advanced ?? {}
+    )
+    const elementStyles =
+      c.elementStyles && Object.keys(c.elementStyles).length
+        ? deepMergeBag(
+            (b.elementStyles as Record<string, unknown>) ?? {},
+            c.elementStyles
+          )
+        : undefined
+    writeSectionBags(i, { style, advanced, elementStyles })
+    setStatus("Style pasted.")
+  }
+
+  const resetSectionStyle = (i: number) => {
+    const cur = contentRef.current
+    if (!cur || i < 0 || i >= cur.length) return
+    writeSectionBags(i, { style: {}, advanced: {}, elementStyles: {} })
+    setStatus("Style reset.")
+  }
+
+  /* ---------------- Context-menu actions on the thing you actually clicked ----
+   *
+   * "Duplicate" on a heading inside a container used to duplicate the WHOLE
+   * section, because the menu only ever resolved the section. A merchant asking
+   * to copy one button does not expect thirty other things to come with it.
+   * These operate on the widget or the element under the cursor.
+   * ------------------------------------------------------------------------ */
+
+  /** The widgets array of content[index].columns[col], or null. */
+  /* ---------------- Widgets, addressed by PATH ----------------
+   *
+   * A widget's PATH is the chain of (column, widget) indices from the section
+   * down to it: [0,1] = column 0 / widget 1; [0,1,2,3] = the widget at column 2
+   * / index 3 INSIDE the inner section at column 0 / widget 1. Everything below
+   * walks that path, so a widget nested in an inner section duplicates, deletes,
+   * copies, pastes and styles exactly like a top-level one — no special cases.
+   *
+   * A COLUMN path is odd-length ([0] or [0,1,2]); a WIDGET path is even.
+   * ------------------------------------------------------------------ */
+
+  /** The widgets array living at a column path, or null. */
+  const widgetsAtPath = (index: number, colPath: number[]): any[] | null => {
+    const sec: any = contentRef.current?.[index]
+    if (!sec || !Array.isArray(colPath) || colPath.length % 2 !== 1) return null
+    let cols: any = sec.columns
+    for (let i = 0; i < colPath.length; i++) {
+      if (!Array.isArray(cols)) return null
+      const col = cols[colPath[i]]
+      if (!col) return null
+      const ws = Array.isArray(col.widgets) ? col.widgets : []
+      if (i === colPath.length - 1) return ws
+      // Descend through the inner-section widget named by the next index.
+      const w = ws[colPath[++i]]
+      if (!w || w.widget_type !== "inner_section") return null
+      cols = w.columns
+    }
+    return null
+  }
+
+  /** Immutably write a widgets array back to a column path. */
+  const writeWidgetsAtPath = (
+    index: number,
+    colPath: number[],
+    widgets: any[]
+  ) =>
+    commit(
+      (c) => {
+        const sec: any = c[index]
+        if (!sec || !Array.isArray(sec.columns)) return c
+
+        // Rebuild the chain from the leaf up: replace `widgets` at the target
+        // column, then rewrap each ancestor inner section on the way out.
+        const rebuild = (cols: any[], depth: number): any[] | null => {
+          const ci = colPath[depth]
+          if (!Array.isArray(cols) || !cols[ci]) return null
+          if (depth === colPath.length - 1) {
+            return cols.map((cl: any, i: number) =>
+              i === ci ? { ...cl, widgets } : cl
+            )
+          }
+          const wi = colPath[depth + 1]
+          const col = cols[ci]
+          const ws = Array.isArray(col.widgets) ? col.widgets : []
+          const inner = ws[wi]
+          if (!inner || inner.widget_type !== "inner_section") return null
+          const innerCols = rebuild(inner.columns ?? [], depth + 2)
+          if (!innerCols) return null
+          return cols.map((cl: any, i: number) =>
+            i === ci
+              ? {
+                  ...cl,
+                  widgets: ws.map((w: any, j: number) =>
+                    j === wi ? { ...inner, columns: innerCols } : w
+                  ),
+                }
+              : cl
+          )
+        }
+
+        const nextCols = rebuild(sec.columns as any[], 0)
+        if (!nextCols) return c
+        return c.map((b, i) =>
+          i === index ? ({ ...sec, columns: nextCols } as Section) : b
+        )
+      },
+      { patch: index }
+    )
+
+  const colPathOf = (path: number[]) => path.slice(0, -1)
+  const wiOf = (path: number[]) => path[path.length - 1]
+
+  const duplicateWidget = (index: number, path: number[]) => {
+    const colPath = colPathOf(path)
+    const wi = wiOf(path)
+    const ws = widgetsAtPath(index, colPath)
+    if (!ws || !ws[wi]) return
+    const next = [
+      ...ws.slice(0, wi + 1),
+      structuredClone(ws[wi]),
+      ...ws.slice(wi + 1),
+    ]
+    writeWidgetsAtPath(index, colPath, next)
+    select({ kind: "widget", index, path: [...colPath, wi + 1] })
+    setStatus("Widget duplicated.")
+  }
+
+  const removeWidget = (index: number, path: number[]) => {
+    const colPath = colPathOf(path)
+    const wi = wiOf(path)
+    const ws = widgetsAtPath(index, colPath)
+    if (!ws || !ws[wi]) return
+    writeWidgetsAtPath(index, colPath, ws.filter((_, i) => i !== wi))
+    select(null)
+    setStatus("Widget deleted.")
+  }
+
+  const copyWidget = (index: number, path: number[]) => {
+    const ws = widgetsAtPath(index, colPathOf(path))
+    const w = ws?.[wiOf(path)]
+    if (!w) return
+    writeClip("widget", structuredClone(w))
+    syncClip()
+    setStatus("Widget copied.")
+  }
+
+  const pasteWidget = (index: number, path: number[]) => {
+    const clipWidget = readClipboard().widget
+    const colPath = colPathOf(path)
+    const wi = wiOf(path)
+    const ws = widgetsAtPath(index, colPath)
+    if (!clipWidget || !ws) return
+    // One level of nesting: an inner section may not be pasted inside another.
+    if (clipWidget.widget_type === "inner_section" && colPath.length > 1) {
+      setStatus("An inner section can't go inside another inner section.")
+      return
+    }
+    const next = [
+      ...ws.slice(0, wi + 1),
+      structuredClone(clipWidget),
+      ...ws.slice(wi + 1),
+    ]
+    writeWidgetsAtPath(index, colPath, next)
+    select({ kind: "widget", index, path: [...colPath, wi + 1] })
+    setStatus("Widget pasted.")
+  }
+
+  const widgetStyleAction = (
+    action: "copyStyle" | "pasteStyle" | "resetStyle",
+    index: number,
+    path: number[]
+  ) => {
+    const ws = widgetsAtPath(index, colPathOf(path))
+    const w = ws?.[wiOf(path)]
+    if (!w) return
+
+    if (action === "copyStyle") {
+      writeClip(
+        "style",
+        structuredClone({
+          source: "widget",
+          style: w.style,
+          advanced: w.advanced,
+        }) as StyleClip
+      )
+      syncClip()
+      setStatus("Style copied.")
+      return
+    }
+
+    if (action === "resetStyle") {
+      writeWidgetBags(index, path, { style: {}, advanced: {} })
+      setStatus("Style reset.")
+      return
+    }
+
+    const c = readClipboard().style
+    if (!c) return
+    writeWidgetBags(index, path, {
+      style: deepMergeBag(
+        (w.style as Record<string, unknown>) ?? {},
+        c.style ?? {}
+      ),
+      advanced: deepMergeBag(
+        (w.advanced as Record<string, unknown>) ?? {},
+        c.advanced ?? {}
+      ),
+    })
+    setStatus("Style pasted.")
+  }
+
+  /** Style clipboard actions on a theme ELEMENT ([data-el]) inside a section.
+   *  One write per action — the old version wrote the two bags sequentially
+   *  and the second write erased the first (the broken Paste Style). */
+  const elementStyleAction = (
+    action: "copyStyle" | "pasteStyle" | "resetStyle",
+    index: number,
+    key: string
+  ) => {
+    const sec: any = contentRef.current?.[index]
+    if (!sec) return
+    const es = (sec.elementStyles as ElementStyles | undefined) ?? {}
+    const entry: any = es[key] ?? {}
+
+    if (action === "copyStyle") {
+      writeClip(
+        "style",
+        structuredClone({
+          source: "element",
+          style: entry.style,
+          advanced: entry.advanced,
+        }) as StyleClip
+      )
+      syncClip()
+      setStatus("Style copied — paste it onto any other element.")
+      return
+    }
+
+    if (action === "resetStyle") {
+      writeElementBags(index, key, { style: {}, advanced: {} })
+      setStatus("Style reset.")
+      return
+    }
+
+    const c = readClipboard().style
+    if (!c) return
+    writeElementBags(index, key, {
+      style: deepMergeBag(
+        (entry.style as Record<string, unknown>) ?? {},
+        c.style ?? {}
+      ),
+      advanced: deepMergeBag(
+        (entry.advanced as Record<string, unknown>) ?? {},
+        c.advanced ?? {}
+      ),
+    })
+    setStatus("Style pasted.")
+  }
+
+  /**
+   * Duplicate / delete ONE item of a section's repeatable array (a hero
+   * slide, a banner tile, a testimonial). `field` and `itemIndex` come from
+   * the data-el-item marker on the item's DOM root, so this works for every
+   * theme without knowing anything about the block. Style is untouched:
+   * element styles are keyed per element KIND and shared across items.
+   */
+  const itemAction = (
+    a: "duplicateItem" | "deleteItem",
+    index: number,
+    field: string,
+    itemIndex: number
+  ) => {
+    const sec: any = contentRef.current?.[index]
+    const arr = sec?.[field]
+    if (!Array.isArray(arr) || itemIndex < 0 || itemIndex >= arr.length) return
+    if (a === "deleteItem" && arr.length <= 1) {
+      setStatus(
+        "That is the last item — if you don't want this section, delete the section itself."
+      )
+      return
+    }
+    commit(
+      (cur) => {
+        const s: any = cur[index]
+        const list = s?.[field]
+        if (!Array.isArray(list) || !list[itemIndex]) return cur
+        const next =
+          a === "duplicateItem"
+            ? [
+                ...list.slice(0, itemIndex + 1),
+                structuredClone(list[itemIndex]),
+                ...list.slice(itemIndex + 1),
+              ]
+            : list.filter((_: unknown, j: number) => j !== itemIndex)
+        return cur.map((b, j) =>
+          j === index ? ({ ...s, [field]: next } as Section) : b
+        )
+      },
+      { patch: index }
+    )
+    setStatus(a === "duplicateItem" ? "Item duplicated." : "Item deleted.")
   }
 
   const duplicateSection = (i: number) => {
-    if (!content || i < 0 || i >= content.length) return
-    snapshot()
-    const clone = structuredClone(content[i])
-    const next = [...content.slice(0, i + 1), clone, ...content.slice(i + 1)]
-    setContent(next)
-    pushToCanvas(next)
-    setSelected(i + 1)
-    setSelectedWidget(null)
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "cms:select", index: i + 1 },
-      "*"
-    )
+    const cur = contentRef.current
+    if (!cur || i < 0 || i >= cur.length) return
+    const clone = structuredClone(cur[i])
+    commit((c) => [...c.slice(0, i + 1), clone, ...c.slice(i + 1)])
+    select({ kind: "section", index: i + 1 })
   }
 
   const openAddAt = (index: number | null) => {
     setAddTargetIndex(index)
     setAdding(true)
-    setSelected(null)
-    setSelectedChrome(null)
-    setSelectedElement(null)
-    setSelectedChromeElement(null)
-    setSelectedWidget(null)
+    select(null, { mirror: false })
   }
 
   const removeSection = (i: number) => {
-    if (!content) return
-    snapshot()
-    const next = content.filter((_, idx) => idx !== i)
-    setContent(next)
-    pushToCanvas(next)
-    setSelected(null)
-    setSelectedWidget(null)
+    commit((c) => c.filter((_, idx) => idx !== i))
+    select(null)
   }
 
   const publish = async () => {
@@ -1256,6 +1991,69 @@ export default function VisualEditor() {
   moveToRef.current = moveSectionTo
   insertContainerRef.current = insertContainerAt
   insertWidgetSectionRef.current = insertWidgetAsSection
+  selRef.current = select
+  ctxRef.current = {
+    duplicateWidget,
+    removeWidget,
+    copyWidget,
+    pasteWidget,
+    widgetStyleAction,
+    elementStyleAction,
+    chromeStyleAction,
+    chromeElementStyleAction,
+    itemAction,
+  }
+
+  /**
+   * Keyboard clipboard (Cmd/Ctrl+C, V, D, Delete) — acts on whatever is
+   * selected, whichever window has focus (the canvas forwards its keys).
+   * For a theme element, Copy/Paste mean its STYLE (an element is a field of
+   * its section — there is no free-standing element to copy).
+   */
+  keyActRef.current = (a) => {
+    if (selectedWidget) {
+      const { index, path } = selectedWidget
+      if (a === "copy") copyWidget(index, path)
+      else if (a === "paste") pasteWidget(index, path)
+      else if (a === "duplicate") duplicateWidget(index, path)
+      else if (a === "delete") removeWidget(index, path)
+      return
+    }
+    if (selectedElement) {
+      const { index, key } = selectedElement
+      if (a === "copy") elementStyleAction("copyStyle", index, key)
+      else if (a === "paste") elementStyleAction("pasteStyle", index, key)
+      else {
+        setStatus(
+          "A theme element is part of its section — duplicate or delete the section instead."
+        )
+      }
+      return
+    }
+    if (selectedChromeElement) {
+      const { region, key } = selectedChromeElement
+      if (a === "copy") chromeElementStyleAction("copyStyle", region, key)
+      else if (a === "paste") chromeElementStyleAction("pasteStyle", region, key)
+      return
+    }
+    if (selectedChrome) {
+      if (a === "copy") chromeStyleAction("copyStyle", selectedChrome)
+      else if (a === "paste") chromeStyleAction("pasteStyle", selectedChrome)
+      return
+    }
+    if (selected != null) {
+      if (a === "copy") copySection(selected)
+      else if (a === "paste") pasteSection(selected)
+      else if (a === "duplicate") duplicateSection(selected)
+      else if (a === "delete") removeSection(selected)
+      return
+    }
+    // Nothing selected: pasting a copied section appends to the end.
+    if (a === "paste" && readClipboard().section && contentRef.current) {
+      pasteSection(contentRef.current.length - 1)
+    }
+  }
+
   actionsRef.current = {
     up: (i) => moveSection(i, -1),
     down: (i) => moveSection(i, 1),
@@ -1264,6 +2062,11 @@ export default function VisualEditor() {
     edit: selectSection,
     addBelow: (i) => openAddAt(i + 1),
     insert: (i) => openAddAt(i),
+    copy: copySection,
+    paste: pasteSection,
+    copyStyle: copySectionStyle,
+    pasteStyle: pasteSectionStyle,
+    resetStyle: resetSectionStyle,
   }
   insertRef.current = { section: insertSectionAt, widget: insertWidgetAt }
 
@@ -1272,24 +2075,11 @@ export default function VisualEditor() {
     [content, selected]
   )
 
-  // Hydrate the copied-style buffer + preset library from localStorage once, so
-  // both survive a full page navigation (module ref alone would be lost).
+  // Hydrate the preset library from localStorage once (the clipboard module
+  // hydrates itself). Announce the (possibly persisted) clipboard so the Paste
+  // buttons wake up correctly.
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(LS_COPIED_STYLE)
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (parsed && typeof parsed === "object") {
-          copiedStyleRef = {
-            style: parsed.style ?? {},
-            advanced: parsed.advanced ?? {},
-          }
-          setHasCopied(true)
-        }
-      }
-    } catch {
-      // ignore malformed clipboard
-    }
+    syncClip()
     try {
       const raw = window.localStorage.getItem(LS_STYLE_PRESETS)
       if (raw) {
@@ -1309,72 +2099,25 @@ export default function VisualEditor() {
     } catch {
       // ignore malformed preset store
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Write both bags of the selected section in a SINGLE update. Calling
-  // updateSelectedBag twice in a row would clobber the first change (both reads
-  // share the same stale `selectedBlock` closure), so paste/reset/preset — which
-  // touch style AND advanced — go through this instead. Same diff-only rule:
-  // an empty bag deletes the key so an un-styled section stays byte-identical.
-  const applySelectedBags = useCallback(
-    (
-      nextStyle: Record<string, unknown>,
-      nextAdvanced: Record<string, unknown>
-    ) => {
-      if (selected == null || !selectedBlock) return
-      snapshot()
-      const idx = selected
-      const updated: Section = { ...selectedBlock }
-      if (nextStyle && Object.keys(nextStyle).length > 0) {
-        updated.style = nextStyle
-      } else {
-        delete updated.style
-      }
-      if (nextAdvanced && Object.keys(nextAdvanced).length > 0) {
-        updated.advanced = nextAdvanced
-      } else {
-        delete updated.advanced
-      }
-      setContent((c) => (c ? c.map((b, i) => (i === idx ? updated : b)) : c))
-      patchToCanvas(idx, updated)
-    },
-    [selected, selectedBlock, patchToCanvas]
-  )
-
-  // Copy the selected section's look (style + advanced only — never content) to
-  // the module ref + localStorage so it can be pasted onto any section, page.
+  // Sidebar Copy/Paste/Reset style — the SAME clipboard as the context menu
+  // and the keyboard. Copy here, paste from the right-click menu; copy from an
+  // element's menu, paste here. One clipboard, every door.
   const copyStyle = () => {
-    if (!selectedBlock) return
-    const payload: CopiedStyle = {
-      style: (selectedBlock.style as Record<string, unknown>) ?? {},
-      advanced: (selectedBlock.advanced as Record<string, unknown>) ?? {},
-    }
-    copiedStyleRef = payload
-    try {
-      window.localStorage.setItem(LS_COPIED_STYLE, JSON.stringify(payload))
-    } catch {
-      // localStorage may be unavailable; the module ref still works this session
-    }
-    setHasCopied(true)
-    setStatus("Style copied — select another section and Paste style.")
+    if (selected == null) return
+    copySectionStyle(selected)
   }
 
-  // Merge the copied look onto the selected section (visual bags only). Existing
-  // keys are preserved; copied keys win on conflict.
   const pasteStyle = () => {
-    const src = copiedStyleRef
-    if (!src || selected == null || !selectedBlock) return
-    const curStyle = (selectedBlock.style as Record<string, unknown>) ?? {}
-    const curAdv = (selectedBlock.advanced as Record<string, unknown>) ?? {}
-    applySelectedBags(
-      deepMergeBag(curStyle, src.style ?? {}),
-      deepMergeBag(curAdv, src.advanced ?? {})
-    )
+    if (selected == null) return
+    pasteSectionStyle(selected)
   }
 
-  // Clear both visual bags on the selected section (content is untouched).
+  // Clear all visual bags on the selected section (content is untouched).
   const resetStyle = () => {
-    if (selected == null || !selectedBlock) return
+    if (selected == null) return
     if (
       !window.confirm(
         "Reset all Style & Advanced settings for this section? Content is kept."
@@ -1382,7 +2125,7 @@ export default function VisualEditor() {
     ) {
       return
     }
-    applySelectedBags({}, {})
+    resetSectionStyle(selected)
   }
 
   // Save the selected section's look as a named preset (upsert by name).
@@ -1413,10 +2156,10 @@ export default function VisualEditor() {
     if (!preset || selected == null || !selectedBlock) return
     const curStyle = (selectedBlock.style as Record<string, unknown>) ?? {}
     const curAdv = (selectedBlock.advanced as Record<string, unknown>) ?? {}
-    applySelectedBags(
-      deepMergeBag(curStyle, preset.style ?? {}),
-      deepMergeBag(curAdv, preset.advanced ?? {})
-    )
+    writeSectionBags(selected, {
+      style: deepMergeBag(curStyle, preset.style ?? {}),
+      advanced: deepMergeBag(curAdv, preset.advanced ?? {}),
+    })
   }
 
   // Global theme tokens (colors + fonts) surfaced to linkable color/font
@@ -1469,28 +2212,23 @@ export default function VisualEditor() {
       <div
         style={{
           padding: 48,
-          fontFamily: "system-ui, sans-serif",
+          fontFamily: font,
           display: "flex",
           flexDirection: "column",
           alignItems: "flex-start",
           gap: 16,
         }}
       >
-        <div style={{ color: "#b91c1c", fontSize: 16, fontWeight: 600 }}>
+        <div style={{ ...type.heading, color: semantic.dangerFg }}>
           This editor link is invalid or has expired.
         </div>
-        <div style={{ color: "#6b7280", fontSize: 14 }}>
+        <div style={{ ...type.title, fontWeight: 400, color: grey[50] }}>
           Open the visual editor again from the admin to get a fresh link.
         </div>
         <a
           href={EXIT_HREF}
           style={{
-            fontSize: 14,
-            fontWeight: 600,
-            padding: "8px 16px",
-            borderRadius: 6,
-            background: "#2563eb",
-            color: "#fff",
+            ...button("accent"),
             textDecoration: "none",
           }}
         >
@@ -1502,13 +2240,13 @@ export default function VisualEditor() {
 
   return (
     <CatalogProvider editorKey={key}>
-    <div style={{ display: "flex", height: "100vh", fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ display: "flex", height: "100vh", fontFamily: font }}>
       {/* Canvas */}
       <div
         style={{
           flex: 1,
           minWidth: 0,
-          background: "#f3f4f6",
+          background: grey[10],
           display: "flex",
           flexDirection: "column",
         }}
@@ -1519,10 +2257,10 @@ export default function VisualEditor() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: 6,
-            padding: "6px 10px",
-            borderBottom: "1px solid #1f2124",
-            background: "#26292c",
+            gap: 8,
+            padding: "8px 12px",
+            borderBottom: hairlineDark,
+            background: ink.base,
           }}
         >
           <button
@@ -1530,16 +2268,10 @@ export default function VisualEditor() {
             title="Exit editor"
             style={{
               ...deviceBtn,
-              background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.16)",
-              color: "#e5e7eb",
               marginRight: "auto",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
             }}
           >
-            <UiIcon name="arrow-left" size={13} />
+            <UiIcon name="arrow-left" size={14} />
             Exit
           </button>
           {/* Device toggle — one segmented control with device glyphs */}
@@ -1550,9 +2282,9 @@ export default function VisualEditor() {
               display: "flex",
               gap: 2,
               padding: 2,
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 8,
+              background: ink.raised,
+              border: hairlineDark,
+              borderRadius: radius.md,
             }}
           >
             {DEVICES.map((d) => (
@@ -1563,18 +2295,18 @@ export default function VisualEditor() {
                 aria-label={d.title}
                 style={{
                   border: 0,
-                  borderRadius: 6,
-                  width: 34,
-                  height: 25,
+                  borderRadius: radius.sm,
+                  width: 32,
+                  height: 24,
                   padding: 0,
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
                   cursor: "pointer",
-                  background: device === d.id ? "#3a4046" : "transparent",
-                  color: device === d.id ? "#fff" : "#9ca3af",
+                  background: device === d.id ? accent.base : "transparent",
+                  color: device === d.id ? accent.on : ink.muted,
                   boxShadow: "none",
-                  transition: "background .12s, color .12s",
+                  transition: `background ${motion.fast}, color ${motion.fast}`,
                 }}
               >
                 <UiIcon name={d.icon} size={15} />
@@ -1583,8 +2315,8 @@ export default function VisualEditor() {
           </div>
           <span
             style={{
-              fontSize: 11,
-              color: dirty ? "#fbbf24" : "#9ca3af",
+              ...type.label,
+              color: dirty ? semantic.warnBorder : ink.muted,
               marginLeft: "auto",
               minWidth: 90,
               textAlign: "right",
@@ -1613,11 +2345,7 @@ export default function VisualEditor() {
                 )
               }}
               style={{
-                ...deviceBtn,
-                background: "#f3bafd",
-                border: 0,
-                color: "#0c0d0e",
-                fontWeight: 700,
+                ...button("accent", "sm"),
                 marginLeft: 8,
               }}
             >
@@ -1629,16 +2357,10 @@ export default function VisualEditor() {
             title={panelCollapsed ? "Show panel" : "Hide panel"}
             style={{
               ...deviceBtn,
-              background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.16)",
-              color: "#e5e7eb",
               marginLeft: 8,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
             }}
           >
-            <UiIcon name="panel" size={13} />
+            <UiIcon name="panel" size={14} />
             {panelCollapsed ? "Show panel" : "Hide panel"}
           </button>
         </div>
@@ -1651,14 +2373,14 @@ export default function VisualEditor() {
               alignItems: "center",
               justifyContent: "center",
               gap: 6,
-              padding: "5px 10px",
-              fontSize: 11,
-              color: "#92400e",
-              background: "#fffbeb",
-              borderBottom: "1px solid #fde68a",
+              padding: "6px 12px",
+              ...type.label,
+              color: semantic.warnFg,
+              background: semantic.warnBg,
+              borderBottom: `1px solid ${semantic.warnBorder}`,
             }}
           >
-            <span aria-hidden>✎</span>
+            <UiIcon name="brush" size={14} />
             Editing {device} — Style &amp; Advanced changes apply to this size and
             down. Desktop values stay untouched.
           </div>
@@ -1686,12 +2408,9 @@ export default function VisualEditor() {
               height: "100%",
               flexShrink: 0,
               border: 0,
-              background: "#fff",
-              borderRadius: device === "desktop" ? 0 : 10,
-              boxShadow:
-                device === "desktop"
-                  ? "none"
-                  : "0 4px 24px rgba(0,0,0,0.14)",
+              background: grey[0],
+              borderRadius: device === "desktop" ? 0 : radius.lg,
+              boxShadow: device === "desktop" ? "none" : shadow.md,
             }}
           />
         </div>
@@ -1707,10 +2426,10 @@ export default function VisualEditor() {
           title="Drag to resize"
           style={{
             order: -1,
-            width: 5,
+            width: 4,
             cursor: "col-resize",
             flexShrink: 0,
-            background: "#e5e7eb",
+            background: grey[20],
           }}
         />
       )}
@@ -1721,31 +2440,30 @@ export default function VisualEditor() {
           order: -2,
           width: panelCollapsed ? 0 : panelWidth,
           flexShrink: 0,
-          borderRight: panelCollapsed ? "none" : "1px solid #e5e7eb",
+          borderRight: panelCollapsed ? "none" : hairline,
           display: "flex",
           flexDirection: "column",
-          background: "#fff",
+          background: grey[0],
           overflow: "hidden",
         }}
       >
         {/* Branded header — wordmark strip + page switcher / history / publish */}
         <div
           style={{
-            background: "#26292c",
-            padding: "10px 14px 12px",
+            background: ink.base,
+            padding: "12px 12px 12px",
             display: "flex",
             flexDirection: "column",
-            gap: 10,
+            gap: 12,
             flexShrink: 0,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span
               style={{
-                fontFamily: "Marcellus, Georgia, 'Times New Roman', serif",
-                fontSize: 16,
-                letterSpacing: 0.5,
-                color: "#fff",
+                ...type.title,
+                fontFamily: font,
+                color: ink.text,
                 lineHeight: 1,
                 whiteSpace: "nowrap",
               }}
@@ -1754,15 +2472,12 @@ export default function VisualEditor() {
             </span>
             <span
               style={{
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: 1,
-                textTransform: "uppercase",
-                color: "#f0abfc",
-                border: "1px solid rgba(240, 171, 252, 0.4)",
-                borderRadius: 4,
-                padding: "2px 5px",
-                lineHeight: 1,
+                ...type.micro,
+                color: accent.base,
+                border: `1px solid ${accent.ring}`,
+                borderRadius: radius.sm,
+                padding: "2px 6px",
+                lineHeight: 1.4,
               }}
             >
               Editor
@@ -1781,18 +2496,19 @@ export default function VisualEditor() {
                 }
               }}
               style={{
+                ...field(),
+                ...type.label,
+                fontFamily: font,
                 marginRight: "auto",
+                width: "auto",
                 minWidth: 0,
                 maxWidth: 150,
-                padding: "5px 8px",
-                border: "1px solid #374151",
-                borderRadius: 7,
-                fontSize: 12,
-                fontWeight: 600,
-                background: "#1f2937",
-                color: "#f9fafb",
+                height: 28,
+                padding: "0 8px",
+                border: hairlineDark,
+                background: ink.raised,
+                color: ink.text,
                 cursor: "pointer",
-                outline: "none",
               }}
               title="Switch page"
             >
@@ -1835,16 +2551,14 @@ export default function VisualEditor() {
               title={previewMode ? "Exit preview" : "Preview changes (no publish needed)"}
               aria-label="Preview changes"
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: 6,
-                border: "1px solid rgba(255,255,255,0.16)",
-                background: previewMode ? "#f3bafd" : "rgba(255,255,255,0.07)",
-                color: previewMode ? "#0c0d0e" : "#e5e7eb",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
+                ...iconButton("sm", true),
+                ...(previewMode
+                  ? {
+                      background: accent.base,
+                      borderColor: accent.base,
+                      color: accent.on,
+                    }
+                  : {}),
                 flexShrink: 0,
               }}
             >
@@ -1854,17 +2568,14 @@ export default function VisualEditor() {
               onClick={() => setShowAi(true)}
               title="AI editor — edit this page by describing changes"
               style={{
-                fontSize: 12,
-                fontWeight: 700,
-                padding: "7px 12px",
-                borderRadius: 7,
-                border: "1px solid rgba(240,171,252,0.5)",
-                background: "rgba(240,171,252,0.12)",
-                color: "#f0abfc",
-                cursor: "pointer",
+                ...button("ghost", "sm"),
+                border: hairlineDark,
+                background: accent.soft,
+                color: accent.base,
                 flexShrink: 0,
               }}
             >
+              <UiIcon name="sparkles" size={14} />
               AI
             </button>
             <button
@@ -1872,24 +2583,27 @@ export default function VisualEditor() {
               disabled={!dirty}
               title={dirty ? "Publish your changes" : "All changes published"}
               style={{
-                fontSize: 12,
-                fontWeight: 700,
-                padding: "7px 16px",
-                borderRadius: 7,
-                border: 0,
-                background: dirty ? "#f3bafd" : "rgba(255,255,255,0.10)",
-                color: dirty ? "#0c0d0e" : "#9ca3af",
-                cursor: dirty ? "pointer" : "default",
+                ...button(dirty ? "accent" : "ghost", "sm"),
+                ...(dirty
+                  ? {}
+                  : {
+                      background: ink.raised,
+                      borderColor: ink.hairline,
+                      color: ink.muted,
+                      cursor: "default",
+                    }),
                 flexShrink: 0,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                transition: "background .15s, color .15s",
               }}
             >
               {dirty ? (
                 <span
-                  style={{ width: 6, height: 6, borderRadius: 3, background: "#d004d4", display: "inline-block" }}
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: radius.pill,
+                    background: accent.on,
+                    display: "inline-block",
+                  }}
                 />
               ) : null}
               {dirty ? "Publish" : "Published"}
@@ -1942,27 +2656,45 @@ export default function VisualEditor() {
                 locale={locale}
                 editorKey={key}
                 currentBlocks={content ?? []}
-                onClose={() => setShowTemplates(false)}
+                onClose={() => {
+                  setShowTemplates(false)
+                  setTemplateAt(null)
+                }}
                 onInsert={(blocks) => {
-                  if (!content || !Array.isArray(blocks) || blocks.length === 0) return
-                  snapshot()
-                  const at = content.length
-                  const next = [...content, ...(blocks as Section[])]
-                  setContent(next)
-                  pushToCanvas(next) // structural change -> live canvas sync
-                  setContentDirty(true)
+                  const cur = contentRef.current
+                  if (!cur || !Array.isArray(blocks) || blocks.length === 0) return
+
+                  // Insert WHERE THE USER IS, not at the bottom of the document.
+                  //
+                  // On a real page — 30-odd sections, ~18,000px — appending to
+                  // the end lands below the footer, off screen, and reads as
+                  // "the template did nothing". Elementor drops a template right
+                  // after whatever you have selected; so does this. With nothing
+                  // selected it still falls back to the end.
+                  const at =
+                    templateAt != null && templateAt >= 0 && templateAt <= cur.length
+                      ? templateAt
+                      : selected != null && selected >= 0 && selected < cur.length
+                        ? selected + 1
+                        : cur.length
+
+                  commit((c) => [
+                    ...c.slice(0, at),
+                    ...(blocks as Section[]),
+                    ...c.slice(at),
+                  ])
                   // Select + scroll to the first inserted section so the result
                   // is immediately visible (cms:select scrolls it into view).
-                  setSelected(at)
-                  setSelectedChrome(null)
-                  setSelectedElement(null)
-                  setSelectedChromeElement(null)
-                  setSelectedWidget(null)
-                  iframeRef.current?.contentWindow?.postMessage(
-                    { type: "cms:select", index: at },
-                    "*"
+                  select({ kind: "section", index: at })
+                  const where =
+                    at === cur.length
+                      ? "at the end of the page"
+                      : "below the selected section"
+                  setStatus(
+                    `Template added — ${blocks.length} section${
+                      blocks.length === 1 ? "" : "s"
+                    } inserted ${where}.`
                   )
-                  setStatus(`Template added — ${blocks.length} section${blocks.length === 1 ? "" : "s"} inserted at the end of the page.`)
                 }}
               />
             )}
@@ -1979,15 +2711,16 @@ export default function VisualEditor() {
                 style={{
                   display: "flex",
                   alignItems: "flex-start",
-                  gap: 7,
-                  margin: "10px 14px 0",
+                  gap: 8,
+                  margin: "12px 12px 0",
                   padding: "8px 10px",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  lineHeight: 1.45,
-                  background: isErr ? "#fef2f2" : "#f0fdf4",
-                  border: `1px solid ${isErr ? "#fecaca" : "#bbf7d0"}`,
-                  color: isErr ? "#b91c1c" : "#15803d",
+                  borderRadius: radius.md,
+                  ...type.label,
+                  background: isErr ? semantic.dangerBg : semantic.successBg,
+                  border: `1px solid ${
+                    isErr ? semantic.dangerBorder : semantic.successBorder
+                  }`,
+                  color: isErr ? semantic.dangerFg : semantic.successFg,
                   flexShrink: 0,
                 }}
               >
@@ -2002,73 +2735,107 @@ export default function VisualEditor() {
           })()}
 
         {/* Body */}
-        <div style={{ flex: 1, overflow: "auto", padding: 14 }}>
+        <div style={{ flex: 1, overflow: "auto", padding: 12 }}>
           {loadError ? (
             <div>
-              <p style={{ color: "#b91c1c", fontSize: 13, margin: "0 0 6px" }}>
+              <p
+                style={{
+                  ...type.bodyStrong,
+                  color: semantic.dangerFg,
+                  margin: "0 0 6px",
+                }}
+              >
                 This page could not be loaded.
               </p>
-              <p style={{ color: "#6b7280", fontSize: 12, margin: "0 0 12px" }}>
+              <p style={{ ...type.label, color: grey[50], margin: "0 0 12px" }}>
                 Your storefront may be offline or the link may have expired.
                 Publishing is disabled until it loads.
               </p>
               <button
                 onClick={() => setReloadNonce((n) => n + 1)}
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  padding: "6px 14px",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  background: "#fff",
-                  cursor: "pointer",
-                }}
+                style={button("secondary", "sm")}
               >
                 Retry
               </button>
             </div>
           ) : !content ? (
-            <p style={{ color: "#6b7280", fontSize: 13 }}>Loading…</p>
+            <p style={{ ...type.body, color: grey[50] }}>Loading…</p>
           ) : selectedWidget && content[selectedWidget.index] ? (
             (() => {
-              const { index, col, wi } = selectedWidget
-              const section = content[index]
-              const widget = (section.columns as Column[] | undefined)?.[col]
-                ?.widgets?.[wi]
+              const { index, path } = selectedWidget
+              const widget = widgetsAtPath(index, path.slice(0, -1))?.[
+                path[path.length - 1]
+              ] as Widget | undefined
+              const col = path[path.length - 2]
               if (!widget) {
                 return (
                   <div>
                     <button
                       onClick={backToContainer}
-                      style={{
-                        fontSize: 12,
-                        color: "#2563eb",
-                        background: "none",
-                        border: 0,
-                        cursor: "pointer",
-                        padding: 0,
-                        marginBottom: 6,
-                      }}
+                      style={backLink}
                     >
-                      ← Back to Container
+                      <UiIcon name="arrow-left" size={12} />
+                      Back to Container
                     </button>
-                    <p style={{ fontSize: 13, color: "#6b7280" }}>
+                    <p style={{ ...type.body, color: grey[50] }}>
                       This widget no longer exists.
                     </p>
                   </div>
                 )
               }
               const def = getWidgetSchema(widget.widget_type)
-              const { widget_type, style, advanced, ...contentProps } = widget
+              const {
+                widget_type,
+                style,
+                advanced,
+                columns: widgetColumns,
+                ...contentProps
+              } = widget as any
+              const isInner = widget_type === "inner_section"
+              // "Container › Column 1" for a top-level widget; nested widgets
+              // spell out where they live, e.g. "Container › Column 1 › Inner
+              // Section › Column 2".
+              const trail =
+                path.length > 2
+                  ? `Container › Column ${path[0] + 1} › Inner Section › Column ${
+                      path[2] + 1
+                    }`
+                  : `Container › Column ${col + 1}`
               return (
+                <>
+                <ClipStrip
+                  canPaste={clip.hasStyle}
+                  onCopy={() => widgetStyleAction("copyStyle", index, path)}
+                  onPaste={() => widgetStyleAction("pasteStyle", index, path)}
+                  onReset={() => widgetStyleAction("resetStyle", index, path)}
+                />
                 <SchemaPanel
                   widgetMode
-                  blockLabel={`Container › Column ${col + 1}`}
+                  blockLabel={trail}
                   elementLabel={def?.label ?? widget_type}
                   onBackToSection={backToContainer}
                   contentFields={def?.fields ?? []}
                   props={contentProps}
-                  onChange={(next) => updateSelectedWidget(next)}
+                  onChange={(next) =>
+                    updateSelectedWidget(
+                      // An inner section's layout drives its own column count,
+                      // exactly like the section-level container's does.
+                      isInner
+                        ? (reconcileInnerColumns(next, widgetColumns) as any)
+                        : next
+                    )
+                  }
+                  contentExtra={
+                    isInner ? (
+                      <ContainerColumnsEditor
+                        columns={(widgetColumns as Column[]) ?? []}
+                        onChange={setSelectedWidgetColumns}
+                        onSelectWidget={(c2, w2) =>
+                          selectWidget(index, [...path, c2, w2])
+                        }
+                      />
+                    ) : undefined
+                  }
                   styleBag={(style as Record<string, unknown>) ?? {}}
                   advancedBag={(advanced as Record<string, unknown>) ?? {}}
                   onStyleChange={(next) =>
@@ -2080,6 +2847,7 @@ export default function VisualEditor() {
                   device={device}
                   themeTokens={themeTokens}
                 />
+                </>
               )
             })()
           ) : selectedElement && content[selectedElement.index] ? (
@@ -2092,12 +2860,54 @@ export default function VisualEditor() {
               const es =
                 (section.elementStyles as ElementStyles | undefined) ?? {}
               const entry = es[selectedElement.key] ?? {}
+              const elSchema = getBlockSchema(blockType)
+              const { block_type: _bt, schema_version: _sv, ...elData } =
+                section as Record<string, unknown>
               return (
+                <>
+                <ClipStrip
+                  canPaste={clip.hasStyle}
+                  onCopy={() =>
+                    elementStyleAction(
+                      "copyStyle",
+                      selectedElement.index,
+                      selectedElement.key
+                    )
+                  }
+                  onPaste={() =>
+                    elementStyleAction(
+                      "pasteStyle",
+                      selectedElement.index,
+                      selectedElement.key
+                    )
+                  }
+                  onReset={() =>
+                    elementStyleAction(
+                      "resetStyle",
+                      selectedElement.index,
+                      selectedElement.key
+                    )
+                  }
+                />
                 <SchemaPanel
                   elementMode
                   blockLabel={BLOCK_LABELS[blockType] ?? blockType}
                   elementLabel={def?.label ?? selectedElement.key}
                   onBackToSection={backToSection}
+                  // The element's CONTENT is the owning section's content. Passing
+                  // it here is what turns element mode from a Style-only dead end
+                  // (where the only way to edit the words was "← Back to Hero
+                  // Slider") into a real Content / Style / Advanced panel.
+                  schema={elSchema ?? undefined}
+                  props={elData}
+                  elementKey={selectedElement.key}
+                  onChange={(next) =>
+                    updateSectionAt(selectedElement.index, {
+                      block_type: blockType,
+                      ...(_sv != null ? { schema_version: _sv } : {}),
+                      ...next,
+                    })
+                  }
                   styleBag={(entry.style as Record<string, unknown>) ?? {}}
                   advancedBag={
                     (entry.advanced as Record<string, unknown>) ?? {}
@@ -2115,6 +2925,7 @@ export default function VisualEditor() {
                   device={device}
                   themeTokens={themeTokens}
                 />
+                </>
               )
             })()
           ) : selectedChromeElement ? (
@@ -2130,11 +2941,24 @@ export default function VisualEditor() {
               const entry = es[elKey] ?? {}
               const regionLabel = getChromeSchema(region)?.label ?? region
               return (
+                <>
+                <ClipStrip
+                  canPaste={clip.hasStyle}
+                  onCopy={() => chromeElementStyleAction("copyStyle", region, elKey)}
+                  onPaste={() => chromeElementStyleAction("pasteStyle", region, elKey)}
+                  onReset={() => chromeElementStyleAction("resetStyle", region, elKey)}
+                />
                 <SchemaPanel
                   elementMode
                   blockLabel={regionLabel}
                   elementLabel={def?.label ?? elKey}
                   onBackToSection={backToChromeRegion}
+                  // Same dead end, same fix: a header/footer element's content is
+                  // the region's content, so it is editable right here.
+                  schema={getChromeSchema(region) ?? undefined}
+                  props={regionData}
+                  elementKey={elKey}
+                  onChange={(next) => updateChrome(region, next)}
                   styleBag={(entry.style as Record<string, unknown>) ?? {}}
                   advancedBag={
                     (entry.advanced as Record<string, unknown>) ?? {}
@@ -2148,6 +2972,7 @@ export default function VisualEditor() {
                   device={device}
                   themeTokens={themeTokens}
                 />
+                </>
               )
             })()
           ) : selectedChrome && getChromeSchema(selectedChrome) ? (
@@ -2165,21 +2990,21 @@ export default function VisualEditor() {
               >
               return (
                 <div>
-                  <button
-                    onClick={() => {
-                      setSelectedChrome(null)
-                      iframeRef.current?.contentWindow?.postMessage(
-                        { type: "cms:selectChrome", key: null },
-                        "*"
-                      )
-                    }}
-                    style={{ fontSize: 12, color: "#2563eb", background: "none", border: 0, cursor: "pointer", padding: 0, marginBottom: 6 }}
-                  >
-                    ← Elements
+                  <button onClick={() => select(null)} style={backLink}>
+                    <UiIcon name="arrow-left" size={12} />
+                    Elements
                   </button>
-                  <h3 style={{ fontSize: 15, margin: "0 0 8px" }}>
+                  <h3 style={{ ...type.title, color: grey[90], margin: "0 0 8px" }}>
                     {getChromeSchema(selectedChrome)!.label}
                   </h3>
+                  {stylable ? (
+                    <ClipStrip
+                      canPaste={clip.hasStyle}
+                      onCopy={() => chromeStyleAction("copyStyle", selectedChrome)}
+                      onPaste={() => chromeStyleAction("pasteStyle", selectedChrome)}
+                      onReset={() => chromeStyleAction("resetStyle", selectedChrome)}
+                    />
+                  ) : null}
                   <SchemaPanel
                     schema={getChromeSchema(selectedChrome)!}
                     props={regionData}
@@ -2205,32 +3030,21 @@ export default function VisualEditor() {
             })()
           ) : selectedBlock ? (
             <div>
-              <button
-                onClick={() => selectSection(-1)}
-                style={{
-                  fontSize: 12,
-                  color: "#2563eb",
-                  background: "none",
-                  border: 0,
-                  cursor: "pointer",
-                  padding: 0,
-                  marginBottom: 6,
-                }}
-              >
-                ← Elements
+              <button onClick={() => selectSection(-1)} style={backLink}>
+                <UiIcon name="arrow-left" size={12} />
+                Elements
               </button>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                 <span
                   aria-hidden
-                  style={{ color: "#6b7280", display: "inline-flex", flexShrink: 0 }}
+                  style={{ color: grey[50], display: "inline-flex", flexShrink: 0 }}
                 >
                   <PaletteIcon type={selectedBlock.block_type} size={18} />
                 </span>
                 <h3
                   style={{
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: "#111827",
+                    ...type.title,
+                    color: grey[90],
                     margin: 0,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -2271,10 +3085,10 @@ export default function VisualEditor() {
                   display: "flex",
                   alignItems: "center",
                   flexWrap: "wrap",
-                  gap: 4,
+                  gap: 6,
                   marginBottom: 12,
                   paddingBottom: 12,
-                  borderBottom: "1px solid #f3f4f6",
+                  borderBottom: hairline,
                 }}
               >
                 <button
@@ -2282,22 +3096,24 @@ export default function VisualEditor() {
                   title="Copy this section's Style + Advanced settings"
                   style={styleActionBtn}
                 >
+                  <UiIcon name="copy" size={13} />
                   Copy style
                 </button>
                 <button
                   onClick={pasteStyle}
-                  disabled={!hasCopied}
+                  disabled={!clip.hasStyle}
                   title={
-                    hasCopied
+                    clip.hasStyle
                       ? "Paste copied Style + Advanced onto this section"
                       : "Copy a style first"
                   }
                   style={{
                     ...styleActionBtn,
-                    opacity: hasCopied ? 1 : 0.4,
-                    cursor: hasCopied ? "pointer" : "not-allowed",
+                    opacity: clip.hasStyle ? 1 : 0.4,
+                    cursor: clip.hasStyle ? "pointer" : "not-allowed",
                   }}
                 >
+                  <UiIcon name="paste" size={13} />
                   Paste style
                 </button>
                 <button
@@ -2305,10 +3121,11 @@ export default function VisualEditor() {
                   title="Clear all Style + Advanced settings"
                   style={{
                     ...styleActionBtn,
-                    color: "#b91c1c",
-                    borderColor: "#fecaca",
+                    color: semantic.dangerFg,
+                    borderColor: semantic.dangerBorder,
                   }}
                 >
+                  <UiIcon name="reset" size={13} />
                   Reset style
                 </button>
                 <button
@@ -2316,6 +3133,7 @@ export default function VisualEditor() {
                   title="Save this section's look as a reusable preset"
                   style={styleActionBtn}
                 >
+                  <UiIcon name="template" size={13} />
                   Save as preset
                 </button>
                 {presets.length > 0 && (
@@ -2365,7 +3183,7 @@ export default function VisualEditor() {
                             }
                             onChange={setSelectedColumns}
                             onSelectWidget={(col, wi) =>
-                              selectWidget(selected!, col, wi)
+                              selectWidget(selected!, [col, wi])
                             }
                           />
                         ) : undefined
@@ -2405,7 +3223,7 @@ export default function VisualEditor() {
               onAdd={addSection}
               navigator={
             <div>
-              <p style={{ fontSize: 13, color: "#6b7280", marginTop: 0 }}>
+              <p style={{ ...type.body, color: grey[50], marginTop: 0 }}>
                 Drag to reorder sections. Click one to edit it.
               </p>
               {content.map((b, i) => (
@@ -2441,27 +3259,19 @@ export default function VisualEditor() {
               <button
                 onClick={() => setAdding(true)}
                 style={{
+                  ...button("ghost"),
                   width: "100%",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  border: "1px dashed #93c5fd",
-                  background: "#eff6ff",
-                  color: "#1d4ed8",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  padding: "9px",
-                  cursor: "pointer",
+                  border: `1px dashed ${accent.tintStrong}`,
+                  background: accent.tint,
+                  color: accent.base,
                   marginTop: 8,
                 }}
               >
-                <UiIcon name="plus" size={13} />
+                <UiIcon name="plus" size={14} />
                 Add section
               </button>
 
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.6, margin: "16px 0 4px" }}>
+              <div style={{ ...eyebrow(), margin: "16px 0 4px" }}>
                 Site elements
               </div>
               {(["topbar", "header", "footer", "theme"] as const).map((k) => (
@@ -2484,33 +3294,29 @@ export default function VisualEditor() {
             alignItems: "center",
             gap: 6,
             padding: "8px 12px",
-            background: "#26292c",
-            borderTop: "1px solid #1f2124",
+            background: ink.base,
+            borderTop: hairlineDark,
             flexShrink: 0,
           }}
         >
           {[
-            { label: "Templates", onClick: () => setShowTemplates(true), title: "Template library" },
-            { label: "History", onClick: () => setShowRevisions(true), title: "Version history" },
-            { label: "Find  ⌘K", onClick: () => setShowPalette(true), title: "Search (Cmd/Ctrl+K)" },
-            { label: "View live", onClick: () => window.open(slug === "home" ? "/" : "/" + slug, "_blank"), title: "Open the published page in a new tab" },
+            { label: "Templates", icon: "template", onClick: () => setShowTemplates(true), title: "Template library" },
+            { label: "History", icon: "clock", onClick: () => setShowRevisions(true), title: "Version history" },
+            { label: "Find  ⌘K", icon: "search", onClick: () => setShowPalette(true), title: "Search (Cmd/Ctrl+K)" },
+            { label: "View live", icon: "external-link", onClick: () => window.open(slug === "home" ? "/" : "/" + slug, "_blank"), title: "Open the published page in a new tab" },
           ].map((b) => (
             <button
               key={b.label}
               onClick={b.onClick}
               title={b.title}
               style={{
+                ...deviceBtn,
+                ...type.label,
                 flex: 1,
-                fontSize: 11,
-                fontWeight: 600,
-                padding: "7px 6px",
-                borderRadius: 6,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "rgba(255,255,255,0.06)",
-                color: "#e5e7eb",
-                cursor: "pointer",
+                padding: "0 6px",
               }}
             >
+              <UiIcon name={b.icon} size={13} />
               {b.label}
             </button>
           ))}
@@ -2561,37 +3367,38 @@ function SectionRow({
       onMouseLeave={() => setHover(false)}
       title="Drag to reorder, or click to edit"
       style={{
+        ...type.body,
+        fontFamily: font,
         display: "flex",
         alignItems: "center",
-        gap: 9,
+        gap: 8,
         width: "100%",
         textAlign: "left",
         padding: "8px 10px",
         margin: "4px 0",
         border: `1px solid ${
-          isDragOver ? "#2563eb" : hover ? "#d1d5db" : "#e5e7eb"
+          isDragOver ? accent.base : hover ? grey[30] : grey[20]
         }`,
-        borderRadius: 8,
-        background: isDragOver ? "#eff6ff" : hover ? "#f9fafb" : "#fff",
+        borderRadius: radius.md,
+        background: isDragOver ? accent.tint : hover ? grey[5] : grey[0],
         cursor: "grab",
-        fontSize: 13,
-        color: "#111827",
-        transition: "background .12s, border-color .12s",
+        color: grey[90],
+        transition: `background ${motion.fast}, border-color ${motion.fast}`,
       }}
     >
       <span
         aria-hidden
-        style={{ color: "#d1d5db", display: "inline-flex", flexShrink: 0 }}
+        style={{ color: grey[30], display: "inline-flex", flexShrink: 0 }}
       >
         <UiIcon name="grip" size={13} />
       </span>
       <span
         aria-hidden
         style={{
-          color: hover ? "#2563eb" : "#6b7280",
+          color: hover ? accent.base : grey[50],
           display: "inline-flex",
           flexShrink: 0,
-          transition: "color .12s",
+          transition: `color ${motion.fast}`,
         }}
       >
         <PaletteIcon type={blockType} size={17} />
@@ -2608,10 +3415,9 @@ function SectionRow({
       <span
         aria-hidden
         style={{
+          ...type.label,
           marginLeft: "auto",
-          fontSize: 11,
-          fontWeight: 600,
-          color: "#9ca3af",
+          color: grey[40],
           flexShrink: 0,
         }}
       >
@@ -2637,29 +3443,30 @@ function ChromeRow({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
+        ...type.body,
+        fontFamily: font,
         display: "flex",
         alignItems: "center",
-        gap: 9,
+        gap: 8,
         width: "100%",
         textAlign: "left",
         padding: "8px 10px",
         margin: "4px 0",
-        border: `1px solid ${hover ? "#d1d5db" : "#e5e7eb"}`,
-        borderRadius: 8,
-        background: hover ? "#f9fafb" : "#fff",
+        border: `1px solid ${hover ? grey[30] : grey[20]}`,
+        borderRadius: radius.md,
+        background: hover ? grey[5] : grey[0],
         cursor: "pointer",
-        fontSize: 13,
-        color: "#111827",
-        transition: "background .12s, border-color .12s",
+        color: grey[90],
+        transition: `background ${motion.fast}, border-color ${motion.fast}`,
       }}
     >
       <span
         aria-hidden
         style={{
-          color: hover ? "#2563eb" : "#6b7280",
+          color: hover ? accent.base : grey[50],
           display: "inline-flex",
           flexShrink: 0,
-          transition: "color .12s",
+          transition: `color ${motion.fast}`,
         }}
       >
         <UiIcon name={icon} size={16} strokeWidth={1.7} />
@@ -2669,26 +3476,106 @@ function ChromeRow({
   )
 }
 
-// Compact pill buttons for the Copy/Paste/Reset/preset style toolbar (P6).
+/**
+ * The Copy/Paste/Reset style strip — the same three buttons in EVERY panel
+ * mode (section, widget, element, header/footer, header/footer element), all
+ * talking to the one shared clipboard. It used to exist only for sections;
+ * an element's look could not be copied from the panel at all.
+ */
+function ClipStrip({
+  onCopy,
+  onPaste,
+  onReset,
+  canPaste,
+}: {
+  onCopy: () => void
+  onPaste: () => void
+  onReset: () => void
+  canPaste: boolean
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 6,
+        margin: "8px 0 12px",
+        paddingBottom: 12,
+        borderBottom: hairline,
+      }}
+    >
+      <button
+        onClick={onCopy}
+        title="Copy this item's Style + Advanced settings"
+        style={styleActionBtn}
+      >
+        <UiIcon name="copy" size={13} />
+        Copy style
+      </button>
+      <button
+        onClick={onPaste}
+        disabled={!canPaste}
+        title={
+          canPaste
+            ? "Paste the copied Style + Advanced onto this item"
+            : "Copy a style first"
+        }
+        style={{
+          ...styleActionBtn,
+          opacity: canPaste ? 1 : 0.4,
+          cursor: canPaste ? "pointer" : "not-allowed",
+        }}
+      >
+        <UiIcon name="paste" size={13} />
+        Paste style
+      </button>
+      <button
+        onClick={onReset}
+        title="Clear all Style + Advanced settings on this item"
+        style={{
+          ...styleActionBtn,
+          color: semantic.dangerFg,
+          borderColor: semantic.dangerBorder,
+        }}
+      >
+        <UiIcon name="reset" size={13} />
+        Reset style
+      </button>
+    </div>
+  )
+}
+
+/** "← Elements" / "← Back to Container" — the panel's only text links. */
+const backLink: React.CSSProperties = {
+  ...button("ghost", "sm"),
+  height: "auto",
+  padding: 0,
+  marginBottom: 6,
+  ...type.label,
+  fontFamily: font,
+  color: accent.base,
+  background: "none",
+}
+
+// Compact buttons for the Copy/Paste/Reset/preset style toolbar (P6).
 const styleActionBtn: React.CSSProperties = {
-  border: "1px solid #d1d5db",
-  background: "#fff",
-  color: "#374151",
-  borderRadius: 5,
-  padding: "3px 8px",
-  fontSize: 11,
-  fontWeight: 600,
-  cursor: "pointer",
+  ...button("secondary", "sm"),
+  ...type.label,
+  fontFamily: font,
+  height: 26,
+  padding: "0 8px",
+  color: grey[70],
 }
 
 const presetSelect: React.CSSProperties = {
-  border: "1px solid #d1d5db",
-  background: "#fff",
-  color: "#374151",
-  borderRadius: 5,
-  padding: "3px 6px",
-  fontSize: 11,
-  fontWeight: 600,
+  ...field(),
+  ...type.label,
+  fontFamily: font,
+  width: "auto",
+  height: 26,
+  padding: "0 6px",
+  color: grey[70],
   cursor: "pointer",
   maxWidth: 120,
 }
@@ -2710,13 +3597,10 @@ const DEVICES: {
   { id: "mobile", icon: "phone", title: "Mobile — 390px" },
 ]
 
+/** A control on the dark ink chrome (top strip, panel footer). */
 const deviceBtn: React.CSSProperties = {
-  border: "1px solid #d1d5db",
-  background: "#fff",
-  color: "#374151",
-  borderRadius: 6,
-  padding: "4px 12px",
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: "pointer",
+  ...button("ghost", "sm"),
+  border: hairlineDark,
+  background: ink.raised,
+  color: ink.text,
 }

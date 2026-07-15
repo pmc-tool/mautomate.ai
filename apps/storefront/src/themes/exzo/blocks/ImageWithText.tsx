@@ -78,7 +78,12 @@ const ImageWithText = (props: ImageWithTextData) => {
 
   const imageCol = image ? (
     <div className="col-sm-6 col-xs-b30 col-sm-b0">
-      <img src={image} className="block-image rounded-image" alt={title} />
+      <img
+        data-el="image"
+        src={image}
+        className="block-image rounded-image"
+        alt={title}
+      />
     </div>
   ) : null
 
@@ -89,17 +94,24 @@ const ImageWithText = (props: ImageWithTextData) => {
           {props.eyebrow}
         </div>
       ) : null}
-      {title ? <div className="h2">{renderTitle(title)}</div> : null}
+      {title ? (
+        <div data-el="heading" className="h2">
+          {renderTitle(title)}
+        </div>
+      ) : null}
       <div className="title-underline left">
         <span></span>
       </div>
       {props.body ? (
-        <div className="simple-article size-3 col-xs-b30">{props.body}</div>
+        <div data-el="text" className="simple-article size-3 col-xs-b30">
+          {props.body}
+        </div>
       ) : null}
       {props.cta?.href || video ? (
         <div className="buttons-wrapper">
           {props.cta?.href ? (
             <LocalizedClientLink
+              data-el="button"
               href={props.cta.href}
               className="button size-2 style-3"
             >

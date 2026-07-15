@@ -246,6 +246,16 @@ export default function ProductVariantDetailPage() {
     }
   }
 
+  /** Set (or clear) this variant's thumbnail — always an image already in the
+   *  product's gallery, so there is nothing extra to upload or keep in sync. */
+  async function setVariantThumbnail(url: string | null) {
+    await run(
+      "thumbnail",
+      () => updateVariant(token!, productId, variantId, { thumbnail: url }),
+      url ? "Variant thumbnail updated." : "Variant thumbnail cleared."
+    )
+  }
+
   // ---- edit variant (drawer) ----
   function openEdit() {
     if (!variant || !product) return
@@ -627,6 +637,52 @@ export default function ProductVariantDetailPage() {
               )
             })}
           </dl>
+        </SectionCard>
+
+        {/* Thumbnail — chosen from the product's gallery */}
+        <SectionCard
+          title="Thumbnail"
+          description="The image shown for this variant in listings and the cart."
+        >
+          {(product.images || []).length > 0 ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-3">
+                {(product.images || []).map((img) => {
+                  const active = variant.thumbnail === img.url
+                  return (
+                    <button
+                      key={img.id}
+                      type="button"
+                      disabled={busy === "thumbnail"}
+                      onClick={() => setVariantThumbnail(active ? null : img.url)}
+                      title={active ? "Click to clear" : "Use as this variant's thumbnail"}
+                      className={cn(
+                        "relative aspect-square overflow-hidden rounded-base border bg-grey-10 transition",
+                        active
+                          ? "border-2 border-ui-fg-interactive ring-2 ring-ui-fg-interactive/20"
+                          : "border-grey-20 hover:border-grey-40"
+                      )}
+                    >
+                      <img src={img.url} alt="" className="h-full w-full object-cover" />
+                      {active && (
+                        <span className="absolute inset-x-0 bottom-0 bg-black/65 py-0.5 text-[10px] font-medium text-white">
+                          Selected
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-grey-50">
+                No thumbnail selected means this variant falls back to the product's
+                own thumbnail.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-grey-50">
+              This product has no images yet. Add media on the product page first.
+            </p>
+          )}
         </SectionCard>
 
         {/* Inventory */}

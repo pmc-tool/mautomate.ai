@@ -86,7 +86,7 @@ const DealOfDay = (props: DealOfDayData) => {
               <div className="col-lg-7 col-md-7">
                 <div className="colection-info-wrap">
                   <div className="section-title mb-30">
-                    <h2 className="section-title--one">
+                    <h2 data-el="title" className="section-title--one">
                       {title}
                       {props.highlight ? (
                         <>
@@ -97,9 +97,14 @@ const DealOfDay = (props: DealOfDayData) => {
                     </h2>
                   </div>
 
-                  {props.description ? <p>{props.description}</p> : null}
+                  {props.description ? (
+                    <p data-el="text">{props.description}</p>
+                  ) : null}
 
-                  <div className="timer text-center section-space--mt_60">
+                  <div
+                    data-el="countdown"
+                    className="timer text-center section-space--mt_60"
+                  >
                     {/* countdown start */}
                     <div className="countdown-deals counter-style--one">
                       <Unit value={days} label="Days" />
@@ -114,6 +119,7 @@ const DealOfDay = (props: DealOfDayData) => {
                     <div className="button-box section-space--mt_60">
                       <LocalizedClientLink
                         href={cta.href}
+                        data-el="button"
                         className="btn--md btn--black btn"
                       >
                         {cta.label || "Shop now"}{" "}

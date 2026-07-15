@@ -6,11 +6,28 @@
 /* A key-gated modal that lets an image field pick an existing media    */
 /* item, upload a new one, or paste a raw URL. Talks to the storefront   */
 /* proxy /api/puck/media (which forwards to the secret-gated backend     */
-/* bridge). Inline styles match SchemaPanel's aesthetic — no @medusajs.  */
+/* bridge). Inline styles come from the editor design system.            */
 /* ------------------------------------------------------------------ */
 
 import React, { useCallback, useEffect, useState } from "react"
+import { useCatalog } from "@modules/cms/editor/CatalogContext"
+import AiImageStudio from "@modules/cms/editor/AiImageStudio"
+import { UiIcon } from "@modules/cms/editor/palette-icons"
 import { useSearchParams } from "next/navigation"
+import {
+  accent,
+  button,
+  field,
+  font,
+  grey,
+  hairline,
+  iconButton,
+  motion,
+  radius,
+  semantic,
+  shadow,
+  type,
+} from "@modules/cms/editor/design"
 
 type MediaItem = {
   id: string
@@ -24,7 +41,7 @@ type MediaItem = {
 const overlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(17, 24, 39, 0.55)",
+  background: "rgba(15, 19, 25, 0.55)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -32,109 +49,108 @@ const overlay: React.CSSProperties = {
   padding: 20,
 }
 const modal: React.CSSProperties = {
-  background: "#fff",
-  borderRadius: 12,
+  background: grey[0],
+  border: hairline,
+  borderRadius: radius.lg,
   width: "min(720px, 100%)",
   maxHeight: "85vh",
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
-  boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-  fontFamily: "inherit",
+  boxShadow: shadow.lg,
+  fontFamily: font,
 }
 const headerRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 8,
-  padding: "14px 16px",
-  borderBottom: "1px solid #e5e7eb",
+  padding: "16px 20px",
+  borderBottom: hairline,
 }
-const title: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 700,
-  color: "#111827",
+const titleStyle: React.CSSProperties = {
+  ...type.heading,
+  fontFamily: font,
+  color: grey[90],
 }
 const closeBtn: React.CSSProperties = {
+  ...iconButton("sm"),
   marginLeft: "auto",
-  border: "1px solid #d1d5db",
-  background: "#fff",
-  borderRadius: 6,
-  fontSize: 16,
-  lineHeight: 1,
-  padding: "4px 9px",
-  cursor: "pointer",
-  color: "#374151",
+  color: grey[50],
 }
 const body: React.CSSProperties = {
-  padding: 16,
+  padding: 20,
   overflowY: "auto",
 }
 const toolbar: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 8,
-  marginBottom: 14,
+  marginBottom: 16,
   flexWrap: "wrap",
-}
-const input: React.CSSProperties = {
-  boxSizing: "border-box",
-  padding: "8px 10px",
-  border: "1px solid #d1d5db",
-  borderRadius: 7,
-  fontSize: 13,
-  fontFamily: "inherit",
-  color: "#111827",
-  background: "#fff",
-  outline: "none",
-}
-const primaryBtn: React.CSSProperties = {
-  border: "1px solid #2563eb",
-  background: "#2563eb",
-  color: "#fff",
-  borderRadius: 7,
-  fontSize: 13,
-  fontWeight: 600,
-  padding: "8px 12px",
-  cursor: "pointer",
 }
 const grid: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-  gap: 10,
+  gap: 12,
 }
 const tile: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 9,
+  border: hairline,
+  borderRadius: radius.md,
   overflow: "hidden",
   cursor: "pointer",
-  background: "#fafafa",
+  background: grey[0],
+  boxShadow: shadow.xs,
   padding: 0,
+  transition: `border-color ${motion.fast}`,
 }
 const thumb: React.CSSProperties = {
   width: "100%",
   height: 96,
   objectFit: "cover",
   display: "block",
-  background: "#f3f4f6",
+  background: grey[10],
 }
 const tileName: React.CSSProperties = {
-  fontSize: 10,
-  color: "#6b7280",
-  padding: "5px 6px",
+  ...type.label,
+  fontFamily: font,
+  color: grey[50],
+  padding: "6px 8px",
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
+  textAlign: "left",
+}
+
+/** Human labels + what the AI is told to make, per slot. */
+const SLOT_INFO: Record<string, { label: string; size: string; note: string }> = {
+  logo: { label: "Logo", size: "1024x1024", note: "Transparent PNG — sits on any background." },
+  hero: { label: "Hero image", size: "1344x768", note: "Wide, with space for your headline." },
+  banner: { label: "Banner", size: "1536x640", note: "Ultra-wide strip with room for text." },
+  product: { label: "Product photo", size: "1024x1024", note: "Studio lighting on a clean white background." },
+  lifestyle: { label: "Lifestyle photo", size: "1216x832", note: "Natural, in-context brand photography." },
+  background: { label: "Background", size: "1536x640", note: "Soft and low-contrast, for text on top." },
+  square: { label: "Image", size: "1024x1024", note: "Square — good for tiles and galleries." },
+  portrait: { label: "Portrait", size: "832x1216", note: "Tall format." },
 }
 
 export default function MediaPicker({
   value,
   onChange,
   onClose,
+  slot = "square",
+  initialTab = "library",
 }: {
   value?: string
   onChange: (url: string) => void
   onClose: () => void
+  /** Where this image will be used — drives size, framing and transparency. */
+  slot?: string
+  /** Open straight on the AI tab (from the field's AI button). */
+  initialTab?: "library" | "generate"
 }) {
+  const info = SLOT_INFO[slot] ?? SLOT_INFO.square
+  const [tab, setTab] = useState<"library" | "generate">(initialTab)
+  const { products } = useCatalog()
   const searchParams = useSearchParams()
   const editorKey = searchParams.get("key") ?? ""
 
@@ -231,19 +247,59 @@ export default function MediaPicker({
     }
   }
 
+  const tabBtn = (on: boolean): React.CSSProperties => ({
+    ...type.label,
+    fontFamily: font,
+    flex: 1,
+    border: 0,
+    borderBottom: `2px solid ${on ? accent.base : "transparent"}`,
+    background: "transparent",
+    color: on ? accent.base : grey[50],
+    fontWeight: on ? 600 : 500,
+    padding: "10px 6px",
+    cursor: "pointer",
+    transition: `color ${motion.fast}, border-color ${motion.fast}`,
+  })
+
   return (
     <div style={overlay} onClick={onClose}>
-      <div style={modal} onClick={(e) => e.stopPropagation()}>
+      <div
+        style={{
+          ...modal,
+          ...(tab === "generate" ? { width: "min(980px, 95vw)", maxWidth: "min(980px, 95vw)" } : null),
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div style={headerRow}>
-          <span style={title}>Choose image</span>
-          <button style={closeBtn} onClick={onClose} title="Close" type="button">
-            ×
+          <span style={titleStyle}>Choose image</span>
+          <button style={closeBtn} onClick={onClose} title="Close" aria-label="Close" type="button">
+            <UiIcon name="x" size={14} />
           </button>
         </div>
 
-        <div style={body}>
+        <div style={{ display: "flex", borderBottom: hairline, padding: "0 16px" }}>
+          <button type="button" style={tabBtn(tab === "library")} onClick={() => setTab("library")}>
+            Library
+          </button>
+          <button type="button" style={tabBtn(tab === "generate")} onClick={() => setTab("generate")}>
+            Generate with AI
+          </button>
+        </div>
+
+        {tab === "generate" && (
+          <AiImageStudio
+            slot={slot}
+            editorKey={editorKey}
+            products={products as any}
+            onUse={(u) => pick(u)}
+            currentImage={value}
+          />
+        )}
+
+        <div style={{ ...body, display: tab === "library" ? undefined : "none" }}>
           <div style={toolbar}>
-            <label style={{ ...primaryBtn, display: "inline-block" }}>
+            <label style={button("accent")}>
+              <UiIcon name="plus" size={14} />
               {uploading ? "Uploading…" : "Upload"}
               <input
                 type="file"
@@ -254,7 +310,7 @@ export default function MediaPicker({
               />
             </label>
             <input
-              style={{ ...input, flex: 1, minWidth: 180 }}
+              style={{ ...field(), flex: 1, minWidth: 180, width: "auto" }}
               value={urlValue}
               placeholder="…or paste an image URL"
               onChange={(e) => setUrlValue(e.target.value)}
@@ -263,7 +319,7 @@ export default function MediaPicker({
               }}
             />
             <button
-              style={primaryBtn}
+              style={{ ...button("primary"), opacity: urlValue.trim() ? 1 : 0.5 }}
               type="button"
               disabled={!urlValue.trim()}
               onClick={() => urlValue.trim() && pick(urlValue.trim())}
@@ -275,11 +331,12 @@ export default function MediaPicker({
           {error ? (
             <div
               style={{
-                fontSize: 12,
-                color: "#b91c1c",
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
-                borderRadius: 7,
+                ...type.label,
+                fontFamily: font,
+                color: semantic.dangerFg,
+                background: semantic.dangerBg,
+                border: `1px solid ${semantic.dangerBorder}`,
+                borderRadius: radius.md,
                 padding: "8px 10px",
                 marginBottom: 12,
               }}
@@ -289,11 +346,11 @@ export default function MediaPicker({
           ) : null}
 
           {loading ? (
-            <div style={{ fontSize: 13, color: "#6b7280", padding: "24px 0", textAlign: "center" }}>
+            <div style={{ ...type.body, fontFamily: font, color: grey[50], padding: "24px 0", textAlign: "center" }}>
               Loading media…
             </div>
           ) : items.length === 0 ? (
-            <div style={{ fontSize: 13, color: "#9ca3af", padding: "24px 0", textAlign: "center" }}>
+            <div style={{ ...type.body, fontFamily: font, color: grey[40], padding: "24px 0", textAlign: "center" }}>
               No images yet. Upload one or paste a URL above.
             </div>
           ) : (
@@ -304,7 +361,7 @@ export default function MediaPicker({
                   type="button"
                   style={{
                     ...tile,
-                    outline: value && value === m.url ? "2px solid #2563eb" : "none",
+                    outline: value && value === m.url ? `2px solid ${accent.base}` : "none",
                   }}
                   onClick={() => pick(m.url)}
                   title={m.original_filename ?? m.url}

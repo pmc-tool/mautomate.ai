@@ -56,7 +56,7 @@ const ImageWithText = (props: ImageWithTextData) => {
   const imageCol = image ? (
     <div className="col">
       <div className="image__with--text__thumbnail">
-        <img className="display-block" src={image} alt={title} />
+        <img data-el="image" className="display-block" src={image} alt={title} />
       </div>
     </div>
   ) : null
@@ -81,16 +81,19 @@ const ImageWithText = (props: ImageWithTextData) => {
           </span>
         ) : null}
         {title ? (
-          <h2 className="image__with--text__title mb-18">
+          <h2 data-el="heading" className="image__with--text__title mb-18">
             {renderTitle(title)}
           </h2>
         ) : null}
         {props.body ? (
-          <p className="image__with--text__desc mb-25">{props.body}</p>
+          <p data-el="text" className="image__with--text__desc mb-25">
+            {props.body}
+          </p>
         ) : null}
         {props.cta?.href ? (
           <div className="image__with--text__content--footer d-flex">
             <LocalizedClientLink
+              data-el="button"
               className="primary__btn"
               href={props.cta.href}
             >

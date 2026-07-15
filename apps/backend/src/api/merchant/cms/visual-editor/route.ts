@@ -2,11 +2,20 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import crypto from "crypto"
 
 import { HostResolver } from "../../../../modules/platform/host-resolver"
+import { resolveMerchant } from "../../_helpers"
 
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000
 
-function mintEditorToken(secret: string): string {
-  const payload = Buffer.from(JSON.stringify({ exp: Date.now() + TOKEN_TTL_MS })).toString("base64url")
+/**
+ * The token is BOUND to the minting merchant's tenant (`t`). The storefront
+ * refuses it on any other store's domain — without this, a merchant's own
+ * editor token was valid verbatim against every store on the platform
+ * (publish, autosave, media, AI credits — all cross-tenant).
+ */
+function mintEditorToken(secret: string, tenantId: string): string {
+  const payload = Buffer.from(
+    JSON.stringify({ exp: Date.now() + TOKEN_TTL_MS, t: tenantId })
+  ).toString("base64url")
   const sig = crypto.createHmac("sha256", secret).update(payload).digest("base64url")
   return `${payload}.${sig}`
 }
@@ -48,7 +57,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(500).json({ message: "CMS preview secret is not configured" })
   }
 
-  const key = mintEditorToken(secret)
+  const ctx = await resolveMerchant(req)
+  if (!ctx) {
+    return res.status(401).json({ message: "Merchant authentication required" })
+  }
+
+  const key = mintEditorToken(secret, ctx.tenant.id)
   const to = `/editor/${encodeURIComponent(slug)}?locale=${encodeURIComponent(locale)}`
 
   const response: Record<string, string> = { key, to }
@@ -62,6 +76,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     }
     if (resolved.status !== "live") {
       return res.status(400).json({ message: "Storefront is not live" })
+    }
+    // A merchant may only open the editor on THEIR OWN store's domains.
+    if (resolved.tenant_id !== ctx.tenant.id) {
+      return res.status(403).json({ message: "That storefront belongs to another store" })
     }
     response.gate =
       `${requestedStorefront.replace(/\/$/, "")}/api/editor-auth` +

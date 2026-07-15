@@ -33,7 +33,11 @@ export interface InstagramGridData {
 const InstagramGrid = (props: InstagramGridData) => {
   const { handle, heading } = props
   const images = Array.isArray(props.images)
-    ? props.images.filter((m) => m && typeof m.image === "string" && m.image)
+    ? props.images
+        .map((item, i) => ({ item, i }))
+        .filter(
+          ({ item }) => item && typeof item.image === "string" && item.image
+        )
     : []
 
   if (images.length === 0) {
@@ -51,7 +55,11 @@ const InstagramGrid = (props: InstagramGridData) => {
               {/* Section Title Start */}
               <div className="section-title">
                 {handle ? <h2 className="ec-bg-title">{handle}</h2> : null}
-                {handle ? <h2 className="ec-title">{handle}</h2> : null}
+                {handle ? (
+                  <h2 data-el="title" className="ec-title">
+                    {handle}
+                  </h2>
+                ) : null}
                 {heading ? <p className="sub-title">{heading}</p> : null}
               </div>
               {/* Section Title End */}
@@ -71,7 +79,7 @@ const InstagramGrid = (props: InstagramGridData) => {
                 justifyContent: "center",
               }}
             >
-              {images.map((item, i) => {
+              {images.map(({ item, i }) => {
                 const href =
                   typeof item.href === "string" &&
                   item.href &&
@@ -83,7 +91,12 @@ const InstagramGrid = (props: InstagramGridData) => {
                 const media = <img src={item.image} alt={alt} />
 
                 return (
-                  <div className="ec-insta-item" key={i}>
+                  <div
+                    data-el="item"
+                    data-el-item={`images:${i}`}
+                    className="ec-insta-item"
+                    key={i}
+                  >
                     <div className="ec-insta-inner">
                       {external ? (
                         <a

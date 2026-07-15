@@ -41,6 +41,7 @@ import { getAiTextProvider } from "../ai/registry"
 import { buildBrandContext } from "../content/brand-context"
 import { retrieveContext } from "../knowledge/rag"
 import { CHAT_TOOL_GUIDE, createChatToolRuntime } from "./chat-tools"
+import type { OrderCard, ProductCard } from "./chat-tools"
 
 const currentTenantId = (): string =>
   getCurrentTenantId() ?? resolveTenantId("MARKETING_DEFAULT_TENANT")
@@ -505,8 +506,51 @@ export const detectHandoffKeyword = (text: string | null): boolean => {
  * than being charged as one unit or silently multiplying the bill.
  */
 export type AutoReplyDecision =
-  | { action: "reply"; text: string; units: number; tools?: string[] }
+  | {
+      action: "reply"
+      text: string
+      units: number
+      tools?: string[]
+      /** Products the model surfaced, to render as cards under the reply. */
+      products?: ProductCard[]
+      /** The verified order it looked up, to render as a status card. */
+      order?: OrderCard | null
+    }
   | { action: "handoff"; reason: HandoffReason; units: number }
+
+/**
+ * Web chat renders the products as real cards (image, price, buy link) beneath
+ * the bubble, so the model must NOT also spell them out — two descriptions of
+ * the same product, one of them a wall of markdown, is exactly the mess the
+ * cards are there to replace. On WhatsApp/Messenger there are no cards, so the
+ * details stay in the prose where they are the only thing the customer gets.
+ */
+/**
+ * The shopper is logged into the store.
+ *
+ * Everything the bot would otherwise interrogate them for — who they are, which
+ * order they mean, what email they used — the storefront already knows. Asking a
+ * signed-in customer to prove their identity is the single most irritating thing
+ * a shop assistant can do: they are standing there holding their account.
+ */
+const SIGNED_IN_GUIDE =
+  "SIGNED-IN CUSTOMER: this shopper is logged into the store and their identity is " +
+  "already PROVEN — the facts under CUSTOMER FACTS are theirs. NEVER ask them to " +
+  "verify themselves, and never ask for an order number, the email on the order, " +
+  "or a support code: you already have all of it. When they ask about an order, " +
+  "call lookupOrder with NO arguments to get their most recent one, and only ask " +
+  "which order they mean if they have several and it is genuinely ambiguous. Greet " +
+  "them by their first name the first time you reply."
+
+const PRODUCT_CARD_GUIDE =
+  "PRODUCT CARDS: this conversation is on the website chat widget. Any product " +
+  "you look up is shown to the customer automatically as a rich card below your " +
+  "message, with its photo, price, stock and a link to buy. So do NOT list " +
+  "products, prices, or links in your text — the card already carries them, and " +
+  "repeating them reads as clutter. Introduce them in ONE short, natural " +
+  "sentence (e.g. \"Here's what I found:\" or \"This one should suit you:\") and " +
+  "then stop. Never use markdown (no **bold**, no bullet lists) — the chat " +
+  "bubble shows it as literal characters."
 
 /**
  * Hard cap on model completions in one tool-assisted reply. The runtime RESERVES
@@ -635,12 +679,19 @@ export const generateAutoReply = async (
     const toolsEnabled =
       provider.supportsTools === true && typeof provider.runTools === "function"
 
+    // Cards only exist on the web widget. Every other channel is text.
+    const rendersCards = grounding.conversation?.channel === "web_widget"
+    // The contact is linked to a real customer account -> they are signed in.
+    const signedIn = grounding.c360?.matched === true
+
     const system = await buildReplySystem(container, input.tenantId, {
       persona: personaSection(input.chatbot),
       c360: grounding.c360,
       sections: [
         knowledgeSection(snippets),
         ...(toolsEnabled ? [CHAT_TOOL_GUIDE] : []),
+        ...(toolsEnabled && rendersCards ? [PRODUCT_CARD_GUIDE] : []),
+        ...(toolsEnabled && signedIn ? [SIGNED_IN_GUIDE] : []),
       ],
     })
 
@@ -675,6 +726,7 @@ export const generateAutoReply = async (
       conversationId: input.conversationId,
       chatbotId: input.chatbot?.id ?? null,
       customerId: contact?.customer_id ?? null,
+      inboundText: input.inboundText ?? null,
     })
 
     const run = await provider.runTools!(prompt, {
@@ -699,7 +751,15 @@ export const generateAutoReply = async (
       return { action: "handoff", reason: "ai_unavailable", units }
     }
 
-    return { action: "reply", text, units, tools: runtime.used() }
+    return {
+      action: "reply",
+      text,
+      units,
+      tools: runtime.used(),
+      // Only the surface that can draw them asks for them.
+      products: rendersCards ? runtime.products() : [],
+      order: rendersCards ? runtime.order() : null,
+    }
   } catch {
     // No-throw: a failed generation queues the thread instead of dropping it.
     return { action: "handoff", reason: "ai_unavailable", units: 0 }

@@ -119,6 +119,8 @@ const HeroSlider = (props: HeroSliderData) => {
           {slides.map((slide, i) => (
             <div
               key={i}
+              data-el="image"
+              data-el-item={`slides:${i}`}
               className="swiper-slide"
               style={{
                 gridArea: "1 / 1",
@@ -142,13 +144,18 @@ const HeroSlider = (props: HeroSliderData) => {
                       <div className="col-xs-b40 col-sm-b80"></div>
                       {slide.subtitle ? (
                         <div>
-                          <div className="simple-article light transparent size-3">
+                          <div
+                            data-el="kicker"
+                            className="simple-article light transparent size-3"
+                          >
                             {slide.subtitle}
                           </div>
                           <div className="col-xs-b5"></div>
                         </div>
                       ) : null}
-                      <h1 className="h1 light">{renderTitle(slide.title)}</h1>
+                      <h1 data-el="title" className="h1 light">
+                        {renderTitle(slide.title)}
+                      </h1>
                       <div className="title-underline light left">
                         <span></span>
                       </div>
@@ -162,6 +169,7 @@ const HeroSlider = (props: HeroSliderData) => {
                       ) : null}
                       <div className="buttons-wrapper">
                         <LocalizedClientLink
+                          data-el="button"
                           href={slide.cta?.href || "/store"}
                           className="button size-2 style-1"
                         >

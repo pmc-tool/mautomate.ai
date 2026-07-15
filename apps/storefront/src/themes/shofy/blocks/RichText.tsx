@@ -167,6 +167,7 @@ const RichText = (props: RichTextData) => {
                 <div className="col-xl-5">
                   <div className="tp-section-title-wrapper mb-40">
                     <div
+                      data-el="content"
                       dangerouslySetInnerHTML={{ __html: sanitizeHtml(raw) }}
                     />
                   </div>
@@ -191,6 +192,7 @@ const RichText = (props: RichTextData) => {
         <div className="row justify-content-center">
           <div className={col}>
             <div
+              data-el="content"
               className="shofy-rich-text-body"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(raw) }}
             />

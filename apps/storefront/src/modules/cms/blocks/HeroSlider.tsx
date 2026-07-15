@@ -81,12 +81,13 @@ const HeroSlider = (props: HeroSliderData) => {
           {slides.map((slide, i) => (
             <div
               key={i}
+              data-el-item={`slides:${i}`}
               data-el="image"
               className={`slide ${i === active ? "active" : ""}`}
               style={{ backgroundImage: `url(${slide.image})` }}
             >
               <div className="container slide-inner">
-                <div className="home3-slide-content">
+                <div className="home3-slide-content" data-el="content">
                   {slide.subtitle ? (
                     <h5 data-el="kicker" className="sub-title">
                       {slide.subtitle}

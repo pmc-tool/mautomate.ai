@@ -1,4 +1,6 @@
+import crypto from "crypto"
 import { getChatbotPublicKey } from "@lib/data/chat"
+import { retrieveCustomer } from "@lib/data/customer"
 import ChatWidget from "./chat-widget"
 
 /**
@@ -60,6 +62,43 @@ const loadConfig = async (
   }
 }
 
+/**
+ * Prove to the backend WHO is chatting, without ever trusting the browser.
+ *
+ * The shopper's auth cookie is httpOnly, so the widget cannot read it — and a
+ * `customer_id` posted from client JavaScript would be worthless anyway: anyone
+ * could type someone else's. So the SERVER, which has already authenticated the
+ * shopper against Medusa, mints a short-lived token bound to their customer id
+ * and signs it with a secret only the two servers share. The browser carries it
+ * and cannot forge, alter or extend it.
+ *
+ * No secret configured, or nobody logged in -> no token, and the chat is simply
+ * anonymous, exactly as before.
+ */
+const mintIdentity = async (): Promise<string | null> => {
+  const secret = process.env.CHAT_IDENTITY_SECRET
+  if (!secret) {
+    return null
+  }
+  try {
+    const customer = await retrieveCustomer()
+    if (!customer?.id) {
+      return null
+    }
+    const payload = Buffer.from(
+      JSON.stringify({ cid: customer.id, exp: Date.now() + 3600_000 })
+    ).toString("base64url")
+    const signature = crypto
+      .createHmac("sha256", secret)
+      .update(payload)
+      .digest("base64url")
+    return `${payload}.${signature}`
+  } catch {
+    // A logged-out shopper (or an auth hiccup) is just an anonymous visitor.
+    return null
+  }
+}
+
 const ChatWidgetMount = async () => {
   const publicKey = await getChatbotPublicKey()
   if (!publicKey) {
@@ -69,7 +108,10 @@ const ChatWidgetMount = async () => {
   if (!config) {
     return null
   }
-  return <ChatWidget publicKey={publicKey} config={config} />
+  const identity = await mintIdentity()
+  return (
+    <ChatWidget publicKey={publicKey} config={config} identity={identity} />
+  )
 }
 
 export default ChatWidgetMount

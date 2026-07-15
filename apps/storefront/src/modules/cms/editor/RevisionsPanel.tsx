@@ -1,6 +1,18 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { UiIcon } from "@modules/cms/editor/palette-icons"
+import {
+  button,
+  font,
+  grey,
+  hairline,
+  iconButton,
+  radius,
+  semantic,
+  shadow,
+  type,
+} from "@modules/cms/editor/design"
 
 type Version = {
   version: number
@@ -82,6 +94,8 @@ export function RevisionsPanel({
     }
   }
 
+  const note: React.CSSProperties = { ...type.body, fontFamily: font, color: grey[50] }
+
   return (
     <div
       onClick={onClose}
@@ -89,7 +103,7 @@ export function RevisionsPanel({
         position: "fixed",
         inset: 0,
         zIndex: 10000,
-        background: "rgba(15,23,42,0.45)",
+        background: "rgba(15, 19, 25, 0.45)",
         display: "flex",
         justifyContent: "flex-end",
       }}
@@ -100,49 +114,48 @@ export function RevisionsPanel({
           width: 380,
           maxWidth: "92vw",
           height: "100%",
-          background: "#fff",
-          boxShadow: "-8px 0 28px rgba(0,0,0,0.18)",
+          fontFamily: font,
+          background: grey[0],
+          boxShadow: shadow.lg,
           display: "flex",
           flexDirection: "column",
         }}
       >
         <div
           style={{
-            padding: "16px 18px",
-            borderBottom: "1px solid #eef0f3",
+            padding: "16px 20px",
+            borderBottom: hairline,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
           }}
         >
-          <div style={{ fontWeight: 600, fontSize: 15, color: "#0f172a" }}>
+          <div style={{ ...type.heading, fontFamily: font, color: grey[90] }}>
             Version history
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
             style={{
-              border: "none",
+              ...iconButton("sm"),
+              border: 0,
               background: "none",
-              fontSize: 20,
-              lineHeight: 1,
-              cursor: "pointer",
-              color: "#64748b",
+              color: grey[50],
             }}
           >
-            ×
+            <UiIcon name="x" size={16} />
           </button>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto" }}>
           {err && (
-            <div style={{ padding: 16, color: "#b91c1c", fontSize: 13 }}>{err}</div>
+            <div style={{ ...type.body, fontFamily: font, padding: 16, color: semantic.dangerFg }}>{err}</div>
           )}
           {versions === null && (
-            <div style={{ padding: 16, color: "#64748b", fontSize: 13 }}>Loading…</div>
+            <div style={{ ...note, padding: 16 }}>Loading…</div>
           )}
           {versions && versions.length === 0 && (
-            <div style={{ padding: 20, color: "#64748b", fontSize: 13 }}>
+            <div style={{ ...note, padding: 20 }}>
               No published versions yet. Once you Publish, each version appears
               here and you can restore any of them.
             </div>
@@ -152,25 +165,26 @@ export function RevisionsPanel({
               <div
                 key={v.version}
                 style={{
-                  padding: "12px 16px",
-                  borderBottom: "1px solid #f1f5f9",
+                  padding: "12px 20px",
+                  borderBottom: hairline,
                   display: "flex",
                   alignItems: "center",
-                  gap: 11,
+                  gap: 12,
                 }}
               >
                 <div
                   style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 17,
-                    background: v.is_live ? "#ecfdf5" : "#eef2ff",
-                    color: v.is_live ? "#059669" : "#4f46e5",
+                    ...type.label,
+                    fontFamily: font,
+                    fontWeight: 600,
+                    width: 32,
+                    height: 32,
+                    borderRadius: radius.pill,
+                    background: v.is_live ? semantic.successBg : grey[10],
+                    color: v.is_live ? semantic.successFg : grey[60],
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: 12,
-                    fontWeight: 700,
                     flexShrink: 0,
                   }}
                 >
@@ -179,9 +193,9 @@ export function RevisionsPanel({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
-                      fontSize: 13,
-                      color: "#0f172a",
-                      fontWeight: 500,
+                      ...type.bodyStrong,
+                      fontFamily: font,
+                      color: grey[90],
                       display: "flex",
                       alignItems: "center",
                       gap: 6,
@@ -191,19 +205,20 @@ export function RevisionsPanel({
                     {v.is_live && (
                       <span
                         style={{
-                          fontSize: 10,
-                          fontWeight: 600,
-                          color: "#059669",
-                          background: "#ecfdf5",
-                          borderRadius: 10,
-                          padding: "1px 7px",
+                          ...type.micro,
+                          fontFamily: font,
+                          color: semantic.successFg,
+                          background: semantic.successBg,
+                          border: `1px solid ${semantic.successBorder}`,
+                          borderRadius: radius.pill,
+                          padding: "1px 6px",
                         }}
                       >
                         Live
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                  <div style={{ ...type.label, fontFamily: font, color: grey[50] }}>
                     {relTime(v.created_at)}
                     {v.published_by ? ` · ${v.published_by}` : ""}
                   </div>
@@ -213,18 +228,13 @@ export function RevisionsPanel({
                     onClick={() => restore(v.version)}
                     disabled={busy === v.version}
                     style={{
-                      fontSize: 12,
-                      fontWeight: 500,
-                      color: "#0f172a",
-                      border: "1px solid #e2e8f0",
-                      background: "#fff",
-                      borderRadius: 6,
-                      padding: "5px 11px",
+                      ...button("secondary", "sm"),
                       cursor: busy === v.version ? "default" : "pointer",
                       opacity: busy === v.version ? 0.6 : 1,
                       flexShrink: 0,
                     }}
                   >
+                    <UiIcon name="reset" size={14} />
                     {busy === v.version ? "Restoring…" : "Restore"}
                   </button>
                 )}

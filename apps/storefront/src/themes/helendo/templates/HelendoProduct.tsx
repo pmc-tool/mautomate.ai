@@ -110,7 +110,7 @@ const HelendoProduct: React.FC<ProductTemplateProps> = ({
                 <div className="col-lg-7 col-md-6 col-sm-12 col-xs-12">
                   {/* Product Details Left */}
                   <div className="product-details-left">
-                    <ImageGallery images={galleryImages} />
+                    <ImageGallery images={galleryImages} productId={product?.id} />
                   </div>
                   {/* // Product Details Left */}
                 </div>

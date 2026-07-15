@@ -33,10 +33,18 @@ const PACKS = [
 ]
 
 const ACTION_LABEL: Record<string, string> = {
-  ai_call_minute: "AI call minutes",
+  ai_call_minute: "AI calls (web)",
+  ai_call_phone_minute: "AI calls (phone)",
+  phone_number_month: "Phone number rental",
   sms_segment: "SMS / WhatsApp",
   ai_text: "AI text & chatbot",
+  ai_page_edit: "AI page edits",
+  ai_content: "AI content & blogs",
   ai_image: "AI images",
+  ai_logo: "AI logos",
+  ai_image_basic: "AI images (basic)",
+  social_publish: "Social publishing",
+  email_batch: "Emails",
   email: "Emails",
   domain_purchase_usd: "Domains",
 }
@@ -56,6 +64,11 @@ export const GET = async (
     .catch(() => ({ balance: 0, reserved: 0 }) as any)
   const balance =
     typeof wallet === "number" ? wallet : Number(wallet?.balance ?? 0)
+  // Two buckets, because they behave differently: PLAN credits expire at the end
+  // of the period; PURCHASED credits never do. Merchants must see the difference.
+  const buckets = await getLedger(req.scope)
+    .balanceBreakdown(tenantId)
+    .catch(() => ({ total: balance, expiring: 0, permanent: balance, next_expiry: null }) as any)
   const reserved =
     typeof wallet === "number" ? 0 : Number(wallet?.reserved ?? 0)
 
@@ -123,6 +136,12 @@ export const GET = async (
     credit_usd: CREDIT_USD,
     plan_status: ctx.tenant.status,
     trial_ends_at: ctx.tenant.trial_ends_at ?? null,
+    credits: {
+      total: buckets.total,
+      expiring: buckets.expiring,
+      purchased: buckets.permanent,
+      next_expiry: buckets.next_expiry,
+    },
     wallet: { balance, reserved },
     current_plan: current
       ? {

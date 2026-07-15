@@ -60,6 +60,7 @@ const RichText = (props: RichTextData) => {
       <div className={container}>
         <div className={col}>
           <div
+            data-el="content"
             className="leading-relaxed text-neutral-700 [&_h1]:text-3xl [&_h1]:md:text-4xl [&_h1]:font-semibold [&_h1]:tracking-tight [&_h1]:text-neutral-900 [&_h2]:text-2xl [&_h2]:md:text-3xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-neutral-900 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-neutral-900 [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-neutral-900 [&_img]:rounded-2xl [&_img]:object-cover [&_blockquote]:border-l-2 [&_blockquote]:border-neutral-200 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-neutral-500"
             dangerouslySetInnerHTML={{ __html: safe }}
           />

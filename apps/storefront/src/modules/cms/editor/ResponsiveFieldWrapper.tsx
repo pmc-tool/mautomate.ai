@@ -23,6 +23,16 @@
 import React from "react"
 import type { Device, FieldDef, ResponsiveValue } from "@modules/cms/schema/types"
 import { isResponsiveValue, resolveResponsive } from "@modules/cms/schema/types"
+import { UiIcon } from "@modules/cms/editor/palette-icons"
+import {
+  accent,
+  button,
+  font,
+  grey,
+  motion,
+  radius,
+  type,
+} from "@modules/cms/editor/design"
 
 /* --------------------------- public API --------------------------- */
 export interface ResponsiveFieldWrapperProps {
@@ -52,43 +62,45 @@ const barRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 6,
-  margin: "0 0 5px",
+  margin: "0 0 6px",
 }
-const badge: React.CSSProperties = {
+/** The device pill: neutral when inherited, ember when this device is overridden. */
+const badge = (on: boolean): React.CSSProperties => ({
+  ...type.micro,
+  fontFamily: font,
   display: "inline-flex",
   alignItems: "center",
   gap: 4,
-  fontSize: 10,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: 0.5,
-  color: "#2563eb",
-  background: "#eff6ff",
-  border: "1px solid #bfdbfe",
-  borderRadius: 5,
-  padding: "2px 6px",
-}
+  height: 20,
+  padding: "0 6px",
+  borderRadius: radius.sm,
+  color: on ? accent.base : grey[60],
+  background: on ? accent.tint : grey[10],
+  border: `1px solid ${on ? accent.base : grey[20]}`,
+  transition: motion.fast,
+})
 const inheritHint: React.CSSProperties = {
-  fontSize: 10,
+  ...type.micro,
+  fontFamily: font,
+  textTransform: "none",
+  letterSpacing: 0,
+  fontWeight: 400,
   fontStyle: "italic",
-  color: "#9ca3af",
+  color: grey[40],
 }
 const clearBtn: React.CSSProperties = {
+  ...button("danger", "sm"),
+  ...type.micro,
+  fontFamily: font,
   marginLeft: "auto",
-  border: "1px solid #fecaca",
-  background: "#fff",
-  color: "#b91c1c",
-  borderRadius: 5,
-  fontSize: 10,
-  fontWeight: 600,
-  padding: "2px 7px",
-  cursor: "pointer",
+  height: 20,
+  padding: "0 8px",
 }
 const overriddenDot: React.CSSProperties = {
   width: 6,
   height: 6,
-  borderRadius: "50%",
-  background: "#2563eb",
+  borderRadius: radius.pill,
+  background: accent.base,
   display: "inline-block",
 }
 
@@ -96,6 +108,12 @@ const DEVICE_LABEL: Record<Device, string> = {
   desktop: "Desktop",
   tablet: "Tablet",
   mobile: "Mobile",
+}
+
+const DEVICE_ICON: Record<Device, string> = {
+  desktop: "monitor",
+  tablet: "tablet",
+  mobile: "phone",
 }
 
 /* --------------------------- helpers ------------------------------ */
@@ -176,19 +194,22 @@ export default function ResponsiveFieldWrapper({
 
   const source = inheritsFrom(value, device)
   const showInherited = !overridden && device !== "desktop"
+  const isOverride = overridden && device !== "desktop"
 
   return (
     <div>
       <div style={barRow}>
-        <span style={badge}>
-          {overridden && device !== "desktop" ? <span style={overriddenDot} /> : null}
+        <span style={badge(isOverride)}>
+          <UiIcon name={DEVICE_ICON[device]} size={12} />
+          {isOverride ? <span style={overriddenDot} /> : null}
           {DEVICE_LABEL[device]}
         </span>
         {showInherited && source ? (
           <span style={inheritHint}>inherits from {DEVICE_LABEL[source]}</span>
         ) : null}
-        {overridden && device !== "desktop" ? (
+        {isOverride ? (
           <button type="button" style={clearBtn} onClick={clearOverride} title="Remove this device override">
+            <UiIcon name="reset" size={12} />
             Reset {DEVICE_LABEL[device]}
           </button>
         ) : null}

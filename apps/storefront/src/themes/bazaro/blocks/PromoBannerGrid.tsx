@@ -96,6 +96,7 @@ function BannerCard({
   href,
   linkLabel,
   wide,
+  dataElItem,
 }: {
   title: string
   body?: string
@@ -103,10 +104,11 @@ function BannerCard({
   href: string
   linkLabel?: string
   wide?: boolean
+  dataElItem?: string
 }) {
   return (
-    <div className={wide ? "col-lg-12" : "col-lg-6"}>
-      <div className="aqf-deals-banner-wrap p-relative mb-30">
+    <div data-el-item={dataElItem} className={wide ? "col-lg-12" : "col-lg-6"}>
+      <div data-el="item" className="aqf-deals-banner-wrap p-relative mb-30">
         <div className="aqf-deals-banner-thumb">
           <TileLink href={href}>
             <img className="w-100" src={image} alt={title} />
@@ -119,7 +121,7 @@ function BannerCard({
           {body ? <span>{body}</span> : null}
         </div>
         {linkLabel ? (
-          <div className="aqf-deals-banner-btn">
+          <div data-el="button" className="aqf-deals-banner-btn">
             <TileLink
               href={href}
               className="aq-btn-black blur-bg w-100 text-center"
@@ -140,8 +142,9 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
   // Preserve the shared content order: intro (section header), sale, the
   // regular (non-wide) category tiles, the instagram banner, then the wide
   // tiles — same order the Cignet renderer uses.
-  const regularCats = categories.filter((c) => !c.wide)
-  const wideCats = categories.filter((c) => c.wide)
+  const indexedCategories = categories.map((cat, i) => ({ cat, i }))
+  const regularCats = indexedCategories.filter(({ cat }) => !cat.wide)
+  const wideCats = indexedCategories.filter(({ cat }) => cat.wide)
 
   // Nothing to render -> render null (mirror the original empty guards).
   if (!intro && !sale && !instagram && categories.length === 0) {
@@ -159,7 +162,7 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
                   {intro.title}
                 </span>
                 {intro.body ? (
-                  <h4 className="aq-section-title ff-satoshi-med fs-38 mb-15">
+                  <h4 data-el="title" className="aq-section-title ff-satoshi-med fs-38 mb-15">
                     {intro.body}
                   </h4>
                 ) : null}
@@ -189,12 +192,13 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Regular category banners */}
-          {regularCats.map((cat, i) => (
+          {regularCats.map(({ cat, i }, j) => (
             <BannerCard
               key={`reg-${i}`}
+              dataElItem={`categories:${i}`}
               title={cat.title}
               body={cat.count_label}
-              image={tileImage(cat.image, sale ? i + 1 : i)}
+              image={tileImage(cat.image, sale ? j + 1 : j)}
               href={cat.href}
               linkLabel="Shop Now"
             />
@@ -212,12 +216,13 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Wide category banners */}
-          {wideCats.map((cat, i) => (
+          {wideCats.map(({ cat, i }, j) => (
             <BannerCard
               key={`wide-${i}`}
+              dataElItem={`categories:${i}`}
               title={cat.title}
               body={cat.count_label}
-              image={tileImage(cat.image, i)}
+              image={tileImage(cat.image, j)}
               href={cat.href}
               linkLabel="Shop Now"
               wide

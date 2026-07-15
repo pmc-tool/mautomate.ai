@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import ChunkGuard from "@modules/common/components/ChunkGuard"
 import "../styles/globals.css"
 import { getActiveTheme } from "@themes/registry"
 import { buildThemeVars } from "@modules/cms/render/theme-vars"
@@ -63,6 +64,7 @@ export default async function RootLayout({
         data-theme={activeTheme?.id}
         className={activeTheme?.bodyClassName ?? "learts-theme"}
       >
+        <ChunkGuard />
         {children}
       </body>
     </html>

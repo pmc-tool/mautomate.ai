@@ -51,7 +51,10 @@ const BrandStrip = (props: BrandStripData) => {
           <div className="row">
             <div className="col-lg-12">
               <div className="section-title text-center mb-20">
-                <h2 className="section-title--one section-title--center">
+                <h2
+                  data-el="title"
+                  className="section-title--one section-title--center"
+                >
                   {title}
                 </h2>
               </div>
@@ -79,7 +82,12 @@ const BrandStrip = (props: BrandStripData) => {
                   />
                 )
                 return (
-                  <div className="single-brand-item" key={i}>
+                  <div
+                    data-el="logo"
+                    data-el-item={`brands:${i}`}
+                    className="single-brand-item"
+                    key={i}
+                  >
                     {isExternal(brand.href || "#") ? (
                       <a
                         href={brand.href || "#"}

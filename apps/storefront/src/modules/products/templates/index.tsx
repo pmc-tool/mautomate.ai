@@ -36,7 +36,7 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
             {/* Gallery */}
             <div className="col-lg-6 col-12 learts-mb-40">
               <div className="block w-full relative">
-                <ImageGallery images={images} />
+                <ImageGallery images={images} productId={product?.id} />
               </div>
             </div>
 

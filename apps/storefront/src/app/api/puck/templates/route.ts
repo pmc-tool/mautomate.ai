@@ -8,13 +8,13 @@ async function be(req: NextRequest) {
   return { backend, headers: { "x-cms-secret": process.env.CMS_REVALIDATE_SECRET || "", "x-tenant-pak": pubKey } }
 }
 export async function GET(req: NextRequest) {
-  if (!isValidEditorRequest(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  if (!(await isValidEditorRequest(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   const { backend, headers } = await be(req)
   const r = await fetch(`${backend}/cms/templates`, { headers, cache: "no-store" }).catch(() => null)
   return NextResponse.json(r ? await r.json().catch(() => ({})) : {}, { status: r?.status || 502 })
 }
 export async function POST(req: NextRequest) {
-  if (!isValidEditorRequest(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  if (!(await isValidEditorRequest(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   const body = await req.json().catch(() => ({}))
   const { backend, headers } = await be(req)
   const r = await fetch(`${backend}/cms/templates`, {
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(r ? await r.json().catch(() => ({})) : {}, { status: r?.status || 502 })
 }
 export async function DELETE(req: NextRequest) {
-  if (!isValidEditorRequest(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  if (!(await isValidEditorRequest(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   const id = new URL(req.url).searchParams.get("id") || ""
   const { backend, headers } = await be(req)
   const r = await fetch(`${backend}/cms/templates?id=${encodeURIComponent(id)}`, { method: "DELETE", headers }).catch(() => null)

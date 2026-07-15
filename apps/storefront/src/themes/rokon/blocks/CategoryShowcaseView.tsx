@@ -10,6 +10,7 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 /* ------------------------------------------------------------------ */
 
 interface CategoryTile {
+  index: number
   label: string
   image: string
   href: string
@@ -68,7 +69,10 @@ const CategoryShowcaseView = (props: CategoryShowcaseViewProps) => {
       <div className="container">
         <div className="section__heading text-center mb-50">
           {title ? (
-            <h2 className="section__heading--maintitle text__secondary mb-10">
+            <h2
+              data-el="title"
+              className="section__heading--maintitle text__secondary mb-10"
+            >
               {title}
             </h2>
           ) : null}
@@ -79,7 +83,7 @@ const CategoryShowcaseView = (props: CategoryShowcaseViewProps) => {
         <div className="project__section--inner">
           <div className="row row-cols-md-3 row-cols-2 mb--n30">
             {tiles.map((tile, i) => (
-              <div className="col custom-col-2 mb-30" key={i}>
+              <div data-el="tile" data-el-item={`items:${tile.index}`} className="col custom-col-2 mb-30" key={i}>
                 <article className="project__card">
                   <LocalizedClientLink
                     className="project__card--link"

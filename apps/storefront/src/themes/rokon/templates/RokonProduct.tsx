@@ -100,7 +100,7 @@ const RokonProduct: React.FC<ProductTemplateProps> = ({
               {/* Product media: the shared ImageGallery replaces the
                   template's swiper/glightbox media stack. */}
               <div className="product__details--media">
-                <ImageGallery images={galleryImages} />
+                <ImageGallery images={galleryImages} productId={product?.id} />
               </div>
             </div>
             <div className="col">

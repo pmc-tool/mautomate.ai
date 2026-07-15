@@ -35,7 +35,7 @@ const AuroraProduct: React.FC<ProductTemplateProps> = ({
           {/* Gallery */}
           <div className="relative">
             <div className="lg:sticky lg:top-24">
-              <ImageGallery images={images} />
+              <ImageGallery images={images} productId={product?.id} />
             </div>
           </div>
 

@@ -264,6 +264,8 @@ const persistOutbound = async (
     externalMessageId?: string | null
     /** Whether this message clears the merchant's unread badge. */
     clearsUnread: boolean
+    /** Structured attachments (product cards) rendered under the bubble. */
+    media?: unknown[] | null
   }
 ): Promise<any> => {
   const sentAt = new Date()
@@ -273,6 +275,7 @@ const persistOutbound = async (
     direction: "outbound",
     author: input.author,
     body: input.body,
+    media: input.media?.length ? input.media : null,
     external_message_id: input.externalMessageId ?? null,
     delivery_status: input.deliveryStatus ?? null,
     sent_at: sentAt,
@@ -425,7 +428,31 @@ export const handleInboundAutoReply = async (
         return { status: "skipped", reason: "conversation_not_found" }
       }
 
-      // (1) A human owns the thread (or it is already queued) -> stay silent.
+      // (1) A human owns the thread -> stay silent.
+      //
+      // EXCEPT when the bot only stepped back because WE were broken. An AI
+      // outage or an empty wallet is a TRANSIENT platform failure, not the
+      // customer asking for a person — yet it used to queue the thread FOREVER,
+      // so the bot stayed mute even after the fault was fixed. (A live customer
+      // sent "hi" four times into that silence.) On a new inbound message we
+      // retry: if the fault is gone the bot answers; if it persists it simply
+      // hands off again. A real "get me a human" (or the reply cap) still sticks.
+      const TRANSIENT_HANDOFF = new Set(["ai_unavailable", "out_of_credits"])
+      if (
+        conversation.handler_mode === "queued" &&
+        TRANSIENT_HANDOFF.has(String(conversation.handoff_reason ?? ""))
+      ) {
+        await mk
+          .updateMarketingConversations({
+            id: conversation.id,
+            handler_mode: "ai",
+            handoff_reason: null,
+          } as any)
+          .catch(() => {})
+        conversation.handler_mode = "ai"
+        conversation.handoff_reason = null
+      }
+
       if (conversation.handler_mode !== "ai") {
         return { status: "skipped", reason: "handler_mode_not_ai" }
       }
@@ -509,6 +536,13 @@ export const handleInboundAutoReply = async (
 
       const decision = metered.result
       if (decision.action === "handoff") {
+        // Why a customer got handed to a human instead of an answer. Silent
+        // handoffs are impossible to debug from the outside.
+        console.log(
+          "[auto-reply] HANDOFF conversation=%s reason=%s",
+          input.conversationId,
+          decision.reason
+        )
         return await handoff(
           container,
           mk,
@@ -528,6 +562,14 @@ export const handleInboundAutoReply = async (
       const message = await persistOutbound(mk, input.tenantId, conversation, {
         body: decision.text,
         author: "ai",
+        // The products the model looked up ride along on the message itself, so
+        // the widget can draw them as cards. They are attachments, not prose:
+        // the text channels never see them, and a reload re-renders them from
+        // the row rather than from a memory of the tool call.
+        media: [
+          ...(decision.products ?? []).map((p) => ({ type: "product", ...p })),
+          ...(decision.order ? [decision.order] : []),
+        ],
         deliveryStatus: sent.ok
           ? sent.deliveryStatus ?? "sent"
           : sent.deliveryStatus ?? "failed",

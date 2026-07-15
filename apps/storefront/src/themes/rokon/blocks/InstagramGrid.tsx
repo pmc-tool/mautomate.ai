@@ -51,7 +51,11 @@ const InstagramIcon = () => (
 const InstagramGrid = (props: InstagramGridData) => {
   const { handle, heading } = props
   const images = Array.isArray(props.images)
-    ? props.images.filter((m) => m && typeof m.image === "string" && m.image)
+    ? props.images
+        .map((item, i) => ({ item, i }))
+        .filter(
+          ({ item }) => item && typeof item.image === "string" && item.image
+        )
     : []
 
   if (images.length === 0) {
@@ -66,7 +70,10 @@ const InstagramGrid = (props: InstagramGridData) => {
         <div className="container">
           <div className="section__heading text-center mb-50">
             {heading ? (
-              <h2 className="section__heading--maintitle text__secondary mb-10">
+              <h2
+                data-el="title"
+                className="section__heading--maintitle text__secondary mb-10"
+              >
                 {heading}
               </h2>
             ) : null}
@@ -84,7 +91,7 @@ const InstagramGrid = (props: InstagramGridData) => {
             gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
           }}
         >
-          {images.map((item, i) => {
+          {images.map(({ item, i }) => {
             const href =
               typeof item.href === "string" && item.href && item.href !== "#"
                 ? item.href
@@ -104,7 +111,12 @@ const InstagramGrid = (props: InstagramGridData) => {
             )
 
             return (
-              <div className="instagram__thumbnail position__relative" key={i}>
+              <div
+                data-el="item"
+                data-el-item={`images:${i}`}
+                className="instagram__thumbnail position__relative"
+                key={i}
+              >
                 {external ? (
                   <a
                     className="instagram__thumbnail--link display-block"

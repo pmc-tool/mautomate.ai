@@ -73,20 +73,22 @@ function TileLink({
   href,
   className,
   children,
+  "data-el": dataEl,
 }: {
   href: string
   className?: string
   children: ReactNode
+  "data-el"?: string
 }) {
   if (isExternal(href)) {
     return (
-      <a href={href} className={className}>
+      <a href={href} className={className} data-el={dataEl}>
         {children}
       </a>
     )
   }
   return (
-    <LocalizedClientLink href={href} className={className}>
+    <LocalizedClientLink href={href} className={className} data-el={dataEl}>
       {children}
     </LocalizedClientLink>
   )
@@ -100,6 +102,7 @@ function BannerTile({
   href,
   linkLabel,
   wide,
+  "data-el-item": dataElItem,
 }: {
   title: string
   subtitle?: string
@@ -107,9 +110,14 @@ function BannerTile({
   href: string
   linkLabel?: string
   wide?: boolean
+  "data-el-item"?: string
 }) {
   return (
-    <div className={wide ? "col-12" : "col-lg-6 col-md-6"}>
+    <div
+      data-el="item"
+      data-el-item={dataElItem}
+      className={wide ? "col-12" : "col-lg-6 col-md-6"}
+    >
       <div
         className="banner__section--bg position__relative"
         style={{
@@ -132,7 +140,11 @@ function BannerTile({
           ) : null}
           <h2 className="banner__video--title text-white mb-15">{title}</h2>
           {linkLabel ? (
-            <TileLink href={href} className="banner__video--btn primary__btn">
+            <TileLink
+              data-el="button"
+              href={href}
+              className="banner__video--btn primary__btn"
+            >
               {linkLabel}
             </TileLink>
           ) : (
@@ -154,8 +166,9 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
   // Preserve the shared content order: intro (section header), sale, the
   // regular (non-wide) category tiles, the instagram banner, then the wide
   // tiles — same order the Cignet/Learts renderers use.
-  const regularCats = categories.filter((c) => !c.wide)
-  const wideCats = categories.filter((c) => c.wide)
+  const indexedCats = categories.map((cat, i) => ({ cat, i }))
+  const regularCats = indexedCats.filter(({ cat }) => !cat.wide)
+  const wideCats = indexedCats.filter(({ cat }) => cat.wide)
 
   // Nothing to render -> render null (mirror the original empty guards).
   if (!intro && !sale && !instagram && categories.length === 0) {
@@ -167,7 +180,10 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
       <div className="container">
         {intro ? (
           <div className="section__heading text-center mb-50">
-            <h2 className="section__heading--maintitle text__secondary mb-10">
+            <h2
+              data-el="title"
+              className="section__heading--maintitle text__secondary mb-10"
+            >
               {intro.title}
             </h2>
             {intro.body ? (
@@ -175,7 +191,11 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
             ) : null}
             {intro.href && intro.link_label ? (
               <div style={{ marginTop: "25px" }}>
-                <TileLink href={intro.href} className="primary__btn">
+                <TileLink
+                  data-el="button"
+                  href={intro.href}
+                  className="primary__btn"
+                >
                   {intro.link_label}
                 </TileLink>
               </div>
@@ -196,12 +216,13 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Regular category tiles */}
-          {regularCats.map((cat, i) => (
+          {regularCats.map(({ cat, i }, pos) => (
             <BannerTile
               key={`reg-${i}`}
+              data-el-item={`categories:${i}`}
               title={cat.title}
               subtitle={cat.count_label}
-              image={tileImage(cat.image, sale ? i + 1 : i)}
+              image={tileImage(cat.image, sale ? pos + 1 : pos)}
               href={cat.href}
               linkLabel="Shop Now"
             />
@@ -219,12 +240,13 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           ) : null}
 
           {/* Wide category tiles */}
-          {wideCats.map((cat, i) => (
+          {wideCats.map(({ cat, i }, pos) => (
             <BannerTile
               key={`wide-${i}`}
+              data-el-item={`categories:${i}`}
               title={cat.title}
               subtitle={cat.count_label}
-              image={tileImage(cat.image, i)}
+              image={tileImage(cat.image, pos)}
               href={cat.href}
               linkLabel="Shop Now"
               wide

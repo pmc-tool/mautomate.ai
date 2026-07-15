@@ -78,7 +78,7 @@ const ExzoProduct: React.FC<ProductTemplateProps> = ({
           <div className="col-sm-6 col-xs-b30 col-sm-b0">
             {/* Product Gallery Start */}
             <div className="main-product-slider-wrapper exzo-product-gallery">
-              <ImageGallery images={galleryImages} />
+              <ImageGallery images={galleryImages} productId={product?.id} />
             </div>
             {/* Product Gallery End */}
           </div>

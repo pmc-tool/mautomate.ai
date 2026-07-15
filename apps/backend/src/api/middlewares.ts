@@ -36,6 +36,14 @@ import {
  * straight to uploadFilesWorkflow. 10MB hard cap (mime allowlist enforced in
  * the route handler). Field name: `files`.
  */
+/* Theme packages are whole zipped sites — an order of magnitude bigger than an
+   image, and they must land in memory so the validator sees them BEFORE
+   anything touches disk or the database. */
+const themeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
+})
+
 const cmsMediaUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -687,6 +695,12 @@ export default defineMiddlewares({
       method: ["POST"],
       matcher: "/admin/cms/media",
       middlewares: [cmsMediaUpload.array("files")],
+    },
+    {
+      // Theme package upload (super admin only — /admin/* is already gated).
+      method: ["POST"],
+      matcher: "/admin/themes",
+      middlewares: [themeUpload.single("file")],
     },
     {
       // Parse multipart bodies for merchant product image uploads.

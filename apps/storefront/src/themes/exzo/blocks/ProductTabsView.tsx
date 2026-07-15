@@ -48,7 +48,10 @@ const ProductCard = ({ product }: { product: HttpTypes.StoreProduct }) => {
   const category = product.categories?.[0]
 
   return (
-    <div className="product-shortcode style-1 big exzo-product-card group">
+    <div
+      data-el="card"
+      className="product-shortcode style-1 big exzo-product-card group"
+    >
       {onSale ? <div className="product-label red">sale</div> : null}
       <div className="preview">
         <LocalizedClientLink href={href} className="relative block">
@@ -136,9 +139,9 @@ const tabCss = (scope: string, count: number): string => {
 }
 
 const ProductTabsView = (props: ProductTabsViewProps) => {
-  const groups = (Array.isArray(props.groups) ? props.groups : []).filter(
-    (group) => group.products.length > 0
-  )
+  const groups = (Array.isArray(props.groups) ? props.groups : [])
+    .map((group, i) => ({ group, i }))
+    .filter(({ group }) => group.products.length > 0)
 
   if (!groups.length) {
     return null
@@ -186,7 +189,7 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
         ) : null}
 
         {multi
-          ? groups.map((group, i) => (
+          ? groups.map(({ group }, i) => (
               <input
                 key={`radio-${i}`}
                 type="radio"
@@ -203,9 +206,13 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
           <div className="container">
             <div className="tabulation-menu-wrapper text-center">
               <ul className="exzo-tabs-nav">
-                {groups.map((group, i) => (
-                  <li key={`pill-${i}`}>
-                    <label htmlFor={`${scope}-tab-${i}`} className="tab-menu">
+                {groups.map(({ group, i: tabIndex }, i) => (
+                  <li key={`pill-${tabIndex}`} data-el-item={`tabs:${tabIndex}`}>
+                    <label
+                      data-el="tab"
+                      htmlFor={`${scope}-tab-${i}`}
+                      className="tab-menu"
+                    >
                       {group.label}
                     </label>
                   </li>
@@ -217,7 +224,7 @@ const ProductTabsView = (props: ProductTabsViewProps) => {
         ) : null}
 
         <div className="exzo-tabs-panels">
-          {groups.map((group, i) => (
+          {groups.map(({ group }, i) => (
             <div
               key={group.label || i}
               className={`tab-entry exzo-tabs-panel exzo-tabs-panel-${i}${

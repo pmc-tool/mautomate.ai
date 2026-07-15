@@ -60,11 +60,17 @@
  */
 
 import type { MedusaContainer } from "@medusajs/framework/types"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { consumeRateLimit, peekRateLimit } from "../../../lib/rate-limit"
 import type { AiToolCall, AiToolDefinition } from "../ai/ai-provider"
 import { getCommerceGateway } from "../../call-center/gateway"
-import type { CommerceOrder } from "../../call-center/gateway"
+import type {
+  CommerceOrder,
+  CommerceProduct,
+  OrderProgress,
+  OrderTracking,
+} from "../../call-center/gateway"
 import { getTool } from "../../call-center/tools/registry"
 import type { ToolContext } from "../../call-center/tools/registry"
 import { retrieveContext } from "../knowledge/rag"
@@ -214,8 +220,11 @@ export const CHAT_TOOL_DEFINITIONS: AiToolDefinition[] = [
   {
     name: "lookupOrder",
     description:
-      "Look up ONE order and its status, but ONLY after the customer has proven it " +
-      "is theirs. This chat is anonymous, so verification is MANDATORY: you must " +
+      "Look up ONE order and its status. IF THE CUSTOMER IS SIGNED IN (the system " +
+      "prompt says so), call this with NO arguments at all to get their most recent " +
+      "order — they have already proven who they are, so NEVER ask a signed-in " +
+      "customer for an order number, an email or a support code. " +
+      "Otherwise the chat is anonymous and verification is MANDATORY: you must " +
       "supply EITHER the order number together with the email address used on the " +
       "order, OR the private support code from the order confirmation. ASK the " +
       "customer for those details first — never guess them, never call this with " +
@@ -302,14 +311,28 @@ export const CHAT_TOOL_GUIDE = [
 const UNKNOWN = "unknown - not recorded by the store"
 
 /** The chat-safe projection of a VERIFIED order (no raw street address). */
-const projectVerifiedOrder = (order: any) => {
+const projectVerifiedOrder = (
+  order: any,
+  progress: OrderProgress | null,
+  tracking: OrderTracking[]
+) => {
   const shipping = order?.shipping_address ?? null
   return {
     verified: true,
     order_number: order?.display_id ?? null,
-    status: order?.status ?? UNKNOWN,
-    payment_status: order?.payment_status ?? UNKNOWN,
-    fulfillment_status: order?.fulfillment_status ?? UNKNOWN,
+    // ONE status. The raw `status` / `payment_status` / `fulfillment_status`
+    // flags are deliberately NOT here: they contradict each other, and a model
+    // handed a contradiction will read it out.
+    //
+    // A missing status must degrade to "I don't know where it is" — NEVER to a
+    // thrown error, which the customer would hear as "I can't verify your order"
+    // about an order they just proved is theirs.
+    status: progress?.headline ?? "Status unavailable",
+    status_detail:
+      progress?.detail ??
+      "I do not have a current status for this order — offer to have someone check.",
+    awaiting_payment: progress?.awaiting_payment ?? false,
+    tracking: tracking.filter((t) => t.number),
     total: order?.total ?? null,
     currency_code: order?.currency_code ?? null,
     placed_at: order?.created_at ?? null,
@@ -329,13 +352,57 @@ const projectVerifiedOrder = (order: any) => {
         }
       : null,
     note:
-      "These are the ONLY order facts you have. A field marked '" +
-      UNKNOWN +
-      "' means the store has not recorded it: say you do not have that detail. " +
-      "NEVER state or imply the order was shipped, delivered, paid or refunded " +
-      "unless the field above says so, and never invent a tracking number or a " +
-      "delivery date — there is none available.",
+      "These are the ONLY order facts you have. `status` and `status_detail` are " +
+      "the WHOLE truth about where this order stands — they are already worked " +
+      "out for the customer, so tell them that and nothing more. There are no " +
+      "payment, fulfilment or internal status flags for you to report: do NOT " +
+      "mention payment at all unless `awaiting_payment` is true (if the parcel " +
+      "has shipped, the money is settled and raising it only frightens people). " +
+      "If `tracking` is empty there is NO tracking number — say so plainly and " +
+      "offer to have someone follow up; never invent one, and never invent a " +
+      "delivery date.",
   }
+}
+
+/**
+ * A product the model actually looked at while answering, in the shape a chat
+ * bubble can render: image, price, link.
+ *
+ * The model is given a lean projection (title/price/stock) because every field
+ * costs tokens — but the SURFACE wants a picture and a link. Both come from the
+ * same gateway call, so the card data is free: we keep the full product here and
+ * hand the model the short version.
+ */
+export type ProductCard = {
+  id: string
+  title: string | null
+  handle: string | null
+  thumbnail: string | null
+  /** Cheapest variant price, in MAJOR units (1000 == $1,000). */
+  price: number | null
+  currency_code: string | null
+  in_stock: boolean
+}
+
+/** At most this many cards ride along on one reply — a chat bubble, not a PLP. */
+const MAX_PRODUCT_CARDS = 4
+
+/**
+ * A verified order, as a status card. Only ever built AFTER the identity gate in
+ * `lookupOrder` has passed, so it carries nothing an anonymous visitor has not
+ * already proven they are entitled to see.
+ */
+export type OrderCard = {
+  type: "order"
+  order_number: number | null
+  placed_at: string | null
+  stage: OrderProgress["stage"]
+  headline: string
+  detail: string
+  total: number | null
+  currency_code: string | null
+  tracking: OrderTracking[]
+  items: { title: string | null; quantity: number | null }[]
 }
 
 export type ChatToolRuntime = {
@@ -349,6 +416,10 @@ export type ChatToolRuntime = {
   handoffReason: () => string | null
   /** Names of the tools actually executed, in order (for logs and tests). */
   used: () => string[]
+  /** Products the model surfaced, for rendering as cards under its reply. */
+  products: () => ProductCard[]
+  /** The verified order the model looked up, if any, as a status card. */
+  order: () => OrderCard | null
 }
 
 /**
@@ -367,6 +438,13 @@ export const createChatToolRuntime = (
     chatbotId: string | null
     /** The customer this conversation is already matched to, or null. */
     customerId: string | null
+    /**
+     * What the customer actually just said. The budget lives HERE, not in the
+     * tool arguments — the model is free to search for "sample product" while
+     * the customer asked for something "under $50", and a card must honour the
+     * customer's constraint, not the model's paraphrase of it.
+     */
+    inboundText?: string | null
   }
 ): ChatToolRuntime => {
   const gateway = getCommerceGateway(container)
@@ -385,6 +463,99 @@ export const createChatToolRuntime = (
   let handoff = false
   let handoffReason: string | null = null
 
+  // Every product the model looked at this turn, in first-seen order, deduped.
+  const productCards: ProductCard[] = []
+  // The one order it verified this turn, if it verified one.
+  let orderCard: OrderCard | null = null
+
+  const rememberProducts = (found: CommerceProduct[]): void => {
+    for (const p of found) {
+      if (!p?.id || productCards.length >= MAX_PRODUCT_CARDS) {
+        continue
+      }
+      if (productCards.some((c) => c.id === p.id)) {
+        continue
+      }
+      productCards.push({
+        id: p.id,
+        title: p.title ?? null,
+        handle: p.handle ?? null,
+        thumbnail: p.thumbnail ?? null,
+        price: p.min_price ?? null,
+        currency_code: p.currency_code ?? null,
+        in_stock: (p.variants ?? []).some((v) => v.in_stock),
+      })
+    }
+  }
+
+  /**
+   * The price range the customer asked for, if they asked for one. Mirrors the
+   * gateway's own parsing (medusa-adapter.searchProducts).
+   */
+  const priceBounds = (query: string): { min: number | null; max: number | null } => {
+    const q = (query ?? "").toLowerCase()
+    const max = q.match(
+      /(?:under|below|less than|cheaper than|max)\s*\$?\s*(\d+(?:\.\d+)?)/
+    )
+    const min = q.match(
+      /(?:over|above|more than|at least|from)\s*\$?\s*(\d+(?:\.\d+)?)/
+    )
+    return {
+      max: max ? Number(max[1]) : null,
+      min: min ? Number(min[1]) : null,
+    }
+  }
+
+  /**
+   * Which of the found products may be shown as a CARD.
+   *
+   * The gateway deliberately falls back to returning out-of-range products when
+   * a price filter matches nothing — otherwise the model would tell a customer
+   * the store sells nothing, which is false. That fallback is right for the
+   * model's CONTEXT ("our catalogue starts higher than that") and wrong for a
+   * card: a card is a recommendation, and a $1,000 card under the words "nothing
+   * under $50" makes the assistant look broken. So the cards — and only the
+   * cards — hold to the constraint the customer actually stated.
+   */
+  const cardable = (found: CommerceProduct[], query: string): CommerceProduct[] => {
+    // Read the budget from what the CUSTOMER said, falling back to the model's
+    // own query — whichever states a limit, the cards respect it.
+    const { min, max } = priceBounds(
+      `${input.inboundText ?? ""} ${query ?? ""}`
+    )
+    if (min == null && max == null) {
+      return found
+    }
+    return found.filter((p) => {
+      if (p.min_price == null) {
+        return false
+      }
+      if (max != null && p.min_price > max) {
+        return false
+      }
+      if (min != null && p.min_price < min) {
+        return false
+      }
+      return true
+    })
+  }
+
+  /** What the MODEL sees: enough to talk about, nothing it has to pay for twice. */
+  const forModel = (found: CommerceProduct[]): unknown => {
+    if (!found.length) {
+      return { products: [], note: "no matching products in this store" }
+    }
+    return {
+      products: found.map((p) => ({
+        title: p.title,
+        handle: p.handle,
+        min_price: p.min_price,
+        currency_code: p.currency_code,
+        in_stock: (p.variants ?? []).some((v) => v.in_stock),
+      })),
+    }
+  }
+
   /** Delegate to a call-center registry tool, unchanged. */
   const runRegistryTool = async (
     name: string,
@@ -400,31 +571,6 @@ export const createChatToolRuntime = (
     }
     const res = await tool.handler(ctx, args)
     return res.error ? { error: res.error } : (res.result ?? null)
-  }
-
-  /**
-   * "What do you sell?" — the catalog with no search term.
-   *
-   * The registry's `searchProducts` REQUIRES a query (a voice caller always names
-   * something), so a browse cannot go through it. The gateway does support it, and
-   * it is the SAME tenant-scoped, fail-closed `searchProducts` the registry tool
-   * calls one line deeper — only the projection is local, because the registry's
-   * is not exported.
-   */
-  const browseCatalog = async (limit: number): Promise<unknown> => {
-    const products = await gateway.searchProducts(input.tenantId, "", limit)
-    if (!products.length) {
-      return { products: [], note: "this store has no published products yet" }
-    }
-    return {
-      products: products.map((p) => ({
-        title: p.title,
-        handle: p.handle,
-        min_price: p.min_price,
-        currency_code: p.currency_code,
-        in_stock: (p.variants ?? []).some((v) => v.in_stock),
-      })),
-    }
   }
 
   /**
@@ -505,6 +651,33 @@ export const createChatToolRuntime = (
     const email = normEmail(args.email)
     const code = digits(args.support_code ?? args.order_code ?? args.code)
 
+    // (0) SIGNED IN. The storefront already authenticated this shopper, so there
+    // is nothing left for them to prove — demanding an order number and the email
+    // on the order from someone the store is literally logged in as is the hassle
+    // this whole path exists to remove. With no order number we simply hand back
+    // their most recent order; that IS the answer to "where is my order?".
+    if (input.customerId && !orderNumber && !code) {
+      const own = await gateway
+        .listCustomerOrders(input.tenantId, { customer_id: input.customerId })
+        .catch(() => [] as CommerceOrder[])
+      if (!own.length) {
+        return {
+          verified: true,
+          signed_in: true,
+          orders: [],
+          note:
+            "This customer is signed in and has no orders in this store yet. Say " +
+            "so warmly and offer to help them find something.",
+        }
+      }
+      const latest = [...own].sort(
+        (a, b) =>
+          new Date(b.created_at ?? 0).getTime() -
+          new Date(a.created_at ?? 0).getTime()
+      )[0]
+      return await presentOrder(latest, own.length)
+    }
+
     // (1) No credential at all -> do not touch the database. Nothing to leak, and
     // the model is told exactly what to ask for. This does NOT burn the budget:
     // it is a prompt mistake, not a failed verification attempt.
@@ -542,11 +715,53 @@ export const createChatToolRuntime = (
     // VERIFIED. Fetch the full order through the call-center registry's own
     // getOrder tool (same handler the voice agent uses, tenant-scoped), then
     // project it to the chat-safe shape.
-    const full = await runRegistryTool("getOrder", { order_id: order.id })
-    if (!full || (full as any).error) {
+    return await presentOrder(order, null)
+  }
+
+  /** Load an order in full, remember it as a card, and project it for the model. */
+  const presentOrder = async (
+    order: CommerceOrder,
+    totalOwnOrders: number | null
+  ): Promise<unknown> => {
+    const full: any = await runRegistryTool("getOrder", { order_id: order.id })
+    if (!full || full.error) {
       return GENERIC_VERIFICATION_FAILURE
     }
-    return projectVerifiedOrder(full)
+
+    // The gateway now returns the order already reconciled: true totals and
+    // quantities from the order's latest version, the shipment facts, and ONE
+    // derived status. No second opinion is needed here.
+    const tracking = (full.tracking ?? []).filter((t: any) => t.number)
+    const progress = full.progress ?? null
+
+    orderCard = progress
+      ? {
+          type: "order",
+          order_number: full.display_id ?? null,
+          placed_at: full.created_at ?? null,
+          stage: progress.stage,
+          headline: progress.headline,
+          detail: progress.detail,
+          total: full.total ?? null,
+          currency_code: full.currency_code ?? null,
+          tracking,
+          items: Array.isArray(full.items)
+            ? full.items.slice(0, 4).map((i: any) => ({
+                title: i?.title ?? null,
+                quantity: i?.quantity ?? null,
+              }))
+            : [],
+        }
+      : null
+
+    const projected: any = projectVerifiedOrder(full, progress, tracking)
+    if (totalOwnOrders && totalOwnOrders > 1) {
+      projected.other_orders = totalOwnOrders - 1
+      projected.note +=
+        ` This is their MOST RECENT order; they have ${totalOwnOrders - 1} other ` +
+        "order(s) in this store. Offer to look at those if they mean a different one."
+    }
+    return projected
   }
 
   const searchKnowledge = async (
@@ -603,17 +818,46 @@ export const createChatToolRuntime = (
     )
     try {
       switch (name) {
+        // Both product tools now go straight to the gateway rather than through
+        // the registry's projection. Same tenant-scoped, fail-closed call one
+        // line deeper — but we keep the FULL product, so the reply can carry
+        // real cards (image, price, link) instead of the model's prose about
+        // them. The model still only sees the lean projection.
         case "searchProducts": {
           const rawLimit = Number((args as any).limit)
           const limit =
             Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 5) : 5
-          const query = asString((args as any).query) ?? asString((args as any).q)
-          return query
-            ? await runRegistryTool(name, args)
-            : await browseCatalog(limit)
+          const query =
+            asString((args as any).query) ?? asString((args as any).q) ?? ""
+          const found = await gateway.searchProducts(input.tenantId, query, limit)
+          // The model sees everything the gateway returned; only products that
+          // actually meet the customer's stated budget become cards.
+          rememberProducts(cardable(found, query))
+          return forModel(found)
         }
-        case "getProduct":
-          return await runRegistryTool(name, args)
+        case "getProduct": {
+          const key =
+            asString((args as any).product_id) ?? asString((args as any).handle)
+          let found = key
+            ? await gateway.getProduct(input.tenantId, key)
+            : null
+          // The model may only know the title. Fall back to a search rather than
+          // telling a customer we do not carry a product we plainly do.
+          if (!found) {
+            const term =
+              asString((args as any).title) ??
+              asString((args as any).handle) ??
+              asString((args as any).product_id)
+            if (term) {
+              found = (await gateway.searchProducts(input.tenantId, term, 1))[0] ?? null
+            }
+          }
+          if (!found) {
+            return { error: "no such product in this store" }
+          }
+          rememberProducts([found])
+          return forModel([found])
+        }
         case "searchKnowledge":
           return await searchKnowledge(args)
         case "lookupOrder":
@@ -641,5 +885,7 @@ export const createChatToolRuntime = (
     handoffRequested: () => handoff,
     handoffReason: () => handoffReason,
     used: () => [...usedTools],
+    products: () => [...productCards],
+    order: () => orderCard,
   }
 }

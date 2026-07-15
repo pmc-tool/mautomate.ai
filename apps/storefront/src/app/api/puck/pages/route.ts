@@ -4,7 +4,7 @@ import { isValidEditorRequest } from "@lib/util/secret"
 import { resolveEditorTenant } from "@lib/util/editor-tenant"
 
 export async function GET(req: NextRequest) {
-  if (!isValidEditorRequest(req)) {
+  if (!(await isValidEditorRequest(req))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
   const { backend, pubKey } = await resolveEditorTenant(req)

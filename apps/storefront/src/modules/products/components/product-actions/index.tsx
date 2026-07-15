@@ -9,6 +9,8 @@ import OptionSelect from "@modules/products/components/product-actions/option-se
 import { isEqual } from "lodash"
 import { useParams, usePathname, useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
+
+import { setVariantSelection } from "@modules/products/variant-gallery"
 import ProductPrice from "../product-price"
 import MobileActions from "./mobile-actions"
 import { useRouter } from "next/navigation"
@@ -58,6 +60,13 @@ export default function ProductActions({
       return isEqual(variantOptions, options)
     })
   }, [product.variants, options])
+
+  // Tell the gallery which variant is selected, so it can show that variant's
+  // own photos. Cleared on unmount so a later product page starts fresh.
+  useEffect(() => {
+    setVariantSelection(product.id, selectedVariant?.id ?? null)
+    return () => setVariantSelection(undefined, null)
+  }, [product.id, selectedVariant?.id])
 
   // update the options when a variant is selected
   const setOptionValue = (optionId: string, value: string) => {

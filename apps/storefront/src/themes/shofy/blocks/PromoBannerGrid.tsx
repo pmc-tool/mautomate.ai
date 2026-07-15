@@ -70,20 +70,22 @@ function TileLink({
   href,
   className,
   children,
+  dataEl,
 }: {
   href: string
   className?: string
   children: ReactNode
+  dataEl?: string
 }) {
   if (isExternal(href)) {
     return (
-      <a href={href} className={className}>
+      <a href={href} className={className} data-el={dataEl}>
         {children}
       </a>
     )
   }
   return (
-    <LocalizedClientLink href={href} className={className}>
+    <LocalizedClientLink href={href} className={className} data-el={dataEl}>
       {children}
     </LocalizedClientLink>
   )
@@ -122,6 +124,7 @@ function BannerItem({
   href,
   linkLabel,
   wide,
+  dataElItem,
 }: {
   eyebrow?: string
   title: string
@@ -130,10 +133,15 @@ function BannerItem({
   href: string
   linkLabel?: string
   wide?: boolean
+  dataElItem?: string
 }) {
   return (
-    <div className={wide ? "col-xl-8 col-lg-7" : "col-xl-4 col-lg-5"}>
+    <div
+      className={wide ? "col-xl-8 col-lg-7" : "col-xl-4 col-lg-5"}
+      data-el-item={dataElItem}
+    >
       <div
+        data-el="item"
         className={`tp-banner-item ${
           wide ? "" : "tp-banner-item-sm "
         }tp-banner-height p-relative mb-30 z-index-1 fix`}
@@ -175,7 +183,7 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
           <div className="row">
             <div className="col-xl-12">
               <div className="tp-section-title-wrapper mb-40">
-                <h3 className="tp-section-title">
+                <h3 data-el="title" className="tp-section-title">
                   {intro.title}{" "}
                   <svg
                     width="114"
@@ -198,7 +206,11 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
                 ) : null}
                 {intro.href && intro.link_label ? (
                   <div style={{ marginTop: 10 }}>
-                    <TileLink href={intro.href} className="tp-link-btn">
+                    <TileLink
+                      href={intro.href}
+                      className="tp-link-btn"
+                      dataEl="button"
+                    >
                       {intro.link_label} <LinkArrow />
                     </TileLink>
                   </div>
@@ -231,6 +243,7 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
               href={cat.href}
               linkLabel="Shop Now"
               wide={!!cat.wide}
+              dataElItem={`categories:${i}`}
             />
           ))}
 

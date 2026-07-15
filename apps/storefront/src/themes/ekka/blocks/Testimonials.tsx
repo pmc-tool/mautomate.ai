@@ -102,7 +102,11 @@ const Testimonials = (props: TestimonialsData) => {
               }}
             >
               {/* Testimonial Item Start */}
-              <li className="ec-test-item">
+              <li
+                data-el="item"
+                data-el-item={`items:${active}`}
+                className="ec-test-item"
+              >
                 <i
                   className="ecicon eci-quote-right fi-rr-quote-right top"
                   aria-hidden="true"
@@ -116,8 +120,12 @@ const Testimonials = (props: TestimonialsData) => {
                     />
                   </div>
                   <div className="ec-test-content">
-                    <div className="ec-test-desc">{item.quote}</div>
-                    <div className="ec-test-name">{item.author}</div>
+                    <div data-el="quote" className="ec-test-desc">
+                      {item.quote}
+                    </div>
+                    <div data-el="author" className="ec-test-name">
+                      {item.author}
+                    </div>
                     {item.role ? (
                       <div className="ec-test-designation">{item.role}</div>
                     ) : null}

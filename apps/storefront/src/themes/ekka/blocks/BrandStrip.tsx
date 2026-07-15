@@ -54,7 +54,7 @@ const BrandStrip = (props: BrandStripData) => {
               {/* Section Title Start */}
               <div className="section-title">
                 <h2 className="ec-bg-title">{title}</h2>
-                <h2 className="ec-title">{title}</h2>
+                <h2 data-el="title" className="ec-title">{title}</h2>
               </div>
               {/* Section Title End */}
             </div>
@@ -81,6 +81,8 @@ const BrandStrip = (props: BrandStripData) => {
                 const img = <img alt="brand" title="brand" src={brand.image} />
                 return (
                   <li
+                    data-el="logo"
+                    data-el-item={`brands:${i}`}
                     className="ec-brand-item"
                     key={i}
                     style={{ flex: "0 1 12.5%", minWidth: 120 }}

@@ -82,9 +82,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         let callCredits = 0
         const durationSeconds =
           typeof body.duration_seconds === "number" ? body.duration_seconds : 0
+        // A phone call carries a telco leg (Twilio) that a web call doesn't —
+        // so it costs us more and is priced higher.
+        const isPhone = !!((call as any).from_number || (call as any).to_number)
+        const callAction = isPhone ? "ai_call_phone_minute" : "ai_call_minute"
         if (durationSeconds > 0) {
           const minutes = Math.max(1, Math.ceil(durationSeconds / 60))
-          callCredits = creditsFor("ai_call_minute", minutes)
+          callCredits = creditsFor(callAction, minutes)
           update.cost_total = callCredits
         }
 
@@ -99,6 +103,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             const r = await ledger.clawback(call.tenant_id, callCredits, {
               idempotencyKey: `call:${call.id}`,
             })
+            // Voice settles post-paid (clawback, not reserve/commit), so the
+            // usage row has to be written explicitly — otherwise call minutes
+            // are invisible to the margin dashboard.
+            const billedMinutes = Math.max(1, Math.ceil(durationSeconds / 60))
+            await ledger.settleUsage(
+              call.tenant_id,
+              callAction,
+              billedMinutes,
+              callCredits,
+              { call_id: call.id, channel: isPhone ? "phone" : "web" }
+            )
             if (r.suspend) {
               // eslint-disable-next-line no-console
               console.warn(

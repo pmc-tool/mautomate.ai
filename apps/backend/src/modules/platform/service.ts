@@ -8,6 +8,7 @@ import TenantConfig from "./models/tenant-config"
 import CreditWallet from "./models/credit-wallet"
 import CreditTransaction from "./models/credit-transaction"
 import CreditReservation from "./models/credit-reservation"
+import CreditLot from "./models/credit-lot"
 import UsageEvent from "./models/usage-event"
 import AuditLog from "./models/audit-log"
 import PlatformPackage from "./models/platform-package"
@@ -34,6 +35,7 @@ class PlatformModuleService extends MedusaService({
   CreditWallet,
   CreditTransaction,
   CreditReservation,
+  CreditLot,
   UsageEvent,
   AuditLog,
   PlatformPackage,

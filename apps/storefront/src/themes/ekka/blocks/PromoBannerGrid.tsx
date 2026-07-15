@@ -97,6 +97,7 @@ function BannerTile({
   href,
   linkLabel,
   wide,
+  dataElItem,
 }: {
   title: string
   stitle?: string
@@ -104,9 +105,12 @@ function BannerTile({
   href: string
   linkLabel?: string
   wide?: boolean
+  dataElItem?: string
 }) {
   return (
     <div
+      data-el="item"
+      data-el-item={dataElItem}
       className={
         wide
           ? "banner-block col-lg-12 margin-b-30"
@@ -122,7 +126,7 @@ function BannerTile({
         </div>
         {linkLabel ? (
           <div className="banner-content">
-            <span className="ec-banner-btn">
+            <span data-el="button" className="ec-banner-btn">
               <TileLink href={href}>{linkLabel}</TileLink>
             </span>
           </div>
@@ -140,8 +144,9 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
   // Preserve the shared content order: intro (section header), sale, the
   // regular (non-wide) category tiles, the instagram banner, then the wide
   // tiles — same order the Cignet/Aurora renderers use.
-  const regularCats = categories.filter((c) => !c.wide)
-  const wideCats = categories.filter((c) => c.wide)
+  const indexedCats = categories.map((cat, i) => ({ cat, i }))
+  const regularCats = indexedCats.filter(({ cat }) => !cat.wide)
+  const wideCats = indexedCats.filter(({ cat }) => cat.wide)
 
   // Nothing to render -> render null (mirror the original empty guards).
   if (!intro && !sale && !instagram && categories.length === 0) {
@@ -158,7 +163,7 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
               {/* Section Title Start */}
               <div className="section-title">
                 <h2 className="ec-bg-title">{intro.title}</h2>
-                <h2 className="ec-title">{intro.title}</h2>
+                <h2 data-el="title" className="ec-title">{intro.title}</h2>
                 {intro.body ? <p className="sub-title">{intro.body}</p> : null}
                 {intro.href && intro.link_label ? (
                   <div style={{ marginTop: 20 }}>
@@ -189,14 +194,15 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
               ) : null}
 
               {/* Regular category tiles */}
-              {regularCats.map((cat, i) => (
+              {regularCats.map(({ cat, i }, idx) => (
                 <BannerTile
                   key={`reg-${i}`}
                   title={cat.title}
                   stitle={cat.count_label}
-                  image={tileImage(cat.image, sale ? i + 1 : i)}
+                  image={tileImage(cat.image, sale ? idx + 1 : idx)}
                   href={cat.href}
                   linkLabel="Order Now"
+                  dataElItem={`categories:${i}`}
                 />
               ))}
 
@@ -212,15 +218,16 @@ const PromoBannerGrid = (props: PromoBannerGridData) => {
               ) : null}
 
               {/* Wide category tiles */}
-              {wideCats.map((cat, i) => (
+              {wideCats.map(({ cat, i }, idx) => (
                 <BannerTile
                   key={`wide-${i}`}
                   title={cat.title}
                   stitle={cat.count_label}
-                  image={tileImage(cat.image, i)}
+                  image={tileImage(cat.image, idx)}
                   href={cat.href}
                   linkLabel="Order Now"
                   wide
+                  dataElItem={`categories:${i}`}
                 />
               ))}
             </div>

@@ -27,6 +27,8 @@ export async function resolveEditorTenant(
   pubKey: string
   activeTheme: string
   name: string
+  /** The tenant this HOST belongs to — editor tokens must be bound to it. */
+  tenantId: string
 }> {
   if (!MULTI_TENANT)
     return {
@@ -34,6 +36,7 @@ export async function resolveEditorTenant(
       pubKey: DEFAULT_PUB,
       activeTheme: "",
       name: "",
+      tenantId: "",
     }
   const host = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "")
     .split(",")[0]
@@ -44,6 +47,7 @@ export async function resolveEditorTenant(
       pubKey: DEFAULT_PUB,
       activeTheme: "",
       name: "",
+      tenantId: "",
     }
   try {
     const r = await fetch(`${TENANT_CONFIG_URL}?host=${encodeURIComponent(host)}`, {
@@ -62,6 +66,7 @@ export async function resolveEditorTenant(
         // editor chrome (scrub Forever Finds copy/logo) exactly like the live
         // storefront's applyTenantBranding, so the editor is WYSIWYG.
         name: (d.name || "").trim(),
+        tenantId: (d.tenant_id || "").trim(),
       }
     }
   } catch {}
@@ -70,6 +75,7 @@ export async function resolveEditorTenant(
     pubKey: DEFAULT_PUB,
     activeTheme: "",
     name: "",
+    tenantId: "",
   }
 }
 

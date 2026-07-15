@@ -37,8 +37,14 @@ const Newsletter = (props: NewsletterData) => {
         <div className="row">
           <div className="col-lg-5 col-md-4">
             <div className="section-title small-mb__40 tablet-mb__40">
-              <h2 className="section-title--one">{title}</h2>
-              {subtitle ? <p className="mt-30">{subtitle}</p> : null}
+              <h2 data-el="heading" className="section-title--one">
+                {title}
+              </h2>
+              {subtitle ? (
+                <p data-el="text" className="mt-30">
+                  {subtitle}
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="col-lg-7 col-md-8">
@@ -48,6 +54,7 @@ const Newsletter = (props: NewsletterData) => {
                 style={{ position: "relative" }}
               >
                 <input
+                  data-el="input"
                   className="input-box"
                   type="email"
                   name="mail"
@@ -56,7 +63,7 @@ const Newsletter = (props: NewsletterData) => {
                   autoComplete="off"
                   required
                 />
-                <button type="submit" className="submit-btn">
+                <button data-el="button" type="submit" className="submit-btn">
                   {buttonLabel}
                 </button>
               </form>

@@ -21,6 +21,19 @@ module.exports = {
         padding: "padding-top padding-right padding-bottom padding-left",
       },
       colors: {
+        /* mAutomate ember — the brand accent, shared with the visual editor
+           (modules/cms/editor/design.ts). Used for STATE — active nav, focus
+           rings, selection — and for the one action that publishes to the
+           public. Primary buttons stay ink; ember is a signal, not a paint. */
+        brand: {
+          50: "#FEF1EA",
+          100: "#FBDCC9",
+          200: "#F7BE9B",
+          400: "#F58150",
+          500: "#F26522",
+          600: "#E05A1A",
+          700: "#C94D12",
+        },
         grey: {
           0: "#FFFFFF",
           5: "#F9FAFB",

@@ -12,6 +12,7 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 /* ------------------------------------------------------------------ */
 
 interface CategoryTile {
+  index: number
   label: string
   image: string
   href: string
@@ -62,7 +63,7 @@ const CategoryShowcaseView = (props: CategoryShowcaseViewProps) => {
                   </span>
                 ) : null}
                 {title ? (
-                  <h3 className="tp-section-title">
+                  <h3 data-el="title" className="tp-section-title">
                     {title}{" "}
                     <svg
                       width="114"
@@ -89,7 +90,11 @@ const CategoryShowcaseView = (props: CategoryShowcaseViewProps) => {
         <div className="row row-cols-xl-5 row-cols-lg-5 row-cols-md-4 row-cols-sm-3 row-cols-2 justify-content-center">
           {tiles.map((tile, i) => (
             <div className="col" key={i}>
-              <div className="tp-product-category-item text-center mb-40">
+              <div
+                data-el="tile"
+                data-el-item={`items:${tile.index}`}
+                className="tp-product-category-item text-center mb-40"
+              >
                 <div className="tp-product-category-thumb fix">
                   <LocalizedClientLink href={tile.href}>
                     <img

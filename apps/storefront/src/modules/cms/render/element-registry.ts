@@ -26,17 +26,30 @@ export type ElementDef = { key: string; label: string }
  */
 export const ELEMENT_REGISTRY: Record<string, ElementDef[]> = {
   hero_slider: [
-    { key: "title", label: "Heading" },
+    { key: "image", label: "Slide (background)" },
+    { key: "content", label: "Slide Content Box" },
     { key: "kicker", label: "Kicker" },
+    { key: "title", label: "Heading" },
     { key: "button", label: "Button" },
-    { key: "image", label: "Background image" },
   ],
   promo_banner_grid: [
+    // The intro BOX itself, not just the words in it. A merchant who says "change
+    // the background of the intro" means this element — and until it was
+    // registered (and given a data-el hook) the editor had nothing to select, so
+    // the background simply could not be changed at all.
+    { key: "intro", label: "Intro Box" },
     { key: "title", label: "Intro Title" },
+    { key: "body", label: "Intro Text" },
     { key: "button", label: "Intro Link" },
+    { key: "sale", label: "Sale Banner" },
     { key: "item", label: "Category Tile" },
+    { key: "instagram", label: "Instagram Tile" },
   ],
   deal_of_day: [
+    // The product photo is the biggest thing in this section and was not
+    // selectable at all — the merchant could not touch it.
+    { key: "image", label: "Product Image" },
+    { key: "content", label: "Content Box" },
     { key: "title", label: "Title" },
     { key: "text", label: "Description" },
     { key: "countdown", label: "Countdown" },
@@ -58,6 +71,7 @@ export const ELEMENT_REGISTRY: Record<string, ElementDef[]> = {
   newsletter: [
     { key: "heading", label: "Heading" },
     { key: "text", label: "Text" },
+    { key: "form", label: "Signup Form" },
     { key: "input", label: "Email Input" },
     { key: "button", label: "Button" },
   ],
@@ -73,10 +87,21 @@ export const ELEMENT_REGISTRY: Record<string, ElementDef[]> = {
   product_tabs: [
     { key: "tab", label: "Tab" },
     { key: "card", label: "Product Card" },
+    { key: "image", label: "Product Image" },
+    { key: "card_title", label: "Product Name" },
+    { key: "price", label: "Price" },
   ],
   category_showcase: [
     { key: "title", label: "Title" },
     { key: "tile", label: "Category Tile" },
+    { key: "image", label: "Tile Image" },
+    { key: "label", label: "Tile Label" },
+  ],
+  image_gallery: [
+    { key: "heading", label: "Heading" },
+    { key: "subheading", label: "Sub-heading" },
+    { key: "item", label: "Image" },
+    { key: "caption", label: "Caption" },
   ],
 }
 

@@ -26,12 +26,26 @@
  * crashing the storefront.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
 
 const POLL_INTERVAL_MS = 4000
+/**
+ * While the bot is composing, poll hard. At the idle 4s cadence an answer that
+ * was ready in 900ms could still sit unseen for another 3 — which is what made
+ * replies feel like they arrived out of nowhere, long after the dots gave up.
+ */
+const REPLY_POLL_INTERVAL_MS = 1000
+/** Stop the dots eventually. A spinner with no end is a lie, not a loader. */
+const REPLY_TIMEOUT_MS = 45000
 
 type ChatbotConfig = {
   public_key: string
@@ -50,13 +64,146 @@ type ChatbotConfig = {
   collect_email: boolean
 }
 
+/**
+ * A product the assistant looked up while answering. The backend attaches these
+ * to the message itself (`media`), so they survive a reload and are rendered as
+ * cards rather than described in prose.
+ */
+type ProductCard = {
+  type: "product"
+  id: string
+  title: string | null
+  handle: string | null
+  thumbnail: string | null
+  /** Major units — 1000 means $1,000. */
+  price: number | null
+  currency_code: string | null
+  in_stock: boolean
+}
+
+/** A verified order, as a status card. Only sent after the identity gate passes. */
+type OrderCard = {
+  type: "order"
+  order_number: number | null
+  placed_at: string | null
+  stage:
+    | "canceled"
+    | "delivered"
+    | "shipped"
+    | "packed"
+    | "preparing"
+    | "awaiting_payment"
+  headline: string
+  detail: string
+  total: number | null
+  currency_code: string | null
+  tracking: { number: string | null; url: string | null }[]
+  items: { title: string | null; quantity: number | null }[]
+}
+
 type ChatMessage = {
   id: string
   direction: "inbound" | "outbound"
   author: string
   body: string
-  media?: string | null
+  media?: unknown
   sent_at: string
+}
+
+const productsOf = (media: unknown): ProductCard[] => {
+  if (!Array.isArray(media)) {
+    return []
+  }
+  return media.filter(
+    (m): m is ProductCard =>
+      !!m && typeof m === "object" && (m as any).type === "product"
+  )
+}
+
+const ordersOf = (media: unknown): OrderCard[] => {
+  if (!Array.isArray(media)) {
+    return []
+  }
+  return media.filter(
+    (m): m is OrderCard =>
+      !!m && typeof m === "object" && (m as any).type === "order"
+  )
+}
+
+/** The four steps every parcel walks. `canceled` and `awaiting_payment` sit outside it. */
+const ORDER_STEPS: { key: OrderCard["stage"]; label: string }[] = [
+  { key: "preparing", label: "Confirmed" },
+  { key: "packed", label: "Packed" },
+  { key: "shipped", label: "Shipped" },
+  { key: "delivered", label: "Delivered" },
+]
+
+const STAGE_TONE: Record<OrderCard["stage"], string> = {
+  canceled: "#b42318",
+  delivered: "#067647",
+  shipped: "#175cd3",
+  packed: "#175cd3",
+  preparing: "#475467",
+  awaiting_payment: "#b54708",
+}
+
+const formatPrice = (
+  amount: number | null,
+  currency: string | null
+): string | null => {
+  if (amount == null) {
+    return null
+  }
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: (currency || "usd").toUpperCase(),
+      maximumFractionDigits: 2,
+    }).format(amount)
+  } catch {
+    return `${amount} ${(currency || "").toUpperCase()}`.trim()
+  }
+}
+
+/**
+ * The storefront is country-scoped (/us/products/...). The widget is mounted
+ * inside that tree, so the country is simply the first path segment — and if the
+ * page is somehow not under one, the link still resolves through the store's
+ * default region.
+ */
+const productHref = (handle: string): string => {
+  if (typeof window === "undefined") {
+    return `/products/${handle}`
+  }
+  const first = window.location.pathname.split("/").filter(Boolean)[0]
+  const country = first && first.length === 2 ? first : null
+  return country ? `/${country}/products/${handle}` : `/products/${handle}`
+}
+
+/**
+ * Models write markdown even when told not to, and a chat bubble renders it as
+ * literal asterisks — "**Sample Product** is **$1,000**". Strip the syntax it
+ * actually reaches for, and render the emphasis rather than the punctuation.
+ */
+const renderText = (body: string): React.ReactNode => {
+  const cleaned = body
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "• ")
+    .replace(/`{1,3}/g, "")
+  const parts = cleaned.split(/(\*\*[^*]+\*\*|__[^_]+__)/g)
+  return parts.map((part, i) => {
+    const bold =
+      (part.startsWith("**") && part.endsWith("**") && part.length > 4) ||
+      (part.startsWith("__") && part.endsWith("__") && part.length > 4)
+    if (!bold) {
+      return <React.Fragment key={i}>{part}</React.Fragment>
+    }
+    return (
+      <strong key={i} className="font-semibold">
+        {part.slice(2, -2)}
+      </strong>
+    )
+  })
 }
 
 /** Client-side optimistic message before the backend echoes it back. */
@@ -107,15 +254,291 @@ type Props = {
    * client-side use) the widget fetches /marketing-chat/config itself.
    */
   config?: ChatbotConfig | null
+  /**
+   * A token minted by the STOREFRONT SERVER proving which customer is signed in.
+   * Null when nobody is logged in. The widget only ever carries it; it cannot
+   * read it, forge it, or mint one — see the backend's `_identity.ts`.
+   */
+  identity?: string | null
 }
 
-const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
+/**
+ * One product, as a card: photo, name, price, stock, and a way to buy.
+ *
+ * It links to the product page rather than adding to the cart directly — most
+ * products have variants (size, colour) that have to be chosen, and silently
+ * dropping an arbitrary variant into someone's cart is a worse experience than
+ * one more click.
+ */
+/**
+ * The placeholder for a product with no picture.
+ *
+ * It used to be the product's first letter on a big block of the brand colour —
+ * a giant "L" that reads as a bug, not as a missing photo. A neutral frame with
+ * an image glyph says what is actually true: this product has no image yet.
+ */
+const NoImage = () => (
+  <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-grey-10 text-grey-40">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="3"
+        y="4"
+        width="18"
+        height="16"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <circle cx="8.5" cy="9.5" r="1.5" fill="currentColor" />
+      <path
+        d="M4 17l4.5-4.5 3 3L15.5 11l4.5 4.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+    <span className="text-[9px] font-medium">No image</span>
+  </div>
+)
+
+/**
+ * One product tile: picture on top, then name, price, and the call to action —
+ * the shape every shopper already knows from a product grid.
+ *
+ * `wide` is the single-result layout (one big tile). Two or more products lay out
+ * as a real two-column grid, so "show me what you have" looks like a catalogue
+ * instead of a stack of rows.
+ */
+const ProductBubble = ({
+  product,
+  accent,
+  wide,
+}: {
+  product: ProductCard
+  accent: string
+  wide: boolean
+}) => {
+  const price = formatPrice(product.price, product.currency_code)
+  const href = product.handle ? productHref(product.handle) : null
+
+  const card = (
+    <div className="flex h-full flex-col overflow-hidden rounded-large bg-white ring-1 ring-grey-20 transition-shadow hover:shadow-md">
+      <div
+        className={`w-full overflow-hidden bg-grey-10 ${
+          wide ? "aspect-[16/9]" : "aspect-square"
+        }`}
+      >
+        {product.thumbnail ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.thumbnail}
+            alt={product.title ?? "Product"}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <NoImage />
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col gap-1 p-2.5">
+        {/* Two lines, then ellipsis — a truncated product name at 30 characters
+            tells the shopper nothing about which product it is. */}
+        <p className="line-clamp-2 text-xs font-medium leading-snug text-grey-90">
+          {product.title ?? "Product"}
+        </p>
+
+        <div className="mt-auto">
+          {price && (
+            <p className="text-sm font-semibold text-grey-90">{price}</p>
+          )}
+          {!product.in_stock && (
+            <p className="text-[10px] font-medium text-grey-50">Out of stock</p>
+          )}
+          {href && (
+            <span
+              className="mt-1.5 block rounded-base px-2 py-1.5 text-center text-[11px] font-semibold text-white"
+              style={{ backgroundColor: accent }}
+            >
+              {product.in_stock ? "Buy now" : "View product"}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
+  if (!href) {
+    return card
+  }
+
+  return (
+    <a
+      href={href}
+      className="block h-full outline-none focus-visible:ring-2 focus-visible:ring-grey-90"
+      aria-label={`${product.title ?? "Product"}${price ? `, ${price}` : ""}`}
+    >
+      {card}
+    </a>
+  )
+}
+
+/** The product grid: one wide tile, or a two-column catalogue. */
+const ProductGrid = ({
+  products,
+  accent,
+}: {
+  products: ProductCard[]
+  accent: string
+}) => {
+  const wide = products.length === 1
+  return (
+    <div className={wide ? "" : "grid grid-cols-2 gap-2"}>
+      {products.map((product) => (
+        <ProductBubble
+          key={product.id}
+          product={product}
+          accent={accent}
+          wide={wide}
+        />
+      ))}
+    </div>
+  )
+}
+
+/**
+ * An order, as a card: one status, a progress track, what is in it, and the
+ * tracking number if the carrier gave us one.
+ *
+ * Replaces a paragraph that used to recite internal database flags at the
+ * customer — "payment has not been received, but fulfillment shows as shipped" —
+ * which is not an answer to "where is my order?", it is two contradictions.
+ */
+const OrderBubble = ({ order }: { order: OrderCard }) => {
+  const tone = STAGE_TONE[order.stage] ?? "#475467"
+  const total = formatPrice(order.total, order.currency_code)
+  const stepIndex = ORDER_STEPS.findIndex((s) => s.key === order.stage)
+  const onTrack = stepIndex !== -1
+  const placed = order.placed_at
+    ? new Date(order.placed_at).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : null
+
+  return (
+    <div className="overflow-hidden rounded-large bg-white ring-1 ring-grey-20">
+      <div className="flex items-center justify-between gap-2 border-b border-grey-10 px-3 py-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-grey-90">
+            Order #{order.order_number ?? "—"}
+          </p>
+          {placed && <p className="text-[10px] text-grey-50">Placed {placed}</p>}
+        </div>
+        <span
+          className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+          style={{ backgroundColor: tone }}
+        >
+          {order.headline}
+        </span>
+      </div>
+
+      {onTrack && (
+        <div className="flex gap-1 px-3 pt-3">
+          {ORDER_STEPS.map((step, i) => (
+            <div key={step.key} className="flex-1">
+              <div
+                className="h-1 rounded-full"
+                style={{
+                  backgroundColor: i <= stepIndex ? tone : "#e4e4e7",
+                }}
+              />
+              <p
+                className="mt-1 truncate text-[9px]"
+                style={{
+                  color: i <= stepIndex ? tone : "#a1a1aa",
+                  fontWeight: i === stepIndex ? 600 : 400,
+                }}
+              >
+                {step.label}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="px-3 py-2.5">
+        <p className="text-[11px] leading-relaxed text-grey-60">{order.detail}</p>
+
+        {order.items.length > 0 && (
+          <ul className="mt-2 space-y-0.5">
+            {order.items.map((item, i) => (
+              <li key={i} className="truncate text-[11px] text-grey-80">
+                {item.quantity ?? 1} × {item.title ?? "Item"}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {total && (
+          <p className="mt-2 text-xs font-semibold text-grey-90">{total}</p>
+        )}
+
+        {order.tracking.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {order.tracking.map((t, i) =>
+              t.url ? (
+                <a
+                  key={i}
+                  href={t.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block truncate rounded-base px-2 py-1.5 text-center text-[11px] font-semibold text-white"
+                  style={{ backgroundColor: tone }}
+                >
+                  Track parcel · {t.number}
+                </a>
+              ) : (
+                <p
+                  key={i}
+                  className="truncate rounded-base bg-grey-10 px-2 py-1.5 text-center text-[11px] font-medium text-grey-70"
+                >
+                  Tracking: {t.number}
+                </p>
+              )
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const ChatWidget = ({
+  publicKey,
+  config: initialConfig = null,
+  identity = null,
+}: Props) => {
   const [config, setConfig] = useState<ChatbotConfig | null>(initialConfig)
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<LocalMessage[]>([])
   const [input, setInput] = useState("")
   const [notice, setNotice] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  /**
+   * The bot is composing.
+   *
+   * NOT the same thing as `sending`. The send POST only ingests the message —
+   * the backend generates the reply out of band (`void handleInboundAutoReply`,
+   * so a slow LLM can never time out a webhook), and returns in ~200ms. Tying
+   * the typing dots to `sending` therefore showed them for a fifth of a second,
+   * dropped them while the bot was ACTUALLY thinking, and then let the answer
+   * appear from nowhere on a later poll. This flag tracks the thing the shopper
+   * cares about: a reply is coming. It is only cleared when one lands.
+   */
+  const [awaitingReply, setAwaitingReply] = useState(false)
   const [teaserDismissed, setTeaserDismissed] = useState(false)
 
   const tokenRef = useRef<string | null>(null)
@@ -160,6 +583,12 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
     if (!incoming.length) {
       return
     }
+    // Anything that is not the visitor's own echo IS the reply — the bot's
+    // answer, an agent's, or the holding line it writes on handoff. The dots
+    // stop the moment it lands, and not a tick before.
+    if (incoming.some((message) => !isVisitorMessage(message))) {
+      setAwaitingReply(false)
+    }
     setMessages((prev) => {
       const next = [...prev]
       for (const message of incoming) {
@@ -200,8 +629,14 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
     try {
       const res = await fetch(
         `${BACKEND_URL}/marketing-chat/messages?${params.toString()}`,
-        { mode: "cors" }
+        // no-store: without it the browser revalidates and the server answers
+        // 304, which `res.ok` treats as a failure — so replies were silently
+        // discarded and the chat looked dead while the AI had already answered.
+        { mode: "cors", cache: "no-store" }
       )
+      if (res.status === 304) {
+        return // nothing new — not an error
+      }
       if (!res.ok) {
         throw new Error("poll failed")
       }
@@ -226,7 +661,12 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
         method: "POST",
         mode: "cors",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ public_key: publicKey }),
+        // A signed-in shopper is bound to their account from the first message,
+        // so the bot knows who they are and never interrogates them.
+        body: JSON.stringify({
+          public_key: publicKey,
+          ...(identity ? { identity } : {}),
+        }),
       })
       if (!res.ok) {
         throw new Error("session failed")
@@ -244,6 +684,38 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
       return null
     }
   }, [publicKey])
+
+  // A thread started BEFORE the shopper logged in keeps living in localStorage,
+  // so it would stay anonymous forever and keep asking them to prove who they
+  // are. Bind it once, as soon as we hold both a session and a signed identity.
+  const identifiedRef = useRef(false)
+  useEffect(() => {
+    if (!identity || !open || identifiedRef.current) {
+      return
+    }
+    let cancelled = false
+    const bind = async () => {
+      const token = await ensureSession()
+      if (!token || cancelled || identifiedRef.current) {
+        return
+      }
+      identifiedRef.current = true
+      try {
+        await fetch(`${BACKEND_URL}/marketing-chat/identify`, {
+          method: "POST",
+          mode: "cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversation_token: token, identity }),
+        })
+      } catch {
+        // Not fatal: the bot simply stays anonymous on this thread.
+      }
+    }
+    void bind()
+    return () => {
+      cancelled = true
+    }
+  }, [identity, open, ensureSession])
 
   // Establish session + start/stop polling based on open state.
   useEffect(() => {
@@ -266,7 +738,10 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
       if (cancelled) {
         return
       }
-      pollTimerRef.current = setInterval(poll, POLL_INTERVAL_MS)
+      pollTimerRef.current = setInterval(
+        poll,
+        awaitingReply ? REPLY_POLL_INTERVAL_MS : POLL_INTERVAL_MS
+      )
     }
 
     start()
@@ -278,7 +753,23 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
         pollTimerRef.current = null
       }
     }
-  }, [open, config, ensureSession, poll])
+  }, [open, config, ensureSession, poll, awaitingReply])
+
+  // The dots cannot spin forever: if nothing has come back after 45s, say so
+  // plainly and let the shopper get on with their day. The message is safe —
+  // it is in the merchant's inbox either way.
+  useEffect(() => {
+    if (!awaitingReply) {
+      return
+    }
+    const timer = window.setTimeout(() => {
+      setAwaitingReply(false)
+      setNotice(
+        "This is taking longer than usual. Your message was received — we will reply right here."
+      )
+    }, REPLY_TIMEOUT_MS)
+    return () => window.clearTimeout(timer)
+  }, [awaitingReply])
 
   // Move focus into the panel on open.
   useEffect(() => {
@@ -304,10 +795,14 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [open])
 
-  // Keep the newest message in view.
+  // Keep the newest message in view — and the typing bubble too, so the dots
+  // never appear below the fold while the shopper stares at a still panel.
   useEffect(() => {
-    listEndRef.current?.scrollIntoView({ block: "end" })
-  }, [messages, open])
+    listEndRef.current?.scrollIntoView({
+      block: "end",
+      behavior: open ? "smooth" : "auto",
+    })
+  }, [messages, open, awaitingReply])
 
   const handleSend = useCallback(async () => {
     const text = input.trim()
@@ -343,16 +838,22 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
         // calls). Tell the visitor plainly instead of silently dropping.
         setNotice("You are sending messages too quickly. Please wait a moment.")
         setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
+        setAwaitingReply(false)
         return
       }
       if (!res.ok) {
         throw new Error("send failed")
       }
       setNotice(null)
+      // The message is in. The reply is now being written somewhere else, so
+      // hand the dots over to `awaitingReply` — they must NOT go out when
+      // `sending` does, which is the whole bug.
+      setAwaitingReply(true)
       await poll()
     } catch {
       setNotice("Message could not be sent. Please try again.")
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
+      setAwaitingReply(false)
     } finally {
       setSending(false)
     }
@@ -501,7 +1002,13 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
                     ? "Support"
                     : config.name
               return (
-                <div key={message.id} className="flex justify-start gap-2">
+                // The reply eases in. It used to be swapped into the DOM by a
+                // poll tick with no transition at all, which is what made it
+                // read as "a text suddenly appears" rather than as an answer.
+                <div
+                  key={message.id}
+                  className="motion-safe:animate-enter flex justify-start gap-2"
+                >
                   <div
                     className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-circle text-xs font-semibold text-white"
                     style={{ backgroundColor: accent }}
@@ -509,13 +1016,34 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
                   >
                     {label.charAt(0).toUpperCase()}
                   </div>
-                  <div className="max-w-[80%]">
+                  <div className="max-w-[80%] min-w-0">
                     <div className="mb-1 text-[11px] font-medium text-grey-60">
                       {label}
                     </div>
-                    <div className="whitespace-pre-wrap rounded-large rounded-bl-base bg-white px-3 py-2 text-sm text-grey-80 ring-1 ring-grey-20">
-                      {message.body}
-                    </div>
+                    {message.body?.trim() && (
+                      <div className="whitespace-pre-wrap rounded-large rounded-bl-base bg-white px-3 py-2 text-sm text-grey-80 ring-1 ring-grey-20">
+                        {renderText(message.body)}
+                      </div>
+                    )}
+
+                    {/* The products the assistant found, as products — a photo, a
+                        price, a way to buy. Prose describing a product is not a
+                        product. */}
+                    {productsOf(message.media).length > 0 && (
+                      <div className="mt-2">
+                        <ProductGrid
+                          products={productsOf(message.media)}
+                          accent={accent}
+                        />
+                      </div>
+                    )}
+
+                    {ordersOf(message.media).map((order, i) => (
+                      <div key={i} className="mt-2">
+                        <OrderBubble order={order} />
+                      </div>
+                    ))}
+
                     {config.show_datetime && (
                       <div className="mt-1 text-[10px] text-grey-40">
                         {formatTime(message.sent_at)}
@@ -538,7 +1066,7 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
               message layout (avatar + bubble). motion-safe so it respects
               prefers-reduced-motion.
             */}
-            {sending && lastMessageIsVisitor && (
+            {(sending || awaitingReply) && lastMessageIsVisitor && (
               <div className="flex justify-start gap-2" aria-live="polite">
                 <div
                   className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-circle text-xs font-semibold text-white"
@@ -585,7 +1113,8 @@ const ChatWidget = ({ publicKey, config: initialConfig = null }: Props) => {
                 placeholder="Type your message..."
                 aria-label="Type your message"
                 maxLength={2000}
-                className="min-w-0 flex-1 rounded-circle border border-grey-20 bg-grey-5 px-4 py-2 text-sm text-grey-80 outline-none focus:border-grey-40"
+                className="h-10 min-w-0 flex-1 rounded-full border border-grey-20 bg-grey-5 px-4 text-sm text-grey-80 outline-none focus:border-grey-40"
+                style={{ borderRadius: 9999, height: 40, boxSizing: "border-box" }}
               />
               <button
                 type="button"

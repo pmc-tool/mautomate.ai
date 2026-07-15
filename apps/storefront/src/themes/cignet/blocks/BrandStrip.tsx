@@ -50,7 +50,7 @@ const BrandStrip = (props: BrandStripData) => {
             <div className="col-xl-12">
               {/* Section Title Start */}
               <div className="section-title section-title-center">
-                <h2 className="text-anime-style-3">{title}</h2>
+                <h2 data-el="title" className="text-anime-style-3">{title}</h2>
               </div>
               {/* Section Title End */}
             </div>
@@ -102,6 +102,8 @@ const BrandStrip = (props: BrandStripData) => {
                 {brands.map((brand, i) => (
                   <LocalizedClientLink
                     key={i}
+                    data-el="logo"
+                    data-el-item={`brands:${i}`}
                     href={brand.href || "#"}
                     style={{ display: "inline-flex", alignItems: "center" }}
                   >

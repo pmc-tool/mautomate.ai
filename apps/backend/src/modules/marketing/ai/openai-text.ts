@@ -31,8 +31,31 @@ import type {
  * so a failing tool becomes a result the model reads, not a failed run.
  */
 
-/** Default chat model when `MARKETING_TEXT_MODEL` is unset. */
-const DEFAULT_MODEL = "gpt-4o-mini"
+/**
+ * Which OpenAI-compatible backend serves the chat assistant.
+ *
+ * Preference order (first configured wins):
+ *   1. Novita  — same provider as the voice agents; cheap, already paid for.
+ *   2. OpenAI  — if a key is set and Novita is not.
+ *
+ * `CHAT_AI_PROVIDER=openai` forces OpenAI even when Novita is available.
+ */
+const useNovita = (): boolean => {
+  if (process.env.CHAT_AI_PROVIDER === "openai") return false
+  if (process.env.CHAT_AI_PROVIDER === "novita") return true
+  return !!process.env.NOVITA_API_KEY
+}
+
+const chatApiKey = (): string | undefined =>
+  useNovita() ? process.env.NOVITA_API_KEY : process.env.OPENAI_API_KEY
+
+const chatBaseUrl = (): string =>
+  useNovita() ? "https://api.novita.ai/v3/openai" : "https://api.openai.com/v1"
+
+/** Default chat model — depends on which backend is serving (see useNovita). */
+const DEFAULT_MODEL_OPENAI = "gpt-4o-mini"
+const DEFAULT_MODEL_NOVITA = "moonshotai/kimi-k2.7-code"
+const DEFAULT_MODEL = ""
 
 /** Total attempts (1 initial + retries) for a single generate call. */
 const MAX_ATTEMPTS = 2
@@ -58,7 +81,7 @@ const sleep = (ms: number): Promise<void> =>
 
 /** The chat model in use (env-overridable). */
 const chatModel = (): string =>
-  process.env.MARKETING_TEXT_MODEL ?? DEFAULT_MODEL
+  process.env.MARKETING_TEXT_MODEL ?? (useNovita() ? DEFAULT_MODEL_NOVITA : DEFAULT_MODEL_OPENAI)
 
 /** Serialize a tool result for the model, bounded in size. */
 const serializeToolResult = (result: unknown): string => {
@@ -94,9 +117,16 @@ export class OpenAiTextProvider implements AiTextProvider {
   /** This provider implements the tool loop (see `runTools`). */
   readonly supportsTools = true
 
-  /** Configured when an API key is present in the environment. */
+  /**
+   * Configured when ANY OpenAI-compatible key is present.
+   *
+   * Novita speaks the same wire protocol (chat/completions + tool calling), so
+   * the chat assistant can run on Kimi — the same engine as the voice agents —
+   * instead of a separate OpenAI account that can silently run out of quota and
+   * take the whole chat down (exactly what happened).
+   */
   isConfigured(): boolean {
-    return !!process.env.OPENAI_API_KEY
+    return !!chatApiKey()
   }
 
   /**
@@ -104,16 +134,16 @@ export class OpenAiTextProvider implements AiTextProvider {
    * the raw `choices[0].message` object. Throws a clean Error on failure.
    */
   private async complete(body: Record<string, unknown>): Promise<any> {
-    const apiKey = process.env.OPENAI_API_KEY
+    const apiKey = chatApiKey()
     if (!apiKey) {
-      throw new Error("[marketing] OpenAiTextProvider: OPENAI_API_KEY is not set")
+      throw new Error("[marketing] chat AI: no OPENAI_API_KEY or NOVITA_API_KEY set")
     }
 
     let lastError: unknown = null
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+        const resp = await fetch(`${chatBaseUrl()}/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

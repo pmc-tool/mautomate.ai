@@ -26,7 +26,7 @@ const LeartsProductCard = ({
   return (
     <div className="col">
       <div className="product" data-el="card">
-        <div className="product-thumb">
+        <div className="product-thumb" data-el="image">
           {onSale && cheapestPrice?.percentage_diff ? (
             <span className="product-badges">
               <span className="onsale">-{cheapestPrice.percentage_diff}%</span>
@@ -43,12 +43,12 @@ const LeartsProductCard = ({
           />
         </div>
         <div className="product-info">
-          <h6 className="title">
+          <h6 className="title" data-el="card_title">
             <LocalizedClientLink href={href}>
               {product.title}
             </LocalizedClientLink>
           </h6>
-          <span className="price">
+          <span className="price" data-el="price">
             {onSale && cheapestPrice ? (
               <>
                 <span className="old">{cheapestPrice.original_price}</span>{" "}

@@ -58,7 +58,7 @@ const Testimonials = (props: TestimonialsData) => {
         ) : null}
         <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 justify-content-center">
           {items.map((item, i) => (
-            <div className="col learts-mb-30" key={i}>
+            <div className="col learts-mb-30" key={i} data-el-item={`items:${i}`}>
               <TestimonialCard item={item} />
             </div>
           ))}

@@ -11,7 +11,7 @@ const PriceBookEntry = model
     action: model.text(),
     label: model.text().nullable(),
     credits: model.number().default(0),
-    vendor_cost_usd: model.number().default(0),
+    vendor_cost_usd: model.float().default(0),
   })
   .indexes([
     { name: "IDX_price_book_action_unique", on: ["action"], unique: true, where: "deleted_at IS NULL" },

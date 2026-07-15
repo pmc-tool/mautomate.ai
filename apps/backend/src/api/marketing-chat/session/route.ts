@@ -28,6 +28,8 @@ import { withTenant } from "../../../lib/tenant-context"
 import { MARKETING_MODULE } from "../../../modules/marketing"
 import { applyCors, OPTIONS } from "../_cors"
 import { first, readPublicKey, resolveChatbotByPublicKey } from "../_chatbot"
+import { verifyIdentity } from "../_identity"
+import { bindConversationToCustomer } from "../_bind-customer"
 
 export { OPTIONS }
 
@@ -35,7 +37,16 @@ export { OPTIONS }
 const SESSION_LIMIT_PER_IP = 30
 const SESSION_WINDOW_SECONDS = 300
 
-type Body = { visitor_name?: string; public_key?: string }
+type Body = {
+  visitor_name?: string
+  public_key?: string
+  /**
+   * A token minted by the STOREFRONT SERVER proving which customer is signed in.
+   * Optional — a logged-out visitor simply has none. Never a raw customer id: the
+   * browser is not trusted to say who it is (see `_identity.ts`).
+   */
+  identity?: string
+}
 
 export const POST = async (req: MedusaRequest<Body>, res: MedusaResponse) => {
   applyCors(req, res)
@@ -116,9 +127,24 @@ export const POST = async (req: MedusaRequest<Body>, res: MedusaResponse) => {
       )
     })
 
+    // A signed-in shopper is bound to their account from the very first message,
+    // so the bot already knows who they are and never asks them to prove it.
+    let identified = false
+    const identity = verifyIdentity(req.body?.identity)
+    if (identity && conversation) {
+      identified = await withTenant(tenantId, () =>
+        bindConversationToCustomer(req.scope, {
+          tenantId,
+          conversation,
+          customerId: identity.customerId,
+        })
+      )
+    }
+
     res.status(200).json({
       conversation_token: token,
       conversation_id: conversation?.id,
+      identified,
       // Extension (backwards compatible): lets the widget greet without a
       // second round-trip to /config.
       welcome_message: chatbot.welcome_message ?? chatbot.greeting ?? null,

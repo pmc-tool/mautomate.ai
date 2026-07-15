@@ -7,10 +7,18 @@
  * truth and unit-testable.
  */
 export type BillableAction =
-  | "ai_call_minute"
+  | "ai_call_minute" // web call (no telco leg)
+  | "ai_call_phone_minute" // phone call (adds the Twilio leg)
+  | "phone_number_month" // recurring number rental
   | "sms_segment"
-  | "ai_text"
+  | "ai_text" // one field rewrite
+  | "ai_page_edit" // an AI page edit (2-stage)
+  | "ai_content" // long-form: blog/article/product copy
   | "ai_image"
+  | "ai_logo" // image + background removal
+  | "ai_image_basic"
+  | "social_publish" // free: costs us nothing, drives usage
+  | "email_batch" // 1 credit per 10 emails (never fractional)
   | "email"
   | "domain_purchase_usd"
 
@@ -21,11 +29,27 @@ export type PriceRow = {
 }
 
 export const PRICE_BOOK: Record<BillableAction, PriceRow> = {
-  ai_call_minute: { action: "ai_call_minute", credits: 20, vendor_cost_usd: 0.11 },
-  sms_segment: { action: "sms_segment", credits: 6, vendor_cost_usd: 0.03 },
-  ai_text: { action: "ai_text", credits: 2, vendor_cost_usd: 0.001 },
-  ai_image: { action: "ai_image", credits: 10, vendor_cost_usd: 0.04 },
-  email: { action: "email", credits: 0.2, vendor_cost_usd: 0.0004 },
+  // Voice: our profit engine. Vendor = Deepgram STT + TTS + LLM (+ Twilio on phone).
+  ai_call_minute: { action: "ai_call_minute", credits: 15, vendor_cost_usd: 0.03 },
+  ai_call_phone_minute: { action: "ai_call_phone_minute", credits: 18, vendor_cost_usd: 0.04 },
+  phone_number_month: { action: "phone_number_month", credits: 300, vendor_cost_usd: 1.15 },
+  // Thinnest margin on the board — carrier fees move; watch this one.
+  sms_segment: { action: "sms_segment", credits: 2, vendor_cost_usd: 0.011 },
+  // Near-free to us, generous to them: makes the product feel unlimited.
+  ai_text: { action: "ai_text", credits: 2, vendor_cost_usd: 0.0005 },
+  ai_page_edit: { action: "ai_page_edit", credits: 5, vendor_cost_usd: 0.002 },
+  ai_content: { action: "ai_content", credits: 10, vendor_cost_usd: 0.01 },
+  // Images sell the platform — deliberately thin (3x).
+  ai_image: { action: "ai_image", credits: 12, vendor_cost_usd: 0.039 },
+  ai_logo: { action: "ai_logo", credits: 15, vendor_cost_usd: 0.056 },
+  ai_image_basic: { action: "ai_image_basic", credits: 2, vendor_cost_usd: 0.003 },
+  // Costs us nothing; drives the habit that burns paid credits elsewhere.
+  social_publish: { action: "social_publish", credits: 0, vendor_cost_usd: 0 },
+  // Sub-credit actions are BATCHED, never fractional (integer credit columns).
+  email_batch: { action: "email_batch", credits: 1, vendor_cost_usd: 0.001 },
+  email: { action: "email", credits: 1, vendor_cost_usd: 0.0001 },
+  // DEPRECATED: domains are paid by CARD, not credits (see domains/buy).
+  // The row stays so historic usage rows still resolve a label.
   domain_purchase_usd: {
     action: "domain_purchase_usd",
     credits: 100,
@@ -58,16 +82,31 @@ export const loadRateOverrides = (
   for (const r of rows || []) setRateOverride(r.action, Number(r.credits))
 }
 
-/** Credits to charge for `units` of `action` (rounded up to 0.1-credit granularity). */
+/** Credits to charge for `units` of `action` — always a WHOLE credit.
+ *  The wallet/ledger columns are integers by design, so any fractional charge
+ *  would silently round. Sub-credit actions must be billed in batches instead
+ *  (e.g. email: 1 credit per 10 sends), never as a fraction. */
 export const creditsFor = (action: BillableAction, units = 1): number => {
   const override = RATE_OVERRIDES.get(action)
   const perUnit = override !== undefined ? override : PRICE_BOOK[action]?.credits
   if (perUnit === undefined) throw new Error(`unknown billable action: ${action}`)
   const raw = perUnit * units
-  return Math.ceil(raw * 10) / 10
+  return Math.ceil(raw)
 }
 
 /** The margin multiple for an action (customer credits value ÷ vendor cost). */
+/** Blended vendor cost for a metered action — the truth behind the margin. */
+export const vendorCostFor = (action: BillableAction, units = 1): number => {
+  const row = PRICE_BOOK[action]
+  return row ? row.vendor_cost_usd * units : 0
+}
+
+/** Credits per single unit (lets us derive units back from a credit amount). */
+export const creditsPerUnit = (action: BillableAction): number => {
+  const override = RATE_OVERRIDES.get(action)
+  return override !== undefined ? override : PRICE_BOOK[action]?.credits ?? 0
+}
+
 export const marginFor = (action: BillableAction): number => {
   const row = PRICE_BOOK[action]
   const customerUsd = row.credits * CREDIT_USD
@@ -83,12 +122,34 @@ export type Tier = {
 }
 
 export const TIERS: Tier[] = [
-  { key: "free_trial", price_usd: 0, included_credits: 300, fixed_infra_usd: 10 },
-  { key: "starter", price_usd: 29, included_credits: 500, fixed_infra_usd: 10 },
-  { key: "growth", price_usd: 79, included_credits: 1500, fixed_infra_usd: 10 },
-  { key: "pro", price_usd: 149, included_credits: 4000, fixed_infra_usd: 8 },
-  { key: "scale", price_usd: 349, included_credits: 10000, fixed_infra_usd: 6 },
+  { key: "free_trial", price_usd: 0, included_credits: 200, fixed_infra_usd: 10 },
+  { key: "starter", price_usd: 19, included_credits: 1500, fixed_infra_usd: 10 },
+  { key: "growth", price_usd: 49, included_credits: 5000, fixed_infra_usd: 10 },
+  { key: "pro", price_usd: 99, included_credits: 12000, fixed_infra_usd: 8 },
+  { key: "scale", price_usd: 249, included_credits: 35000, fixed_infra_usd: 6 },
 ]
+
+/**
+ * Top-up packs — PURCHASED credits, which NEVER expire (see credit_lot).
+ * Bigger packs are cheaper per credit; every pack is dearer per credit than a
+ * subscription, so the plans stay the better deal.
+ */
+export type Pack = { credits: number; price_usd: number }
+export const PACKS: Pack[] = [
+  { credits: 1000, price_usd: 12 },
+  { credits: 5000, price_usd: 50 },
+  { credits: 15000, price_usd: 135 },
+  { credits: 50000, price_usd: 400 },
+]
+
+/** Which plans may use the expensive, abuse-prone channels. */
+export const PLAN_GATES: Record<string, { phone: boolean; sms: boolean; images: number | null }> = {
+  free_trial: { phone: false, sms: false, images: 16 },
+  starter: { phone: false, sms: true, images: null },
+  growth: { phone: true, sms: true, images: null },
+  pro: { phone: true, sms: true, images: null },
+  scale: { phone: true, sms: true, images: null },
+}
 
 /**
  * Worst-case contribution margin for a paid tier: price − fixed infra − the

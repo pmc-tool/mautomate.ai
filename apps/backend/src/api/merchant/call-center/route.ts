@@ -70,6 +70,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         by_status: callsByStatus,
       },
       total_minutes: Math.round(totalMinutes),
+      // cost_total on a call row stores CREDITS charged (set at call-ended) --
+      // surface it under an honest name; total_cost kept for back-compat.
+      credits_today: totalCost,
       total_cost: totalCost,
       tasks_scheduled: tasksScheduled,
       campaigns_running: campaignsRunning,

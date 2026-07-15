@@ -40,9 +40,11 @@ const Newsletter = (props: NewsletterData) => {
       <div className="container">
         <div className="row justify-content-center">
           <div className="col-xl-6 col-lg-7 col-md-8 align-self-center ec-offer-content">
-            <h2 className="ec-offer-title">{title}</h2>
+            <h2 data-el="heading" className="ec-offer-title">{title}</h2>
             {subtitle ? (
-              <span className="ec-offer-desc">{subtitle}</span>
+              <span data-el="text" className="ec-offer-desc">
+                {subtitle}
+              </span>
             ) : null}
 
             {/* Subscribe Form Start */}
@@ -61,6 +63,7 @@ const Newsletter = (props: NewsletterData) => {
                   }}
                 >
                   <input
+                    data-el="input"
                     className="ec-email"
                     type="email"
                     name="ec-email"
@@ -70,6 +73,7 @@ const Newsletter = (props: NewsletterData) => {
                     required
                   />
                   <button
+                    data-el="button"
                     className="button btn-primary"
                     type="submit"
                     name="subscribe"

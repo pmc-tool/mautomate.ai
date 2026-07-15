@@ -2,6 +2,22 @@
 
 import { useMemo, useRef, useState } from "react"
 import { listBlockSchemas } from "@modules/cms/schema"
+import { UiIcon } from "@modules/cms/editor/palette-icons"
+import {
+  accent,
+  button,
+  field,
+  font,
+  grey,
+  hairline,
+  hairlineDark,
+  iconButton,
+  ink,
+  radius,
+  semantic,
+  shadow,
+  type,
+} from "@modules/cms/editor/design"
 
 type Msg = { role: "user" | "ai"; text: string; error?: boolean }
 
@@ -103,55 +119,61 @@ export function AiPanel({
     }
   }
 
+  const disabled = busy || !input.trim()
+
   return (
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(15,23,42,0.35)", display: "flex", justifyContent: "flex-end" }}
+      style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(15, 19, 25, 0.35)", display: "flex", justifyContent: "flex-end" }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: 420, maxWidth: "94vw", height: "100%", background: "#fff", boxShadow: "-8px 0 28px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column" }}
+        style={{ width: 420, maxWidth: "94vw", height: "100%", fontFamily: font, background: grey[0], boxShadow: shadow.lg, display: "flex", flexDirection: "column" }}
       >
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid #eef0f3", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#26292c" }}>
+        <div style={{ padding: "12px 16px", borderBottom: hairlineDark, display: "flex", alignItems: "center", justifyContent: "space-between", background: ink.base }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 4, background: "#f0abfc", display: "inline-block" }} />
-            <span style={{ fontWeight: 600, fontSize: 14, color: "#fff" }}>AI editor</span>
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.8, color: "#f0abfc", border: "1px solid rgba(240,171,252,0.4)", borderRadius: 4, padding: "2px 6px" }}>
-              BETA
+            <span style={{ color: accent.base, display: "inline-flex" }}>
+              <UiIcon name="sparkles" size={16} />
+            </span>
+            <span style={{ ...type.title, fontFamily: font, color: ink.text }}>AI editor</span>
+            <span style={{ ...type.micro, fontFamily: font, color: accent.base, border: `1px solid ${accent.base}`, borderRadius: radius.sm, padding: "2px 6px" }}>
+              Beta
             </span>
           </div>
-          <button onClick={onClose} aria-label="Close" style={{ border: 0, background: "none", fontSize: 20, cursor: "pointer", color: "#9ca3af", lineHeight: 1 }}>
-            ×
+          <button onClick={onClose} aria-label="Close" style={{ ...iconButton("sm", true), border: 0, background: "none", color: ink.muted }}>
+            <UiIcon name="x" size={16} />
           </button>
         </div>
 
-        <div ref={listRef} style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div ref={listRef} style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
           {msgs.map((m, i) => (
             <div
               key={i}
               style={{
+                ...type.body,
+                fontFamily: font,
                 alignSelf: m.role === "user" ? "flex-end" : "flex-start",
                 maxWidth: "88%",
                 whiteSpace: "pre-line",
-                fontSize: 13,
-                lineHeight: 1.5,
-                padding: "9px 12px",
-                borderRadius: 10,
-                background: m.role === "user" ? "#26292c" : m.error ? "#fef2f2" : "#f4f4f5",
-                color: m.role === "user" ? "#fff" : m.error ? "#b91c1c" : "#18181b",
+                padding: "8px 12px",
+                borderRadius: radius.lg,
+                border: m.error ? `1px solid ${semantic.dangerBorder}` : hairline,
+                borderColor: m.role === "user" ? ink.base : undefined,
+                background: m.role === "user" ? ink.base : m.error ? semantic.dangerBg : grey[5],
+                color: m.role === "user" ? ink.text : m.error ? semantic.dangerFg : grey[90],
               }}
             >
               {m.text}
             </div>
           ))}
           {busy && (
-            <div style={{ alignSelf: "flex-start", fontSize: 13, color: "#9ca3af", padding: "6px 2px" }}>
+            <div style={{ ...type.body, fontFamily: font, alignSelf: "flex-start", color: grey[40], padding: "6px 2px" }}>
               Editing your page…
             </div>
           )}
         </div>
 
-        <div style={{ padding: 12, borderTop: "1px solid #eef0f3", display: "flex", gap: 8 }}>
+        <div style={{ padding: 12, borderTop: hairline, display: "flex", gap: 8 }}>
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -163,21 +185,15 @@ export function AiPanel({
             }}
             placeholder="Describe the change… (Enter to send)"
             rows={2}
-            style={{ flex: 1, resize: "none", border: "1px solid #e4e4e7", borderRadius: 8, padding: "9px 11px", fontSize: 13, outline: "none", fontFamily: "inherit" }}
+            style={{ ...field(), flex: 1, height: "auto", padding: "8px 10px", resize: "none" }}
           />
           <button
             onClick={send}
-            disabled={busy || !input.trim()}
+            disabled={disabled}
             style={{
+              ...button("accent"),
               alignSelf: "flex-end",
-              border: 0,
-              borderRadius: 8,
-              padding: "10px 16px",
-              fontSize: 13,
-              fontWeight: 700,
-              background: busy || !input.trim() ? "#e4e4e7" : "#d004d4",
-              color: busy || !input.trim() ? "#a1a1aa" : "#fff",
-              cursor: busy || !input.trim() ? "default" : "pointer",
+              ...(disabled ? { background: grey[20], color: grey[40], cursor: "default" } : {}),
             }}
           >
             Send

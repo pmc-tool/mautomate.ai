@@ -105,6 +105,9 @@ export type Theme = {
   description?: string
   preview?: string | null
   active?: boolean
+  /** "react" (compiled) or "liquid" (uploaded). The gallery treats them the
+   *  same; only preview URL construction differs. */
+  engine?: "react" | "liquid"
 }
 
 export type CreditsResponse = {
@@ -113,11 +116,19 @@ export type CreditsResponse = {
   trial_ends_at: string | null
   transactions: {
     id: string
-    type: string
+    /** "in" = credits arrived, "out" = credits spent/expired */
+    kind?: "in" | "out"
+    /** Human activity label ("AI images · 3 uses", "Credits purchased") */
+    label?: string
+    type?: string
     amount: number
-    description: string
+    description?: string
     created_at: string
   }[]
+  count?: number
+  limit?: number
+  offset?: number
+  has_more?: boolean
 }
 
 export type OverviewStats = {
@@ -320,8 +331,15 @@ export async function updateTheme(
   })
 }
 
-export async function getCredits(token: string): Promise<CreditsResponse> {
-  return request<CreditsResponse>("/merchant/credits", { token })
+export async function getCredits(
+  token: string,
+  opts: { limit?: number; offset?: number } = {}
+): Promise<CreditsResponse> {
+  const q = new URLSearchParams()
+  if (opts.limit) q.set("limit", String(opts.limit))
+  if (opts.offset) q.set("offset", String(opts.offset))
+  const qs = q.toString()
+  return request<CreditsResponse>(`/merchant/credits${qs ? `?${qs}` : ""}`, { token })
 }
 
 export async function getRecentOrders(token: string, limit = 5): Promise<Order[]> {
@@ -386,6 +404,8 @@ export type ProductOption = {
 export type ProductVariant = {
   id: string
   title: string
+  /** The variant's own thumbnail — a URL from the product's gallery. */
+  thumbnail?: string | null
   sku?: string | null
   prices?: ProductPrice[]
   metadata?: Record<string, any> | null
@@ -398,6 +418,8 @@ export type ProductVariant = {
 export type ProductImage = {
   id: string
   url: string
+  /** The variants this image belongs to. Empty = shown for every variant. */
+  variants?: { id: string }[]
 }
 
 export type ProductCollection = {
@@ -3538,6 +3560,12 @@ export type OnboardingStatus = {
   shipping: boolean
   payment: boolean
   domain: boolean
+  /** Countries a shopper can actually be delivered to today (may be empty). */
+  shipping_countries?: string[]
+  /** The country the storefront sells in. If it is not covered, checkout dies. */
+  store_country?: string
+  /** A custom domain that was added but never verified — not yet connected. */
+  pending_domain?: string | null
 }
 
 export async function getOnboarding(token: string): Promise<OnboardingStatus> {
@@ -4154,6 +4182,13 @@ export type BillingPack = {
 
 export type BillingOverview = {
   credit_usd: number
+  /** Two buckets: plan credits expire at period end; purchased never do. */
+  credits?: {
+    total: number
+    expiring: number
+    purchased: number
+    next_expiry: string | null
+  }
   plan_status: string
   trial_ends_at: string | null
   wallet: { balance: number; reserved: number }
@@ -4371,6 +4406,8 @@ export async function listProductsPaged(
 export type ProductFullVariant = {
   id: string
   title: string
+  /** The variant's own thumbnail (an image from the product's gallery). */
+  thumbnail?: string | null
   sku: string | null
   barcode: string | null
   ean: string | null
@@ -4569,6 +4606,27 @@ export async function updateVariant(
   )
 }
 
+/**
+ * Set which VARIANTS a product image belongs to (Medusa's model: images live on
+ * the product; each one is linked to the variants it shows). An image linked to
+ * no variants is shown for all of them.
+ */
+export async function setImageVariants(
+  token: string,
+  productId: string,
+  imageId: string,
+  payload: { add?: string[]; remove?: string[] }
+): Promise<{ added: string[]; removed: string[] }> {
+  return request<{ added: string[]; removed: string[] }>(
+    `/merchant/products/${productId}/images/${imageId}/variants`,
+    {
+      method: "POST",
+      token,
+      body: payload,
+    }
+  )
+}
+
 
 
 export async function deleteVariant(
@@ -4753,6 +4811,8 @@ export async function listShippingProfilesLite(
 
 export type VariantUpsertPayload = {
   title?: string
+  /** A URL from the product's gallery (null clears it). */
+  thumbnail?: string | null
   sku?: string | null
   barcode?: string | null
   ean?: string | null
@@ -6718,10 +6778,41 @@ export type CannedResponse = {
 
 export type ListInboxConversationsParams = {
   status?: string
+  /** Drop closed threads — what every working view wants. */
+  excludeClosed?: boolean
   channel?: string
+  handlerMode?: string
+  /** "me" = assigned to the signed-in agent, "none" = nobody has claimed it. */
+  assigned?: "me" | "none"
+  starred?: boolean
+  unread?: boolean
   q?: string
   limit?: number
   offset?: number
+}
+
+/**
+ * Exact badge counts for the inbox rail, over the tenant's WHOLE inbox — never
+ * derived from the page of conversations the list happens to hold.
+ */
+export type InboxCounts = {
+  views: {
+    needs_you: number
+    unassigned: number
+    mine: number
+    starred: number
+    open: number
+    closed: number
+    all: number
+    unread: number
+  }
+  channels: Record<string, number>
+}
+
+export async function getInboxCounts(token: string): Promise<InboxCounts> {
+  return request<InboxCounts>("/merchant/marketing/conversations/counts", {
+    token,
+  })
 }
 
 export async function listInboxConversations(
@@ -6730,7 +6821,12 @@ export async function listInboxConversations(
 ): Promise<{ conversations: InboxConversation[]; count: number }> {
   const search = new URLSearchParams()
   if (params.status) search.set("status", params.status)
+  else if (params.excludeClosed) search.set("exclude_closed", "true")
   if (params.channel) search.set("channel", params.channel)
+  if (params.handlerMode) search.set("handler_mode", params.handlerMode)
+  if (params.assigned) search.set("assigned", params.assigned)
+  if (params.starred) search.set("starred", "true")
+  if (params.unread) search.set("unread", "true")
   if (params.q) search.set("q", params.q)
   if (params.limit !== undefined) search.set("limit", String(params.limit))
   if (params.offset !== undefined) search.set("offset", String(params.offset))

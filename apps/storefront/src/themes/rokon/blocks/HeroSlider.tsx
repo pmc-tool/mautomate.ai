@@ -93,6 +93,7 @@ const HeroSlider = (props: HeroSliderData) => {
         {slides.map((slide, i) => (
           <div
             key={i}
+            data-el-item={`slides:${i}`}
             className={
               i === active
                 ? "hero__slider--items swiper-slide-active"
@@ -112,6 +113,7 @@ const HeroSlider = (props: HeroSliderData) => {
                 <div className="col-12">
                   <div className="hero__slider--thumbnail">
                     <img
+                      data-el="image"
                       className="hero__slider--thumbnail__img display-block"
                       src={
                         slide.image ||
@@ -123,6 +125,7 @@ const HeroSlider = (props: HeroSliderData) => {
                   <div className="slider__content text-center">
                     {slide.subtitle ? (
                       <span
+                        data-el="kicker"
                         className="slider__content--subtitle"
                         style={{
                           display: "block",
@@ -137,7 +140,7 @@ const HeroSlider = (props: HeroSliderData) => {
                         {slide.subtitle}
                       </span>
                     ) : null}
-                    <h2 className="slider__content--maintitle h1">
+                    <h2 data-el="title" className="slider__content--maintitle h1">
                       {renderTitle(slide.title)}
                     </h2>
                     {slide.text ? (
@@ -147,6 +150,7 @@ const HeroSlider = (props: HeroSliderData) => {
                     ) : null}
                     <div className="slider__content--footer d-flex align-items-center justify-content-center">
                       <LocalizedClientLink
+                        data-el="button"
                         className="slider__content--btn primary__btn"
                         href={slide.cta?.href || "/store"}
                       >

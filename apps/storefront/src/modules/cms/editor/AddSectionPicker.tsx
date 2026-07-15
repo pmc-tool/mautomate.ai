@@ -18,12 +18,21 @@
 import React, { useMemo, useState } from "react"
 import { listBlockSchemas } from "@modules/cms/schema"
 import type { BlockSchema } from "@modules/cms/schema"
-import { PaletteIcon } from "./palette-icons"
+import { PaletteIcon, UiIcon } from "./palette-icons"
+import {
+  accent,
+  eyebrow,
+  field,
+  font,
+  grey,
+  motion,
+  radius,
+  surface,
+  type,
+} from "@modules/cms/editor/design"
 
 /** DnD mime type shared with the canvas (see editor-canvas). */
 export const BLOCK_DND_MIME = "application/x-ff-block"
-
-const ACCENT = "#2563eb"
 
 const gridStyle: React.CSSProperties = {
   display: "grid",
@@ -32,12 +41,8 @@ const gridStyle: React.CSSProperties = {
 }
 
 const groupHead: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#9ca3af",
-  textTransform: "uppercase",
-  letterSpacing: 0.6,
-  margin: "14px 0 6px",
+  ...eyebrow(),
+  margin: "16px 0 8px",
 }
 
 function SectionCard({
@@ -81,38 +86,42 @@ function SectionCard({
       onMouseLeave={() => setHover(false)}
       title={maxed ? "Already added (max reached)" : `Click to add, or drag onto the page`}
       style={{
-        border: `1px solid ${hover && !maxed ? ACCENT : "#e5e7eb"}`,
-        borderRadius: 10,
-        padding: "12px 8px 10px",
-        background: maxed ? "#f9fafb" : "#fff",
-        opacity: maxed ? 0.5 : 1,
+        ...surface(),
+        borderRadius: radius.md,
+        borderColor: hover && !maxed ? grey[30] : grey[20],
+        background: maxed ? grey[5] : hover ? grey[5] : grey[0],
+        opacity: maxed ? 0.6 : 1,
+        minHeight: 64,
+        padding: "12px 8px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
         cursor: maxed ? "not-allowed" : "grab",
-        textAlign: "center",
         userSelect: "none",
-        transform: hover && !maxed ? "translateY(-1px)" : "none",
-        boxShadow:
-          hover && !maxed ? "0 3px 10px rgba(37, 99, 235, 0.12)" : "none",
-        transition: "border-color .12s, transform .12s, box-shadow .12s",
+        transition: `background ${motion.fast}, border-color ${motion.fast}`,
       }}
     >
-      <div style={{ color: hover && !maxed ? ACCENT : "#4b5563" }}>
-        <PaletteIcon type={schema.type} size={22} />
-      </div>
-      <div
+      <span
+        style={{ color: maxed ? grey[40] : grey[50], display: "inline-flex" }}
+      >
+        <PaletteIcon type={schema.type} size={20} />
+      </span>
+      <span
         style={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#111827",
-          marginTop: 6,
-          lineHeight: 1.25,
+          ...type.label,
+          fontFamily: font,
+          color: maxed ? grey[40] : grey[80],
+          textAlign: "center",
         }}
       >
         {schema.label}
-      </div>
+      </span>
       {maxed ? (
-        <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 3 }}>
-          already added
-        </div>
+        <span style={{ ...type.micro, fontFamily: font, color: grey[40] }}>
+          Already added
+        </span>
       ) : presets.length ? (
         <>
           <button
@@ -122,16 +131,29 @@ function SectionCard({
               setShowPresets((v) => !v)
             }}
             style={{
-              fontSize: 10,
-              color: ACCENT,
+              ...type.micro,
+              fontFamily: font,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 2,
+              color: accent.base,
               background: "none",
               border: 0,
               cursor: "pointer",
               padding: 0,
-              marginTop: 4,
             }}
           >
-            {showPresets ? "hide presets ▴" : `${presets.length} preset${presets.length > 1 ? "s" : ""} ▾`}
+            {showPresets
+              ? "Hide presets"
+              : `${presets.length} preset${presets.length > 1 ? "s" : ""}`}
+            <UiIcon
+              name="chevron-down"
+              size={12}
+              style={{
+                transform: showPresets ? "rotate(180deg)" : "none",
+                transition: `transform ${motion.fast}`,
+              }}
+            />
           </button>
           {showPresets && (
             <div
@@ -141,7 +163,7 @@ function SectionCard({
                 flexWrap: "wrap",
                 justifyContent: "center",
                 gap: 4,
-                marginTop: 6,
+                marginTop: 4,
               }}
             >
               {presets.map((p, i) => (
@@ -159,12 +181,13 @@ function SectionCard({
                   }}
                   onClick={() => onAdd(schema.type, i)}
                   style={{
-                    fontSize: 10,
+                    ...type.label,
+                    fontFamily: font,
                     padding: "2px 8px",
-                    borderRadius: 999,
-                    border: "1px solid #dbeafe",
-                    background: "#eff6ff",
-                    color: "#1d4ed8",
+                    borderRadius: radius.pill,
+                    border: `1px solid ${accent.tintStrong}`,
+                    background: accent.tint,
+                    color: accent.base,
                     cursor: "pointer",
                   }}
                 >
@@ -215,8 +238,12 @@ export default function AddSectionPicker({
           <button
             onClick={onCancel}
             style={{
-              fontSize: 12,
-              color: ACCENT,
+              ...type.label,
+              fontFamily: font,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              color: grey[50],
               background: "none",
               border: 0,
               cursor: "pointer",
@@ -224,10 +251,27 @@ export default function AddSectionPicker({
               marginBottom: 8,
             }}
           >
-            ← Cancel
+            <UiIcon name="arrow-left" size={14} />
+            Cancel
           </button>
-          <h3 style={{ fontSize: 15, margin: "0 0 4px" }}>Add a section</h3>
-          <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 8px" }}>
+          <h3
+            style={{
+              ...type.title,
+              fontFamily: font,
+              color: grey[90],
+              margin: "0 0 4px",
+            }}
+          >
+            Add a section
+          </h3>
+          <p
+            style={{
+              ...type.body,
+              fontFamily: font,
+              color: grey[50],
+              margin: "0 0 8px",
+            }}
+          >
             Click to add at the end, or drag a card onto the page.
           </p>
         </>
@@ -239,7 +283,7 @@ export default function AddSectionPicker({
           position: "sticky",
           top: 0,
           zIndex: 5,
-          background: "#fff",
+          background: grey[0],
           padding: "4px 0 8px",
         }}
       >
@@ -248,25 +292,14 @@ export default function AddSectionPicker({
             aria-hidden="true"
             style={{
               position: "absolute",
-              left: 9,
+              left: 10,
               top: "50%",
               transform: "translateY(-50%)",
-              color: "#9ca3af",
+              color: grey[40],
               display: "inline-flex",
             }}
           >
-            <svg
-              width={14}
-              height={14}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <line x1="16.5" y1="16.5" x2="21" y2="21" />
-            </svg>
+            <UiIcon name="search" size={14} />
           </span>
           <input
             type="search"
@@ -275,21 +308,23 @@ export default function AddSectionPicker({
             placeholder="Search sections…"
             aria-label="Search sections"
             style={{
-              width: "100%",
+              ...field(),
               boxSizing: "border-box",
-              fontSize: 13,
-              padding: "7px 10px 7px 28px",
-              border: "1px solid #d1d5db",
-              borderRadius: 8,
-              outline: "none",
-              background: "#f9fafb",
+              padding: "0 10px 0 30px",
             }}
           />
         </div>
       </div>
 
       {groups.length === 0 && (
-        <div style={{ fontSize: 12, color: "#9ca3af", padding: "10px 0" }}>
+        <div
+          style={{
+            ...type.body,
+            fontFamily: font,
+            color: grey[40],
+            padding: "12px 0",
+          }}
+        >
           No sections match “{query}”.
         </div>
       )}

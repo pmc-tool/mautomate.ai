@@ -66,12 +66,19 @@ const ImageWithText = (props: ImageWithTextData) => {
           <span className="tp-product-banner-subtitle">{props.eyebrow}</span>
         ) : null}
         {title ? (
-          <h3 className="tp-product-banner-title">{renderTitle(title)}</h3>
+          <h3 data-el="heading" className="tp-product-banner-title">
+            {renderTitle(title)}
+          </h3>
         ) : null}
-        {props.body ? <p className="mb-40">{props.body}</p> : null}
+        {props.body ? (
+          <p data-el="text" className="mb-40">
+            {props.body}
+          </p>
+        ) : null}
         {props.cta?.href ? (
           <div className="tp-product-banner-btn">
             <LocalizedClientLink
+              data-el="button"
               href={props.cta.href}
               className="tp-btn tp-btn-2"
             >
@@ -92,7 +99,7 @@ const ImageWithText = (props: ImageWithTextData) => {
         </div>
 
         <div className="tp-product-banner-thumb text-end p-relative z-index-1">
-          <img src={image || DEFAULT_IMAGE} alt={title} />
+          <img data-el="image" src={image || DEFAULT_IMAGE} alt={title} />
         </div>
       </div>
     </div>

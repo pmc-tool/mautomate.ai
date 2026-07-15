@@ -81,15 +81,15 @@ const DealOfDay = (props: DealOfDayData) => {
               <span className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500">
                 Limited time
               </span>
-              <h2 className="mt-3 text-3xl md:text-4xl font-semibold tracking-tight text-neutral-900">
+              <h2 data-el="title" className="mt-3 text-3xl md:text-4xl font-semibold tracking-tight text-neutral-900">
                 {title}
               </h2>
               {props.description ? (
-                <p className="mt-4 max-w-prose text-sm text-neutral-500">
+                <p data-el="text" className="mt-4 max-w-prose text-sm text-neutral-500">
                   {props.description}
                 </p>
               ) : null}
-              <div className="mt-8 flex items-center gap-6">
+              <div data-el="countdown" className="mt-8 flex items-center gap-6">
                 <Cell value={days} label="Days" />
                 <span className="text-2xl font-light text-neutral-300">:</span>
                 <Cell value={hours} label="Hours" />
@@ -101,6 +101,7 @@ const DealOfDay = (props: DealOfDayData) => {
               {cta?.href ? (
                 <div className="mt-10">
                   <LocalizedClientLink
+                    data-el="button"
                     href={cta.href}
                     className="inline-flex items-center justify-center gap-2 rounded-full bg-neutral-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-neutral-700"
                   >

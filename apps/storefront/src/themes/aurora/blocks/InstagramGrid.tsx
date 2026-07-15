@@ -27,7 +27,9 @@ export interface InstagramGridData {
 const InstagramGrid = (props: InstagramGridData) => {
   const { handle, heading } = props
   const images = Array.isArray(props.images)
-    ? props.images.filter((m) => m && typeof m.image === "string" && m.image)
+    ? props.images
+        .map((m, i) => ({ item: m, i }))
+        .filter(({ item }) => item && typeof item.image === "string" && item.image)
     : []
 
   if (images.length === 0) {
@@ -45,7 +47,7 @@ const InstagramGrid = (props: InstagramGridData) => {
               </p>
             ) : null}
             {handle ? (
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-900 md:text-4xl">
+              <h2 data-el="title" className="mt-3 text-3xl font-semibold tracking-tight text-neutral-900 md:text-4xl">
                 {handle}
               </h2>
             ) : null}
@@ -53,9 +55,11 @@ const InstagramGrid = (props: InstagramGridData) => {
         )}
 
         <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
-          {images.map((item, i) => (
+          {images.map(({ item, i }) => (
             <a
               key={i}
+              data-el="item"
+              data-el-item={`images:${i}`}
               href={item.href || "#"}
               target="_blank"
               rel="noreferrer"

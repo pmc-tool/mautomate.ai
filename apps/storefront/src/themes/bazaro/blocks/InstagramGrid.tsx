@@ -51,7 +51,9 @@ const CameraIcon = () => (
 const InstagramGrid = (props: InstagramGridData) => {
   const { handle, heading } = props
   const images = Array.isArray(props.images)
-    ? props.images.filter((m) => m && typeof m.image === "string" && m.image)
+    ? props.images
+        .map((item, i) => ({ item, i }))
+        .filter(({ item }) => item && typeof item.image === "string" && item.image)
     : []
 
   if (images.length === 0) {
@@ -73,7 +75,7 @@ const InstagramGrid = (props: InstagramGridData) => {
                   </span>
                 ) : null}
                 {handle ? (
-                  <h4 className="aq-section-title ff-satoshi-med fs-38 mb-0">
+                  <h4 data-el="title" className="aq-section-title ff-satoshi-med fs-38 mb-0">
                     {handle}
                   </h4>
                 ) : null}
@@ -83,7 +85,7 @@ const InstagramGrid = (props: InstagramGridData) => {
         ) : null}
 
         <div className="row g-2 row-cols-lg-5 row-cols-md-3 row-cols-2">
-          {images.map((item, i) => {
+          {images.map(({ item, i }) => {
             const href =
               typeof item.href === "string" && item.href && item.href !== "#"
                 ? item.href
@@ -91,7 +93,7 @@ const InstagramGrid = (props: InstagramGridData) => {
             const external = /^https?:\/\//i.test(href)
 
             const tile = (
-              <div className="aq-shopgram-item aq-shopgram-overlay">
+              <div data-el="item" className="aq-shopgram-item aq-shopgram-overlay">
                 <img src={item.image} alt={alt} />
                 <span className="aq-shopgram-icon">
                   <span>
@@ -102,7 +104,7 @@ const InstagramGrid = (props: InstagramGridData) => {
             )
 
             return (
-              <div className="col" key={i}>
+              <div className="col" data-el-item={`images:${i}`} key={i}>
                 {external ? (
                   <a
                     href={href}

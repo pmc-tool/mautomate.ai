@@ -9,6 +9,9 @@
 /* "+ Add widget" picker listing every WIDGET_SCHEMAS entry. A new       */
 /* widget is built from its schema `defaults` (content props only — no   */
 /* style/advanced, so it stays a tiny diff until the user styles it).    */
+/*                                                                     */
+/* Styling comes entirely from the shared editor design system          */
+/* (./design) — same ramp as the dashboard, one ember accent.           */
 /* ------------------------------------------------------------------ */
 
 import React, { useState } from "react"
@@ -16,7 +19,20 @@ import {
   getWidgetSchema,
   listWidgetSchemas,
 } from "@modules/cms/schema/widgets"
-import { PaletteIcon, IconButton } from "./palette-icons"
+import { PaletteIcon, IconButton, UiIcon } from "./palette-icons"
+import {
+  accent,
+  button,
+  eyebrow,
+  font,
+  grey,
+  hairline,
+  motion,
+  radius,
+  shadow,
+  surface,
+  type,
+} from "@modules/cms/editor/design"
 
 /** DnD mime type shared with the canvas (see editor-canvas). */
 export const WIDGET_DND_MIME = "application/x-ff-widget"
@@ -72,40 +88,30 @@ export function reconcileColumns(
 
 /* ------------------------------ styles ----------------------------- */
 const colBox: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 9,
+  ...surface(),
+  borderRadius: radius.md,
   margin: "8px 0",
-  background: "#fff",
   overflow: "hidden",
 }
 const colHead: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#6b7280",
-  textTransform: "uppercase",
-  letterSpacing: 0.5,
-  padding: "7px 10px",
-  background: "#f9fafb",
-  borderBottom: "1px solid #f3f4f6",
+  ...eyebrow(),
+  padding: "8px 12px",
+  background: grey[5],
+  borderBottom: hairline,
 }
 const rowBtn: React.CSSProperties = {
+  ...type.body,
+  fontFamily: font,
   flex: 1,
   textAlign: "left",
   background: "none",
   border: 0,
   cursor: "pointer",
-  fontSize: 13,
-  color: "#111827",
+  color: grey[90],
   padding: 0,
 }
 const miniBtn: React.CSSProperties = {
-  border: "1px solid #d1d5db",
-  background: "#fff",
-  borderRadius: 5,
-  fontSize: 11,
-  padding: "2px 7px",
-  cursor: "pointer",
-  color: "#374151",
+  ...button("secondary", "sm"),
 }
 
 /* --------------------------- widget card --------------------------- */
@@ -116,7 +122,7 @@ const miniBtn: React.CSSProperties = {
  * iframe can compute a drop position and post cms:insertWidgetAt.
  */
 function WidgetCard({
-  type,
+  type: widgetType,
   label,
   onAdd,
 }: {
@@ -133,7 +139,7 @@ function WidgetCard({
       onDragStart={(e) => {
         e.dataTransfer.setData(
           WIDGET_DND_MIME,
-          JSON.stringify({ widget_type: type })
+          JSON.stringify({ widget_type: widgetType })
         )
         e.dataTransfer.effectAllowed = "copy"
       }}
@@ -148,28 +154,28 @@ function WidgetCard({
       onMouseLeave={() => setHover(false)}
       title="Click to add, or drag into a column on the page"
       style={{
-        border: `1px solid ${hover ? "#2563eb" : "#dbeafe"}`,
-        borderRadius: 8,
-        padding: "9px 4px 7px",
-        background: "#fff",
+        border: `1px solid ${hover ? accent.base : grey[20]}`,
+        borderRadius: radius.md,
+        padding: "12px 6px 8px",
+        background: grey[0],
         textAlign: "center",
         cursor: "grab",
         userSelect: "none",
         transform: hover ? "translateY(-1px)" : "none",
-        boxShadow: hover ? "0 3px 8px rgba(37, 99, 235, 0.12)" : "none",
-        transition: "border-color .12s, transform .12s, box-shadow .12s",
+        boxShadow: hover ? shadow.sm : "none",
+        transition: `border-color ${motion.fast}, transform ${motion.fast}, box-shadow ${motion.fast}`,
       }}
     >
-      <div style={{ color: hover ? "#2563eb" : "#4b5563" }}>
-        <PaletteIcon type={type} size={18} />
+      <div style={{ color: hover ? accent.base : grey[50] }}>
+        <PaletteIcon type={widgetType} size={18} />
       </div>
       <div
         style={{
-          fontSize: 11,
+          ...type.label,
+          fontFamily: font,
           fontWeight: 600,
-          color: "#111827",
-          marginTop: 4,
-          lineHeight: 1.2,
+          color: grey[90],
+          marginTop: 6,
         }}
       >
         {label}
@@ -210,8 +216,8 @@ export default function ContainerColumnsEditor({
     setColumn(ci, widgets)
   }
 
-  const addWidget = (ci: number, type: string) => {
-    const widgets = [...(cols[ci]?.widgets ?? []), newWidgetOf(type)]
+  const addWidget = (ci: number, widgetType: string) => {
+    const widgets = [...(cols[ci]?.widgets ?? []), newWidgetOf(widgetType)]
     setColumn(ci, widgets)
     setPickerCol(null)
     // Select the freshly added widget so its fields open immediately.
@@ -219,17 +225,8 @@ export default function ContainerColumnsEditor({
   }
 
   return (
-    <div style={{ marginTop: 12 }}>
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          color: "#9ca3af",
-          textTransform: "uppercase",
-          letterSpacing: 0.6,
-          margin: "6px 0 2px",
-        }}
-      >
+    <div style={{ marginTop: 16, fontFamily: font }}>
+      <div style={{ ...eyebrow(), margin: "8px 0 4px" }}>
         Columns &amp; widgets
       </div>
       {cols.map((col, ci) => {
@@ -237,9 +234,9 @@ export default function ContainerColumnsEditor({
         return (
           <div key={ci} style={colBox}>
             <div style={colHead}>Column {ci + 1}</div>
-            <div style={{ padding: "6px 10px 10px" }}>
+            <div style={{ padding: "8px 12px 12px" }}>
               {widgets.length === 0 && (
-                <div style={{ fontSize: 12, color: "#9ca3af", padding: "6px 0" }}>
+                <div style={{ ...type.label, fontFamily: font, color: grey[40], padding: "6px 0" }}>
                   No widgets yet.
                 </div>
               )}
@@ -249,18 +246,18 @@ export default function ContainerColumnsEditor({
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 6,
-                    padding: "6px 8px",
+                    gap: 8,
+                    padding: "8px",
                     margin: "4px 0",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 7,
-                    background: "#fff",
+                    border: hairline,
+                    borderRadius: radius.md,
+                    background: grey[0],
                   }}
                 >
                   <span
                     aria-hidden
                     style={{
-                      color: "#6b7280",
+                      color: grey[50],
                       display: "inline-flex",
                       flexShrink: 0,
                     }}
@@ -278,25 +275,25 @@ export default function ContainerColumnsEditor({
                   <IconButton
                     icon="arrow-up"
                     label="Move up"
-                    size={22}
-                    iconSize={12}
+                    size={24}
+                    iconSize={13}
                     disabled={wi === 0}
                     onClick={() => moveWidget(ci, wi, -1)}
                   />
                   <IconButton
                     icon="arrow-down"
                     label="Move down"
-                    size={22}
-                    iconSize={12}
+                    size={24}
+                    iconSize={13}
                     disabled={wi === widgets.length - 1}
                     onClick={() => moveWidget(ci, wi, 1)}
                   />
                   <IconButton
-                    icon="x"
+                    icon="trash"
                     label="Remove widget"
                     danger
-                    size={22}
-                    iconSize={12}
+                    size={24}
+                    iconSize={13}
                     onClick={() => removeWidget(ci, wi)}
                   />
                 </div>
@@ -304,21 +301,21 @@ export default function ContainerColumnsEditor({
               {pickerCol === ci ? (
                 <div
                   style={{
-                    border: "1px solid #dbeafe",
-                    background: "#eff6ff",
-                    borderRadius: 7,
+                    border: `1px solid ${accent.tintStrong}`,
+                    background: accent.tint,
+                    borderRadius: radius.md,
                     padding: 8,
-                    marginTop: 4,
+                    marginTop: 6,
                   }}
                 >
                   <div
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      marginBottom: 6,
+                      marginBottom: 8,
                     }}
                   >
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8" }}>
+                    <span style={{ ...eyebrow(), color: accent.active }}>
                       Pick a widget
                     </span>
                     <button
@@ -351,18 +348,15 @@ export default function ContainerColumnsEditor({
                   type="button"
                   onClick={() => setPickerCol(ci)}
                   style={{
+                    ...button("secondary", "sm"),
                     width: "100%",
-                    border: "1px dashed #93c5fd",
-                    background: "#eff6ff",
-                    color: "#1d4ed8",
-                    borderRadius: 7,
-                    fontSize: 12,
-                    padding: "6px",
-                    cursor: "pointer",
-                    marginTop: 4,
+                    border: `1px dashed ${grey[30]}`,
+                    color: grey[70],
+                    marginTop: 6,
                   }}
                 >
-                  + Add widget
+                  <UiIcon name="plus" size={13} />
+                  Add widget
                 </button>
               )}
             </div>

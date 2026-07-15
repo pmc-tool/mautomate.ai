@@ -13,8 +13,8 @@ import {
 } from "../../../../modules/domains/provider"
 import { DomainRoutingService } from "../../../../modules/platform/domain-routing"
 import { CloudflareSaaSClient } from "../../../../modules/platform/provider/cloudflare/client"
-import { getLedger } from "../../../../modules/platform/credits/metering"
-import { CREDIT_USD } from "../../../../modules/platform/pricing/price-book"
+import { gatewayForCountry } from "../../../../modules/platform/billing/provider"
+import { EncryptedConfigService } from "../../../../modules/platform/secure-config"
 import { applyMarkup } from "../_shared"
 
 const FALLBACK_PRICE_USD = Number(process.env.DOMAIN_FALLBACK_PRICE_USD ?? "12")
@@ -88,20 +88,13 @@ async function addCloudflareDnsRecords(
   }
 }
 
-function creditsForUsd(usd: number): number {
-  return Math.ceil((usd / CREDIT_USD) * 10) / 10
-}
-
 /**
  * POST /merchant/domains/buy
  *
- * Purchase/register a domain. When a registrar is configured the domain is
- * registered in real time, credits are charged, and the tenant custom-domain
- * row is created. When no registrar is configured we fall back to a manual
- * approval flow: credits are collected, a pending manual order is created, the
- * tenant custom-domain is connected with DNS instructions, and a platform
- * operator must complete registration at the registrar and then approve the
- * order.
+ * Domains are paid for with a CARD, never with AI credits: a domain is a real
+ * registrar invoice, and credits are the AI currency. We create the order in
+ * `awaiting_payment`, return a Stripe checkout url, and only register the domain
+ * once the payment webhook confirms the money has actually arrived.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
@@ -156,137 +149,71 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const totalUsd = applyMarkup(unitPriceUsd) * years
-  const creditsNeeded = creditsForUsd(totalUsd)
 
-  const ledger = getLedger(req.scope)
-  const reservationId = `dom_${ctx.tenant.id}_${Date.now()}_${Math.random()
-    .toString(36)
-    .slice(2, 10)}`
+  // A DOMAIN IS BOUGHT WITH REAL MONEY, NOT CREDITS.
+  //
+  // Credits are our AI currency — a domain is a registrar invoice we pass
+  // through with a margin. Charging credits for it would let a merchant turn an
+  // AI allowance into a real-world asset we have to pay cash for.
+  //
+  // So: create the order in `awaiting_payment`, hand back a card checkout, and
+  // register the domain only when the payment webhook confirms the money is in.
+  const domainsModule: any = req.scope.resolve(DOMAINS_MODULE)
 
-  const reserve = await ledger.reserve(
-    ctx.tenant.id,
-    "domain_purchase_usd" as any,
-    totalUsd,
-    { reservationId }
-  )
-  if (!reserve.ok) {
-    return res.status(402).json({
-      message: "insufficient credits",
-      required_credits: creditsNeeded,
-      balance_credits: reserve.credits,
-    })
-  }
-
-  try {
-    if (configured) {
-      const reg = await buyDomain(req.scope, {
-        tenantId: ctx.tenant.id,
-        domainName,
-        years,
-        privacy,
-        autoRenew,
-        userId: ctx.merchant.id,
-      })
-
-      if (!reg.ok) {
-        await ledger.release(reservationId)
-        return res.status(502).json({ message: reg.error ?? "registration failed" })
-      }
-
-      const routing = new DomainRoutingService(req.scope as any)
-      const connected = await routing.connectCustomDomain(ctx.tenant.id, domainName)
-      if (!connected.ok) {
-        await ledger.release(reservationId)
-        return res.status(502).json({ message: connected.error ?? "could not activate domain on tenant" })
-      }
-
-      // Best-effort DNS seeding at the registrar.
-      await addCloudflareDnsRecords(
-        req.scope,
-        ctx.tenant.id,
-        domainName,
-        connected.instructions
-      ).catch(() => undefined)
-
-      await ledger.commit(reservationId, totalUsd, { idempotencyKey: reservationId })
-
-      return res.json({
-        ok: true,
-        domain: reg.data?.domain,
-        order: reg.data?.order,
-        instructions: connected.instructions,
-        manual_approval: false,
-      })
-    }
-
-    // ---- manual-approval fallback ----------------------------------------
-    if (!MANUAL_APPROVAL_ENABLED) {
-      await ledger.release(reservationId)
-      return res.status(503).json({
-        message: "domain registrar is not configured and manual approval is disabled",
-      })
-    }
-
-    const domainsModule: any = req.scope.resolve(DOMAINS_MODULE)
-
-    const [order] = await domainsModule.createDomainOrders([
-      {
-        tenant_id: ctx.tenant.id,
-        domain_name: domainName,
-        tld,
-        action: "register",
-        years,
-        status: "processing",
-        price: totalUsd,
-        currency: "USD",
-        meta: { manual_approval: true, requested_by: ctx.merchant.id },
-        created_by_user_id: ctx.merchant.id,
-      },
-    ] as any)
-
-    const existing = await domainsModule.listDomainModels({
+  const [order] = await domainsModule.createDomainOrders([
+    {
       tenant_id: ctx.tenant.id,
       domain_name: domainName,
+      tld,
+      action: "register",
+      years,
+      status: "awaiting_payment",
+      price: totalUsd,
+      currency: "USD",
+      meta: {
+        requested_by: ctx.merchant.id,
+        privacy,
+        auto_renew: autoRenew,
+      },
+      created_by_user_id: ctx.merchant.id,
+    },
+  ] as any)
+
+  const cfg = new EncryptedConfigService(req.scope)
+  const gateway = gatewayForCountry(ctx.tenant.billing_country ?? "US", cfg)
+
+  if (!(await gateway.isConfigured()) || !gateway.createPurchaseCheckout) {
+    await domainsModule.updateDomainOrders({ id: order.id, status: "cancelled" })
+    return res.status(503).json({
+      message:
+        "Domains are paid by card, and card payments aren't switched on yet. Please contact support.",
     })
-    if (!existing?.length) {
-      await domainsModule.createDomainModels([
-        {
-          tenant_id: ctx.tenant.id,
-          domain_name: domainName,
-          tld,
-          status: "pending_register",
-          source: "registered",
-          years,
-          register_price: totalUsd,
-          currency: "USD",
-          auto_renew: autoRenew,
-          privacy_enabled: privacy,
-          meta: { manual_approval: true, requested_by: ctx.merchant.id },
-        },
-      ] as any)
-    }
-
-    const routing = new DomainRoutingService(req.scope as any)
-    const connected = await routing.connectCustomDomain(ctx.tenant.id, domainName)
-    if (!connected.ok) {
-      await ledger.release(reservationId)
-      return res.status(502).json({ message: connected.error ?? "could not activate domain on tenant" })
-    }
-
-    await ledger.commit(reservationId, totalUsd, { idempotencyKey: reservationId })
-
-    return res.json({
-      ok: true,
-      order,
-      domain: { domain_name: domainName, tld, status: "pending_register" },
-      manual_approval: true,
-      instructions: connected.instructions,
-      note:
-        "Your domain request is pending manual approval by the platform team. " +
-        "Set the DNS records above at your registrar once the domain is registered.",
-    })
-  } catch (e: any) {
-    await ledger.release(reservationId).catch(() => undefined)
-    return res.status(500).json({ message: e?.message ?? "domain purchase failed" })
   }
+
+  const base =
+    process.env.MERCHANT_APP_URL || `https://${ctx.tenant.slug}.mautomate.ai`
+  const checkout = await gateway.createPurchaseCheckout({
+    tenant_id: ctx.tenant.id,
+    kind: "domain",
+    ref: order.id,
+    description: `${domainName} — ${years} year${years === 1 ? "" : "s"} registration`,
+    amount_usd: totalUsd,
+    success_url: `${base}/dashboard/domains?purchased=${encodeURIComponent(domainName)}`,
+    cancel_url: `${base}/dashboard/domains?cancelled=1`,
+  })
+
+  if (!checkout.ok) {
+    await domainsModule.updateDomainOrders({ id: order.id, status: "cancelled" })
+    return res.status(502).json({ message: checkout.error ?? "could not start checkout" })
+  }
+
+  return res.json({
+    ok: true,
+    awaiting_payment: true,
+    order_id: order.id,
+    domain: domainName,
+    price_usd: totalUsd,
+    years,
+    checkout_url: checkout.data!.url,
+  })
 }

@@ -79,8 +79,10 @@ const Newsletter = (props: NewsletterData) => {
         <div className="row align-items-center">
           <div className="col-xl-7 col-lg-7">
             <div className="tp-subscribe-content">
-              {subtitle ? <span>{subtitle}</span> : null}
-              <h3 className="tp-subscribe-title">{title}</h3>
+              {subtitle ? <span data-el="text">{subtitle}</span> : null}
+              <h3 data-el="heading" className="tp-subscribe-title">
+                {title}
+              </h3>
             </div>
           </div>
           <div className="col-xl-5 col-lg-5">
@@ -88,6 +90,7 @@ const Newsletter = (props: NewsletterData) => {
               <form>
                 <div className="tp-subscribe-input">
                   <input
+                    data-el="input"
                     type="email"
                     name="mail"
                     placeholder={placeholder || "Enter Your Email"}
@@ -95,7 +98,9 @@ const Newsletter = (props: NewsletterData) => {
                     autoComplete="off"
                     required
                   />
-                  <button type="submit">{button || "Subscribe"}</button>
+                  <button data-el="button" type="submit">
+                    {button || "Subscribe"}
+                  </button>
                 </div>
               </form>
               {provider_note ? (

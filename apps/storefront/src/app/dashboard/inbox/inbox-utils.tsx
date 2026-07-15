@@ -103,6 +103,67 @@ export function handlerMeta(mode?: string | null): HandlerMeta {
   return HANDLER_MODES[mode ?? ""] ?? HANDLER_MODES.ai
 }
 
+export type HandoffCopy = {
+  title: string
+  detail: string
+  /** Set when the merchant has to do something outside this thread to fix it. */
+  action?: { label: string; href: string }
+  /** True when the AI resumes on its own and no one has to do anything. */
+  selfHealing?: boolean
+}
+
+/**
+ * Why the AI stepped back, in words a shop owner can act on.
+ *
+ * The raw column holds an engineering token — "ai_unavailable" — and showing that
+ * to a merchant tells them something is broken without telling them whether it is
+ * their problem, or what to do about it. These five reasons are the complete set
+ * the backend can write (see HANDOFF_REASON_LABEL in the marketing module).
+ */
+export function handoffCopy(reason?: string | null): HandoffCopy | null {
+  switch (reason) {
+    case "requested_human":
+      return {
+        title: "The customer asked for a person",
+        detail:
+          "They said something like “talk to a human”, so the assistant stopped and handed the thread to you. Take it over and reply.",
+      }
+    case "out_of_credits":
+      return {
+        title: "Your store ran out of AI credits",
+        detail:
+          "The assistant stops replying at zero. Top up and it starts answering again on the next message — you do not have to re-enable anything.",
+        action: { label: "Top up credits", href: "/dashboard/billing" },
+      }
+    case "ai_unavailable":
+      return {
+        title: "The AI could not be reached",
+        detail:
+          "A temporary problem with the AI provider. The assistant takes this thread back by itself as soon as the next message arrives — reply yourself if the customer is waiting.",
+        selfHealing: true,
+      }
+    case "ai_message_limit":
+      return {
+        title: "The assistant hit its reply limit for this thread",
+        detail:
+          "It had already answered several times here, so it stopped rather than talk in circles. This one needs a human.",
+      }
+    case "daily_cap":
+      return {
+        title: "Your store hit its daily automatic-reply limit",
+        detail:
+          "A safety limit on how many replies the assistant sends in one day. It resets at midnight UTC.",
+      }
+    default:
+      return reason
+        ? {
+            title: "The assistant handed this thread over",
+            detail: reason,
+          }
+        : null
+  }
+}
+
 export function contactName(contact?: {
   display_name: string | null
   email: string | null
