@@ -248,6 +248,13 @@ export const metaAdsProvider: AdsProvider = {
             : "LINK_CLICKS",
       targeting: JSON.stringify({
         geo_locations: { countries: spec.countries },
+        ...(spec.genders === "female"
+          ? { genders: [2] }
+          : spec.genders === "male"
+            ? { genders: [1] }
+            : {}),
+        ...(spec.age_min ? { age_min: spec.age_min } : {}),
+        ...(spec.age_max ? { age_max: spec.age_max } : {}),
       }),
       status: "PAUSED",
       access_token: creds.accessToken,

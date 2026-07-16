@@ -85,6 +85,10 @@ export type UnifiedCampaignSpec = {
   currency: string | null
   /** ISO-2 country codes the ads target. */
   countries: string[]
+  /** Audience demographics (Meta: genders [1]=male [2]=female; omitted = all). */
+  genders?: "all" | "female" | "male" | null
+  age_min?: number | null
+  age_max?: number | null
   /** The destination the ad clicks through to. */
   link_url: string
   headline: string

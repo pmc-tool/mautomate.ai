@@ -7750,6 +7750,9 @@ export type CreateAdsCampaignInput = {
   goal: "sales" | "traffic" | "awareness"
   daily_budget: number
   countries: string[]
+  genders?: "all" | "female" | "male"
+  age_min?: number
+  age_max?: number
   product_handle?: string | null
   link_url?: string | null
   headline: string
@@ -7859,6 +7862,15 @@ export async function setAdsCampaignBudget(
 
 // --- Advertising AI generation (copy / image / video) ------------------------
 
+export type AdTargetingSuggestion = {
+  countries: string[]
+  genders: "all" | "female" | "male"
+  age_min: number
+  age_max: number
+  interests: string[]
+  reason: string | null
+}
+
 export type AdCopyDraft = {
   headline: string
   primary_text: string
@@ -7866,6 +7878,7 @@ export type AdCopyDraft = {
   alt_texts: string[]
   image_prompt: string
   audience_hint: string | null
+  targeting: AdTargetingSuggestion | null
 }
 
 export async function generateAdCopy(

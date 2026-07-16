@@ -111,6 +111,17 @@ export const adProductContext = async (
   }
 }
 
+export type AdTargetingSuggestion = {
+  countries: string[]
+  genders: "all" | "female" | "male"
+  age_min: number
+  age_max: number
+  /** Interest THEMES for the merchant to read — interest-id targeting needs
+   *  the platform's taxonomy lookup and is not wired yet (said honestly). */
+  interests: string[]
+  reason: string | null
+}
+
 export type AdCopyDraft = {
   headline: string
   primary_text: string
@@ -118,6 +129,7 @@ export type AdCopyDraft = {
   alt_texts: string[]
   image_prompt: string
   audience_hint: string | null
+  targeting: AdTargetingSuggestion | null
 }
 
 /** Pull the first JSON object out of a model reply (tolerates prose/fences). */
@@ -179,13 +191,23 @@ export const generateAdCopy = async (
     `  "alt_headlines": ["two alternative headlines"],`,
     `  "alt_texts": ["one alternative primary text"],`,
     `  "image_prompt": "one sentence describing a scroll-stopping product photo scene for this ad (subject, setting, lighting, mood; no text in image)",`,
-    `  "audience_hint": "one short sentence on who this ad should reach"`,
+    `  "audience_hint": "one short sentence on who this ad should reach",`,
+    `  "targeting": {`,
+    `    "countries": ["2-4 ISO-3166 alpha-2 codes of the most promising markets for this product"],`,
+    `    "genders": "all | female | male",`,
+    `    "age_min": 18,`,
+    `    "age_max": 65,`,
+    `    "interests": ["3-5 interest themes, short phrases"],`,
+    `    "reason": "one short sentence on why this audience"`,
+    `  }`,
     `}`,
   ]
     .filter(Boolean)
     .join("\n")
 
-  const raw = await provider.generate(prompt, { maxTokens: 700 } as any)
+  // Generous cap: the reply now carries the targeting block too — a truncated
+  // reply silently loses trailing fields after the JSON-slice parse.
+  const raw = await provider.generate(prompt, { maxTokens: 1400 } as any)
   const parsed = parseJsonReply(String(raw ?? ""))
 
   const headline = String(parsed.headline ?? "").trim()
@@ -210,6 +232,35 @@ export const generateAdCopy = async (
         `professional product photo of ${input.product.title}, studio lighting`
     ).trim(),
     audience_hint: parsed.audience_hint ? String(parsed.audience_hint) : null,
+    targeting: normalizeTargeting(parsed.targeting),
+  }
+}
+
+/** Sanitize the model's targeting suggestion into safe, platform-valid values. */
+const normalizeTargeting = (t: any): AdTargetingSuggestion | null => {
+  if (!t || typeof t !== "object") return null
+  const countries = Array.isArray(t.countries)
+    ? t.countries
+        .map((c: any) => String(c).trim().toUpperCase())
+        .filter((c: string) => /^[A-Z]{2}$/.test(c))
+        .slice(0, 6)
+    : []
+  const clamp = (v: any, d: number) => {
+    const n = Number(v)
+    return Number.isFinite(n) ? Math.max(18, Math.min(65, Math.round(n))) : d
+  }
+  const ageMin = clamp(t.age_min, 18)
+  const ageMax = Math.max(ageMin, clamp(t.age_max, 65))
+  return {
+    countries,
+    genders:
+      t.genders === "female" || t.genders === "male" ? t.genders : "all",
+    age_min: ageMin,
+    age_max: ageMax,
+    interests: Array.isArray(t.interests)
+      ? t.interests.map(String).slice(0, 6)
+      : [],
+    reason: t.reason ? String(t.reason) : null,
   }
 }
 

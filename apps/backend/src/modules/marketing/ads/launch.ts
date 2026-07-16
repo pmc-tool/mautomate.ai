@@ -137,12 +137,30 @@ export const launchCampaign = async (
     input.pixel_external_id = pixel.external_id
   }
 
+  // Demographics: clamp to the platforms' supported window (18-65, where 65
+  // means 65+) and drop nonsense ranges rather than sending them.
+  const ageMin = Number(input.age_min) || null
+  const ageMax = Number(input.age_max) || null
+  const clampAge = (v: number | null) =>
+    v == null ? null : Math.max(18, Math.min(65, Math.round(v)))
+  const genders =
+    input.genders === "female" || input.genders === "male"
+      ? input.genders
+      : null
+
   const spec: UnifiedCampaignSpec = {
     name: input.name.trim(),
     goal: input.goal,
     daily_budget: Number(input.daily_budget),
     currency: input.currency ?? account.currency ?? null,
     countries: input.countries.map((c) => String(c).toUpperCase()),
+    genders,
+    age_min: clampAge(ageMin),
+    age_max:
+      clampAge(ageMax) != null && clampAge(ageMin) != null &&
+      (clampAge(ageMax) as number) < (clampAge(ageMin) as number)
+        ? clampAge(ageMin)
+        : clampAge(ageMax),
     link_url: input.link_url,
     headline: input.headline.trim(),
     primary_text: input.primary_text.trim(),
@@ -233,7 +251,12 @@ export const launchCampaign = async (
       status: "paused",
       external_status: created.external_status,
       daily_budget: spec.daily_budget,
-      targeting: { countries: spec.countries },
+      targeting: {
+        countries: spec.countries,
+        genders: spec.genders ?? "all",
+        age_min: spec.age_min ?? null,
+        age_max: spec.age_max ?? null,
+      },
       optimization_goal: spec.goal,
       last_synced_at: new Date(),
     } as any)

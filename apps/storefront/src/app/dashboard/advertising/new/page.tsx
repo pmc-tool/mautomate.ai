@@ -29,6 +29,7 @@ import {
 import { PageHeader } from "@components/merchant-admin/page-header"
 import { SectionCard } from "@components/merchant-admin/section-card"
 import { cn } from "@lib/util/cn"
+import { AD_COUNTRIES, countryName } from "@lib/util/ad-countries"
 
 /**
  * Advertising — guided ad creation.
@@ -140,12 +141,28 @@ export default function NewCampaignPage() {
     text: string
   } | null>(null)
 
-  // Settings
+  // Settings — audience is AI-prefilled when a suggestion exists, and every
+  // control stays human-editable (both modes, always).
   const [name, setName] = useState("")
   const [budget, setBudget] = useState("5")
-  const [countries, setCountries] = useState("US")
+  const [countriesSel, setCountriesSel] = useState<string[]>(["US"])
+  const [countrySearch, setCountrySearch] = useState("")
+  const [genders, setGenders] = useState<"all" | "female" | "male">("all")
+  const [ageMin, setAgeMin] = useState(18)
+  const [ageMax, setAgeMax] = useState(65)
+  const [aiApplied, setAiApplied] = useState(false)
   const [pageId, setPageId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+
+  const applyAiTargeting = useCallback(() => {
+    const t = draft?.targeting
+    if (!t) return
+    if (t.countries.length) setCountriesSel(t.countries)
+    setGenders(t.genders)
+    setAgeMin(t.age_min)
+    setAgeMax(t.age_max)
+    setAiApplied(true)
+  }, [draft])
 
   const platform = useMemo(
     () =>
@@ -340,10 +357,10 @@ export default function NewCampaignPage() {
         name: name.trim(),
         goal,
         daily_budget: Number(budget),
-        countries: countries
-          .split(",")
-          .map((c) => c.trim().toUpperCase())
-          .filter(Boolean),
+        countries: countriesSel,
+        genders,
+        age_min: ageMin,
+        age_max: ageMax,
         product_handle: wholeStore ? null : (product?.handle ?? null),
         headline: headline.trim(),
         primary_text: primaryText.trim(),
@@ -356,8 +373,9 @@ export default function NewCampaignPage() {
       setCreating(false)
     }
   }, [
-    token, creating, platform, name, goal, budget, countries, wholeStore,
-    product, headline, primaryText, imageUrl, pageId, router,
+    token, creating, platform, name, goal, budget, countriesSel, genders,
+    ageMin, ageMax, wholeStore, product, headline, primaryText, imageUrl,
+    pageId, router,
   ])
 
   // ---------------------------------------------------------------- guards
@@ -831,11 +849,16 @@ export default function NewCampaignPage() {
                 <ArrowUturnLeft className="h-3.5 w-3.5" /> Back
               </button>
               <button
-                onClick={() => setStep("settings")}
+                onClick={() => {
+                  // AI-suggested audience is the default; the merchant keeps
+                  // full manual control on the next screen.
+                  if (!aiApplied && draft?.targeting) applyAiTargeting()
+                  setStep("settings")
+                }}
                 disabled={!headline.trim() || !primaryText.trim()}
                 className="rounded-md bg-grey-90 px-5 py-2.5 text-sm font-medium text-white hover:bg-grey-80 disabled:opacity-50"
               >
-                Looks good — set budget
+                Looks good — audience & budget
               </button>
             </div>
           </div>
@@ -846,10 +869,184 @@ export default function NewCampaignPage() {
       {step === "settings" && (
         <div className="ads-rise space-y-6">
           <SectionCard
-            title="Budget & audience"
+            title="Audience"
+            description="Who sees the ad. The AI suggests a starting audience from your product — every control below is yours to change."
+          >
+            {draft?.targeting && (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-grey-20 bg-grey-5 p-3">
+                <div className="flex items-start gap-2 text-sm text-grey-70">
+                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-grey-50" />
+                  <div>
+                    <span className="font-medium text-grey-90">
+                      AI suggestion{aiApplied ? " (applied — edit freely below)" : ""}:
+                    </span>{" "}
+                    {draft.targeting.countries.map(countryName).join(", ") || "your markets"} ·{" "}
+                    {draft.targeting.genders === "all" ? "all genders" : draft.targeting.genders} ·{" "}
+                    {draft.targeting.age_min}–{draft.targeting.age_max === 65 ? "65+" : draft.targeting.age_max}
+                    {draft.targeting.reason ? (
+                      <span className="block text-xs text-grey-50">{draft.targeting.reason}</span>
+                    ) : null}
+                  </div>
+                </div>
+                {!aiApplied && (
+                  <button
+                    onClick={applyAiTargeting}
+                    className="shrink-0 rounded-md border border-grey-20 bg-white px-3 py-1.5 text-xs font-medium text-grey-90 hover:bg-grey-5"
+                  >
+                    Apply suggestion
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div>
+                <span className="text-xs font-medium text-grey-70">Locations</span>
+                <div className="mt-1 rounded-md border border-grey-20 bg-white p-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {countriesSel.map((code) => (
+                      <span
+                        key={code}
+                        className="inline-flex items-center gap-1 rounded-full bg-grey-90 px-2.5 py-1 text-xs font-medium text-white"
+                      >
+                        {countryName(code)}
+                        <button
+                          onClick={() => {
+                            setCountriesSel(countriesSel.filter((c) => c !== code))
+                            setAiApplied(false)
+                          }}
+                          className="text-white/70 hover:text-white"
+                          aria-label={`Remove ${countryName(code)}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      value={countrySearch}
+                      onChange={(e) => setCountrySearch(e.target.value)}
+                      placeholder={countriesSel.length ? "Add a country…" : "Search countries…"}
+                      className="min-w-[9rem] flex-1 px-1.5 py-1 text-sm outline-none"
+                    />
+                  </div>
+                  {countrySearch.trim() && (
+                    <div className="mt-1 max-h-40 overflow-y-auto border-t border-grey-10 pt-1">
+                      {AD_COUNTRIES.filter(
+                        (c) =>
+                          !countriesSel.includes(c.code) &&
+                          (c.name.toLowerCase().includes(countrySearch.trim().toLowerCase()) ||
+                            c.code === countrySearch.trim().toUpperCase())
+                      )
+                        .slice(0, 12)
+                        .map((c) => (
+                          <button
+                            key={c.code}
+                            onClick={() => {
+                              setCountriesSel([...countriesSel, c.code])
+                              setCountrySearch("")
+                              setAiApplied(false)
+                            }}
+                            className="block w-full rounded px-2 py-1.5 text-left text-sm text-grey-70 hover:bg-grey-5 hover:text-grey-90"
+                          >
+                            {c.name} <span className="text-xs text-grey-40">{c.code}</span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+                {countriesSel.length === 0 && (
+                  <p className="mt-1 text-xs text-rose-600">Pick at least one country.</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <span className="text-xs font-medium text-grey-70">Gender</span>
+                  <div className="mt-1 inline-flex w-full rounded-md border border-grey-20 bg-white p-0.5">
+                    {([
+                      ["all", "All"],
+                      ["female", "Women"],
+                      ["male", "Men"],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        onClick={() => {
+                          setGenders(value)
+                          setAiApplied(false)
+                        }}
+                        className={cn(
+                          "flex-1 rounded px-3 py-1.5 text-sm",
+                          genders === value
+                            ? "bg-grey-90 font-medium text-white"
+                            : "text-grey-60 hover:text-grey-90"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-xs font-medium text-grey-70">Age range</span>
+                  <div className="mt-1 flex items-center gap-2">
+                    <select
+                      value={ageMin}
+                      onChange={(e) => {
+                        const v = Number(e.target.value)
+                        setAgeMin(v)
+                        if (v > ageMax) setAgeMax(v)
+                        setAiApplied(false)
+                      }}
+                      className="w-full rounded-md border border-grey-20 bg-white px-2 py-2 text-sm tabular-nums"
+                    >
+                      {Array.from({ length: 48 }, (_, i) => 18 + i).map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                    <span className="text-grey-40">to</span>
+                    <select
+                      value={ageMax}
+                      onChange={(e) => {
+                        const v = Number(e.target.value)
+                        setAgeMax(v)
+                        if (v < ageMin) setAgeMin(v)
+                        setAiApplied(false)
+                      }}
+                      className="w-full rounded-md border border-grey-20 bg-white px-2 py-2 text-sm tabular-nums"
+                    >
+                      {Array.from({ length: 48 }, (_, i) => 18 + i).map((v) => (
+                        <option key={v} value={v}>{v === 65 ? "65+" : v}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {draft?.targeting?.interests?.length ? (
+                  <div className="sm:col-span-2">
+                    <span className="text-xs font-medium text-grey-70">
+                      Interest themes the AI recommends
+                    </span>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {draft.targeting.interests.map((interest) => (
+                        <span key={interest} className="rounded-full bg-grey-10 px-2.5 py-1 text-xs text-grey-70">
+                          {interest}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-xs text-grey-50">
+                      Shown as guidance for now — interest targeting on the platform
+                      switches on with the live Meta integration.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Budget & identity"
             description="The daily budget is billed by the ad platform to your own ad account — not from your credits."
           >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <label className="block">
                 <span className="text-xs font-medium text-grey-70">Campaign name</span>
                 <input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded-md border border-grey-20 px-3 py-2 text-sm" />
@@ -859,10 +1056,6 @@ export default function NewCampaignPage() {
                   Daily budget ({selectedAccount.currency ?? "account currency"})
                 </span>
                 <input value={budget} onChange={(e) => setBudget(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded-md border border-grey-20 px-3 py-2 text-sm tabular-nums" />
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-grey-70">Countries (codes)</span>
-                <input value={countries} onChange={(e) => setCountries(e.target.value)} placeholder="US, GB" className="mt-1 w-full rounded-md border border-grey-20 px-3 py-2 text-sm uppercase" />
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-grey-70">Publish as</span>
@@ -892,7 +1085,7 @@ export default function NewCampaignPage() {
                   !headline.trim() ||
                   !primaryText.trim() ||
                   !(Number(budget) > 0) ||
-                  !countries.trim() ||
+                  countriesSel.length === 0 ||
                   (platform === "meta" && !pageId)
                 }
                 className="inline-flex items-center gap-1.5 rounded-md bg-grey-90 px-5 py-2.5 text-sm font-medium text-white hover:bg-grey-80 disabled:opacity-50"
