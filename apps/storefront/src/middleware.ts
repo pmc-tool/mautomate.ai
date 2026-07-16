@@ -38,7 +38,13 @@ type TenantConfig = {
    * this id directly to display the right currency. Null => country-code lookup.
    */
   region_id: string | null
+  /** The tenant's display currency (from tenant.meta.currency_code). */
+  currency_code: string | null
+  /** The tenant's logo (from tenant.meta.logo_url). */
+  logo_url: string | null
   umami_website_id: string | null
+  /** The tenant's active Meta pixel id (public); null => no pixel script. */
+  meta_pixel_id: string | null
   /**
    * Public embed key of this tenant's ACTIVE chatbot (null = no live bot). It is
    * forwarded to server code as x-tenant-chatbot; the storefront layout mounts
@@ -252,9 +258,20 @@ function settingUpPage(name: string | null) {
    tree. As each is ported to the upload format (and removed here), its stores
    move to the engine automatically. */
 const COMPILED_THEMES = new Set([
-  "learts", "aurora", "cignet", "shofy", "ekka",
+  "aurora", "cignet", "shofy", "ekka",
   "helendo", "bazaro", "exzo", "rokon",
 ])
+
+/* The platform default. A store with NO active_theme (a fresh store) or one
+   still pointing at the RETIRED compiled "learts" is served the new uploaded
+   Liquid Learts — the single global default. Old compiled Learts is gone: it is
+   never rendered, only its Liquid successor. */
+const DEFAULT_THEME = "learts-liquid"
+const RETIRED_THEMES = new Set(["learts"])
+function effectiveTheme(active?: string | null): string {
+  const a = (active || "").trim()
+  return !a || RETIRED_THEMES.has(a) ? DEFAULT_THEME : a
+}
 
 /* Paths an uploaded theme OWNS. Checkout, account and order stay on the
    platform's own React implementation — a theme styles them but never renders
@@ -264,14 +281,19 @@ function isThemeOwnedPath(pathname: string, country: string): boolean {
     .replace(new RegExp("^/" + country + "(?=/|$)", "i"), "")
     .replace(/^\/+/, "")
   const first = rest.split("/")[0] ?? ""
-  return (
-    rest === "" ||
-    first === "products" ||
-    first === "collections" ||
-    first === "store" ||
-    first === "search" ||
-    first === "cart"
-  )
+  // Inverted ownership: the theme owns EVERY storefront page (home, catalog,
+  // categories, blog, contact, and any CMS page slug like about-us / faq /
+  // privacy) EXCEPT the React-only flows below, which handle auth, the cart
+  // mutations, payment and orders and must not be re-rendered by a theme.
+  const REACT_ONLY = new Set([
+    "account", "checkout", "order", "payment",
+    "verify-account", "recover", "wishlist",
+  ])
+  if (REACT_ONLY.has(first)) return false
+  // A path whose first segment looks like a file (robots.txt, sitemap.xml, an
+  // opengraph image) is not a page — leave it to Next.
+  if (first.includes(".")) return false
+  return true
 }
 
 export async function middleware(request: NextRequest) {
@@ -331,7 +353,7 @@ export async function middleware(request: NextRequest) {
   if (tenant) {
     forwardHeaders.set("x-tenant-id", tenant.tenant_id)
     forwardHeaders.set("x-tenant-pak", tenant.publishable_key)
-    forwardHeaders.set("x-tenant-theme", tenant.active_theme || "")
+    forwardHeaders.set("x-tenant-theme", effectiveTheme(tenant.active_theme))
     forwardHeaders.set("x-tenant-name", tenant.name || "")
     forwardHeaders.set("x-tenant-status", tenant.status || "")
     // The countries this store can actually deliver to. The checkout address form
@@ -344,6 +366,7 @@ export async function middleware(request: NextRequest) {
         : ""
     )
     forwardHeaders.set("x-tenant-umami", tenant.umami_website_id || "")
+    forwardHeaders.set("x-tenant-metapixel", tenant.meta_pixel_id || "")
     // Active chatbot's public embed key — mounts THIS tenant's chat widget.
     forwardHeaders.set("x-tenant-chatbot", tenant.chatbot_public_key || "")
     // Dedicated-instance backend, so server data fetches hit the store's own Medusa.
@@ -351,6 +374,8 @@ export async function middleware(request: NextRequest) {
     // Tenant's region id (carries its currency) — the storefront resolves this
     // directly so prices show in the tenant's own currency (see lib/data/regions).
     if (tenant.region_id) forwardHeaders.set("x-tenant-region-id", tenant.region_id)
+    forwardHeaders.set("x-tenant-currency", tenant.currency_code || "")
+    forwardHeaders.set("x-tenant-logo", tenant.logo_url || "")
   }
 
   const finalize = (res: NextResponse) => {
@@ -423,10 +448,16 @@ export async function middleware(request: NextRequest) {
     // through the theme engine. The rewrite hits a Route Handler, which has no
     // React layout, so the theme owns the entire HTML document with no chrome
     // clash. React-themed stores are never rewritten and are untouched.
-    const active = (tenant?.active_theme || "").trim()
+    // A ?preview_theme= override lets ANY store (even one on a compiled React
+    // theme) be viewed on an uploaded theme without changing what live shoppers
+    // see — only this request, carrying the param, is rewritten. Without the
+    // param the store renders exactly as before.
+    const previewTheme = (request.nextUrl.searchParams.get("preview_theme") || "").trim()
+    const active = effectiveTheme(tenant?.active_theme)
+    const themeToRender = previewTheme || active
     if (
-      active &&
-      !COMPILED_THEMES.has(active) &&
+      themeToRender &&
+      !COMPILED_THEMES.has(themeToRender) &&
       isThemeOwnedPath(request.nextUrl.pathname, country)
     ) {
       const url = request.nextUrl.clone()

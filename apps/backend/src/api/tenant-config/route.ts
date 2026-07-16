@@ -170,6 +170,21 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   )
   const shipCountries = await shippableCountries(req.scope, resolved.tenant_id)
 
+  // The tenant's active Meta pixel id (public by design — it ships in every
+  // storefront page). The storefront middleware threads it to the root layout
+  // as x-tenant-metapixel; no row -> null -> no pixel script is rendered.
+  let metaPixelId: string | null = null
+  try {
+    const mk: any = req.scope.resolve(MARKETING_MODULE)
+    const pixels = await mk.listAdsPixels(
+      { tenant_id: resolved.tenant_id, platform: "meta", status: "active" },
+      { take: 1 }
+    )
+    metaPixelId = pixels?.[0]?.external_id ?? null
+  } catch {
+    metaPixelId = null
+  }
+
   res.json({
     tenant_id: resolved.tenant_id,
     // Countries the storefront may offer at checkout. Anything else dead-ends at
@@ -183,6 +198,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     name: tenant?.name ?? null,
     publishable_key: resolved.publishable_key,
     umami_website_id: umamiWebsiteId,
+    meta_pixel_id: metaPixelId,
     status: resolved.status,
     domain: resolved.domain,
     theme_accent: accent,
@@ -214,5 +230,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       typeof tenant?.meta?.currency_code === "string"
         ? tenant.meta.currency_code
         : null,
+    // The merchant's chosen logo (tenant.meta.logo_url), forwarded so the
+    // storefront chrome renders it directly. Null => text logo (store name).
+    logo_url:
+      typeof tenant?.meta?.logo_url === "string" ? tenant.meta.logo_url : null,
   })
 }

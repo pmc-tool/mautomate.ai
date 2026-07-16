@@ -47,6 +47,8 @@ import AdsAdset from "./models/ads-adset"
 import AdsAd from "./models/ads-ad"
 import AdsInsight from "./models/ads-insight"
 import AdsActionLog from "./models/ads-action-log"
+import AdsPixel from "./models/ads-pixel"
+import AdsCatalog from "./models/ads-catalog"
 
 /**
  * Marketing module service.
@@ -117,6 +119,8 @@ class MarketingModuleService extends MedusaService({
   AdsAd,
   AdsInsight,
   AdsActionLog,
+  AdsPixel,
+  AdsCatalog,
 }) {}
 
 export default MarketingModuleService

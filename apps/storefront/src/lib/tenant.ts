@@ -30,6 +30,7 @@ export const TENANT_HEADER = {
   status: "x-tenant-status",
   umami: "x-tenant-umami",
   chatbot: "x-tenant-chatbot",
+  metapixel: "x-tenant-metapixel",
 } as const
 
 /** Non-httpOnly cookie carrying the publishable key for client-side SDK calls. */
@@ -44,6 +45,8 @@ export type TenantContext = {
   umamiWebsiteId: string | null
   /** Public embed key of the tenant's active chatbot; null = no live chatbot. */
   chatbotPublicKey: string | null
+  /** The tenant's active Meta pixel id; null = no pixel script rendered. */
+  metaPixelId: string | null
 }
 
 /**
@@ -66,6 +69,7 @@ export const getTenantContext = cache(
         status: h.get(TENANT_HEADER.status) || null,
         umamiWebsiteId: h.get(TENANT_HEADER.umami) || null,
         chatbotPublicKey: h.get(TENANT_HEADER.chatbot) || null,
+        metaPixelId: h.get(TENANT_HEADER.metapixel) || null,
       }
     } catch {
       return null

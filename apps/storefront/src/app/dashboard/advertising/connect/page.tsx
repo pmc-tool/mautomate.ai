@@ -15,11 +15,15 @@ import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
   AdsAccount,
   AdsAccountsResponse,
+  AdsSignals,
   connectAdsPlatform,
   disconnectAdsConnection,
+  getAdsSignals,
   listAdsAccounts,
   runAdsSyncNow,
   selectAdsAccount,
+  setupAdsPixel,
+  syncAdsCatalog,
 } from "@lib/merchant-admin/api"
 import { PageHeader } from "@components/merchant-admin/page-header"
 import { SectionCard } from "@components/merchant-admin/section-card"
@@ -124,6 +128,7 @@ export default function AdvertisingConnectPage() {
   const { token } = useMerchantAuth()
   const searchParams = useSearchParams()
   const [data, setData] = useState<AdsAccountsResponse | null>(null)
+  const [signals, setSignals] = useState<AdsSignals | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<{
@@ -151,7 +156,12 @@ export default function AdvertisingConnectPage() {
     if (!token) return
     setLoading(true)
     try {
-      setData(await listAdsAccounts(token))
+      const [accounts, sig] = await Promise.all([
+        listAdsAccounts(token),
+        getAdsSignals(token).catch(() => null),
+      ])
+      setData(accounts)
+      setSignals(sig)
     } catch (e: any) {
       setNotice({
         kind: "error",
@@ -229,6 +239,46 @@ export default function AdvertisingConnectPage() {
     },
     [token, busy, load]
   )
+
+  const setupPixel = useCallback(async () => {
+    if (!token || busy) return
+    setBusy("pixel")
+    setNotice(null)
+    try {
+      const { pixel } = await setupAdsPixel(token)
+      setNotice({
+        kind: "success",
+        text: `Pixel ${pixel.external_id} is installed. Every store visit now reaches Meta, and purchases are reported server-side automatically.`,
+      })
+      await load()
+    } catch (e: any) {
+      setNotice({ kind: "error", text: e?.message ?? "Pixel setup failed." })
+    } finally {
+      setBusy(null)
+    }
+  }, [token, busy, load])
+
+  const syncCatalog = useCallback(async () => {
+    if (!token || busy) return
+    setBusy("catalog")
+    setNotice(null)
+    try {
+      const { result } = await syncAdsCatalog(token)
+      setNotice({
+        kind: "success",
+        text: `${result.pushed} product${result.pushed === 1 ? "" : "s"} synced to your Meta catalog${
+          result.skipped
+            ? ` (${result.skipped} skipped — they need a photo and a price)`
+            : ""
+        }.`,
+      })
+      await load()
+    } catch (e: any) {
+      setNotice({ kind: "error", text: e?.message ?? "Catalog sync failed." })
+    } finally {
+      setBusy(null)
+    }
+  }, [token, busy, load])
 
   const syncNow = useCallback(async () => {
     if (!token || busy) return
@@ -460,6 +510,127 @@ export default function AdvertisingConnectPage() {
               )}
               Sync campaigns and results now
             </button>
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Tracking & catalog"
+        description="What makes your ads actually perform: the pixel tells Meta who visited, purchases are reported server-side (more reliable than browser-only tracking), and the catalog powers ads generated from your real products."
+      >
+        {!signals?.requirements.connected ? (
+          <div className="text-sm text-grey-50">
+            Connect Meta above to set up tracking — both pieces are one click
+            once an ad account is in use.
+          </div>
+        ) : !signals.requirements.account_selected ? (
+          <div className="text-sm text-grey-50">
+            Choose an ad account above (&ldquo;Use this account&rdquo;) to set
+            up tracking.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-lg border border-grey-20 p-4">
+              <div className="flex items-center justify-between">
+                <div className="font-medium text-grey-90">Meta pixel</div>
+                {signals.pixel ? <StatusPill status="connected" /> : null}
+              </div>
+              {signals.pixel ? (
+                <div className="mt-2 text-sm text-grey-60">
+                  <div>
+                    Pixel {signals.pixel.external_id} is live on your store.
+                  </div>
+                  <div className="mt-1 text-xs text-grey-50">
+                    {signals.pixel.events_sent > 0
+                      ? `${signals.pixel.events_sent} purchase${
+                          signals.pixel.events_sent === 1 ? "" : "s"
+                        } reported server-side${
+                          signals.pixel.last_event_at
+                            ? `, last ${new Date(
+                                signals.pixel.last_event_at
+                              ).toLocaleString()}`
+                            : ""
+                        }`
+                      : "No purchases reported yet — they are sent automatically when orders come in."}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-2 text-sm text-grey-60">
+                    Installs your Meta pixel on every store page and starts
+                    reporting purchases server-side. Uses your account&apos;s
+                    existing pixel, or creates one.
+                  </p>
+                  <button
+                    onClick={setupPixel}
+                    disabled={busy === "pixel"}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-grey-90 px-3 py-1.5 text-sm font-medium text-white hover:bg-grey-80 disabled:opacity-50"
+                  >
+                    {busy === "pixel" ? (
+                      <Spinner className="animate-spin" />
+                    ) : null}
+                    Set up pixel
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-grey-20 p-4">
+              <div className="flex items-center justify-between">
+                <div className="font-medium text-grey-90">Product catalog</div>
+                {signals.catalog ? (
+                  <StatusPill
+                    status={
+                      signals.catalog.status === "active"
+                        ? "connected"
+                        : "error"
+                    }
+                  />
+                ) : null}
+              </div>
+              {signals.catalog ? (
+                <div className="mt-2 text-sm text-grey-60">
+                  <div>
+                    {signals.catalog.item_count} product
+                    {signals.catalog.item_count === 1 ? "" : "s"} in your Meta
+                    catalog
+                    {signals.catalog.skipped_count
+                      ? ` (${signals.catalog.skipped_count} skipped — need a photo and a price)`
+                      : ""}
+                    .
+                  </div>
+                  <button
+                    onClick={syncCatalog}
+                    disabled={busy === "catalog"}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-grey-20 bg-white px-3 py-1.5 text-sm font-medium text-grey-90 hover:bg-grey-5 disabled:opacity-50"
+                  >
+                    {busy === "catalog" ? (
+                      <Spinner className="animate-spin" />
+                    ) : (
+                      <ArrowPath />
+                    )}
+                    Sync products again
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-2 text-sm text-grey-60">
+                    Copies your published products into a Meta catalog so ads
+                    can show real products with live prices. Re-sync any time.
+                  </p>
+                  <button
+                    onClick={syncCatalog}
+                    disabled={busy === "catalog"}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-grey-90 px-3 py-1.5 text-sm font-medium text-white hover:bg-grey-80 disabled:opacity-50"
+                  >
+                    {busy === "catalog" ? (
+                      <Spinner className="animate-spin" />
+                    ) : null}
+                    Sync products to Meta
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         )}
       </SectionCard>

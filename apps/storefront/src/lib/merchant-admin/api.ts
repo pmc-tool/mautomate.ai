@@ -7676,3 +7676,64 @@ export async function runAdsSyncNow(
     token,
   })
 }
+
+// --- Advertising signals (pixel / Conversions API / product catalog) --------
+
+export type AdsPixelInfo = {
+  id: string
+  external_id: string
+  name: string | null
+  status: string
+  events_sent: number
+  last_event_at: string | null
+}
+
+export type AdsCatalogInfo = {
+  id: string
+  external_id: string
+  name: string | null
+  status: string
+  item_count: number
+  skipped_count: number
+  skipped_reasons: Record<string, number> | null
+  last_synced_at: string | null
+}
+
+export type AdsSignals = {
+  requirements: { connected: boolean; account_selected: boolean }
+  pixel: AdsPixelInfo | null
+  catalog: AdsCatalogInfo | null
+}
+
+export async function getAdsSignals(token: string): Promise<AdsSignals> {
+  return request<AdsSignals>("/merchant/ads/signals", { token })
+}
+
+export async function setupAdsPixel(
+  token: string,
+  pixelId?: string
+): Promise<{ pixel: AdsPixelInfo }> {
+  return request<{ pixel: AdsPixelInfo }>("/merchant/ads/signals/pixel", {
+    method: "POST",
+    token,
+    body: pixelId ? { pixel_id: pixelId } : {},
+  })
+}
+
+export async function syncAdsCatalog(token: string): Promise<{
+  result: {
+    catalog_id: string
+    pushed: number
+    skipped: number
+    skipped_reasons: Record<string, number>
+  }
+}> {
+  return request<{
+    result: {
+      catalog_id: string
+      pushed: number
+      skipped: number
+      skipped_reasons: Record<string, number>
+    }
+  }>("/merchant/ads/signals/catalog", { method: "POST", token })
+}
