@@ -55,3 +55,8 @@ export {
   setCampaignBudget,
   requireAccountContext,
 } from "./launch"
+export {
+  getAutopilotSettings,
+  runAutopilotForTenant,
+  setSetting as setAdsSetting,
+} from "./autopilot"

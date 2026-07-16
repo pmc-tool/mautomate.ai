@@ -131,6 +131,8 @@ const navItems: NavItem[] = [
     icon: ChartPie,
     children: [
       { href: "/dashboard/advertising", label: "Overview", icon: ChartPie },
+      { href: "/dashboard/advertising/new", label: "New campaign", icon: Sparkles },
+      { href: "/dashboard/advertising/autopilot", label: "Autopilot", icon: Robot },
       { href: "/dashboard/advertising/connect", label: "Ad accounts", icon: Globe },
     ],
   },

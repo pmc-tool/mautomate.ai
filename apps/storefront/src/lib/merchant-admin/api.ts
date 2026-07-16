@@ -2921,6 +2921,10 @@ export type Domain = {
   ssl_status: string
   verification_status: string
   instructions: DnsInstruction[]
+  /** true when the domain was purchased/transferred through the platform
+   * registrar (registrar tools apply); false for connected-only domains that
+   * remain registered at the customer's own provider. */
+  registrar_managed?: boolean
 }
 
 /** GET /merchant/domains — free subdomain + connected/registered domains. */
@@ -7750,9 +7754,6 @@ export type CreateAdsCampaignInput = {
   goal: "sales" | "traffic" | "awareness"
   daily_budget: number
   countries: string[]
-  genders?: "all" | "female" | "male"
-  age_min?: number
-  age_max?: number
   product_handle?: string | null
   link_url?: string | null
   headline: string
@@ -7862,15 +7863,6 @@ export async function setAdsCampaignBudget(
 
 // --- Advertising AI generation (copy / image / video) ------------------------
 
-export type AdTargetingSuggestion = {
-  countries: string[]
-  genders: "all" | "female" | "male"
-  age_min: number
-  age_max: number
-  interests: string[]
-  reason: string | null
-}
-
 export type AdCopyDraft = {
   headline: string
   primary_text: string
@@ -7878,7 +7870,6 @@ export type AdCopyDraft = {
   alt_texts: string[]
   image_prompt: string
   audience_hint: string | null
-  targeting: AdTargetingSuggestion | null
 }
 
 export async function generateAdCopy(
@@ -7899,12 +7890,8 @@ export async function generateAdCopy(
 
 export async function generateAdImage(
   token: string,
-  input: {
-    prompt: string
-    product_image_url?: string | null
-    orientation?: "square" | "landscape" | "portrait"
-  }
-): Promise<{ image_url: string; engine?: string; credits: number }> {
+  input: { prompt: string; orientation?: "square" | "landscape" | "portrait" }
+): Promise<{ image_url: string; credits: number }> {
   return request("/merchant/ads/ai/image", { method: "POST", token, body: input })
 }
 
@@ -7913,4 +7900,88 @@ export async function generateAdVideo(
   input: { image_url: string; orientation?: "square" | "landscape" | "portrait"; motion?: number }
 ): Promise<{ video_url: string; poster_url: string; credits: number }> {
   return request("/merchant/ads/ai/video", { method: "POST", token, body: input })
+}
+
+// --- Advertising autopilot ---------------------------------------------------
+
+export type AdsRuleInfo = {
+  id: string
+  name: string
+  enabled: boolean
+  campaign_id: string | null
+  metric: "spend" | "cpa" | "ctr" | "clicks" | "conversions"
+  op: "gt" | "lt"
+  value: number
+  window_days: number
+  min_spend: number
+  action: "pause_campaign" | "notify"
+  cooldown_hours: number
+  last_fired_at: string | null
+}
+
+export type AdsAutopilot = {
+  settings: { enabled: boolean; monthly_cap: number | null }
+  rules: AdsRuleInfo[]
+  activity: { id: string; action: string; reason: string | null; at: string }[]
+}
+
+export type AdsAutopilotRun = {
+  enabled: boolean
+  checked: number
+  fired: { rule: string; campaign: string; action: string; reason: string }[]
+  cap_hit: boolean
+  month_spend: number
+  charged: boolean
+}
+
+export async function getAdsAutopilot(token: string): Promise<AdsAutopilot> {
+  return request<AdsAutopilot>("/merchant/ads/autopilot", { token })
+}
+
+export async function updateAdsAutopilot(
+  token: string,
+  input: { enabled?: boolean; monthly_cap?: number | null }
+): Promise<{ settings: { enabled: boolean; monthly_cap: number | null } }> {
+  return request("/merchant/ads/autopilot", { method: "POST", token, body: input })
+}
+
+export async function createAdsRule(
+  token: string,
+  input: {
+    name: string
+    metric: AdsRuleInfo["metric"]
+    op: AdsRuleInfo["op"]
+    value: number
+    window_days?: number
+    min_spend?: number
+    action: AdsRuleInfo["action"]
+    campaign_id?: string | null
+  }
+): Promise<{ rule: { id: string; name: string } }> {
+  return request("/merchant/ads/autopilot/rules", { method: "POST", token, body: input })
+}
+
+export async function toggleAdsRule(
+  token: string,
+  id: string,
+  enabled: boolean
+): Promise<{ id: string; enabled: boolean }> {
+  return request(`/merchant/ads/autopilot/rules/${id}`, {
+    method: "POST",
+    token,
+    body: { enabled },
+  })
+}
+
+export async function deleteAdsRule(
+  token: string,
+  id: string
+): Promise<{ id: string; deleted: boolean }> {
+  return request(`/merchant/ads/autopilot/rules/${id}`, { method: "DELETE", token })
+}
+
+export async function runAdsAutopilotNow(
+  token: string
+): Promise<{ summary: AdsAutopilotRun }> {
+  return request("/merchant/ads/autopilot/run", { method: "POST", token })
 }
