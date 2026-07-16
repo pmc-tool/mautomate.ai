@@ -139,6 +139,7 @@ const LIST_FIELDS = [
   "sales_channels.name",
   "variants.id",
   "variants.metadata",
+  "metadata",
 ]
 
 const ORDERABLE_FIELDS = new Set(["title", "created_at", "updated_at"])
@@ -282,6 +283,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       })),
       created_at: p.created_at,
       updated_at: p.updated_at,
+      metadata: p.metadata ?? null,
       // Legacy fields (pre-parity list consumers).
       variant_count: variants.length,
       price: firstPrice?.amount,
@@ -425,6 +427,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (d.material !== undefined) productInput.material = d.material
   if (d.external_id !== undefined) productInput.external_id = d.external_id
   if (d.metadata !== undefined) productInput.metadata = d.metadata
+  // TENANT NAMESPACE STAMP: handles/SKUs are unique PER STORE (the global
+  // unique indexes were replaced with (value, metadata->>'tenant_id') ones),
+  // so every product and variant row must carry its owner. Forced last so a
+  // client-supplied metadata can never spoof another tenant.
+  productInput.metadata = { ...(productInput.metadata ?? {}), tenant_id: ctx.tenant.id }
+  productInput.variants = (productInput.variants ?? []).map((v: any) => ({
+    ...v,
+    metadata: { ...(v.metadata ?? {}), tenant_id: ctx.tenant.id },
+  }))
   if (d.thumbnail !== undefined) productInput.thumbnail = d.thumbnail
   if (d.images !== undefined) productInput.images = d.images
   if (d.type_id !== undefined) productInput.type_id = d.type_id
@@ -442,6 +453,26 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     product = (products as any[])[0]
   } catch (e: any) {
     return res.status(400).json({ message: e?.message || "failed to create product" })
+  }
+
+  // Stamp the variants' inventory items with the tenant namespace NOW: the
+  // workflow creates them unstamped, and two stores creating the same SKU
+  // before the repair sweep runs would collide in the legacy ('') bucket.
+  // (The product and variants are stamped via the input payload above.)
+  try {
+    const pg: any = req.scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+    await pg.raw(
+      `UPDATE inventory_item ii
+       SET metadata = coalesce(ii.metadata, '{}'::jsonb) || jsonb_build_object('tenant_id', ?::text)
+       FROM product_variant_inventory_item pvii
+       JOIN product_variant v ON v.id = pvii.variant_id
+       WHERE pvii.inventory_item_id = ii.id
+         AND v.product_id = ?
+         AND (ii.metadata->>'tenant_id') IS NULL`,
+      [ctx.tenant.id, product.id]
+    )
+  } catch {
+    /* the 5-minute tenant-stamp-repair sweep is the backstop */
   }
 
   // Wire REAL inventory: set the initial stock LEVEL at the tenant's default

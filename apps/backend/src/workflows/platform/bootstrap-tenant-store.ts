@@ -11,9 +11,11 @@ import {
   createSalesChannelsWorkflow,
   linkSalesChannelsToApiKeyWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
+  updateRegionsWorkflow,
 } from "@medusajs/core-flows"
 
 import { PLATFORM_MODULE } from "../../modules/platform"
+import { EncryptedConfigService } from "../../modules/platform/secure-config"
 import { CALL_CENTER_MODULE } from "../../modules/call-center"
 import { provisionDefaultAgent } from "../../modules/call-center/default-agent"
 import { provisionDefaultChatbot } from "../../modules/marketing/default-chatbot"
@@ -84,10 +86,42 @@ const bootstrapTenantStoreStep = createStep(
       {
         name: `${tenant.name}`,
         currency_code: currency,
-        payment_providers: ["pp_system_default"],
         metadata: { tenant_id: tenant.id },
       },
     ])
+
+    // Enable a payment method on the region. The region module's own
+    // `payment_providers` field is a silent no-op in this Medusa version (it does
+    // NOT create the region_payment_provider link), so the link must be made via
+    // the core-flows workflow. Without it the storefront checkout shows no
+    // payment method and the "Place order" button can never become clickable.
+    // pp_system_default (manual/offline) always works; the merchant adds real
+    // gateways (bKash, Nagad, SSLCommerz, Stripe, ...) from the Payments step.
+    await updateRegionsWorkflow(container).run({
+      input: {
+        selector: { id: region.id },
+        update: { payment_providers: ["pp_system_default"] },
+      },
+    })
+
+    // Enable Cash on Delivery / bank transfer by DEFAULT so a brand-new store can
+    // take orders the moment it opens. The storefront's payment-provider route
+    // (api/store/payment-providers) returns ONLY the gateways a merchant has
+    // enabled+configured in their per-tenant vault; without a default, a fresh
+    // store's checkout has NO payment method and cannot complete an order. This
+    // is the primary mechanism (the region link above is a native fallback).
+    // Merchants add real gateways (bKash, Nagad, SSLCommerz, Stripe) on top, and
+    // can disable COD, from the Payments step.
+    try {
+      const cfg = new EncryptedConfigService(container)
+      await cfg.setConfig(tenant.id, "gateway.bank_transfer.config", {
+        enabled: true,
+        enabled_regions: ["*"],
+      })
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.error(`[bootstrap] could not enable default COD for ${tenant.id}: ${e?.message ?? e}`)
+    }
 
     // 4. a starter product scoped to this sales channel, priced in the tenant
     // currency. Handle MUST be globally unique in Medusa; derive a deterministic,
@@ -107,6 +141,11 @@ const bootstrapTenantStoreStep = createStep(
             title: `${tenant.name} — Sample Product`,
             handle: sampleHandle,
             status: "published" as any,
+            // Tagged so it never counts as a real product: excluded from the
+            // "Add products" setup check and the dashboard product KPI. The
+            // storefront still renders it so a fresh store does not look empty;
+            // the merchant replaces or removes it from the setup wizard.
+            metadata: { is_sample: true, tenant_id: tenant.id },
             sales_channels: [{ id: salesChannel.id }],
             shipping_profile_id: __profileId,
             options: [{ title: "Default", values: ["Default"] }],
@@ -115,6 +154,7 @@ const bootstrapTenantStoreStep = createStep(
                 title: "Default",
                 prices: [{ amount: 1000, currency_code: currency }],
                 options: { Default: "Default" },
+                metadata: { tenant_id: tenant.id },
               },
             ],
           },
@@ -175,6 +215,14 @@ const bootstrapTenantStoreStep = createStep(
         region_id: region.id,
         currency_code: currency,
         supported_currencies: [currency],
+        // Every new store opens on the platform default theme: the uploaded
+        // Liquid Learts. Old compiled Learts is retired.
+        active_theme: "learts-liquid",
+        // The country the storefront sells in — drives the shipping-coverage
+        // check and checkout. Seeded from the signup billing country so it is a
+        // real value, not a silent "us"; the setup wizard lets the merchant
+        // confirm or change it.
+        default_country: String(tenant.billing_country || "us").toLowerCase(),
         bootstrapped: true,
       },
     })
