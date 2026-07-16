@@ -7854,3 +7854,44 @@ export async function setAdsCampaignBudget(
     { method: "POST", token, body: { daily_budget: dailyBudget } }
   )
 }
+
+// --- Advertising AI generation (copy / image / video) ------------------------
+
+export type AdCopyDraft = {
+  headline: string
+  primary_text: string
+  alt_headlines: string[]
+  alt_texts: string[]
+  image_prompt: string
+  audience_hint: string | null
+}
+
+export async function generateAdCopy(
+  token: string,
+  input: {
+    product_id?: string | null
+    goal: "sales" | "traffic" | "awareness"
+    instructions?: string | null
+    regen?: boolean
+  }
+): Promise<{
+  draft: AdCopyDraft
+  product: { id: string | null; title: string; thumbnail: string | null; handle: string | null }
+  credits: number
+}> {
+  return request("/merchant/ads/ai/copy", { method: "POST", token, body: input })
+}
+
+export async function generateAdImage(
+  token: string,
+  input: { prompt: string; orientation?: "square" | "landscape" | "portrait" }
+): Promise<{ image_url: string; credits: number }> {
+  return request("/merchant/ads/ai/image", { method: "POST", token, body: input })
+}
+
+export async function generateAdVideo(
+  token: string,
+  input: { image_url: string; orientation?: "square" | "landscape" | "portrait"; motion?: number }
+): Promise<{ video_url: string; poster_url: string; credits: number }> {
+  return request("/merchant/ads/ai/video", { method: "POST", token, body: input })
+}
