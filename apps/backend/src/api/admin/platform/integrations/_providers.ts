@@ -60,6 +60,12 @@ export const PROVIDERS: ProviderDef[] = [
   // --- Messaging: Messenger ---
   { name: "Messenger App Secret", category: "Messaging · Messenger", env: "MARKETING_MESSENGER_APP_SECRET", scope: "platform", secret: true, help: "Meta app → Messenger settings; App Secret is under Settings → Basic.", docs: "https://developers.facebook.com/apps" },
   { name: "Messenger Webhook Verify Token", category: "Messaging · Messenger", env: "MARKETING_MESSENGER_VERIFY_TOKEN", scope: "platform", secret: true, help: "A random string you choose; paste the same value into the Messenger webhook config." },
+
+  // --- Ads: Google (apply for the token NOW — approval is slow; the merchant
+  //     integration switches on when it reaches Basic access) ---
+  { name: "Google Ads Developer Token", category: "Ads · Google Ads", env: "GOOGLE_ADS_DEVELOPER_TOKEN", scope: "platform", secret: true, help: "Google Ads MANAGER account → Admin → API Center. Starts as test-level; apply for Basic access.", docs: "https://developers.google.com/google-ads/api/docs/api-policy/access-levels" },
+  { name: "Google OAuth Client ID", category: "Ads · Google Ads", env: "GOOGLE_ADS_CLIENT_ID", scope: "platform", help: "Google Cloud Console → Credentials → OAuth client (Web application).", docs: "https://console.cloud.google.com/apis/credentials" },
+  { name: "Google OAuth Client Secret", category: "Ads · Google Ads", env: "GOOGLE_ADS_CLIENT_SECRET", scope: "platform", secret: true, help: "Same OAuth client → Client Secret.", docs: "https://console.cloud.google.com/apis/credentials" },
 ]
 
 export const byEnv = (env: string) => PROVIDERS.find((p) => p.env === env)

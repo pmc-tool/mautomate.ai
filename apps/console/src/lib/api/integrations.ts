@@ -20,8 +20,34 @@ export type IntegrationProvider = {
   connect_url?: string | null
 }
 
+/** The in-depth API-application guides (data-driven from the backend). */
+export type GuideStep = {
+  title: string
+  details: string[]
+  links?: { label: string; url: string }[]
+  copy?: { label: string; value: string }[]
+}
+export type GuidePermission = {
+  permission: string
+  usedFor: string
+  justification: string
+}
+export type PlatformGuide = {
+  key: string
+  title: string
+  outcome: string
+  timeline: string
+  prerequisites: string[]
+  steps: GuideStep[]
+  permissions?: GuidePermission[]
+  review?: { title: string; items: string[] }
+  golive?: string[]
+  verify?: string[]
+}
+
 export type IntegrationsResponse = {
   providers: IntegrationProvider[]
+  guides: PlatformGuide[]
 }
 
 export type IntegrationTestResponse = {
@@ -32,16 +58,17 @@ export type IntegrationTestResponse = {
 export async function listIntegrations(
   token: string
 ): Promise<IntegrationsResponse> {
-  const res = await request<{ providers: Array<Omit<IntegrationProvider, "key"> & { env: string }> }>(
-    "/admin/platform/integrations",
-    { token }
-  )
+  const res = await request<{
+    providers: Array<Omit<IntegrationProvider, "key"> & { env: string }>
+    guides?: PlatformGuide[]
+  }>("/admin/platform/integrations", { token })
   return {
     providers: res.providers.map((p) => ({
       ...p,
       key: p.env,
       status: p.configured ? "configured" : "missing",
     })),
+    guides: res.guides ?? [],
   }
 }
 

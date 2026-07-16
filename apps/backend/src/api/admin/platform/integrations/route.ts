@@ -2,6 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 
 import { EncryptedConfigService } from "../../../../modules/platform/secure-config"
 import { PROVIDERS, PLATFORM_SCOPE } from "./_providers"
+import { resolvedGuides } from "./_guides"
 
 /**
  * GET /admin/platform/integrations — vendor credential status. A provider is
@@ -55,5 +56,5 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
       }
     })
   )
-  res.json({ providers })
+  res.json({ providers, guides: resolvedGuides(CONNECT_BASE) })
 }

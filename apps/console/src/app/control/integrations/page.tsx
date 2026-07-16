@@ -20,6 +20,7 @@ import {
   setIntegrationKey,
   testIntegration,
   type IntegrationProvider,
+  type PlatformGuide,
 } from "@/lib/api/integrations"
 import { PageHeader } from "@/components/page-header"
 import { EmptyState } from "@/components/empty-state"
@@ -78,6 +79,8 @@ function Pill({ tone, children }: { tone: Tone; children: React.ReactNode }) {
 export default function IntegrationsPage() {
   const { token } = useControlAuth()
   const [providers, setProviders] = useState<IntegrationProvider[]>([])
+  const [guides, setGuides] = useState<PlatformGuide[]>([])
+  const [openGuide, setOpenGuide] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [working, setWorking] = useState<string | null>(null)
@@ -94,6 +97,7 @@ export default function IntegrationsPage() {
     try {
       const res = await listIntegrations(token)
       setProviders(res.providers)
+      setGuides(res.guides)
       setTests({})
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load integrations")
@@ -171,13 +175,15 @@ export default function IntegrationsPage() {
     }
     const social: [string, IntegrationProvider[]][] = []
     const messaging: [string, IntegrationProvider[]][] = []
+    const ads: [string, IntegrationProvider[]][] = []
     const simple: IntegrationProvider[] = []
     for (const [cat, arr] of Array.from(m.entries())) {
       if (cat.startsWith("Social")) social.push([cat, arr])
       else if (cat.startsWith("Messaging")) messaging.push([cat, arr])
+      else if (cat.startsWith("Ads")) ads.push([cat, arr])
       else simple.push(...arr)
     }
-    return { social, messaging, simple }
+    return { social, messaging, ads, simple }
   }, [filtered])
 
   const stats = useMemo(() => {
@@ -246,6 +252,28 @@ export default function IntegrationsPage() {
         </div>
       )}
 
+      {/* The employee playbook — how to apply for every platform API */}
+      {!loading && guides.some((g) => g.key === "playbook") && (
+        <button
+          onClick={() => setOpenGuide("playbook")}
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-grey-90 bg-grey-90 p-4 text-left text-white shadow-borders-base transition-transform hover:-translate-y-px"
+        >
+          <div className="flex items-start gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10">
+              {Glyph.bolt("h-5 w-5")}
+            </span>
+            <div>
+              <div className="text-sm font-semibold">Applying for the platform APIs? Start with the playbook.</div>
+              <div className="mt-0.5 text-xs text-white/70">
+                The order of operations, what documents to prepare once, how app reviews actually pass,
+                and where every key goes. Each platform card below has its own full guide.
+              </div>
+            </div>
+          </div>
+          <span className="shrink-0 rounded-md bg-white/15 px-3 py-1.5 text-xs font-medium">Open playbook →</span>
+        </button>
+      )}
+
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -263,6 +291,7 @@ export default function IntegrationsPage() {
                 {groups.social.map(([cat, arr]) => (
                   <PlatformCard key={cat} category={cat} providers={arr}
                     inputs={inputs} setVal={setVal} working={working} tests={tests} copied={copied}
+                    hasGuide={guides.some((g) => g.key === cat)} onOpenGuide={() => setOpenGuide(cat)}
                     onSave={handleSaveKeys} onTest={handleTest} onClear={handleClear} onCopy={copy} />
                 ))}
               </div>
@@ -275,6 +304,20 @@ export default function IntegrationsPage() {
                 {groups.messaging.map(([cat, arr]) => (
                   <PlatformCard key={cat} category={cat} providers={arr}
                     inputs={inputs} setVal={setVal} working={working} tests={tests} copied={copied}
+                    hasGuide={guides.some((g) => g.key === cat)} onOpenGuide={() => setOpenGuide(cat)}
+                    onSave={handleSaveKeys} onTest={handleTest} onClear={handleClear} onCopy={copy} />
+                ))}
+              </div>
+            </>
+          )}
+          {groups.ads.length > 0 && (
+            <>
+              <SectionHead label="Advertising" />
+              <div className="grid gap-4 lg:grid-cols-2">
+                {groups.ads.map(([cat, arr]) => (
+                  <PlatformCard key={cat} category={cat} providers={arr}
+                    inputs={inputs} setVal={setVal} working={working} tests={tests} copied={copied}
+                    hasGuide={guides.some((g) => g.key === cat)} onOpenGuide={() => setOpenGuide(cat)}
                     onSave={handleSaveKeys} onTest={handleTest} onClear={handleClear} onCopy={copy} />
                 ))}
               </div>
@@ -293,6 +336,15 @@ export default function IntegrationsPage() {
             </>
           )}
         </div>
+      )}
+
+      {openGuide && (
+        <GuideView
+          guide={guides.find((g) => g.key === openGuide) ?? null}
+          onClose={() => setOpenGuide(null)}
+          onCopy={copy}
+          copied={copied}
+        />
       )}
     </div>
   )
@@ -316,12 +368,14 @@ function PlatformCard(props: {
   working: string | null
   tests: Record<string, { ok: boolean; message?: string } | null>
   copied: string | null
+  hasGuide?: boolean
+  onOpenGuide?: () => void
   onSave: (envs: string[]) => void
   onTest: (env: string) => void
   onClear: (env: string) => void
   onCopy: (text: string, id: string) => void
 }) {
-  const { category, providers, inputs, setVal, working, tests, copied, onSave, onTest, onCopy } = props
+  const { category, providers, inputs, setVal, working, tests, copied, hasGuide, onOpenGuide, onSave, onTest, onCopy } = props
   const brandKey = brandForCategory(category)
   const brand = brandKey ? BRAND[brandKey] : null
   const platformName = category.split("·").pop()?.trim() || category
@@ -352,7 +406,17 @@ function PlatformCard(props: {
             <p className="text-[11px] text-grey-40">{isWebhook ? "App secret + webhook" : "OAuth app"}</p>
           </div>
         </div>
-        <Pill tone={rollup}>{rollupText}</Pill>
+        <div className="flex items-center gap-2">
+          {hasGuide && onOpenGuide && (
+            <button
+              onClick={onOpenGuide}
+              className="rounded-md border border-grey-20 bg-white px-2.5 py-1.5 text-[11px] font-medium text-grey-70 hover:bg-grey-10"
+            >
+              Full setup guide
+            </button>
+          )}
+          <Pill tone={rollup}>{rollupText}</Pill>
+        </div>
       </div>
 
       <div className="border-t border-grey-20 px-4 pb-4 pt-1">
@@ -528,6 +592,195 @@ function CompactCard({ p, value, setVal, working, test, onSave, onTest, onClear 
           className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-grey-90 px-3 py-1.5 text-xs font-medium text-white hover:bg-grey-80 disabled:opacity-50">
           {working ? <ArrowPath className="h-3.5 w-3.5 animate-spin" /> : "Save"}
         </button>
+      </div>
+    </div>
+  )
+}
+
+/* ============================ Full setup guide reader ============================ */
+function GuideView({
+  guide,
+  onClose,
+  onCopy,
+  copied,
+}: {
+  guide: PlatformGuide | null
+  onClose: () => void
+  onCopy: (text: string, id: string) => void
+  copied: string | null
+}) {
+  if (!guide) return null
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-grey-90/40" onClick={onClose}>
+      <div
+        className="h-full w-full max-w-2xl overflow-y-auto bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* header */}
+        <div className="sticky top-0 z-10 border-b border-grey-20 bg-white px-6 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold tracking-tight text-grey-90">{guide.title}</h2>
+              <p className="mt-1 text-xs text-grey-50">
+                <b className="text-grey-70">Done means:</b> {guide.outcome}
+              </p>
+              <p className="mt-1 text-xs text-grey-50">
+                <b className="text-grey-70">Timeline:</b> {guide.timeline}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="shrink-0 rounded-md border border-grey-20 px-2.5 py-1.5 text-xs font-medium text-grey-60 hover:bg-grey-10"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-6 px-6 py-5">
+          {/* prerequisites */}
+          {guide.prerequisites.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-grey-50">
+                Before you start
+              </h3>
+              <ul className="mt-2 space-y-1.5">
+                {guide.prerequisites.map((p, i) => (
+                  <li key={i} className="flex gap-2 text-[13px] leading-relaxed text-grey-70">
+                    <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-grey-40" />
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* steps */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-grey-50">
+              Step by step
+            </h3>
+            <ol className="mt-2 space-y-4">
+              {guide.steps.map((s, i) => (
+                <li key={i} className="rounded-xl border border-grey-20 p-4">
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-grey-90 font-mono text-xs font-semibold text-white">
+                      {i + 1}
+                    </span>
+                    <span className="text-sm font-semibold text-grey-90">{s.title}</span>
+                  </div>
+                  <div className="mt-2 space-y-1.5 pl-[34px]">
+                    {s.details.map((d, j) => (
+                      <p key={j} className="text-[13px] leading-relaxed text-grey-70">{d}</p>
+                    ))}
+                    {s.links?.map((l) => (
+                      <a key={l.url} href={l.url} target="_blank" rel="noreferrer"
+                        className="mr-2 inline-flex items-center gap-1.5 rounded-md border border-grey-20 bg-white px-2.5 py-1.5 text-[11px] font-medium text-grey-60 hover:bg-grey-10">
+                        {Glyph.ext("h-3.5 w-3.5")} {l.label}
+                      </a>
+                    ))}
+                    {s.copy?.map((c) => (
+                      <div key={c.label} className="mt-1.5">
+                        <div className="text-[11px] font-medium text-grey-50">{c.label}</div>
+                        <div className="mt-0.5 flex items-center gap-2 rounded-lg border border-grey-20 bg-grey-10 px-3 py-2">
+                          <input readOnly value={c.value}
+                            className="w-full border-0 bg-transparent font-mono text-xs text-grey-60 outline-none" />
+                          <button onClick={() => onCopy(c.value, `${guide.key}:${c.label}`)}
+                            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-grey-20 bg-white px-2.5 py-1.5 text-[11px] text-grey-60 hover:bg-grey-10">
+                            {copied === `${guide.key}:${c.label}`
+                              ? <><Check className="h-3.5 w-3.5 text-emerald-600" /> Copied</>
+                              : <>{Glyph.copy("h-3.5 w-3.5")} Copy</>}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          {/* permissions w/ paste-ready justifications */}
+          {guide.permissions && guide.permissions.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-grey-50">
+                Permissions to request — with paste-ready justifications
+              </h3>
+              <p className="mt-1 text-[12px] text-grey-50">
+                In App Review, request each permission below. Paste the justification text as the
+                &ldquo;how will you use this&rdquo; answer (adjust freely, but keep it specific).
+              </p>
+              <div className="mt-2 space-y-3">
+                {guide.permissions.map((perm) => (
+                  <div key={perm.permission} className="rounded-xl border border-grey-20 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <code className="rounded bg-grey-10 px-2 py-0.5 font-mono text-xs font-semibold text-grey-90">
+                        {perm.permission}
+                      </code>
+                      <button onClick={() => onCopy(perm.justification, `${guide.key}:perm:${perm.permission}`)}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-grey-20 bg-white px-2.5 py-1.5 text-[11px] text-grey-60 hover:bg-grey-10">
+                        {copied === `${guide.key}:perm:${perm.permission}`
+                          ? <><Check className="h-3.5 w-3.5 text-emerald-600" /> Copied</>
+                          : <>{Glyph.copy("h-3.5 w-3.5")} Copy justification</>}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-[12px] font-medium text-grey-70">{perm.usedFor}</p>
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-grey-50">{perm.justification}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* review checklist */}
+          {guide.review && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-grey-50">
+                {guide.review.title}
+              </h3>
+              <ul className="mt-2 space-y-1.5">
+                {guide.review.items.map((it, i) => (
+                  <li key={i} className="flex gap-2 text-[13px] leading-relaxed text-grey-70">
+                    <span className="mt-0.5 grid h-4.5 w-4.5 shrink-0 place-items-center rounded border border-grey-30 text-[10px]" />
+                    {it}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* go live */}
+          {guide.golive && guide.golive.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-grey-50">Going live</h3>
+              <ul className="mt-2 space-y-1.5">
+                {guide.golive.map((g, i) => (
+                  <li key={i} className="flex gap-2 text-[13px] leading-relaxed text-grey-70">
+                    <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-grey-40" />
+                    {g}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* verify */}
+          {guide.verify && guide.verify.length > 0 && (
+            <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                How you know it worked
+              </h3>
+              <ul className="mt-2 space-y-1.5">
+                {guide.verify.map((v, i) => (
+                  <li key={i} className="flex gap-2 text-[13px] leading-relaxed text-emerald-900">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    {v}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
       </div>
     </div>
   )
