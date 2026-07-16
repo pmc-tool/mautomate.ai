@@ -260,16 +260,7 @@ export default function IntegrationsPage() {
               </p>
             </div>
           </div>
-          <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-xl bg-white/10 px-3.5 py-2.5 ring-1 ring-inset ring-white/10 focus-within:ring-white/30">
-            {Glyph.search("h-4 w-4 text-white/50")}
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search platforms and keys…"
-              className="w-full border-0 bg-transparent text-sm text-white outline-none placeholder:text-white/40"
-            />
-          </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-1 items-center justify-end gap-2">
             {guides.some((g) => g.key === "playbook") && (
               <button
                 onClick={() => setOpenGuide("playbook")}
@@ -307,6 +298,28 @@ export default function IntegrationsPage() {
         <div className="grid items-start gap-4 lg:grid-cols-[300px_1fr]">
           {/* ---------------- rail ---------------- */}
           <nav className="rounded-2xl border border-grey-20 bg-white p-2 shadow-borders-base lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+            {/* rail filter — typed only; the attribute set below keeps browser
+                autofill from dumping saved credentials into it */}
+            <div className="mb-1 flex items-center gap-2 rounded-xl bg-grey-10 px-3 py-2 text-grey-40 focus-within:bg-grey-5 focus-within:ring-1 focus-within:ring-grey-30">
+              {Glyph.search("h-3.5 w-3.5 shrink-0")}
+              <input
+                type="search"
+                name="integrations-rail-filter"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Filter…"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                aria-label="Filter platforms and keys"
+                className="w-full border-0 bg-transparent text-[13px] text-grey-90 outline-none placeholder:text-grey-40 [&::-webkit-search-cancel-button]:appearance-none"
+              />
+              {q && (
+                <button onClick={() => setQ("")} className="shrink-0 text-[11px] text-grey-40 hover:text-grey-90" aria-label="Clear filter">
+                  clear
+                </button>
+              )}
+            </div>
             {sections.length === 0 && (
               <p className="px-3 py-6 text-center text-sm text-grey-40">Nothing matches “{q}”.</p>
             )}
