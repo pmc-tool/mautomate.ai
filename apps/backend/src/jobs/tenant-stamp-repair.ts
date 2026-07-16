@@ -70,11 +70,31 @@ export default async function tenantStampRepairJob(
         AND (c.metadata->>'tenant_id') IS NULL
     `)
 
+    // Guests (and any customer the create-time paths missed) inherit the
+    // store of their orders — only when ALL their orders belong to one store
+    // (fail-closed on ambiguity, same rule as tenantForCustomer).
+    const guestRes = await pg.raw(`
+      UPDATE customer c
+      SET metadata = coalesce(c.metadata, '{}'::jsonb) || jsonb_build_object('tenant_id', x.tid)
+      FROM (
+        SELECT o.customer_id AS cid, min(t.id) AS tid
+        FROM "order" o
+        JOIN tenant t ON (t.meta->>'sales_channel_id') = o.sales_channel_id
+        WHERE o.customer_id IS NOT NULL
+        GROUP BY o.customer_id
+        HAVING count(DISTINCT t.id) = 1
+      ) x
+      WHERE c.id = x.cid
+        AND c.deleted_at IS NULL
+        AND (c.metadata->>'tenant_id') IS NULL
+    `)
+
     const total =
       (productRes?.rowCount ?? 0) +
       (variantRes?.rowCount ?? 0) +
       (inventoryRes?.rowCount ?? 0) +
-      (customerRes?.rowCount ?? 0)
+      (customerRes?.rowCount ?? 0) +
+      (guestRes?.rowCount ?? 0)
     if (total > 0) {
       const logger: any = container.resolve("logger")
       logger.info(

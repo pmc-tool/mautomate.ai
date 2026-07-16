@@ -261,7 +261,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   res.json({
     order: {
       id: order.id,
-      display_id: order.display_id,
+      display_id: order.metadata?.store_order_no ?? order.display_id,
       status: order.status,
       payment_status: paymentStatusFrom(order.payment_collections || []),
       fulfillment_status: fulfillmentStatusFrom(order.fulfillments || []),

@@ -317,8 +317,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (d.tag_ids !== undefined) {
     tagIds = d.tag_ids
   } else if (d.tags.length) {
-    const existing = await productModule.listProductTags({ value: d.tags }, { take: d.tags.length })
-    const existingByValue = new Map<string, string>((existing || []).map((t: any) => [t.value, t.id]))
+    // Tag values are unique PER STORE (namespace-freedom): reuse only THIS
+    // tenant's tag rows (unstamped legacy rows included), never another
+    // store's row that happens to share the value.
+    const existing = await productModule.listProductTags(
+      { value: d.tags },
+      { take: d.tags.length * 4 }
+    )
+    const existingByValue = new Map<string, string>(
+      (existing || [])
+        .filter((t: any) => {
+          const owner = t?.metadata?.tenant_id
+          return !owner || owner === ctx.tenant.id
+        })
+        .map((t: any) => [t.value, t.id])
+    )
     const missing = d.tags.filter((t) => !existingByValue.has(t))
     if (missing.length) {
       const created = await productModule.createProductTags(

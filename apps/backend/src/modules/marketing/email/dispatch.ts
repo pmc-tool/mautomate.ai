@@ -74,6 +74,7 @@ export const dispatchOrderEmail = async (
       fields: [
         "id",
         "display_id",
+        "metadata",
         "email",
         "currency_code",
         "total",
@@ -104,7 +105,8 @@ export const dispatchOrderEmail = async (
 
     const tokens: Record<string, unknown> = {
       first_name: firstName,
-      order_number: order.display_id,
+      // Per-store order number; global display_id only as legacy fallback.
+      order_number: order.metadata?.store_order_no ?? order.display_id,
       order_total: money(order.total, order.currency_code),
       order_items: items,
       ...extraTokens,

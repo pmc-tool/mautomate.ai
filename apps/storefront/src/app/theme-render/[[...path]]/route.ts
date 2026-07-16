@@ -275,6 +275,19 @@ export async function GET(
   // tenant-resolved via the x-tenant-metapixel header middleware forwards.
   const pixelId = (h.get("x-tenant-metapixel") || "").replace(/[^0-9]/g, "")
   let out = html
+
+  // Umami analytics for Liquid-rendered stores — the React root layout's
+  // injection never wraps this response, so without this the DEFAULT render
+  // path was analytics-blind. Same same-origin /umami proxy as the layout;
+  // the website id is tenant-resolved and sanitized to a UUID shape.
+  const umamiId = (h.get("x-tenant-umami") || "").replace(/[^0-9a-fA-F-]/g, "")
+  if (umamiId) {
+    const umamiTag = `<script defer src="/umami/script.js" data-website-id="${umamiId}" data-host-url="/umami"></script>`
+    out = out.includes("</head>")
+      ? out.replace("</head>", `${umamiTag}</head>`)
+      : umamiTag + out
+  }
+
   if (pixelId) {
     const pixelTag =
       `<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pixelId}');fbq('track','PageView');</script>` +

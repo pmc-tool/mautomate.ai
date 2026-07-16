@@ -283,12 +283,32 @@ export class SuperAdminService {
     const scId = tenant?.meta?.sales_channel_id
     if (scId) {
       try {
-        const productModule: any = this.container.resolve(Modules.PRODUCT)
-        const prods = await productModule.listProducts(
-          { sales_channels: { id: scId } },
-          { take: 1000, select: ["id"] }
+        // The product module cannot filter by the sales-channel LINK (the old
+        // `sales_channels: { id }` filter was a silent no-op — the source of
+        // 1000+ zombie products from purged test stores). Resolve the ids via
+        // the link table, then soft-delete products + variants + their
+        // inventory items so nothing keeps squatting the store's namespace.
+        const pg: any = this.container.resolve(
+          ContainerRegistrationKeys.PG_CONNECTION
         )
-        if (prods?.length) await productModule.deleteProducts(prods.map((p: any) => p.id))
+        const { rows } = await pg.raw(
+          `SELECT product_id FROM product_sales_channel WHERE sales_channel_id = ?`,
+          [scId]
+        )
+        const ids = (rows ?? []).map((r: any) => r.product_id)
+        if (ids.length) {
+          const productModule: any = this.container.resolve(Modules.PRODUCT)
+          await productModule.softDeleteProducts(ids)
+          await pg.raw(
+            `UPDATE inventory_item ii SET deleted_at = now()
+             FROM product_variant_inventory_item pvii
+             JOIN product_variant v ON v.id = pvii.variant_id
+             WHERE pvii.inventory_item_id = ii.id
+               AND v.product_id = ANY(?)
+               AND ii.deleted_at IS NULL`,
+            [ids]
+          )
+        }
       } catch {}
       try {
         const scModule: any = this.container.resolve(Modules.SALES_CHANNEL)

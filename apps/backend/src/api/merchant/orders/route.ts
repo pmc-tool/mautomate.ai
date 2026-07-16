@@ -29,6 +29,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     fields: [
       "id",
       "display_id",
+      "metadata",
       "status",
       "email",
       "currency_code",
@@ -58,7 +59,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   let orders = (data || []).map((o: any) => ({
     id: o.id,
-    display_id: o.display_id,
+    // Per-store order number (order.metadata.store_order_no, assigned by the
+    // order.placed subscriber). Falls back to the global display_id for
+    // legacy/unattributable orders.
+    display_id: o.metadata?.store_order_no ?? o.display_id,
     status: o.status,
     payment_status: paymentStatusFrom(o.payment_collections),
     fulfillment_status: fulfillmentStatusFrom(o.fulfillments),
