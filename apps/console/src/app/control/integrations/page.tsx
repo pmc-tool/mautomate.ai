@@ -112,6 +112,10 @@ export default function IntegrationsPage() {
   const [tests, setTests] = useState<Record<string, { ok: boolean; message?: string } | null>>({})
   const [copied, setCopied] = useState<string | null>(null)
   const [q, setQ] = useState("")
+  // Chrome ignores autocomplete="off" and force-fills the console login email
+  // into any text field it fancies. Browsers never autofill a READ-ONLY input,
+  // so the filter stays readOnly until a human focuses it.
+  const [filterUnlocked, setFilterUnlocked] = useState(false)
 
   const load = useCallback(async () => {
     if (!token) return
@@ -306,7 +310,10 @@ export default function IntegrationsPage() {
                 type="search"
                 name="integrations-rail-filter"
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => { if (filterUnlocked) setQ(e.target.value) }}
+                readOnly={!filterUnlocked}
+                onFocus={() => setFilterUnlocked(true)}
+                onTouchStart={() => setFilterUnlocked(true)}
                 placeholder="Filter…"
                 autoComplete="off"
                 autoCorrect="off"
