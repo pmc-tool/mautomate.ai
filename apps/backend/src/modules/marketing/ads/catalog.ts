@@ -285,7 +285,10 @@ export const syncTenantCatalog = async (
   tenantId: string,
   opts: { storeName?: string | null } = {}
 ): Promise<CatalogSyncResult> => {
-  const { connection, creds } = await requireMetaAccountContext(mk, tenantId)
+  const { connection, creds, platform } = await requireMetaAccountContext(
+    mk,
+    tenantId
+  )
   const storeName = opts.storeName ?? "Store"
 
   const feed = await buildCatalogFeed(container, tenantId, { storeName })
@@ -300,6 +303,53 @@ export const syncTenantCatalog = async (
             .join(", ")}). Products need a photo and a price.`
         : "This store has no published products to sync yet."
     )
+  }
+
+  // Demo platform: the feed is built from the store's REAL products (so the
+  // counts and skip reasons are truthful), but nothing leaves the platform —
+  // no Business Manager, no Graph calls.
+  if (platform === "mock") {
+    const existingDemo = first(
+      await mk.listAdsCatalogs({ tenant_id: tenantId, platform: "mock" })
+    )
+    const demo = existingDemo?.id
+      ? existingDemo
+      : first(
+          await mk.createAdsCatalogs({
+            tenant_id: tenantId,
+            connection_id: connection.id,
+            platform: "mock",
+            external_id: "demo-catalog-1",
+            business_id: "demo-business",
+            name: `${storeName} catalog (demo)`,
+            status: "active",
+          } as any)
+        )
+    await mk.updateAdsCatalogs({
+      id: demo.id,
+      item_count: feed.items.length,
+      skipped_count: feed.skipped,
+      status: "active",
+      last_synced_at: new Date(),
+      meta: { skipped_reasons: feed.skipped_reasons },
+    } as any)
+    await mk.createAdsActionLogs({
+      tenant_id: tenantId,
+      actor: "merchant",
+      action: "catalog.synced",
+      level: "catalog",
+      object_id: demo.id,
+      external_id: demo.external_id,
+      reason: `${feed.items.length} products prepared for the demo catalog${
+        feed.skipped ? ` (${feed.skipped} skipped — need photo/price)` : ""
+      }`,
+    } as any)
+    return {
+      catalog_id: demo.external_id,
+      pushed: feed.items.length,
+      skipped: feed.skipped,
+      skipped_reasons: feed.skipped_reasons,
+    }
   }
 
   const catalog = await ensureMetaCatalog(

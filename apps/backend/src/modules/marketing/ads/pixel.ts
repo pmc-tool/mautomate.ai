@@ -1,5 +1,6 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import { openAdsConnectionCredentials } from "./credentials"
+import { requireAccountContext } from "./launch"
 import type { AdsCredentials } from "./types"
 
 /**
@@ -65,47 +66,44 @@ export const createAccountPixel = async (
   return { id: String(data.id), name }
 }
 
-/** The tenant's connected meta connection + a selected active account, or a
- *  clear MedusaError explaining exactly what is missing. */
+/**
+ * The tenant's connected signal-capable platform context: meta when it is
+ * connected, else the demo platform (registration-gated) so the whole flow is
+ * walkable before the Meta app keys land. Throws the honest "connect first"
+ * error when neither exists.
+ */
 export const requireMetaAccountContext = async (
   mk: any,
   tenantId: string
-): Promise<{ connection: any; account: any; creds: AdsCredentials }> => {
-  const connection = first(
+): Promise<{
+  connection: any
+  account: any
+  creds: AdsCredentials
+  platform: "meta" | "mock"
+}> => {
+  // Fall back to the demo platform ONLY when meta is not connected at all —
+  // a connected-but-unselected meta account must surface ITS error ("choose
+  // an ad account"), not a misleading "connect first".
+  const metaConnected = first(
     await mk.listAdsConnections({
       tenant_id: tenantId,
       platform: "meta",
       status: "connected",
     })
   )
-  if (!connection) {
+  if (metaConnected) {
+    const ctx = await requireAccountContext(mk, tenantId, "meta")
+    return { ...ctx, platform: "meta" }
+  }
+  try {
+    const ctx = await requireAccountContext(mk, tenantId, "mock")
+    return { ...ctx, platform: "mock" }
+  } catch {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
       "Connect Meta advertising first — the pixel and catalog live on your Meta ad account."
     )
   }
-  const account = first(
-    await mk.listAdsAccounts({
-      tenant_id: tenantId,
-      platform: "meta",
-      selected: true,
-      status: "active",
-    })
-  )
-  if (!account) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_ALLOWED,
-      'Choose an ad account first ("Use this account" on the Ad accounts page).'
-    )
-  }
-  const creds = openAdsConnectionCredentials(connection)
-  if (!creds) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_ALLOWED,
-      "Your Meta connection has expired — please reconnect."
-    )
-  }
-  return { connection, account, creds }
 }
 
 /**
@@ -118,12 +116,15 @@ export const setupTenantPixel = async (
   tenantId: string,
   opts: { pixelId?: string | null; storeName?: string | null } = {}
 ): Promise<any> => {
-  const { connection, account, creds } = await requireMetaAccountContext(
-    mk,
-    tenantId
-  )
+  const { connection, account, creds, platform } =
+    await requireMetaAccountContext(mk, tenantId)
 
-  const existing = await listAccountPixels(creds, account.external_id)
+  // Demo platform: no Graph — a stable, digits-only demo pixel id so the flow
+  // (including the storefront injection) is walkable end to end.
+  const existing =
+    platform === "mock"
+      ? [{ id: "990000000000001", name: `${opts.storeName ?? "Store"} demo pixel` }]
+      : await listAccountPixels(creds, account.external_id)
 
   let chosen: { id: string; name: string | null } | null = null
   if (opts.pixelId) {
@@ -147,7 +148,7 @@ export const setupTenantPixel = async (
   const row = first(
     await mk.listAdsPixels({
       tenant_id: tenantId,
-      platform: "meta",
+      platform,
       external_id: chosen.id,
     })
   )
@@ -155,7 +156,7 @@ export const setupTenantPixel = async (
     tenant_id: tenantId,
     connection_id: connection.id,
     account_id: account.id,
-    platform: "meta",
+    platform,
     external_id: chosen.id,
     name: chosen.name,
     status: "active",
@@ -164,9 +165,10 @@ export const setupTenantPixel = async (
     ? first(await mk.updateAdsPixels({ id: row.id, ...payload } as any))
     : first(await mk.createAdsPixels(payload as any))
 
-  // One active pixel per tenant/platform: disable any other rows.
+  // One active pixel per tenant: disable any other rows (any platform — the
+  // storefront injects exactly one pixel).
   const others = await mk.listAdsPixels(
-    { tenant_id: tenantId, platform: "meta", status: "active" },
+    { tenant_id: tenantId, status: "active" },
     { take: 20 }
   )
   for (const other of others ?? []) {

@@ -19,35 +19,29 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const mk: any = req.scope.resolve(MARKETING_MODULE)
   try {
+    // Any signal-capable platform counts (meta in production; the demo
+    // platform when it is enabled) — the same resolution setup/sync use.
     const [connection, account, pixel, catalog] = await Promise.all([
       mk
         .listAdsConnections(
-          { tenant_id: ctx.tenant.id, platform: "meta", status: "connected" },
+          { tenant_id: ctx.tenant.id, status: "connected" },
           { take: 1 }
         )
         .then(first),
       mk
         .listAdsAccounts(
-          {
-            tenant_id: ctx.tenant.id,
-            platform: "meta",
-            selected: true,
-            status: "active",
-          },
+          { tenant_id: ctx.tenant.id, selected: true, status: "active" },
           { take: 1 }
         )
         .then(first),
       mk
         .listAdsPixels(
-          { tenant_id: ctx.tenant.id, platform: "meta", status: "active" },
+          { tenant_id: ctx.tenant.id, status: "active" },
           { take: 1 }
         )
         .then(first),
       mk
-        .listAdsCatalogs(
-          { tenant_id: ctx.tenant.id, platform: "meta" },
-          { take: 1 }
-        )
+        .listAdsCatalogs({ tenant_id: ctx.tenant.id }, { take: 1 })
         .then(first),
     ])
 
