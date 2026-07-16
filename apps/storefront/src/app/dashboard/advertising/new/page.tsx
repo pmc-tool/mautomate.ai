@@ -11,6 +11,7 @@ import {
   ExclamationCircle,
   Sparkles,
   Spinner,
+  XMark,
 } from "@medusajs/icons"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
@@ -26,7 +27,6 @@ import {
   listAdsPages,
   listProducts,
 } from "@lib/merchant-admin/api"
-import { PageHeader } from "@components/merchant-admin/page-header"
 import { SectionCard } from "@components/merchant-admin/section-card"
 import { cn } from "@lib/util/cn"
 import { AD_COUNTRIES, countryName } from "@lib/util/ad-countries"
@@ -45,6 +45,87 @@ import { AD_COUNTRIES, countryName } from "@lib/util/ad-countries"
  */
 
 type Step = "product" | "goal" | "generating" | "review" | "settings"
+
+const STEPS: { key: Step; label: string }[] = [
+  { key: "product", label: "Product" },
+  { key: "goal", label: "Goal" },
+  { key: "generating", label: "Create" },
+  { key: "review", label: "Review" },
+  { key: "settings", label: "Audience & budget" },
+]
+
+/**
+ * Full-screen takeover shell: the wizard owns the viewport (no dashboard
+ * chrome), with its own top bar — Exit, the stepper, and the no-spend
+ * reassurance. Rendered above the dashboard via a fixed overlay.
+ */
+function TakeoverShell({
+  step,
+  onExit,
+  children,
+}: {
+  step: Step
+  onExit: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-grey-5">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-grey-20 bg-white px-4 py-3 sm:px-6">
+        <button
+          onClick={onExit}
+          className="inline-flex items-center gap-1.5 rounded-md border border-grey-20 bg-white px-2.5 py-1.5 text-xs font-medium text-grey-60 hover:bg-grey-10 hover:text-grey-90"
+        >
+          <XMark className="h-4 w-4" /> Exit
+        </button>
+        <Stepper step={step} />
+        <span className="hidden w-[68px] text-right text-[11px] leading-tight text-grey-40 sm:block lg:w-auto">
+          Nothing spends until you press Launch
+        </span>
+      </header>
+      <main className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">{children}</div>
+      </main>
+    </div>
+  )
+}
+
+/** The takeover's top-bar stepper: done = filled check, current = ink ring. */
+function Stepper({ step }: { step: Step }) {
+  const idx = STEPS.findIndex((s) => s.key === step)
+  return (
+    <ol className="flex items-center gap-0">
+      {STEPS.map((s, i) => (
+        <React.Fragment key={s.key}>
+          {i > 0 && (
+            <span className={cn("mx-2 h-px w-5 sm:w-8", i <= idx ? "bg-grey-90" : "bg-grey-20")} />
+          )}
+          <li className="flex items-center gap-2">
+            <span
+              className={cn(
+                "grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-semibold",
+                i < idx
+                  ? "bg-grey-90 text-white"
+                  : i === idx
+                    ? "bg-white text-grey-90 ring-2 ring-grey-90"
+                    : "bg-grey-10 text-grey-40"
+              )}
+            >
+              {i < idx ? <CheckCircleSolid className="h-4 w-4" /> : i + 1}
+            </span>
+            <span
+              className={cn(
+                "text-xs",
+                i === idx ? "font-semibold text-grey-90" : "hidden text-grey-40 lg:inline"
+              )}
+            >
+              {s.label}
+            </span>
+          </li>
+        </React.Fragment>
+      ))}
+    </ol>
+  )
+}
 
 const GOALS = [
   {
@@ -378,20 +459,32 @@ export default function NewCampaignPage() {
     pageId, router,
   ])
 
+  // Exiting mid-flow discards generated work — confirm past the goal step.
+  const exit = () => {
+    const midFlow = step === "generating" || step === "review" || step === "settings"
+    if (
+      !midFlow ||
+      window.confirm("Leave the campaign builder? The ad you created here won't be saved.")
+    ) {
+      router.push("/dashboard/advertising")
+    }
+  }
+
   // ---------------------------------------------------------------- guards
   if (loading) {
     return (
-      <div className="flex items-center gap-2 py-16 text-grey-50">
-        <Spinner className="animate-spin" /> Loading…
-      </div>
+      <TakeoverShell step="product" onExit={() => router.push("/dashboard/advertising")}>
+        <div className="flex items-center justify-center gap-2 py-24 text-grey-50">
+          <Spinner className="animate-spin" /> Loading…
+        </div>
+      </TakeoverShell>
     )
   }
   if (!platform || !selectedAccount) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="New campaign" description="Create and launch ads without leaving your dashboard." />
+      <TakeoverShell step="product" onExit={() => router.push("/dashboard/advertising")}>
         <SectionCard title="Connect first">
-          <div className="py-6 text-center">
+          <div className="py-10 text-center">
             <ChartPie className="mx-auto text-grey-40" />
             <p className="mt-2 text-sm text-grey-60">
               A campaign needs a connected ad platform and a chosen ad account.
@@ -404,41 +497,14 @@ export default function NewCampaignPage() {
             </Link>
           </div>
         </SectionCard>
-      </div>
+      </TakeoverShell>
     )
   }
 
-  const stepIndex = ["product", "goal", "generating", "review", "settings"].indexOf(step)
-
   return (
-    <div className="space-y-6">
+    <TakeoverShell step={step} onExit={exit}>
       <style dangerouslySetInnerHTML={{ __html: MOTION_CSS }} />
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <PageHeader
-          title="New campaign"
-          description="Pick a product, and the AI writes and designs the ad. Nothing spends until you press Launch."
-        />
-        <div className="flex items-center gap-1.5 text-xs text-grey-40">
-          {["What", "Goal", "Create", "Polish", "Money"].map((label, i) => (
-            <React.Fragment key={label}>
-              {i > 0 && <span className="h-px w-4 bg-grey-20" />}
-              <span
-                className={cn(
-                  "rounded-full px-2 py-0.5",
-                  i === stepIndex
-                    ? "bg-grey-90 font-medium text-white"
-                    : i < stepIndex
-                      ? "bg-grey-10 text-grey-70"
-                      : "text-grey-40"
-                )}
-              >
-                {label}
-              </span>
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
+      <div className="space-y-6">
 
       {notice && (
         <div
@@ -1097,6 +1163,7 @@ export default function NewCampaignPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </TakeoverShell>
   )
 }
