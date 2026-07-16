@@ -9,17 +9,12 @@ import { adsStatusFor } from "../../_helpers"
 /**
  * POST /merchant/ads/ai/image — generate the ad image and store it durably.
  *
- * Two engines, honestly priced:
- *  - `product_image_url` present -> PRODUCT-ANCHORED scene (the Gemini
- *    subject-consistent engine): the merchant's REAL product placed in the
- *    scene — an ad must never show a product the store doesn't sell.
- *    Bills `ai_image`.
- *  - no product photo (whole-store ads) -> text-to-image. Bills
- *    `ai_image_basic`.
+ * ALWAYS product-anchored (the Gemini subject-consistent engine): the
+ * merchant's REAL photo placed into the scene. Text-to-image is deliberately
+ * not offered — an invented product is never an acceptable ad. Bills
+ * `ai_image`; nothing is charged on failure.
  *
- * Nothing is charged on failure.
- *
- * Body: { prompt, product_image_url?, orientation? }
+ * Body: { prompt, product_image_url (required), orientation? }
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
@@ -39,7 +34,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       b.product_image_url.startsWith("http")
         ? b.product_image_url
         : null
-    const action = productImageUrl ? "ai_image" : "ai_image_basic"
+    if (!productImageUrl) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Ad images are always built from one of your real product photos — pick the photo the ad should be built on."
+      )
+    }
+    const action = "ai_image"
 
     const metered = await meterAction(
       req.scope,

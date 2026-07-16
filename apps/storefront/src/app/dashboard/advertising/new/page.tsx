@@ -116,6 +116,9 @@ export default function NewCampaignPage() {
   const [step, setStep] = useState<Step>("product")
   const [productId, setProductId] = useState<string | null>(null)
   const [wholeStore, setWholeStore] = useState(false)
+  // Every ad image is built from a REAL photo the store owns — this is the
+  // photo the scene is anchored to. Text-to-image is deliberately not offered.
+  const [anchorUrl, setAnchorUrl] = useState<string | null>(null)
   const [goal, setGoal] = useState<"sales" | "traffic" | "awareness">("traffic")
   const [instructions, setInstructions] = useState("")
 
@@ -202,17 +205,11 @@ export default function NewCampaignPage() {
     setGenError(null)
     setNotice(null)
     setStep("generating")
-    const anchored = !wholeStore && Boolean(product?.thumbnail)
+    if (!anchorUrl) return
     setStages([
       { key: "read", label: wholeStore ? "Reading your store" : "Reading your product", state: "running" },
       { key: "copy", label: "Writing headlines & ad text", state: "pending" },
-      {
-        key: "image",
-        label: anchored
-          ? "Building the scene around your product photo"
-          : "Designing your ad image",
-        state: "pending",
-      },
+      { key: "image", label: "Building the scene around your photo", state: "pending" },
     ])
 
     try {
@@ -235,13 +232,12 @@ export default function NewCampaignPage() {
       )
       setStage("copy", { state: "done", detail: d.headline })
 
-      // Stage 3: the image call — anchored to the REAL product photo when
-      // there is one (the ad must show the product the store actually sells).
+      // Stage 3: the image call — ALWAYS anchored to the chosen real photo.
       setStage("image", { state: "running" })
       const imgRes = await generateAdImage(token, {
         prompt: d.image_prompt,
         orientation: "square",
-        product_image_url: anchored ? product!.thumbnail! : null,
+        product_image_url: anchorUrl,
       })
       setImageUrl(imgRes.image_url)
       setStage("image", { state: "done" })
@@ -253,17 +249,17 @@ export default function NewCampaignPage() {
       )
       setGenError(e?.message ?? "Generation failed.")
     }
-  }, [token, wholeStore, productId, goal, instructions])
+  }, [token, wholeStore, productId, goal, instructions, anchorUrl])
 
   const skipToManual = useCallback(() => {
     setDraft(null)
     setHeadline(product?.title ?? "")
     setPrimaryText("")
     setImagePrompt("")
-    setImageUrl(product?.thumbnail ?? null)
+    setImageUrl(anchorUrl ?? product?.thumbnail ?? null)
     setName(`${wholeStore ? "Store" : product?.title ?? "Campaign"} — ${goal}`.slice(0, 60))
     setStep("review")
-  }, [product, wholeStore, goal])
+  }, [product, wholeStore, goal, anchorUrl])
 
   const regenCopy = useCallback(async () => {
     if (!token || busy) return
@@ -292,11 +288,17 @@ export default function NewCampaignPage() {
     setBusy("image")
     setNotice(null)
     try {
-      const anchored = !wholeStore && Boolean(product?.thumbnail)
+      if (!anchorUrl) {
+        setNotice({
+          kind: "error",
+          text: "Pick the photo the ad is built on first — ads always use your real photos.",
+        })
+        return
+      }
       const { image_url } = await generateAdImage(token, {
         prompt: imagePrompt || `professional product photo of ${headline}`,
         orientation: "square",
-        product_image_url: anchored ? product!.thumbnail! : null,
+        product_image_url: anchorUrl,
       })
       setImageUrl(image_url)
       setVideoUrl(null)
@@ -305,7 +307,7 @@ export default function NewCampaignPage() {
     } finally {
       setBusy(null)
     }
-  }, [token, busy, imagePrompt, headline, wholeStore, product])
+  }, [token, busy, imagePrompt, headline, anchorUrl])
 
   const makeVideo = useCallback(async () => {
     if (!token || busy || !imageUrl) return
@@ -458,6 +460,7 @@ export default function NewCampaignPage() {
               onClick={() => {
                 setWholeStore(true)
                 setProductId(null)
+                setAnchorUrl(null)
                 setStep("goal")
               }}
               className="ads-rise flex h-full min-h-[9rem] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-grey-30 bg-white p-3 text-grey-60 hover:border-grey-50 hover:text-grey-90"
@@ -471,6 +474,7 @@ export default function NewCampaignPage() {
                 onClick={() => {
                   setWholeStore(false)
                   setProductId(p.id)
+                  setAnchorUrl(p.thumbnail ?? null)
                   setStep("goal")
                 }}
                 style={{ animationDelay: `${Math.min(i * 40, 300)}ms` }}
@@ -543,6 +547,55 @@ export default function NewCampaignPage() {
                 className="mt-1 w-full rounded-md border border-grey-20 px-3 py-2 text-sm"
               />
             </label>
+
+            {!anchorUrl && (
+              <div className="mt-4">
+                <span className="text-xs font-medium text-grey-70">
+                  Which photo is the ad built on?{" "}
+                  <span className="font-normal text-grey-50">
+                    (ads always use your real photos — never invented ones)
+                  </span>
+                </span>
+                {products.some((p) => p.thumbnail) ? (
+                  <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                    {products
+                      .filter((p) => p.thumbnail)
+                      .map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => setAnchorUrl(p.thumbnail!)}
+                          title={p.title}
+                          className={cn(
+                            "shrink-0 overflow-hidden rounded-lg border-2",
+                            anchorUrl === p.thumbnail
+                              ? "border-grey-90"
+                              : "border-transparent hover:border-grey-30"
+                          )}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={p.thumbnail!} alt={p.title} className="h-16 w-16 object-cover" />
+                        </button>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-grey-50">
+                    No product photos yet. Add a photo to a product first — the
+                    AI builds the ad around your real photo, never an invented
+                    one. You can still write the ad yourself below.
+                  </p>
+                )}
+              </div>
+            )}
+            {anchorUrl && wholeStore && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-grey-60">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={anchorUrl} alt="" className="h-9 w-9 rounded object-cover" />
+                Ad built on this photo ·{" "}
+                <button onClick={() => setAnchorUrl(null)} className="underline">
+                  change
+                </button>
+              </div>
+            )}
           </SectionCard>
 
           <div className="flex items-center justify-between rounded-lg border border-grey-20 bg-white p-4">
@@ -555,13 +608,12 @@ export default function NewCampaignPage() {
               </button>
               <button
                 onClick={runGeneration}
-                className="inline-flex items-center gap-2 rounded-md bg-grey-90 px-5 py-2.5 text-sm font-medium text-white hover:bg-grey-80"
+                disabled={!anchorUrl}
+                className="inline-flex items-center gap-2 rounded-md bg-grey-90 px-5 py-2.5 text-sm font-medium text-white hover:bg-grey-80 disabled:opacity-50"
               >
                 <Sparkles />
                 Create my ad with AI
-                <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] tabular-nums">
-                  {!wholeStore && product?.thumbnail ? "37" : "27"} credits
-                </span>
+                <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] tabular-nums">37 credits</span>
               </button>
             </div>
           </div>
@@ -699,18 +751,18 @@ export default function NewCampaignPage() {
                   className="inline-flex items-center gap-1.5 rounded-md border border-grey-20 bg-white px-3 py-1.5 text-xs font-medium text-grey-90 hover:bg-grey-5 disabled:opacity-50"
                 >
                   {busy === "image" ? <Spinner className="animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  New scene · {!wholeStore && product?.thumbnail ? "12" : "2"} cr
+                  New scene · 12 cr
                 </button>
-                {!wholeStore && product?.thumbnail && imageUrl !== product.thumbnail && (
+                {anchorUrl && imageUrl !== anchorUrl && (
                   <button
                     onClick={() => {
-                      setImageUrl(product.thumbnail!)
+                      setImageUrl(anchorUrl)
                       setVideoUrl(null)
                     }}
                     disabled={busy != null}
                     className="inline-flex items-center gap-1.5 rounded-md border border-grey-20 bg-white px-3 py-1.5 text-xs font-medium text-grey-90 hover:bg-grey-5 disabled:opacity-50"
                   >
-                    Use product photo · free
+                    Use my photo · free
                   </button>
                 )}
                 <button

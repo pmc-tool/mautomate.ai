@@ -3,11 +3,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { uploadFilesWorkflow } from "@medusajs/core-flows"
 import { getCommerceGateway } from "../gateway"
 import { getAiTextProvider } from "../ai/registry"
-import {
-  animateImage,
-  promptToImage,
-  type Orientation,
-} from "../ai/video-generator"
+import { animateImage, type Orientation } from "../ai/video-generator"
 
 /**
  * AI ad generation — copy, image, and video for the campaign wizard, built on
@@ -288,14 +284,14 @@ const geminiProductScene = async (
 
 export type AdImageResult = {
   image_url: string
-  /** Which engine produced it — drives honest credit pricing at the route. */
-  engine: "product_scene" | "text_to_image"
+  engine: "product_scene"
 }
 
 /**
- * Generate the ad image. With a product photo, the product-anchored engine is
- * REQUIRED to succeed (falling back to inventing a lookalike product would be
- * a misleading ad); text-to-image only serves whole-store ads.
+ * Generate the ad image — ALWAYS anchored to a real photo the store owns.
+ * Text-to-image is deliberately not offered anywhere in ads: an invented
+ * product is never an acceptable advertisement, and every store has real
+ * product photos to build from. No anchor photo -> honest refusal.
  */
 export const generateAdImage = async (
   container: MedusaContainer,
@@ -306,32 +302,19 @@ export const generateAdImage = async (
     orientation?: Orientation
   }
 ): Promise<AdImageResult> => {
-  if (input.product_image_url) {
-    const bytes = await geminiProductScene(input.product_image_url, input.prompt)
-    if (!bytes) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        "The image engine couldn't build the scene around your product photo — try again, adjust the scene description, or use the product photo itself."
-      )
-    }
-    const url = await store(
-      container,
-      tenantId,
-      `ad-image-${Date.now()}.jpg`,
-      bytes,
-      "image/jpeg"
+  if (!input.product_image_url) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "Ad images are always built from one of your real product photos — pick the photo the ad should be built on."
     )
-    return { image_url: url, engine: "product_scene" }
   }
-
-  const key = novitaKey()
-  const orientation = input.orientation ?? "square"
-  const tempUrl = await promptToImage(
-    key,
-    `${input.prompt}. Advertising photography, high detail, no text, no watermark.`,
-    orientation
-  )
-  const bytes = await fetchBytes(tempUrl)
+  const bytes = await geminiProductScene(input.product_image_url, input.prompt)
+  if (!bytes) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "The image engine couldn't build the scene around your photo — try again, adjust the scene description, or use the photo itself."
+    )
+  }
   const url = await store(
     container,
     tenantId,
@@ -339,7 +322,7 @@ export const generateAdImage = async (
     bytes,
     "image/jpeg"
   )
-  return { image_url: url, engine: "text_to_image" }
+  return { image_url: url, engine: "product_scene" }
 }
 
 /** Animate an ad image into a ~4s video clip; stored durably. */
