@@ -41,6 +41,7 @@ import {
   ExclamationCircle,
   Swatch,
   CurrencyDollar,
+  ChartPie,
 } from "@medusajs/icons"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import { CreditsBadge } from "./credits-badge"
@@ -122,6 +123,15 @@ const navItems: NavItem[] = [
       { href: "/dashboard/marketing/campaigns", label: "Campaigns", icon: Hashtag },
       { href: "/dashboard/marketing/email", label: "Email templates", icon: Envelope },
       { href: "/dashboard/marketing/email/notifications", label: "Email notifications", icon: Envelope },
+    ],
+  },
+  {
+    id: "advertising",
+    label: "Advertising",
+    icon: ChartPie,
+    children: [
+      { href: "/dashboard/advertising", label: "Overview", icon: ChartPie },
+      { href: "/dashboard/advertising/connect", label: "Ad accounts", icon: Globe },
     ],
   },
   // AI agents (A-6) — every AI surface reads as ONE system: chat agents

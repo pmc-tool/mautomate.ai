@@ -322,12 +322,37 @@ export async function listThemes(token: string): Promise<{ themes: Theme[]; acti
 
 export async function updateTheme(
   token: string,
-  body: { active_theme: string }
-): Promise<{ active_theme: string }> {
-  return request<{ active_theme: string }>("/merchant/theme", {
+  body: { active_theme: string; mode?: "fresh" | "keep" }
+): Promise<{ active_theme: string; mode?: string; reset?: boolean }> {
+  return request("/merchant/theme", {
     method: "PUT",
     token,
     body,
+  })
+}
+
+/** Is there a previous storefront design to roll back to? */
+export async function getDesignRestorable(
+  token: string
+): Promise<{ restorable: boolean }> {
+  return request("/merchant/theme/restore", { token })
+}
+
+/** Roll the storefront home back to the design before the last switch/reset. */
+export async function restoreDesign(
+  token: string
+): Promise<{ restored: boolean }> {
+  return request("/merchant/theme/restore", { method: "POST", token, body: {} })
+}
+
+/** Reset the storefront design to the active theme's clean defaults. */
+export async function resetStorefront(
+  token: string
+): Promise<{ ok: boolean; reset: boolean }> {
+  return request("/merchant/store/reset", {
+    method: "POST",
+    token,
+    body: { scope: "storefront" },
   })
 }
 
@@ -364,7 +389,9 @@ export async function fetchOverview(token: string): Promise<{
 
   const totalSales = (orders || []).reduce((sum, o) => sum + (o.total ?? 0), 0)
   const ordersThisMonth = (orders || []).filter((o) => new Date(o.created_at) >= startOfMonth).length
-  const productsLive = (products || []).filter((p) => p.status === "published").length
+  const productsLive = (products || []).filter(
+    (p) => p.status === "published" && (p.metadata as any)?.is_sample !== true
+  ).length
   const currencyCode = orders?.[0]?.currency_code || "USD"
 
   return {
@@ -7343,4 +7370,309 @@ export async function deleteMarketingSchedule(
     `/merchant/marketing/schedules/${id}`,
     { method: "DELETE", token }
   )
+}
+
+// ============================================================================
+// Shop setup wizard
+// ----------------------------------------------------------------------------
+// Client for GET/PATCH /merchant/setup (draft + captured business fields),
+// POST /merchant/setup/logo (multipart), POST /merchant/setup/delivery (one-call
+// quick delivery) and GET /merchant/setup/status (the verified completeness
+// picture shared with the overview widget). See apps/backend/.../merchant/setup.
+// ============================================================================
+
+export type SetupTaskKey =
+  | "store_country"
+  | "products"
+  | "shipping"
+  | "payment"
+  | "logo"
+  | "business_details"
+  | "domain"
+
+export type SetupTask = {
+  key: SetupTaskKey
+  label: string
+  why: string
+  required: boolean
+  done: boolean
+  cta_href: string
+  blocker_detail?: string | null
+}
+
+export type SetupStatus = {
+  tasks: SetupTask[]
+  percent: number
+  required_percent: number
+  ready_to_sell: boolean
+  missing_required: SetupTaskKey[]
+  shipping_countries: string[]
+  store_country: string
+  pending_domain: string | null
+  products: boolean
+  shipping: boolean
+  payment: boolean
+  domain: boolean
+}
+
+export type SetupDraft = {
+  current_step?: string
+  completed?: string[]
+  skipped?: string[]
+  answers?: Record<string, any>
+  dismissed?: boolean
+  started_at?: string
+  completed_at?: string | null
+}
+
+export type SetupBusiness = {
+  type?: string
+  category?: string
+  description?: string
+}
+
+export type SetupSnapshot = {
+  name: string
+  default_country: string | null
+  currency_code: string
+  supported_currencies: string[]
+  business: SetupBusiness
+  logo_url: string | null
+  setup: SetupDraft
+}
+
+export async function getSetup(
+  token: string
+): Promise<SetupSnapshot & { status: SetupStatus }> {
+  return request("/merchant/setup", { token })
+}
+
+export async function getSetupStatus(token: string): Promise<SetupStatus> {
+  return request("/merchant/setup/status", { token })
+}
+
+export async function patchSetup(
+  token: string,
+  body: {
+    draft?: SetupDraft
+    name?: string
+    default_country?: string
+    business?: SetupBusiness
+    logo_url?: string | null
+  }
+): Promise<SetupSnapshot> {
+  return request("/merchant/setup", { method: "PATCH", token, body })
+}
+
+export async function setupDelivery(
+  token: string,
+  body: {
+    countries: string[]
+    price_type: "free" | "flat"
+    amount?: number
+    name?: string
+  }
+): Promise<{
+  success: boolean
+  location_id: string
+  service_zone_id: string
+  shipping_option_id: string | null
+  countries: string[]
+}> {
+  return request("/merchant/setup/delivery", { method: "POST", token, body })
+}
+
+export async function uploadSetupLogo(
+  token: string,
+  file: File
+): Promise<{ url: string }> {
+  const base = getBaseUrl().replace(/\/$/, "")
+  const fd = new FormData()
+  fd.append("file", file)
+  const res = await fetch(`${base}/merchant/setup/logo`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+    body: fd,
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}) as any)
+    throw new ApiError(data.message || "logo upload failed", res.status)
+  }
+  return res.json()
+}
+
+// ---- Shop setup wizard: AI logo + demo data (Phase E) ----
+
+export async function generateSetupLogos(
+  token: string,
+  body: { prompt?: string; count?: number } = {}
+): Promise<{ logos: string[]; credits_used?: number }> {
+  return request("/merchant/setup/logo/generate", { method: "POST", token, body })
+}
+
+export async function removeDemoData(token: string): Promise<{ removed: number }> {
+  return request("/merchant/setup/remove-demo", { method: "POST", token, body: {} })
+}
+
+// ---------------------------------------------------------------------------
+// Advertising panel (/merchant/ads/*) — connections, ad accounts, campaign
+// mirror, and the overview aggregation. Ad SPEND stays on the merchant's own
+// card at the platform; these APIs manage the connection and read performance.
+// ---------------------------------------------------------------------------
+
+export type AdsPlatformInfo = {
+  platform: string
+  label: string
+  connect: "oauth" | "direct"
+  configured: boolean
+}
+
+export type AdsConnection = {
+  id: string
+  platform: string
+  display_name: string | null
+  status: "connected" | "expired" | "revoked" | "error" | string
+  scopes: string[] | null
+  expires_at: string | null
+  connected_at: string | null
+}
+
+export type AdsAccount = {
+  id: string
+  connection_id: string
+  platform: string
+  external_id: string
+  name: string | null
+  currency: string | null
+  timezone: string | null
+  status: "active" | "disabled" | string
+  selected: boolean
+  last_synced_at: string | null
+}
+
+export type AdsCampaignRow = {
+  id: string
+  external_id: string | null
+  platform: string
+  name: string
+  objective: string | null
+  status: string
+  external_status?: string | null
+  source: "imported" | "panel" | "ai" | string
+  daily_budget: number | null
+  lifetime_budget: number | null
+  currency: string | null
+  spend?: number
+  impressions?: number
+  clicks?: number
+  conversions?: number
+  conversion_value?: number
+  last_synced_at: string | null
+}
+
+export type AdsOverview = {
+  days: number
+  connections: AdsConnection[]
+  accounts: AdsAccount[]
+  totals: {
+    spend: number
+    impressions: number
+    clicks: number
+    conversions: number
+    conversion_value: number
+    roas: number | null
+    currency: string | null
+  }
+  campaigns: AdsCampaignRow[]
+  daily: { date: string; spend: number; conversions: number }[]
+  last_synced_at: string | null
+}
+
+export type AdsAccountsResponse = {
+  connections: AdsConnection[]
+  accounts: AdsAccount[]
+  platforms: AdsPlatformInfo[]
+}
+
+export type AdsSyncSummary = {
+  connections: number
+  accounts: number
+  campaigns: number
+  insight_rows: number
+  errors: string[]
+}
+
+export async function listAdsAccounts(
+  token: string
+): Promise<AdsAccountsResponse> {
+  return request<AdsAccountsResponse>("/merchant/ads/accounts", { token })
+}
+
+export async function connectAdsPlatform(
+  token: string,
+  platform: string
+): Promise<{ auth_url?: string; connection?: AdsConnection }> {
+  return request<{ auth_url?: string; connection?: AdsConnection }>(
+    "/merchant/ads/accounts/connect",
+    { method: "POST", token, body: { platform } }
+  )
+}
+
+export async function disconnectAdsConnection(
+  token: string,
+  connectionId: string
+): Promise<{ id: string; disconnected: boolean }> {
+  return request<{ id: string; disconnected: boolean }>(
+    `/merchant/ads/accounts/${connectionId}`,
+    { method: "DELETE", token }
+  )
+}
+
+export async function selectAdsAccount(
+  token: string,
+  accountId: string,
+  selected: boolean
+): Promise<{ account: AdsAccount }> {
+  return request<{ account: AdsAccount }>(
+    `/merchant/ads/accounts/${accountId}/select`,
+    { method: "POST", token, body: { selected } }
+  )
+}
+
+export async function getAdsOverview(
+  token: string,
+  days = 30
+): Promise<AdsOverview> {
+  return request<AdsOverview>(`/merchant/ads/overview?days=${days}`, { token })
+}
+
+export async function listAdsCampaigns(
+  token: string,
+  query: { status?: string; limit?: number; offset?: number } = {}
+): Promise<{
+  campaigns: AdsCampaignRow[]
+  count: number
+  limit: number
+  offset: number
+}> {
+  const params = new URLSearchParams()
+  if (query.status) params.set("status", query.status)
+  if (query.limit) params.set("limit", String(query.limit))
+  if (query.offset) params.set("offset", String(query.offset))
+  const qs = params.toString()
+  return request<{
+    campaigns: AdsCampaignRow[]
+    count: number
+    limit: number
+    offset: number
+  }>("/merchant/ads/campaigns" + (qs ? "?" + qs : ""), { token })
+}
+
+export async function runAdsSyncNow(
+  token: string
+): Promise<{ summary: AdsSyncSummary }> {
+  return request<{ summary: AdsSyncSummary }>("/merchant/ads/sync", {
+    method: "POST",
+    token,
+  })
 }

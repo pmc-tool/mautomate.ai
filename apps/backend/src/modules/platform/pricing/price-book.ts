@@ -16,11 +16,14 @@ export type BillableAction =
   | "ai_content" // long-form: blog/article/product copy
   | "ai_image"
   | "ai_logo" // image + background removal
+  | "ai_video" // AI motion clip (image-to-video / prompt-to-video)
   | "ai_image_basic"
   | "social_publish" // free: costs us nothing, drives usage
   | "email_batch" // 1 credit per 10 emails (never fractional)
   | "email"
   | "domain_purchase_usd"
+  | "ai_ad_campaign" // full AI ad-campaign draft (copy + audience + structure)
+  | "ads_autopilot_day" // one day of autopilot optimization on a tenant
 
 export type PriceRow = {
   action: BillableAction
@@ -42,6 +45,10 @@ export const PRICE_BOOK: Record<BillableAction, PriceRow> = {
   // Images sell the platform — deliberately thin (3x).
   ai_image: { action: "ai_image", credits: 12, vendor_cost_usd: 0.039 },
   ai_logo: { action: "ai_logo", credits: 15, vendor_cost_usd: 0.056 },
+  // Video is the priciest vendor action (SVD-XT motion synthesis, ~4s clip,
+  // and the prompt path first generates a still). Priced with real headroom
+  // so a single clip can never run us into the red on a trial burn.
+  ai_video: { action: "ai_video", credits: 60, vendor_cost_usd: 0.15 },
   ai_image_basic: { action: "ai_image_basic", credits: 2, vendor_cost_usd: 0.003 },
   // Costs us nothing; drives the habit that burns paid credits elsewhere.
   social_publish: { action: "social_publish", credits: 0, vendor_cost_usd: 0 },
@@ -55,6 +62,11 @@ export const PRICE_BOOK: Record<BillableAction, PriceRow> = {
     credits: 100,
     vendor_cost_usd: 1,
   },
+  // Advertising panel (charged from the AI layer phase; creatives bill their
+  // own existing actions on top). Ad SPEND is the merchant's own card at the
+  // platform — credits price only the intelligence.
+  ai_ad_campaign: { action: "ai_ad_campaign", credits: 25, vendor_cost_usd: 0.01 },
+  ads_autopilot_day: { action: "ads_autopilot_day", credits: 3, vendor_cost_usd: 0.002 },
 }
 
 export const CREDIT_USD = 0.01
@@ -143,12 +155,17 @@ export const PACKS: Pack[] = [
 ]
 
 /** Which plans may use the expensive, abuse-prone channels. */
-export const PLAN_GATES: Record<string, { phone: boolean; sms: boolean; images: number | null }> = {
-  free_trial: { phone: false, sms: false, images: 16 },
-  starter: { phone: false, sms: true, images: null },
-  growth: { phone: true, sms: true, images: null },
-  pro: { phone: true, sms: true, images: null },
-  scale: { phone: true, sms: true, images: null },
+export const PLAN_GATES: Record<
+  string,
+  { phone: boolean; sms: boolean; images: number | null; videos: number | null }
+> = {
+  // Video is our priciest action, so a trial gets a taste (3 clips) — enough to
+  // see the magic, not enough to burn real vendor money before they ever pay.
+  free_trial: { phone: false, sms: false, images: 16, videos: 3 },
+  starter: { phone: false, sms: true, images: null, videos: null },
+  growth: { phone: true, sms: true, images: null, videos: null },
+  pro: { phone: true, sms: true, images: null, videos: null },
+  scale: { phone: true, sms: true, images: null, videos: null },
 }
 
 /**

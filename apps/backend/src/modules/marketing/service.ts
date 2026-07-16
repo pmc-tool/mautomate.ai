@@ -40,6 +40,13 @@ import MarketingKnowledgeChunk from "./models/knowledge-chunk"
 import MarketingChatbotChannel from "./models/chatbot-channel"
 import MarketingInboxNote from "./models/inbox-note"
 import MarketingCannedResponse from "./models/canned-response"
+import AdsConnection from "./models/ads-connection"
+import AdsAccount from "./models/ads-account"
+import AdsCampaign from "./models/ads-campaign"
+import AdsAdset from "./models/ads-adset"
+import AdsAd from "./models/ads-ad"
+import AdsInsight from "./models/ads-insight"
+import AdsActionLog from "./models/ads-action-log"
 
 /**
  * Marketing module service.
@@ -58,6 +65,8 @@ import MarketingCannedResponse from "./models/canned-response"
  *                         ... (used by the fail-closed RBAC helper)
  *   MarketingSetting   -> createMarketingSettings / listMarketingSettings
  *                         / updateMarketingSettings ... (durable kill switch)
+ *   AdsConnection      -> createAdsConnections / listAdsConnections ...
+ *                         (the Advertising panel — ads/ subsystem)
  */
 class MarketingModuleService extends MedusaService({
   MarketingPost,
@@ -101,6 +110,13 @@ class MarketingModuleService extends MedusaService({
   MarketingChatbotChannel,
   MarketingInboxNote,
   MarketingCannedResponse,
+  AdsConnection,
+  AdsAccount,
+  AdsCampaign,
+  AdsAdset,
+  AdsAd,
+  AdsInsight,
+  AdsActionLog,
 }) {}
 
 export default MarketingModuleService
