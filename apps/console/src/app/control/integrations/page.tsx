@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ArrowPath,
   Check,
-  CloudSolid,
   CreditCard,
   Envelope,
   ExclamationCircle,
@@ -22,12 +21,20 @@ import {
   type IntegrationProvider,
   type PlatformGuide,
 } from "@/lib/api/integrations"
-import { PageHeader } from "@/components/page-header"
 import { EmptyState } from "@/components/empty-state"
 import { BRAND, brandForCategory } from "@/components/brand-icons"
 import { cn } from "@/lib/utils"
 
-/* ---------- tiny inline glyphs (avoid icon-pkg export guessing) ---------- */
+/**
+ * Integrations & Keys — the connections hub.
+ *
+ * Master–detail: a status rail on the left shows every platform and its
+ * connection state at a glance; the right panel focuses on ONE platform at a
+ * time — its credentials, the URLs to register, its full setup guide. The
+ * dark header carries overall progress and the employee playbook.
+ */
+
+/* ---------- tiny inline glyphs ---------- */
 const Glyph = {
   search: (c?: string) => (
     <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
@@ -38,49 +45,66 @@ const Glyph = {
   copy: (c?: string) => (
     <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
   ),
-  warn: (c?: string) => (
-    <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 9v4M12 17h.01" /><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /></svg>
-  ),
   bolt: (c?: string) => (
     <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" /></svg>
   ),
+  book: (c?: string) => (
+    <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
+  ),
 }
 
-/* ---------- category → icon for simple (non-social) providers ---------- */
-function SimpleIcon({ category }: { category: string }) {
+function SimpleIcon({ category, className }: { category: string; className?: string }) {
   const c = category.toLowerCase()
   const Cmp =
     c.includes("ai") ? Sparkles
       : c.includes("payment") ? CreditCard
         : c.includes("domain") || c.includes("email") ? Envelope
           : c.includes("telephony") ? Server
-            : c.includes("cloud") ? CloudSolid
-              : Puzzle
-  return <Cmp className="h-5 w-5" />
+            : Puzzle
+  return <Cmp className={className ?? "h-5 w-5"} />
 }
 
-/* ---------- status helpers ---------- */
+/* ---------- status ---------- */
 type Tone = "ok" | "warn" | "err" | "none"
-const pillClass: Record<Tone, string> = {
-  ok: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  warn: "bg-amber-50 text-amber-800 ring-amber-200",
-  err: "bg-rose-50 text-rose-800 ring-rose-200",
-  none: "bg-grey-10 text-grey-60 ring-grey-20",
+const DOT: Record<Tone, string> = {
+  ok: "bg-emerald-500",
+  warn: "bg-amber-500",
+  err: "bg-rose-500",
+  none: "bg-grey-300",
 }
 function Pill({ tone, children }: { tone: Tone; children: React.ReactNode }) {
+  const cls: Record<Tone, string> = {
+    ok: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+    warn: "bg-amber-50 text-amber-800 ring-amber-200",
+    err: "bg-rose-50 text-rose-800 ring-rose-200",
+    none: "bg-grey-10 text-grey-60 ring-grey-20",
+  }
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset", pillClass[tone])}>
-      <span className={cn("h-1.5 w-1.5 rounded-full", tone === "ok" ? "bg-emerald-500" : tone === "warn" ? "bg-amber-500" : tone === "err" ? "bg-rose-500" : "bg-grey-400")} />
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset", cls[tone])}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", DOT[tone])} />
       {children}
     </span>
   )
 }
+
+/* ---------- rail item model ---------- */
+type RailItem = {
+  key: string // category for grouped platforms, env for singles
+  kind: "platform" | "single"
+  name: string
+  section: string
+  providers: IntegrationProvider[]
+  brandKey: ReturnType<typeof brandForCategory>
+}
+
+const SECTION_ORDER = ["Social", "Messaging", "Advertising", "AI", "Payments", "Domains & Email", "Telephony & SMS"]
 
 export default function IntegrationsPage() {
   const { token } = useControlAuth()
   const [providers, setProviders] = useState<IntegrationProvider[]>([])
   const [guides, setGuides] = useState<PlatformGuide[]>([])
   const [openGuide, setOpenGuide] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [working, setWorking] = useState<string | null>(null)
@@ -88,7 +112,6 @@ export default function IntegrationsPage() {
   const [tests, setTests] = useState<Record<string, { ok: boolean; message?: string } | null>>({})
   const [copied, setCopied] = useState<string | null>(null)
   const [q, setQ] = useState("")
-  const [filter, setFilter] = useState<"all" | "configured" | "todo" | "issues">("all")
 
   const load = useCallback(async () => {
     if (!token) return
@@ -98,7 +121,6 @@ export default function IntegrationsPage() {
       const res = await listIntegrations(token)
       setProviders(res.providers)
       setGuides(res.guides)
-      setTests({})
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load integrations")
     } finally {
@@ -108,21 +130,94 @@ export default function IntegrationsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const setVal = (env: string, v: string) => setInputs((p) => ({ ...p, [env]: v }))
+  /* ---------- build rail ---------- */
+  const items = useMemo<RailItem[]>(() => {
+    const byCat = new Map<string, IntegrationProvider[]>()
+    for (const p of providers) {
+      const arr = byCat.get(p.category) ?? []
+      arr.push(p)
+      byCat.set(p.category, arr)
+    }
+    const out: RailItem[] = []
+    for (const [cat, arr] of Array.from(byCat.entries())) {
+      if (cat.startsWith("Social") || cat.startsWith("Messaging") || cat.startsWith("Ads")) {
+        out.push({
+          key: cat,
+          kind: "platform",
+          name: cat.split("·").pop()?.trim() || cat,
+          section: cat.startsWith("Social") ? "Social" : cat.startsWith("Messaging") ? "Messaging" : "Advertising",
+          providers: arr,
+          brandKey: brandForCategory(cat),
+        })
+      } else {
+        for (const p of arr) {
+          out.push({ key: p.key, kind: "single", name: p.name, section: cat, providers: [p], brandKey: null })
+        }
+      }
+    }
+    return out
+  }, [providers])
 
-  const saveOne = async (env: string): Promise<boolean> => {
-    const v = (inputs[env] ?? "").trim()
-    if (!v || !token) return false
-    await setIntegrationKey(token, env, v)
-    setInputs((p) => ({ ...p, [env]: "" }))
-    return true
-  }
-  const handleSaveKeys = async (envs: string[]) => {
+  const filteredItems = useMemo(() => {
+    const ql = q.trim().toLowerCase()
+    if (!ql) return items
+    return items.filter((it) =>
+      `${it.name} ${it.section} ${it.providers.map((p) => `${p.name} ${p.key}`).join(" ")}`.toLowerCase().includes(ql)
+    )
+  }, [items, q])
+
+  const sections = useMemo(() => {
+    const m = new Map<string, RailItem[]>()
+    for (const it of filteredItems) {
+      const arr = m.get(it.section) ?? []
+      arr.push(it)
+      m.set(it.section, arr)
+    }
+    return Array.from(m.entries()).sort(([a], [b]) => {
+      const ia = SECTION_ORDER.indexOf(a), ib = SECTION_ORDER.indexOf(b)
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
+    })
+  }, [filteredItems])
+
+  const itemTone = useCallback((it: RailItem): Tone => {
+    const failing = it.providers.some((p) => { const t = tests[p.key]; return (t && !t.ok) || p.status === "error" })
+    if (failing) return "err"
+    const done = it.providers.filter((p) => p.configured).length
+    if (done === 0) return "none"
+    if (done < it.providers.length) return "warn"
+    return "ok"
+  }, [tests])
+
+  // Default selection: first not-fully-configured item, else the first item.
+  useEffect(() => {
+    if (selected || items.length === 0) return
+    const todo = items.find((it) => it.providers.some((p) => !p.configured))
+    setSelected((todo ?? items[0]).key)
+  }, [items, selected])
+
+  const current = useMemo(
+    () => items.find((it) => it.key === selected) ?? null,
+    [items, selected]
+  )
+
+  const stats = useMemo(() => {
+    const total = providers.length
+    const configured = providers.filter((p) => p.configured).length
+    const failing = providers.filter((p) => { const t = tests[p.key]; return (t && !t.ok) || p.status === "error" }).length
+    return { total, configured, failing, pct: total ? configured / total : 0 }
+  }, [providers, tests])
+
+  /* ---------- actions ---------- */
+  const setVal = (env: string, v: string) => setInputs((p) => ({ ...p, [env]: v }))
+  const handleSave = async (envs: string[]) => {
     if (!token) return
     setWorking(envs[0])
     try {
       let any = false
-      for (const env of envs) if ((inputs[env] ?? "").trim()) { await saveOne(env); any = true }
+      for (const env of envs) {
+        const v = (inputs[env] ?? "").trim()
+        if (v) { await setIntegrationKey(token, env, v); setInputs((p) => ({ ...p, [env]: "" })); any = true }
+      }
       if (!any) { setError("Enter a value before saving."); return }
       setError(null)
       await load()
@@ -139,10 +234,7 @@ export default function IntegrationsPage() {
   const handleTest = async (env: string) => {
     if (!token) return
     setWorking(env)
-    try {
-      const r = await testIntegration(token, env)
-      setTests((p) => ({ ...p, [env]: r }))
-    }
+    try { const r = await testIntegration(token, env); setTests((p) => ({ ...p, [env]: r })) }
     catch (e) { setTests((p) => ({ ...p, [env]: { ok: false, message: e instanceof Error ? e.message : "Test failed" } })) }
     finally { setWorking(null) }
   }
@@ -151,189 +243,140 @@ export default function IntegrationsPage() {
     setCopied(id); setTimeout(() => setCopied((c) => (c === id ? null : c)), 1800)
   }
 
-  /* ---------- derive groups + stats ---------- */
-  const filtered = useMemo(() => {
-    const ql = q.trim().toLowerCase()
-    return providers.filter((p) => {
-      if (ql && !(`${p.name} ${p.key}`.toLowerCase().includes(ql))) return false
-      if (filter === "configured" && !p.configured) return false
-      if (filter === "todo" && p.configured) return false
-      if (filter === "issues") {
-        const t = tests[p.key]
-        const failing = (t && !t.ok) || p.status === "error"
-        if (p.configured && !failing) return false
-      }
-      return true
-    })
-  }, [providers, q, filter, tests])
-
-  const groups = useMemo(() => {
-    const m = new Map<string, IntegrationProvider[]>()
-    for (const p of filtered) {
-      const arr = m.get(p.category) ?? []
-      arr.push(p); m.set(p.category, arr)
-    }
-    const social: [string, IntegrationProvider[]][] = []
-    const messaging: [string, IntegrationProvider[]][] = []
-    const ads: [string, IntegrationProvider[]][] = []
-    const simple: IntegrationProvider[] = []
-    for (const [cat, arr] of Array.from(m.entries())) {
-      if (cat.startsWith("Social")) social.push([cat, arr])
-      else if (cat.startsWith("Messaging")) messaging.push([cat, arr])
-      else if (cat.startsWith("Ads")) ads.push([cat, arr])
-      else simple.push(...arr)
-    }
-    return { social, messaging, ads, simple }
-  }, [filtered])
-
-  const stats = useMemo(() => {
-    const total = providers.length
-    const configured = providers.filter((p) => p.configured).length
-    const env = providers.filter((p) => p.source === "env").length
-    const failing = providers.filter((p) => { const t = tests[p.key]; return (t && !t.ok) || p.status === "error" }).length
-    return { total, configured, env, todo: total - configured, failing }
-  }, [providers, tests])
-
-  const headerAction = (
-    <button onClick={load} disabled={loading}
-      className="inline-flex items-center gap-2 rounded-lg border border-grey-20 bg-white px-3 py-2 text-sm font-medium text-grey-70 transition-all hover:bg-grey-10 disabled:opacity-50">
-      <ArrowPath className={cn("h-4 w-4", loading && "animate-spin")} /> Refresh
-    </button>
-  )
-
+  /* =============================== render =============================== */
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Integrations & Keys"
-        description="Connect the third-party apps that power social publishing, messaging, payments and AI. We walk you through each one."
-        action={headerAction}
-      />
-
-      {/* progress strip */}
-      {!loading && providers.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-grey-20 bg-white p-4 shadow-borders-base">
-          <div className="min-w-[220px] flex-1">
-            <div className="mb-2 flex h-2 overflow-hidden rounded-full bg-grey-10">
-              <span className="h-full bg-emerald-500" style={{ width: `${(stats.configured / Math.max(stats.total, 1)) * 100}%` }} />
+      {/* ---- dark hero: progress ring + search + playbook ---- */}
+      <div className="overflow-hidden rounded-2xl bg-grey-90 text-white shadow-borders-base">
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-4 px-6 py-5">
+          <div className="flex items-center gap-4">
+            <ProgressRing pct={stats.pct} label={`${stats.configured}/${stats.total}`} />
+            <div>
+              <h1 className="text-base font-semibold tracking-tight">Integrations &amp; Keys</h1>
+              <p className="mt-0.5 text-xs text-white/60">
+                {stats.configured} of {stats.total} connected
+                {stats.failing > 0 && <span className="text-rose-300"> · {stats.failing} failing</span>}
+                {" · "}keys are stored encrypted and apply within a minute
+              </p>
             </div>
-            <p className="text-xs text-grey-50">
-              <b className="text-grey-90">{stats.configured} / {stats.total}</b> configured
-              {" · "}<b className="text-grey-90">{stats.todo}</b> to set up
-              {stats.env > 0 && <>{" · "}<b className="text-grey-90">{stats.env}</b> from server env</>}
-              {stats.failing > 0 && <>{" · "}<b className="text-rose-600">{stats.failing}</b> failing</>}
-            </p>
           </div>
-        </div>
-      )}
-
-      {/* toolbar */}
-      {!loading && providers.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-grey-20 bg-white px-3 py-2 text-grey-40">
-            {Glyph.search("h-4 w-4")}
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search provider or key…"
-              className="w-full border-0 bg-transparent text-sm text-grey-90 outline-none placeholder:text-grey-40" />
+          <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-xl bg-white/10 px-3.5 py-2.5 ring-1 ring-inset ring-white/10 focus-within:ring-white/30">
+            {Glyph.search("h-4 w-4 text-white/50")}
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search platforms and keys…"
+              className="w-full border-0 bg-transparent text-sm text-white outline-none placeholder:text-white/40"
+            />
           </div>
-          <div className="flex overflow-hidden rounded-lg border border-grey-20 text-sm">
-            {(["all", "configured", "todo", "issues"] as const).map((f) => (
-              <button key={f} onClick={() => setFilter(f)}
-                className={cn("border-r border-grey-20 px-3 py-2 last:border-r-0 capitalize",
-                  filter === f ? "bg-grey-90 text-white" : "text-grey-60 hover:bg-grey-10")}>
-                {f === "todo" ? "To set up" : f}
+          <div className="flex items-center gap-2">
+            {guides.some((g) => g.key === "playbook") && (
+              <button
+                onClick={() => setOpenGuide("playbook")}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-grey-90 transition-transform hover:-translate-y-px"
+              >
+                {Glyph.book("h-4 w-4")} API playbook
               </button>
-            ))}
+            )}
+            <button
+              onClick={load}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2.5 text-sm text-white/80 ring-1 ring-inset ring-white/10 hover:bg-white/15 disabled:opacity-50"
+              aria-label="Refresh"
+            >
+              <ArrowPath className={cn("h-4 w-4", loading && "animate-spin")} />
+            </button>
           </div>
         </div>
-      )}
+      </div>
 
       {error && (
-        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
           <ExclamationCircle className="mt-0.5 h-5 w-5 shrink-0" /> {error}
         </div>
       )}
 
-      {/* The employee playbook — how to apply for every platform API */}
-      {!loading && guides.some((g) => g.key === "playbook") && (
-        <button
-          onClick={() => setOpenGuide("playbook")}
-          className="flex w-full items-center justify-between gap-3 rounded-xl border border-grey-90 bg-grey-90 p-4 text-left text-white shadow-borders-base transition-transform hover:-translate-y-px"
-        >
-          <div className="flex items-start gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10">
-              {Glyph.bolt("h-5 w-5")}
-            </span>
-            <div>
-              <div className="text-sm font-semibold">Applying for the platform APIs? Start with the playbook.</div>
-              <div className="mt-0.5 text-xs text-white/70">
-                The order of operations, what documents to prepare once, how app reviews actually pass,
-                and where every key goes. Each platform card below has its own full guide.
-              </div>
-            </div>
-          </div>
-          <span className="shrink-0 rounded-md bg-white/15 px-3 py-1.5 text-xs font-medium">Open playbook →</span>
-        </button>
-      )}
-
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-72 animate-pulse rounded-xl border border-grey-20 bg-grey-10" />
-          ))}
+        <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+          <div className="h-[480px] animate-pulse rounded-2xl border border-grey-20 bg-grey-10" />
+          <div className="h-[480px] animate-pulse rounded-2xl border border-grey-20 bg-grey-10" />
         </div>
       ) : providers.length === 0 ? (
         <EmptyState title="No integrations" description="Provider integrations appear here once registered on the platform." />
       ) : (
-        <div className="space-y-2">
-          {groups.social.length > 0 && (
-            <>
-              <SectionHead label="Social" />
-              <div className="grid gap-4 lg:grid-cols-2">
-                {groups.social.map(([cat, arr]) => (
-                  <PlatformCard key={cat} category={cat} providers={arr}
-                    inputs={inputs} setVal={setVal} working={working} tests={tests} copied={copied}
-                    hasGuide={guides.some((g) => g.key === cat)} onOpenGuide={() => setOpenGuide(cat)}
-                    onSave={handleSaveKeys} onTest={handleTest} onClear={handleClear} onCopy={copy} />
-                ))}
+        <div className="grid items-start gap-4 lg:grid-cols-[300px_1fr]">
+          {/* ---------------- rail ---------------- */}
+          <nav className="rounded-2xl border border-grey-20 bg-white p-2 shadow-borders-base lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+            {sections.length === 0 && (
+              <p className="px-3 py-6 text-center text-sm text-grey-40">Nothing matches “{q}”.</p>
+            )}
+            {sections.map(([section, arr]) => (
+              <div key={section} className="mb-1.5">
+                <div className="px-3 pb-1 pt-2.5 text-[10.5px] font-semibold uppercase tracking-wider text-grey-40">
+                  {section}
+                </div>
+                {arr.map((it) => {
+                  const tone = itemTone(it)
+                  const brand = it.brandKey ? BRAND[it.brandKey] : null
+                  const active = selected === it.key
+                  const done = it.providers.filter((p) => p.configured).length
+                  return (
+                    <button
+                      key={it.key}
+                      onClick={() => setSelected(it.key)}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors",
+                        active ? "bg-grey-90 text-white" : "text-grey-70 hover:bg-grey-10"
+                      )}
+                    >
+                      <span
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg"
+                        style={
+                          active
+                            ? { background: "rgba(255,255,255,.12)", color: "#fff" }
+                            : { background: `${brand?.color ?? "#71717a"}1a`, color: brand?.color ?? "#71717a" }
+                        }
+                      >
+                        {brand
+                          ? <brand.Icon className="h-4 w-4" />
+                          : <SimpleIcon category={it.section} className="h-4 w-4" />}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{it.name}</span>
+                      {it.providers.length > 1 && (
+                        <span className={cn("font-mono text-[10px] tabular-nums", active ? "text-white/60" : "text-grey-40")}>
+                          {done}/{it.providers.length}
+                        </span>
+                      )}
+                      <span className={cn("h-2 w-2 shrink-0 rounded-full", DOT[tone])} />
+                    </button>
+                  )
+                })}
               </div>
-            </>
-          )}
-          {groups.messaging.length > 0 && (
-            <>
-              <SectionHead label="Messaging" />
-              <div className="grid gap-4 lg:grid-cols-2">
-                {groups.messaging.map(([cat, arr]) => (
-                  <PlatformCard key={cat} category={cat} providers={arr}
-                    inputs={inputs} setVal={setVal} working={working} tests={tests} copied={copied}
-                    hasGuide={guides.some((g) => g.key === cat)} onOpenGuide={() => setOpenGuide(cat)}
-                    onSave={handleSaveKeys} onTest={handleTest} onClear={handleClear} onCopy={copy} />
-                ))}
-              </div>
-            </>
-          )}
-          {groups.ads.length > 0 && (
-            <>
-              <SectionHead label="Advertising" />
-              <div className="grid gap-4 lg:grid-cols-2">
-                {groups.ads.map(([cat, arr]) => (
-                  <PlatformCard key={cat} category={cat} providers={arr}
-                    inputs={inputs} setVal={setVal} working={working} tests={tests} copied={copied}
-                    hasGuide={guides.some((g) => g.key === cat)} onOpenGuide={() => setOpenGuide(cat)}
-                    onSave={handleSaveKeys} onTest={handleTest} onClear={handleClear} onCopy={copy} />
-                ))}
-              </div>
-            </>
-          )}
-          {groups.simple.length > 0 && (
-            <>
-              <SectionHead label="AI · Payments · Infrastructure" />
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {groups.simple.map((p) => (
-                  <CompactCard key={p.key} p={p}
-                    value={inputs[p.key] ?? ""} setVal={setVal} working={working === p.key}
-                    test={tests[p.key] ?? null} onSave={handleSaveKeys} onTest={handleTest} onClear={handleClear} />
-                ))}
-              </div>
-            </>
+            ))}
+          </nav>
+
+          {/* ---------------- detail ---------------- */}
+          {current ? (
+            <DetailPanel
+              key={current.key}
+              item={current}
+              tone={itemTone(current)}
+              guide={guides.find((g) => g.key === current.key) ?? null}
+              inputs={inputs}
+              setVal={setVal}
+              working={working}
+              tests={tests}
+              copied={copied}
+              onOpenGuide={() => setOpenGuide(current.key)}
+              onSave={handleSave}
+              onTest={handleTest}
+              onClear={handleClear}
+              onCopy={copy}
+            />
+          ) : (
+            <div className="rounded-2xl border border-grey-20 bg-white p-10 text-center text-sm text-grey-40 shadow-borders-base">
+              Pick a platform on the left.
+            </div>
           )}
         </div>
       )}
@@ -350,253 +393,235 @@ export default function IntegrationsPage() {
   )
 }
 
-function SectionHead({ label }: { label: string }) {
+/* ---------- progress ring ---------- */
+function ProgressRing({ pct, label }: { pct: number; label: string }) {
+  const r = 24
+  const c = 2 * Math.PI * r
   return (
-    <div className="mt-6 mb-1 flex items-center gap-3 px-0.5">
-      <span className="text-xs font-semibold uppercase tracking-wide text-grey-50">{label}</span>
-      <span className="h-px flex-1 bg-grey-20" />
+    <div className="relative grid h-16 w-16 place-items-center">
+      <svg viewBox="0 0 60 60" className="h-16 w-16 -rotate-90">
+        <circle cx="30" cy="30" r={r} fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="5" />
+        <circle
+          cx="30" cy="30" r={r} fill="none"
+          stroke={pct >= 1 ? "#34d399" : "#fbbf24"}
+          strokeWidth="5" strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - Math.max(0.02, pct))}
+          style={{ transition: "stroke-dashoffset .6s ease" }}
+        />
+      </svg>
+      <span className="absolute font-mono text-[11px] font-semibold tabular-nums">{label}</span>
     </div>
   )
 }
 
-/* ============================ Guided platform card ============================ */
-function PlatformCard(props: {
-  category: string
-  providers: IntegrationProvider[]
+/* ============================== Detail panel ============================== */
+function DetailPanel(props: {
+  item: RailItem
+  tone: Tone
+  guide: PlatformGuide | null
   inputs: Record<string, string>
   setVal: (env: string, v: string) => void
   working: string | null
   tests: Record<string, { ok: boolean; message?: string } | null>
   copied: string | null
-  hasGuide?: boolean
-  onOpenGuide?: () => void
+  onOpenGuide: () => void
   onSave: (envs: string[]) => void
   onTest: (env: string) => void
   onClear: (env: string) => void
   onCopy: (text: string, id: string) => void
 }) {
-  const { category, providers, inputs, setVal, working, tests, copied, hasGuide, onOpenGuide, onSave, onTest, onCopy } = props
-  const brandKey = brandForCategory(category)
-  const brand = brandKey ? BRAND[brandKey] : null
-  const platformName = category.split("·").pop()?.trim() || category
-
-  const configuredCount = providers.filter((p) => p.configured).length
-  const total = providers.length
-  const anyFailing = providers.some((p) => { const t = tests[p.key]; return (t && !t.ok) || p.status === "error" })
-  const rollup: Tone = anyFailing ? "err" : configuredCount === 0 ? "none" : configuredCount < total ? "warn" : "ok"
-  const rollupText = anyFailing ? "Action needed" : configuredCount === 0 ? "Not started" : configuredCount < total ? `Needs setup · ${configuredCount}/${total}` : "Connected"
-
-  const docs = providers.find((p) => p.docs)?.docs
-  const connectUrl = providers.find((p) => p.connect_url)?.connect_url
-  const testable = providers.find((p) => p.testable)
-  const isWebhook = category.startsWith("Messaging") || providers.some((p) => p.key.includes("VERIFY"))
-  const envs = providers.map((p) => p.key)
+  const { item, tone, guide, inputs, setVal, working, tests, copied, onOpenGuide, onSave, onTest, onClear, onCopy } = props
+  const brand = item.brandKey ? BRAND[item.brandKey] : null
+  const color = brand?.color ?? "#71717a"
+  const envs = item.providers.map((p) => p.key)
   const busy = envs.includes(working ?? "")
+  const configured = item.providers.filter((p) => p.configured).length
+  const total = item.providers.length
+  const docs = item.providers.find((p) => p.docs)?.docs
+  const connectUrl = item.providers.find((p) => p.connect_url)?.connect_url
+  const isWebhook = item.section === "Messaging" || item.providers.some((p) => p.key.includes("VERIFY"))
+  const testable = item.providers.find((p) => p.testable)
+  const failingTest = envs.map((e) => tests[e]).find((t) => t && !t.ok)
+  const credentialFields = item.providers.filter((p) => !p.key.includes("VERIFY"))
+  const verifyFields = item.providers.filter((p) => p.key.includes("VERIFY"))
+  const anyDirty = envs.some((e) => (inputs[e] ?? "").trim())
+
+  const statusText =
+    tone === "err" ? "Action needed" : tone === "ok" ? "Connected" : tone === "warn" ? `Needs setup · ${configured}/${total}` : "Not started"
 
   return (
-    <div className="overflow-hidden rounded-xl border border-grey-20 bg-white shadow-borders-base">
-      {brand && <div className="h-[3px]" style={{ background: brand.color }} />}
-      <div className="flex items-start justify-between gap-3 p-4 pb-3">
-        <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-lg" style={{ background: `${brand?.color ?? "#71717a"}1f`, color: brand?.color ?? "#71717a" }}>
-            {brand ? <brand.Icon className="h-5 w-5" /> : <Puzzle className="h-5 w-5" />}
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold tracking-tight text-grey-90">{platformName}</h3>
-            <p className="text-[11px] text-grey-40">{isWebhook ? "App secret + webhook" : "OAuth app"}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {hasGuide && onOpenGuide && (
-            <button
-              onClick={onOpenGuide}
-              className="rounded-md border border-grey-20 bg-white px-2.5 py-1.5 text-[11px] font-medium text-grey-70 hover:bg-grey-10"
-            >
-              Full setup guide
-            </button>
-          )}
-          <Pill tone={rollup}>{rollupText}</Pill>
-        </div>
-      </div>
-
-      <div className="border-t border-grey-20 px-4 pb-4 pt-1">
-        {/* step 1 — create app */}
-        <Step n={1} done={false}>
-          <span className="font-medium text-grey-90">Create your app</span>{" "}
-          {providers[0]?.help || "in the provider's developer console."}
-          {docs && (
-            <div className="mt-2">
-              <a href={docs} target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md border border-grey-20 bg-white px-2.5 py-1.5 text-[11px] font-medium text-grey-60 hover:bg-grey-10">
-                {Glyph.ext("h-3.5 w-3.5")} Open developer console
-              </a>
+    <div className="overflow-hidden rounded-2xl border border-grey-20 bg-white shadow-borders-base">
+      {/* brand header */}
+      <div
+        className="px-6 pb-5 pt-6"
+        style={{ background: `linear-gradient(135deg, ${color}14, transparent 55%)` }}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-4">
+            <div className="grid h-12 w-12 place-items-center rounded-xl" style={{ background: `${color}1f`, color }}>
+              {brand ? <brand.Icon className="h-6 w-6" /> : <SimpleIcon category={item.section} className="h-6 w-6" />}
             </div>
-          )}
-        </Step>
-
-        {/* step 2 — paste credentials */}
-        <Step n={2} done={configuredCount > 0}>
-          <span className="font-medium text-grey-90">Paste your credentials.</span>
-          {providers.filter((p) => !p.key.includes("VERIFY")).map((p) => (
-            <Field key={p.key} p={p} value={inputs[p.key] ?? ""} onChange={(v) => setVal(p.key, v)} />
-          ))}
-        </Step>
-
-        {/* step 3 — register redirect/webhook URL */}
-        {connectUrl && (
-          <Step n={3} done={false}>
-            <span className="font-medium text-grey-90">
-              {isWebhook ? "Register the webhook URL" : "Copy your Redirect URI"}
-            </span>{" "}
-            {isWebhook ? "and verify token in the provider's webhook settings." : "and register it in the app you just created."}
-            <div className="mt-2">
-              <div className="flex items-center gap-2 rounded-lg border border-grey-20 bg-grey-10 px-3 py-2">
-                <input readOnly value={connectUrl} className="w-full border-0 bg-transparent font-mono text-xs text-grey-60 outline-none" />
-                <button onClick={() => onCopy(connectUrl, category)}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-grey-20 bg-white px-2.5 py-1.5 text-[11px] text-grey-60 hover:bg-grey-10">
-                  {copied === category ? <><Check className="h-3.5 w-3.5 text-emerald-600" /> Copied</> : <>{Glyph.copy("h-3.5 w-3.5")} Copy</>}
-                </button>
-              </div>
-              <p className="mt-1.5 text-[11px] text-grey-40">
-                Register this exact URL in your {platformName} developer app.
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight text-grey-90">{item.name}</h2>
+              <p className="text-xs text-grey-50">
+                {item.kind === "platform"
+                  ? isWebhook ? "App secret + webhook connection" : "OAuth application"
+                  : item.providers[0]?.help ?? item.section}
               </p>
             </div>
-            {/* verify-token fields, if any */}
-            {providers.filter((p) => p.key.includes("VERIFY")).map((p) => (
-              <Field key={p.key} p={p} value={inputs[p.key] ?? ""} onChange={(v) => setVal(p.key, v)} chooseYourOwn />
-            ))}
-          </Step>
-        )}
-
-        {configuredCount > 0 && configuredCount < total && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            {Glyph.warn("h-4 w-4 shrink-0")} Almost there — fill the remaining field{total - configuredCount > 1 ? "s" : ""} to finish connecting.
           </div>
-        )}
+          <Pill tone={tone}>{statusText}</Pill>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {guide && (
+            <button
+              onClick={onOpenGuide}
+              className="inline-flex items-center gap-2 rounded-lg bg-grey-90 px-3.5 py-2 text-xs font-medium text-white hover:bg-grey-80"
+            >
+              {Glyph.book("h-3.5 w-3.5")} Full setup guide
+            </button>
+          )}
+          {docs && (
+            <a
+              href={docs} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-grey-20 bg-white px-3.5 py-2 text-xs font-medium text-grey-70 hover:bg-grey-10"
+            >
+              {Glyph.ext("h-3.5 w-3.5")} Developer console
+            </a>
+          )}
+          {testable && (
+            <button
+              onClick={() => onTest(testable.key)}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-lg border border-grey-20 bg-white px-3.5 py-2 text-xs font-medium text-grey-70 hover:bg-grey-10 disabled:opacity-50"
+            >
+              {busy ? <ArrowPath className="h-3.5 w-3.5 animate-spin" /> : Glyph.bolt("h-3.5 w-3.5")} Test connection
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="flex justify-end gap-2 border-t border-grey-20 bg-grey-10 px-4 py-3">
-        {testable && (
-          <button onClick={() => onTest(testable.key)} disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-grey-20 bg-white px-3 py-1.5 text-xs font-medium text-grey-70 hover:bg-grey-10 disabled:opacity-50">
-            {busy ? <ArrowPath className="h-3.5 w-3.5 animate-spin" /> : Glyph.bolt("h-3.5 w-3.5")} Test
-          </button>
-        )}
-        <button onClick={() => onSave(envs)} disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-grey-90 px-3 py-1.5 text-xs font-medium text-white hover:bg-grey-80 disabled:opacity-50">
-          {busy ? <ArrowPath className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save changes
+      {failingTest && (
+        <div className="mx-6 mb-1 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs text-rose-700">
+          Test failed: {failingTest.message ?? "the platform rejected the credentials."}
+        </div>
+      )}
+
+      {/* credentials */}
+      <div className="border-t border-grey-20 px-6 py-5">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-grey-40">Credentials</h3>
+        <div className="mt-1 grid gap-x-6 sm:grid-cols-2">
+          {credentialFields.map((p) => (
+            <FieldRow key={p.key} p={p} value={inputs[p.key] ?? ""} onChange={(v) => setVal(p.key, v)} onClear={() => onClear(p.key)} working={working === p.key} />
+          ))}
+        </div>
+      </div>
+
+      {/* URLs + verify tokens */}
+      {(connectUrl || verifyFields.length > 0) && (
+        <div className="border-t border-grey-20 px-6 py-5">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-grey-40">
+            {isWebhook ? "Webhook to register" : "Redirect URI to register"}
+          </h3>
+          {connectUrl && (
+            <div className="mt-2 flex items-center gap-2 rounded-xl border border-grey-20 bg-grey-10 px-3.5 py-2.5">
+              <input readOnly value={connectUrl} className="w-full border-0 bg-transparent font-mono text-xs text-grey-60 outline-none" />
+              <button
+                onClick={() => onCopy(connectUrl, item.key)}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-grey-20 bg-white px-2.5 py-1.5 text-[11px] text-grey-60 hover:bg-grey-10"
+              >
+                {copied === item.key ? <><Check className="h-3.5 w-3.5 text-emerald-600" /> Copied</> : <>{Glyph.copy("h-3.5 w-3.5")} Copy</>}
+              </button>
+            </div>
+          )}
+          <p className="mt-1.5 text-[11px] text-grey-40">
+            Register this exact URL inside your {item.name} developer app{isWebhook ? ", together with the verify token below" : ""}.
+          </p>
+          <div className="grid gap-x-6 sm:grid-cols-2">
+            {verifyFields.map((p) => (
+              <FieldRow key={p.key} p={p} value={inputs[p.key] ?? ""} onChange={(v) => setVal(p.key, v)} onClear={() => onClear(p.key)} working={working === p.key} chooseYourOwn />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* save bar */}
+      <div className="flex items-center justify-between gap-3 border-t border-grey-20 bg-grey-10 px-6 py-3.5">
+        <p className="text-[11px] text-grey-40">
+          {configured === total
+            ? "All keys saved — values are write-only; leave a field blank to keep the stored one."
+            : `${total - configured} field${total - configured > 1 ? "s" : ""} still empty.`}
+        </p>
+        <button
+          onClick={() => onSave(envs)}
+          disabled={busy || !anyDirty}
+          className="inline-flex items-center gap-2 rounded-lg bg-grey-90 px-4 py-2 text-xs font-semibold text-white hover:bg-grey-80 disabled:opacity-40"
+        >
+          {busy ? <ArrowPath className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          Save changes
         </button>
       </div>
     </div>
   )
 }
 
-function Step({ n, done, children }: { n: number; done: boolean; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[24px_1fr] gap-3 border-t border-dashed border-grey-20 py-3 first:border-t-0">
-      <div className={cn("grid h-6 w-6 place-items-center rounded-full font-mono text-xs font-semibold",
-        done ? "bg-emerald-500 text-white" : "bg-grey-10 text-grey-50")}>
-        {done ? <Check className="h-3.5 w-3.5" /> : n}
-      </div>
-      <div className="text-[13px] leading-relaxed text-grey-70">{children}</div>
-    </div>
-  )
-}
-
-function Field({ p, value, onChange, chooseYourOwn }: {
-  p: IntegrationProvider; value: string; onChange: (v: string) => void; chooseYourOwn?: boolean
+/* ---------- one credential field ---------- */
+function FieldRow({ p, value, onChange, onClear, working, chooseYourOwn }: {
+  p: IntegrationProvider
+  value: string
+  onChange: (v: string) => void
+  onClear: () => void
+  working: boolean
+  chooseYourOwn?: boolean
 }) {
   const isSecret = p.secret !== false
   return (
-    <div className="mt-2.5">
-      <label className="mb-1 block text-[11px] font-medium text-grey-50">
-        {p.name}
-        {isSecret && <span className="font-normal text-grey-40"> · secret</span>}
-      </label>
-      <div className="flex items-center gap-2 rounded-lg border border-grey-20 bg-white px-3 py-2">
-        <input
-          type={isSecret ? "password" : "text"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={p.configured ? "•••••••• — leave blank to keep existing" : chooseYourOwn ? "a value you choose" : "Paste value…"}
-          className="w-full border-0 bg-transparent font-mono text-[13px] text-grey-90 outline-none placeholder:font-sans placeholder:text-grey-40"
-          autoComplete="off"
-        />
-        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", p.configured ? "bg-emerald-500" : "bg-grey-300")} />
+    <div className="py-2.5">
+      <div className="mb-1 flex items-center justify-between">
+        <label className="text-[12px] font-medium text-grey-70">
+          {p.name}
+          {isSecret && <span className="ml-1 font-normal text-grey-40">secret</span>}
+        </label>
+        <span className="flex items-center gap-2">
+          {p.configured && (
+            <span className={cn(
+              "inline-flex items-center gap-1 text-[11px]",
+              p.source === "env" ? "text-sky-700" : "text-emerald-700"
+            )}>
+              <Check className="h-3 w-3" /> {p.source === "env" ? "from env" : "saved"}
+            </span>
+          )}
+          {p.configured && p.source !== "env" && (
+            <button
+              onClick={onClear}
+              disabled={working}
+              title="Remove this key"
+              className="text-grey-30 hover:text-rose-500 disabled:opacity-50"
+            >
+              <Trash className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </span>
       </div>
-      {p.configured && p.source === "env" && (
-        <p className="mt-1 text-[11px] text-sky-700">Provided by server environment — override by entering a value.</p>
+      <input
+        type={isSecret ? "password" : "text"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={p.configured ? "•••••••• leave blank to keep" : chooseYourOwn ? "Invent a long random string…" : "Paste value…"}
+        autoComplete="off"
+        className={cn(
+          "w-full rounded-lg border px-3 py-2 font-mono text-[13px] text-grey-90 outline-none transition-shadow placeholder:font-sans placeholder:text-grey-40",
+          value ? "border-grey-90 ring-1 ring-grey-90" : "border-grey-20 focus:border-grey-40"
+        )}
+      />
+      {p.help && !p.configured && (
+        <p className="mt-1 text-[11px] leading-relaxed text-grey-40">{p.help}</p>
       )}
     </div>
   )
 }
-
-/* ============================ Compact single-key card ============================ */
-function CompactCard({ p, value, setVal, working, test, onSave, onTest, onClear }: {
-  p: IntegrationProvider; value: string; setVal: (env: string, v: string) => void; working: boolean
-  test: { ok: boolean; message?: string } | null
-  onSave: (envs: string[]) => void; onTest: (env: string) => void; onClear: (env: string) => void
-}) {
-  const tone: Tone = test ? (test.ok ? "ok" : "err") : p.status === "error" ? "err" : p.configured ? "ok" : "none"
-  const label = test ? (test.ok ? "Test passed" : "Test failed") : p.configured ? (p.source === "env" ? "From env" : "Configured") : "Not set"
-  return (
-    <div className="rounded-xl border border-grey-20 bg-white p-4 shadow-borders-base">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-grey-10 text-grey-60"><SimpleIcon category={p.category} /></div>
-          <div>
-            <h3 className="text-[13px] font-semibold text-grey-90">{p.name}</h3>
-            <p className="text-[10.5px] text-grey-40">{p.category}</p>
-          </div>
-        </div>
-        <Pill tone={tone}>{label}</Pill>
-      </div>
-
-      <div className="flex items-center gap-2 rounded-lg border border-grey-20 bg-white px-3 py-2">
-        <input
-          type={p.secret !== false ? "password" : "text"}
-          value={value}
-          onChange={(e) => setVal(p.key, e.target.value)}
-          placeholder={p.configured ? "•••• leave blank to keep" : "Paste key…"}
-          disabled={p.source === "env"}
-          className="w-full border-0 bg-transparent font-mono text-[13px] text-grey-90 outline-none placeholder:font-sans placeholder:text-grey-40 disabled:opacity-60"
-          autoComplete="off"
-        />
-      </div>
-
-      {test && !test.ok && <p className="mt-1.5 text-[11px] text-rose-600">{test.message}</p>}
-
-      <div className="mt-2.5 flex items-center justify-between">
-        {p.help ? (
-          p.docs
-            ? <a href={p.docs} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-grey-50 hover:text-grey-80">{Glyph.ext("h-3 w-3")} Where to get it</a>
-            : <span className="text-[11px] text-grey-40">{p.help}</span>
-        ) : <span />}
-        {p.source === "env" && <span className="rounded bg-sky-50 px-2 py-0.5 font-mono text-[10px] text-sky-700">env</span>}
-      </div>
-
-      <div className="mt-3 flex gap-2">
-        {p.testable && (
-          <button onClick={() => onTest(p.key)} disabled={working}
-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-grey-20 bg-white px-3 py-1.5 text-xs font-medium text-grey-70 hover:bg-grey-10 disabled:opacity-50">
-            {working ? <ArrowPath className="h-3.5 w-3.5 animate-spin" /> : "Test"}
-          </button>
-        )}
-        {p.configured && p.source !== "env" && (
-          <button onClick={() => onClear(p.key)} disabled={working}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-grey-20 bg-white px-2.5 py-1.5 text-xs font-medium text-grey-60 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50">
-            <Trash className="h-3.5 w-3.5" />
-          </button>
-        )}
-        <button onClick={() => onSave([p.key])} disabled={working || p.source === "env"}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-grey-90 px-3 py-1.5 text-xs font-medium text-white hover:bg-grey-80 disabled:opacity-50">
-          {working ? <ArrowPath className="h-3.5 w-3.5 animate-spin" /> : "Save"}
-        </button>
-      </div>
-    </div>
-  )
-}
-
 /* ============================ Full setup guide reader ============================ */
 function GuideView({
   guide,
