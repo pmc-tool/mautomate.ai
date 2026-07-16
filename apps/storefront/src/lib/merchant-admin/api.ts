@@ -2897,15 +2897,17 @@ function slugify(value: string): string {
 // -----------------------------
 
 /**
- * A DNS record the merchant must add at their DNS provider to connect a custom
- * domain. `kind` mirrors the backend routing service:
- *   - "cname" — routing record (subdomain / www → our origin)
- *   - "txt"   — ownership + SSL validation records
- *   - "note"  — apex guidance (no literal record to add; ALIAS/flattening hint)
+ * A DNS change the merchant must make to connect a custom domain. `kind`
+ * mirrors the backend routing service:
+ *   - "ns"    — nameserver to set at the registrar (apex domains; the pair of
+ *               "ns" records is the customer's ONLY step)
+ *   - "cname" — routing record (subdomain → our origin)
+ *   - "txt"   — ownership + SSL validation records (legacy)
+ *   - "note"  — freeform guidance
  * Route: GET/POST /merchant/domains
  */
 export type DnsInstruction = {
-  kind: "cname" | "txt" | "note"
+  kind: "cname" | "txt" | "note" | "ns"
   name: string
   value: string
   ttl?: number
@@ -7884,8 +7886,12 @@ export async function generateAdCopy(
 
 export async function generateAdImage(
   token: string,
-  input: { prompt: string; orientation?: "square" | "landscape" | "portrait" }
-): Promise<{ image_url: string; credits: number }> {
+  input: {
+    prompt: string
+    product_image_url?: string | null
+    orientation?: "square" | "landscape" | "portrait"
+  }
+): Promise<{ image_url: string; engine?: string; credits: number }> {
   return request("/merchant/ads/ai/image", { method: "POST", token, body: input })
 }
 

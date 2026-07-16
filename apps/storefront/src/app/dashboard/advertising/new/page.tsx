@@ -202,10 +202,17 @@ export default function NewCampaignPage() {
     setGenError(null)
     setNotice(null)
     setStep("generating")
+    const anchored = !wholeStore && Boolean(product?.thumbnail)
     setStages([
       { key: "read", label: wholeStore ? "Reading your store" : "Reading your product", state: "running" },
       { key: "copy", label: "Writing headlines & ad text", state: "pending" },
-      { key: "image", label: "Designing your ad image", state: "pending" },
+      {
+        key: "image",
+        label: anchored
+          ? "Building the scene around your product photo"
+          : "Designing your ad image",
+        state: "pending",
+      },
     ])
 
     try {
@@ -228,11 +235,13 @@ export default function NewCampaignPage() {
       )
       setStage("copy", { state: "done", detail: d.headline })
 
-      // Stage 3: the image call.
+      // Stage 3: the image call — anchored to the REAL product photo when
+      // there is one (the ad must show the product the store actually sells).
       setStage("image", { state: "running" })
       const imgRes = await generateAdImage(token, {
         prompt: d.image_prompt,
         orientation: "square",
+        product_image_url: anchored ? product!.thumbnail! : null,
       })
       setImageUrl(imgRes.image_url)
       setStage("image", { state: "done" })
@@ -283,9 +292,11 @@ export default function NewCampaignPage() {
     setBusy("image")
     setNotice(null)
     try {
+      const anchored = !wholeStore && Boolean(product?.thumbnail)
       const { image_url } = await generateAdImage(token, {
         prompt: imagePrompt || `professional product photo of ${headline}`,
         orientation: "square",
+        product_image_url: anchored ? product!.thumbnail! : null,
       })
       setImageUrl(image_url)
       setVideoUrl(null)
@@ -294,7 +305,7 @@ export default function NewCampaignPage() {
     } finally {
       setBusy(null)
     }
-  }, [token, busy, imagePrompt, headline])
+  }, [token, busy, imagePrompt, headline, wholeStore, product])
 
   const makeVideo = useCallback(async () => {
     if (!token || busy || !imageUrl) return
@@ -548,7 +559,9 @@ export default function NewCampaignPage() {
               >
                 <Sparkles />
                 Create my ad with AI
-                <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] tabular-nums">27 credits</span>
+                <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] tabular-nums">
+                  {!wholeStore && product?.thumbnail ? "37" : "27"} credits
+                </span>
               </button>
             </div>
           </div>
@@ -686,8 +699,20 @@ export default function NewCampaignPage() {
                   className="inline-flex items-center gap-1.5 rounded-md border border-grey-20 bg-white px-3 py-1.5 text-xs font-medium text-grey-90 hover:bg-grey-5 disabled:opacity-50"
                 >
                   {busy === "image" ? <Spinner className="animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  New image · 2 cr
+                  New scene · {!wholeStore && product?.thumbnail ? "12" : "2"} cr
                 </button>
+                {!wholeStore && product?.thumbnail && imageUrl !== product.thumbnail && (
+                  <button
+                    onClick={() => {
+                      setImageUrl(product.thumbnail!)
+                      setVideoUrl(null)
+                    }}
+                    disabled={busy != null}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-grey-20 bg-white px-3 py-1.5 text-xs font-medium text-grey-90 hover:bg-grey-5 disabled:opacity-50"
+                  >
+                    Use product photo · free
+                  </button>
+                )}
                 <button
                   onClick={makeVideo}
                   disabled={busy != null || !imageUrl}

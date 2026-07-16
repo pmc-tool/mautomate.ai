@@ -7,13 +7,19 @@ import { resolveMerchant } from "../../../_helpers"
 import { adsStatusFor } from "../../_helpers"
 
 /**
- * POST /merchant/ads/ai/image — generate the ad image from a scene prompt
- * (the wizard passes the draft's image_prompt; the merchant can edit it) and
- * store it durably in the tenant's bucket.
+ * POST /merchant/ads/ai/image — generate the ad image and store it durably.
  *
- * Credits: `ai_image_basic` per image. Nothing is charged on failure.
+ * Two engines, honestly priced:
+ *  - `product_image_url` present -> PRODUCT-ANCHORED scene (the Gemini
+ *    subject-consistent engine): the merchant's REAL product placed in the
+ *    scene — an ad must never show a product the store doesn't sell.
+ *    Bills `ai_image`.
+ *  - no product photo (whole-store ads) -> text-to-image. Bills
+ *    `ai_image_basic`.
  *
- * Body: { prompt, orientation? ("square" | "landscape" | "portrait") }
+ * Nothing is charged on failure.
+ *
+ * Body: { prompt, product_image_url?, orientation? }
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
@@ -28,15 +34,22 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         "Describe the image the ad should show."
       )
     }
+    const productImageUrl =
+      typeof b.product_image_url === "string" &&
+      b.product_image_url.startsWith("http")
+        ? b.product_image_url
+        : null
+    const action = productImageUrl ? "ai_image" : "ai_image_basic"
 
     const metered = await meterAction(
       req.scope,
       ctx.tenant.id,
-      "ai_image_basic",
+      action,
       1,
       async () => {
         const out = await generateAdImage(req.scope, ctx.tenant.id, {
           prompt,
+          product_image_url: productImageUrl,
           orientation: b.orientation,
         })
         return { result: out, actualUnits: 1 }
@@ -44,12 +57,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     )
     if (!metered.ok) {
       return res.status(402).json({
-        message: `You're out of AI credits (this needs ${creditsFor("ai_image_basic")}). Top up in Billing.`,
+        message: `You're out of AI credits (this needs ${creditsFor(action)}). Top up in Billing.`,
         code: "insufficient_credits",
       })
     }
 
-    res.json({ ...metered.result, credits: creditsFor("ai_image_basic") })
+    res.json({ ...metered.result, credits: creditsFor(action) })
   } catch (e: any) {
     res
       .status(adsStatusFor(e))

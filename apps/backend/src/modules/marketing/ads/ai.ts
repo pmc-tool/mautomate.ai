@@ -217,12 +217,113 @@ export const generateAdCopy = async (
   }
 }
 
-/** Generate the ad image from a scene prompt; stored durably. */
+/** Fetch a url/data-uri into a Gemini inline part. */
+const toInlinePart = async (url: string): Promise<any> => {
+  if (url.startsWith("data:")) {
+    const m = /^data:([^;]+);base64,(.+)$/.exec(url)
+    if (!m) throw new Error("bad image data")
+    return { inline_data: { mime_type: m[1], data: m[2] } }
+  }
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`could not fetch the product photo (${r.status})`)
+  const mime = r.headers.get("content-type")?.split(";")[0] || "image/png"
+  return {
+    inline_data: {
+      mime_type: mime,
+      data: Buffer.from(await r.arrayBuffer()).toString("base64"),
+    },
+  }
+}
+
+/**
+ * Product-anchored scene generation (the Gemini image model — the same
+ * subject-consistent engine the CMS studio runs in production). The
+ * merchant's REAL product photo goes in and comes back placed in the ad
+ * scene: an ad must never show a product the store does not sell, so
+ * text-to-image is only for whole-store ads with no product to preserve.
+ */
+const geminiProductScene = async (
+  productImageUrl: string,
+  scenePrompt: string
+): Promise<Buffer | null> => {
+  const gkey = process.env.GEMINI_API_KEY
+  if (!gkey) return null
+  try {
+    const imagePart = await toInlinePart(productImageUrl)
+    const model = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image"
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": gkey },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                imagePart,
+                {
+                  text:
+                    `Create a professional advertising photograph using the EXACT product from the provided photo — ` +
+                    `same design, colors, materials, and proportions; do not redesign, restyle, or replace it. ` +
+                    `Scene: ${scenePrompt}. No text, no logos, no watermark.`,
+                },
+              ],
+            },
+          ],
+          generationConfig: { imageConfig: { aspectRatio: "1:1" } },
+        }),
+        signal: AbortSignal.timeout(120000),
+      }
+    )
+    const d: any = await r.json().catch(() => ({}))
+    if (!r.ok) return null
+    for (const p of d?.candidates?.[0]?.content?.parts ?? []) {
+      if (p?.inlineData?.data) return Buffer.from(p.inlineData.data, "base64")
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+export type AdImageResult = {
+  image_url: string
+  /** Which engine produced it — drives honest credit pricing at the route. */
+  engine: "product_scene" | "text_to_image"
+}
+
+/**
+ * Generate the ad image. With a product photo, the product-anchored engine is
+ * REQUIRED to succeed (falling back to inventing a lookalike product would be
+ * a misleading ad); text-to-image only serves whole-store ads.
+ */
 export const generateAdImage = async (
   container: MedusaContainer,
   tenantId: string,
-  input: { prompt: string; orientation?: Orientation }
-): Promise<{ image_url: string }> => {
+  input: {
+    prompt: string
+    product_image_url?: string | null
+    orientation?: Orientation
+  }
+): Promise<AdImageResult> => {
+  if (input.product_image_url) {
+    const bytes = await geminiProductScene(input.product_image_url, input.prompt)
+    if (!bytes) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "The image engine couldn't build the scene around your product photo — try again, adjust the scene description, or use the product photo itself."
+      )
+    }
+    const url = await store(
+      container,
+      tenantId,
+      `ad-image-${Date.now()}.jpg`,
+      bytes,
+      "image/jpeg"
+    )
+    return { image_url: url, engine: "product_scene" }
+  }
+
   const key = novitaKey()
   const orientation = input.orientation ?? "square"
   const tempUrl = await promptToImage(
@@ -238,7 +339,7 @@ export const generateAdImage = async (
     bytes,
     "image/jpeg"
   )
-  return { image_url: url }
+  return { image_url: url, engine: "text_to_image" }
 }
 
 /** Animate an ad image into a ~4s video clip; stored durably. */
