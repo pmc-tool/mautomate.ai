@@ -193,17 +193,38 @@ export const launchCampaign = async (
     )
   }
 
-  const updated = first(
+  // Persist the mirror. A failure here (e.g. a unique-index collision on the
+  // external id) must never leak a raw DB error or leave a dangling draft —
+  // the campaign EXISTS on the platform at this point, so record the ids on
+  // the row as error state and tell the merchant something actionable.
+  let updated: any
+  let adset: any
+  try {
+    updated = first(
+      await mk.updateAdsCampaigns({
+        id: campaign.id,
+        external_id: created.campaign_external_id,
+        status: "paused",
+        external_status: created.external_status,
+        last_synced_at: new Date(),
+      } as any)
+    )
+  } catch (e: any) {
     await mk.updateAdsCampaigns({
       id: campaign.id,
-      external_id: created.campaign_external_id,
-      status: "paused",
-      external_status: created.external_status,
-      last_synced_at: new Date(),
+      status: "error",
+      meta: {
+        error: e?.message ?? "could not record the created campaign",
+        external_id: created.campaign_external_id,
+      },
     } as any)
-  )
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "The campaign could not be recorded — most likely a campaign with the same platform identity already exists. Give it a different name and try again."
+    )
+  }
 
-  const adset = first(
+  adset = first(
     await mk.createAdsAdsets({
       tenant_id: tenantId,
       campaign_id: campaign.id,

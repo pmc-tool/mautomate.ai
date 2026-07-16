@@ -1,3 +1,4 @@
+import crypto from "crypto"
 import {
   AdsCredentials,
   AdsProvider,
@@ -97,13 +98,16 @@ export const mockAdsProvider: AdsProvider = {
     _externalAccountId: string,
     spec: UnifiedCampaignSpec
   ): Promise<CreatedCampaign> {
-    // Deterministic ids seeded by the campaign name so re-runs are stable.
+    // Real platforms mint a UNIQUE id per create (two campaigns may share a
+    // name) — the demo must behave the same, so the id carries a random
+    // suffix. A name-derived id collides on the second same-named campaign.
     const slug = spec.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 24)
+    const uniq = crypto.randomBytes(4).toString("hex")
     return {
-      campaign_external_id: `mock-panel-${slug}`,
-      adset_external_id: `mock-panel-${slug}-set`,
-      creative_external_id: `mock-panel-${slug}-cr`,
-      ad_external_id: `mock-panel-${slug}-ad`,
+      campaign_external_id: `mock-panel-${slug}-${uniq}`,
+      adset_external_id: `mock-panel-${slug}-${uniq}-set`,
+      creative_external_id: `mock-panel-${slug}-${uniq}-cr`,
+      ad_external_id: `mock-panel-${slug}-${uniq}-ad`,
       external_status: "PAUSED",
     }
   },
