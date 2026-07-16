@@ -55,14 +55,30 @@ export default async function tenantStampRepairJob(
         AND (ii.metadata->>'tenant_id') IS NULL
     `)
 
+    // Registered customers: derive the owning store from the tenant-prefixed
+    // auth identity ("<tenant_id>:email" — see namespaceCustomerAuthIdentity
+    // in api/middlewares.ts). Covers rows the create-time stamp missed.
+    const customerRes = await pg.raw(`
+      UPDATE customer c
+      SET metadata = coalesce(c.metadata, '{}'::jsonb) || jsonb_build_object('tenant_id', t.id)
+      FROM auth_identity ai
+      JOIN provider_identity pi ON pi.auth_identity_id = ai.id AND pi.provider = 'emailpass'
+      JOIN tenant t ON t.id = split_part(pi.entity_id, ':', 1)
+      WHERE position(':' in pi.entity_id) > 0
+        AND (ai.app_metadata->>'customer_id') = c.id
+        AND c.deleted_at IS NULL
+        AND (c.metadata->>'tenant_id') IS NULL
+    `)
+
     const total =
       (productRes?.rowCount ?? 0) +
       (variantRes?.rowCount ?? 0) +
-      (inventoryRes?.rowCount ?? 0)
+      (inventoryRes?.rowCount ?? 0) +
+      (customerRes?.rowCount ?? 0)
     if (total > 0) {
       const logger: any = container.resolve("logger")
       logger.info(
-        `[tenancy] stamp repair: products=${productRes?.rowCount ?? 0} variants=${variantRes?.rowCount ?? 0} inventory=${inventoryRes?.rowCount ?? 0}`
+        `[tenancy] stamp repair: products=${productRes?.rowCount ?? 0} variants=${variantRes?.rowCount ?? 0} inventory=${inventoryRes?.rowCount ?? 0} customers=${customerRes?.rowCount ?? 0}`
       )
     }
   } catch (e) {
