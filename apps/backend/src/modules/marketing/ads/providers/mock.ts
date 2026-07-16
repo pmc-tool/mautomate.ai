@@ -1,10 +1,13 @@
 import {
   AdsCredentials,
   AdsProvider,
+  CreatedCampaign,
   ExternalAdAccount,
   ExternalCampaign,
   ExternalInsightRow,
+  ExternalPage,
   InsightsQuery,
+  UnifiedCampaignSpec,
 } from "../types"
 
 /**
@@ -83,6 +86,42 @@ export const mockAdsProvider: AdsProvider = {
     _externalAccountId: string
   ): Promise<ExternalCampaign[]> {
     return CAMPAIGNS
+  },
+
+  async listPages(_creds: AdsCredentials): Promise<ExternalPage[]> {
+    return [{ id: "mock-page-1", name: "Demo store page" }]
+  },
+
+  async createCampaign(
+    _creds: AdsCredentials,
+    _externalAccountId: string,
+    spec: UnifiedCampaignSpec
+  ): Promise<CreatedCampaign> {
+    // Deterministic ids seeded by the campaign name so re-runs are stable.
+    const slug = spec.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 24)
+    return {
+      campaign_external_id: `mock-panel-${slug}`,
+      adset_external_id: `mock-panel-${slug}-set`,
+      creative_external_id: `mock-panel-${slug}-cr`,
+      ad_external_id: `mock-panel-${slug}-ad`,
+      external_status: "PAUSED",
+    }
+  },
+
+  async setCampaignStatus(
+    _creds: AdsCredentials,
+    _campaignExternalId: string,
+    _status: "active" | "paused"
+  ): Promise<void> {
+    /* the local mirror is the record for the demo platform */
+  },
+
+  async setCampaignBudget(
+    _creds: AdsCredentials,
+    _ids: { campaign_external_id: string; adset_external_id: string | null },
+    _dailyBudget: number
+  ): Promise<void> {
+    /* the local mirror is the record for the demo platform */
   },
 
   async getInsights(

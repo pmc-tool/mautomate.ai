@@ -7737,3 +7737,120 @@ export async function syncAdsCatalog(token: string): Promise<{
     }
   }>("/merchant/ads/signals/catalog", { method: "POST", token })
 }
+
+// --- Advertising campaign lifecycle (wizard + detail) ------------------------
+
+export type AdsPage = { id: string; name: string | null }
+
+export type CreateAdsCampaignInput = {
+  platform: string
+  name: string
+  goal: "sales" | "traffic" | "awareness"
+  daily_budget: number
+  countries: string[]
+  product_handle?: string | null
+  link_url?: string | null
+  headline: string
+  primary_text: string
+  image_url?: string | null
+  page_id?: string | null
+  start_at?: string | null
+}
+
+export type AdsCampaignDetail = {
+  campaign: {
+    id: string
+    external_id: string | null
+    platform: string
+    name: string
+    objective: string | null
+    status: string
+    external_status: string | null
+    source: string
+    daily_budget: number | null
+    lifetime_budget: number | null
+    currency: string | null
+    spec: Record<string, any> | null
+    created_at: string
+    last_synced_at: string | null
+    error: string | null
+  }
+  ads: {
+    id: string
+    name: string | null
+    status: string
+    creative: {
+      headline?: string
+      primary_text?: string
+      image_url?: string | null
+      link_url?: string
+    } | null
+  }[]
+  totals: {
+    spend: number
+    impressions: number
+    clicks: number
+    conversions: number
+    conversion_value: number
+    roas: number | null
+  }
+  daily: { date: string; spend: number; clicks: number; conversions: number }[]
+  timeline: {
+    id: string
+    actor: "merchant" | "ai" | "autopilot" | "system" | string
+    action: string
+    reason: string | null
+    before: Record<string, any> | null
+    after: Record<string, any> | null
+    at: string
+  }[]
+}
+
+export async function listAdsPages(
+  token: string,
+  platform = "meta"
+): Promise<{ pages: AdsPage[] }> {
+  return request<{ pages: AdsPage[] }>(
+    `/merchant/ads/pages?platform=${encodeURIComponent(platform)}`,
+    { token }
+  )
+}
+
+export async function createAdsCampaign(
+  token: string,
+  input: CreateAdsCampaignInput
+): Promise<{ campaign: { id: string; name: string; status: string } }> {
+  return request<{ campaign: { id: string; name: string; status: string } }>(
+    "/merchant/ads/campaigns",
+    { method: "POST", token, body: input }
+  )
+}
+
+export async function getAdsCampaignDetail(
+  token: string,
+  id: string
+): Promise<AdsCampaignDetail> {
+  return request<AdsCampaignDetail>(`/merchant/ads/campaigns/${id}`, { token })
+}
+
+export async function setAdsCampaignStatus(
+  token: string,
+  id: string,
+  status: "active" | "paused"
+): Promise<{ campaign: { id: string; status: string } }> {
+  return request<{ campaign: { id: string; status: string } }>(
+    `/merchant/ads/campaigns/${id}/status`,
+    { method: "POST", token, body: { status } }
+  )
+}
+
+export async function setAdsCampaignBudget(
+  token: string,
+  id: string,
+  dailyBudget: number
+): Promise<{ campaign: { id: string; daily_budget: number } }> {
+  return request<{ campaign: { id: string; daily_budget: number } }>(
+    `/merchant/ads/campaigns/${id}/budget`,
+    { method: "POST", token, body: { daily_budget: dailyBudget } }
+  )
+}

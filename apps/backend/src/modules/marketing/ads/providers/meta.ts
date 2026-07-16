@@ -2,10 +2,13 @@ import {
   AdsAuthError,
   AdsCredentials,
   AdsProvider,
+  CreatedCampaign,
   ExternalAdAccount,
   ExternalCampaign,
   ExternalInsightRow,
+  ExternalPage,
   InsightsQuery,
+  UnifiedCampaignSpec,
 } from "../types"
 
 /**
@@ -52,6 +55,36 @@ const graphGet = async (path: string, params: Record<string, string>) => {
     const err = (data as GraphErrorBody)?.error
     // 190 = invalid/expired token; 10/200-299 = permission errors — both mean
     // the CONNECTION is unusable, not that the request was malformed.
+    if (err?.code === 190 || err?.type === "OAuthException") {
+      throw new AdsAuthError(err?.message ?? "Meta session expired")
+    }
+    throw new Error(err?.message ?? `Meta request failed (${res.status})`)
+  }
+  return data
+}
+
+const graphPost = async (
+  path: string,
+  form: Record<string, string>
+): Promise<any> => {
+  let res: Response
+  try {
+    res = await fetch(`${GRAPH}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(form).toString(),
+    })
+  } catch (e: any) {
+    throw new Error(`Could not reach Meta: ${e?.message ?? "network error"}`)
+  }
+  let data: any = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+  if (!res.ok) {
+    const err = (data as GraphErrorBody)?.error
     if (err?.code === 190 || err?.type === "OAuthException") {
       throw new AdsAuthError(err?.message ?? "Meta session expired")
     }
@@ -165,6 +198,129 @@ export const metaAdsProvider: AdsProvider = {
       start_at: r.start_time ? new Date(r.start_time) : null,
       end_at: r.stop_time ? new Date(r.stop_time) : null,
     }))
+  },
+
+  async listPages(creds: AdsCredentials): Promise<ExternalPage[]> {
+    const rows = await graphGetAll("/me/accounts", {
+      fields: "id,name",
+      limit: "50",
+      access_token: creds.accessToken,
+    })
+    return rows.map((r: any) => ({ id: String(r.id), name: r.name ?? null }))
+  },
+
+  async createCampaign(
+    creds: AdsCredentials,
+    externalAccountId: string,
+    spec: UnifiedCampaignSpec
+  ): Promise<CreatedCampaign> {
+    // Meta's unified campaign model (v25+): objective by goal, budget on the
+    // AD SET (minor units), everything created PAUSED — activation is a
+    // separate explicit call. special_ad_categories is REQUIRED (empty here;
+    // housing/credit/politics verticals need Phase-later handling).
+    const objective =
+      spec.goal === "sales"
+        ? "OUTCOME_SALES"
+        : spec.goal === "awareness"
+          ? "OUTCOME_AWARENESS"
+          : "OUTCOME_TRAFFIC"
+
+    const campaign = await graphPost(`/${externalAccountId}/campaigns`, {
+      name: spec.name,
+      objective,
+      status: "PAUSED",
+      special_ad_categories: "[]",
+      buying_type: "AUCTION",
+      access_token: creds.accessToken,
+    })
+
+    const adsetForm: Record<string, string> = {
+      name: `${spec.name} — ad set`,
+      campaign_id: String(campaign.id),
+      daily_budget: String(Math.round(spec.daily_budget * 100)),
+      billing_event: "IMPRESSIONS",
+      bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+      optimization_goal:
+        spec.goal === "sales"
+          ? "OFFSITE_CONVERSIONS"
+          : spec.goal === "awareness"
+            ? "REACH"
+            : "LINK_CLICKS",
+      targeting: JSON.stringify({
+        geo_locations: { countries: spec.countries },
+      }),
+      status: "PAUSED",
+      access_token: creds.accessToken,
+    }
+    if (spec.goal === "sales" && spec.pixel_external_id) {
+      adsetForm.promoted_object = JSON.stringify({
+        pixel_id: spec.pixel_external_id,
+        custom_event_type: "PURCHASE",
+      })
+    }
+    if (spec.start_at) {
+      adsetForm.start_time = new Date(spec.start_at).toISOString()
+    }
+    const adset = await graphPost(`/${externalAccountId}/adsets`, adsetForm)
+
+    const linkData: Record<string, any> = {
+      link: spec.link_url,
+      message: spec.primary_text,
+      name: spec.headline,
+    }
+    if (spec.image_url) {
+      linkData.picture = spec.image_url
+    }
+    const creative = await graphPost(`/${externalAccountId}/adcreatives`, {
+      name: `${spec.name} — creative`,
+      object_story_spec: JSON.stringify({
+        page_id: spec.page_id,
+        link_data: linkData,
+      }),
+      access_token: creds.accessToken,
+    })
+
+    const ad = await graphPost(`/${externalAccountId}/ads`, {
+      name: `${spec.name} — ad`,
+      adset_id: String(adset.id),
+      creative: JSON.stringify({ creative_id: String(creative.id) }),
+      status: "PAUSED",
+      access_token: creds.accessToken,
+    })
+
+    return {
+      campaign_external_id: String(campaign.id),
+      adset_external_id: String(adset.id),
+      creative_external_id: String(creative.id),
+      ad_external_id: String(ad.id),
+      external_status: "PAUSED",
+    }
+  },
+
+  async setCampaignStatus(
+    creds: AdsCredentials,
+    campaignExternalId: string,
+    status: "active" | "paused"
+  ): Promise<void> {
+    await graphPost(`/${campaignExternalId}`, {
+      status: status === "active" ? "ACTIVE" : "PAUSED",
+      access_token: creds.accessToken,
+    })
+  },
+
+  async setCampaignBudget(
+    creds: AdsCredentials,
+    ids: { campaign_external_id: string; adset_external_id: string | null },
+    dailyBudget: number
+  ): Promise<void> {
+    // Budget lives on the ad set in the panel's campaign tree.
+    if (!ids.adset_external_id) {
+      throw new Error("This campaign has no ad set the panel can budget.")
+    }
+    await graphPost(`/${ids.adset_external_id}`, {
+      daily_budget: String(Math.round(dailyBudget * 100)),
+      access_token: creds.accessToken,
+    })
   },
 
   async getInsights(

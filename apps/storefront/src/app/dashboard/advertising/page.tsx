@@ -179,10 +179,20 @@ export default function AdvertisingOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Advertising"
-        description="Your ad performance across platforms, in one place. Spend is billed by the ad platform to your own ad account."
-      />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader
+          title="Advertising"
+          description="Your ad performance across platforms, in one place. Spend is billed by the ad platform to your own ad account."
+        />
+        {hasConnection && (
+          <Link
+            href="/dashboard/advertising/new"
+            className="shrink-0 rounded-md bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80"
+          >
+            New campaign
+          </Link>
+        )}
+      </div>
 
       {error && (
         <div className="flex items-start gap-2 rounded-base border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
@@ -331,9 +341,12 @@ export default function AdvertisingOverviewPage() {
                     {(overview?.campaigns ?? []).map((c) => (
                       <tr key={c.id}>
                         <td className="max-w-[280px] py-2.5 pr-4">
-                          <div className="truncate font-medium text-grey-90">
+                          <Link
+                            href={`/dashboard/advertising/campaigns/${c.id}`}
+                            className="block truncate font-medium text-grey-90 hover:underline"
+                          >
                             {c.name}
-                          </div>
+                          </Link>
                           <div className="text-xs capitalize text-grey-50">
                             {c.platform}
                             {c.objective

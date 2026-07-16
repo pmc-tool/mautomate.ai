@@ -76,6 +76,37 @@ export type InsightsQuery = {
   until: string
 }
 
+/** The panel's platform-agnostic campaign description. Adapters translate it
+ *  into their native object tree; money is MAJOR units throughout. */
+export type UnifiedCampaignSpec = {
+  name: string
+  goal: "sales" | "traffic" | "awareness"
+  daily_budget: number
+  currency: string | null
+  /** ISO-2 country codes the ads target. */
+  countries: string[]
+  /** The destination the ad clicks through to. */
+  link_url: string
+  headline: string
+  primary_text: string
+  image_url: string | null
+  /** Platform page/identity the ad publishes as (Meta: Facebook Page id). */
+  page_id: string | null
+  /** Pixel/dataset backing conversion optimization (required for `sales`). */
+  pixel_external_id: string | null
+  start_at: string | null
+}
+
+export type CreatedCampaign = {
+  campaign_external_id: string
+  adset_external_id: string
+  creative_external_id: string | null
+  ad_external_id: string
+  external_status: string
+}
+
+export type ExternalPage = { id: string; name: string | null }
+
 export interface AdsProvider {
   platform: AdsPlatform
   capabilities: AdsProviderCapabilities
@@ -91,6 +122,30 @@ export interface AdsProvider {
     externalAccountId: string,
     query: InsightsQuery
   ): Promise<ExternalInsightRow[]>
+  /** Pages/identities ads can publish as (wizard picker). */
+  listPages(creds: AdsCredentials): Promise<ExternalPage[]>
+  /**
+   * Create the full campaign tree from a unified spec. MUST create everything
+   * in PAUSED state — going live is always a separate, explicit merchant
+   * action (the panel's core safety rule).
+   */
+  createCampaign(
+    creds: AdsCredentials,
+    externalAccountId: string,
+    spec: UnifiedCampaignSpec
+  ): Promise<CreatedCampaign>
+  /** Flip a campaign between active and paused. */
+  setCampaignStatus(
+    creds: AdsCredentials,
+    campaignExternalId: string,
+    status: "active" | "paused"
+  ): Promise<void>
+  /** Change the daily budget (MAJOR units); Meta budgets live on the ad set. */
+  setCampaignBudget(
+    creds: AdsCredentials,
+    ids: { campaign_external_id: string; adset_external_id: string | null },
+    dailyBudget: number
+  ): Promise<void>
 }
 
 /** Thrown detail marker for expired/revoked platform tokens so the sync layer
