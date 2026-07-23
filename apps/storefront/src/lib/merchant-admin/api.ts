@@ -4531,12 +4531,13 @@ export type ChangePlanResponse = {
 
 export async function changePlan(
   token: string,
-  key: string
+  key: string,
+  billing?: string
 ): Promise<ChangePlanResponse> {
   return request<ChangePlanResponse>("/merchant/billing/change-plan", {
     method: "POST",
     token,
-    body: { key },
+    body: { key, billing },
   })
 }
 

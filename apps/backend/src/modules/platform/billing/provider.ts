@@ -37,6 +37,8 @@ export type PurchaseEvent = {
 export type SubscriptionEvent = {
   /** Which plan the tenant is now on. */
   plan_key?: string
+  /** Billing cycle purchased: monthly | 6months | yearly. */
+  billing?: string
   /** End of the paid period — plan credits expire here. */
   period_end?: Date
   stripe_customer_id?: string
@@ -92,6 +94,7 @@ export interface PaymentGateway {
     plan_key: string
     plan_name: string
     amount_usd: number
+    billing?: string
     success_url: string
     cancel_url: string
   }): Promise<GatewayResult<CheckoutSession>>

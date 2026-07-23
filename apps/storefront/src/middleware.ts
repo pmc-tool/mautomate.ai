@@ -235,6 +235,21 @@ function unavailablePage(name: string | null) {
   )
 }
 
+// Shown for a paid-plan signup whose card was never captured: the store is
+// fully provisioned but deliberately NOT public until the payment webhook
+// flips it live. Auto-refreshes so it appears the moment setup is finished.
+function pendingSetupPage(name: string | null) {
+  return htmlResponse(
+    `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="15"><title>Almost ready</title>
+<div style="font-family:sans-serif;max-width:520px;margin:12vh auto;text-align:center;color:#333">
+<h1 style="font-size:26px">${esc(name || "This store")} is almost ready</h1>
+<p style="color:#777">The store owner still needs to finish setting it up.</p>
+<p style="color:#777">If that's you, complete your free-trial setup from your
+<a href="https://merchant.mautomate.ai/dashboard/billing" style="color:#F26522;font-weight:600">mAutomate dashboard</a> — your store goes live the moment you're done.</p></div>`,
+    503
+  )
+}
+
 // Shown while a freshly-provisioned store's backend is still finishing setup
 // (its region/store data isn't ready yet). Auto-refreshes so the storefront
 // appears the moment provisioning completes — never a raw 500.
@@ -356,6 +371,7 @@ export async function middleware(request: NextRequest) {
     if (resolved === "backend-down") return retryPage(host)
     tenant = resolved
     if (!tenant) return notFoundPage(host)
+    if (tenant.status === "pending_payment") return pendingSetupPage(tenant.name)
     if (tenant.status !== "live") return unavailablePage(tenant.name)
   }
 

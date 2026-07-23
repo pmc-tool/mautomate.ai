@@ -67,6 +67,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const email = String(body.email ?? "").trim().toLowerCase()
   const password = String(body.password ?? "")
   const pkg = PACKAGES.includes(String(body.package)) ? String(body.package) : "free_trial"
+  const billing = ["monthly", "6months", "yearly"].includes(String(body.billing))
+    ? String(body.billing)
+    : "monthly"
 
   if (!EMAIL_RE.test(email)) return res.status(400).json({ message: "a valid email is required" })
   if (password.length < 8) return res.status(400).json({ message: "password must be at least 8 characters" })
@@ -155,6 +158,25 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   const tenant = await svc.retrieveTenant(tenantId).catch(() => null)
+
+  // A paid plan is NOT live until the card is captured: the store stays
+  // offline (pending_payment; storefront middleware serves an "almost ready"
+  // page) and the payment webhook (applyPlan) flips it live. Abandoning the
+  // checkout leaves a dashboard-accessible account with a "finish setup"
+  // banner — never a live store that was not paid for.
+  if (isPaidPlan) {
+    await svc
+      .updateTenants({
+        id: tenantId,
+        status: "pending_payment",
+        meta: {
+          ...((tenant?.meta as Record<string, unknown>) ?? {}),
+          requested_package: pkg,
+          requested_billing: billing,
+        },
+      })
+      .catch(() => undefined)
+  }
   await notifyMerchant(req.scope, {
     tenantId,
     to: email,
@@ -198,6 +220,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           plan_key: pkg,
           plan_name: planName,
           amount_usd: planPriceUsd,
+          billing,
           success_url: `https://merchant.${ROOT}/dashboard/overview`,
           cancel_url: `https://merchant.${ROOT}/dashboard/billing`,
         })
