@@ -313,6 +313,28 @@ export async function listCustomers(token: string): Promise<{ customers: Custome
   return request<{ customers: Customer[]; count: number }>("/merchant/customers", { token })
 }
 
+export type ContactMessage = {
+  id: string
+  name: string
+  email: string
+  message: string
+  created_at?: string
+}
+
+export async function listContactMessages(
+  token: string,
+  query: { limit?: number; offset?: number } = {}
+): Promise<{ messages: ContactMessage[]; count: number }> {
+  const params = new URLSearchParams()
+  if (query.limit) params.set("limit", String(query.limit))
+  if (query.offset) params.set("offset", String(query.offset))
+  const qs = params.toString()
+  return request<{ messages: ContactMessage[]; count: number }>(
+    "/merchant/contact" + (qs ? "?" + qs : ""),
+    { token }
+  )
+}
+
 export async function getSettings(token: string): Promise<Settings> {
   return request<Settings>("/merchant/settings", { token })
 }

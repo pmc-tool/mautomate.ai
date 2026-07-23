@@ -37,6 +37,43 @@ import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import nodemailer from "nodemailer"
 
 import { resolveStoreUrl } from "../modules/marketing/brand"
+import { PLATFORM_MODULE } from "../modules/platform"
+
+/**
+ * The tenant's ACTUALLY-ROUTED storefront host, from the control-plane
+ * tenant_domain table (primary active custom domain, else the free
+ * <slug>.mautomate.ai subdomain). resolveStoreUrl reads the merchant-set
+ * marketing `store_url` setting, which most tenants never set — its env /
+ * "store.example.com" fallbacks produced reset links pointing at hosts with no
+ * /reset-password route (the reported 404). Only a host from this table (or
+ * the slug) is guaranteed to serve the storefront, whose middleware then
+ * country-prefixes the path while preserving the token query.
+ */
+async function tenantStorefrontBase(
+  container: any,
+  tenantId: string
+): Promise<string | null> {
+  try {
+    const svc: any = container.resolve(PLATFORM_MODULE)
+    const domains: any[] = await svc
+      .listTenantDomains({ tenant_id: tenantId })
+      .catch(() => [])
+    const primary =
+      domains.find(
+        (d) =>
+          d.is_primary && d.type === "custom" && d.ssl_status === "active"
+      ) ?? domains.find((d) => d.type === "free")
+    if (primary?.domain) return `https://${primary.domain}`
+    const tenant = await svc.retrieveTenant(tenantId).catch(() => null)
+    if (tenant?.slug) {
+      const root = process.env.PLATFORM_ROOT_DOMAIN ?? "mautomate.ai"
+      return `https://${tenant.slug}.${root}`
+    }
+  } catch {
+    // fall through — caller uses resolveStoreUrl
+  }
+  return null
+}
 
 type PasswordResetData = {
   entity_id?: string
@@ -163,7 +200,10 @@ export default async function passwordResetHandler({
       const tenantId = idx > 0 ? rawEntity.slice(0, idx) : null
       email = idx > 0 ? rawEntity.slice(idx + 1) : rawEntity
       const base = tenantId
-        ? stripSlash(await resolveStoreUrl(container, tenantId))
+        ? stripSlash(
+            (await tenantStorefrontBase(container, tenantId)) ??
+              (await resolveStoreUrl(container, tenantId))
+          )
         : stripSlash(process.env.STOREFRONT_URL || "https://mautomate.ai")
       resetUrl = `${base}/reset-password?${queryString(token, email)}`
     } else if (actorType === "merchant") {

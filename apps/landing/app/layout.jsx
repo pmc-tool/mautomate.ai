@@ -29,10 +29,15 @@ export const viewport = {
   initialScale: 1,
 };
 
+// Referral/partner links (?ref=CODE) can land on any page; the signup form
+// reads this stored code back so attribution survives navigation.
+const refCatcher = `try{var r=new URLSearchParams(location.search).get("ref");if(r){r=r.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,10);if(r)localStorage.setItem("ma_ref",r)}}catch(e){}`;
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={inter.variable}>
       <body>
+        <script dangerouslySetInnerHTML={{ __html: refCatcher }} />
         <AntdRegistry>
           <ConfigProvider theme={antdTheme}>{children}</ConfigProvider>
         </AntdRegistry>

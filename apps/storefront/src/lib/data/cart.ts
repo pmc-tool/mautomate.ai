@@ -286,13 +286,38 @@ export async function applyPromotions(codes: string[]) {
   const promoCodes = await toInternalPromoCodes(codes)
 
   try {
-    await sdk.store.cart.update(cartId, { promo_codes: promoCodes }, {}, headers)
+    const { cart: updatedCart } = await sdk.store.cart.update(
+      cartId,
+      { promo_codes: promoCodes },
+      {},
+      headers
+    )
 
     const cartCacheTag = await getCacheTag("carts")
     revalidateTag(cartCacheTag)
 
     const fulfillmentCacheTag = await getCacheTag("fulfillment")
     revalidateTag(fulfillmentCacheTag)
+
+    // Medusa SILENTLY ignores codes that don't exist, aren't active, or whose
+    // rules the cart doesn't satisfy — the update succeeds with the code
+    // simply absent. Compare what actually attached so the customer gets an
+    // error instead of a code that looks accepted but discounts nothing.
+    const attached = new Set(
+      (updatedCart?.promotions ?? [])
+        .map((p: any) => String(p?.code ?? "").toLowerCase())
+        .filter(Boolean)
+    )
+    const missing = promoCodes.filter((c) => !attached.has(c.toLowerCase()))
+    if (missing.length > 0) {
+      const displayCodes = await Promise.all(
+        missing.map((c) => toDisplayPromoCode(c))
+      )
+      return {
+        success: false as const,
+        error: `The code ${displayCodes.join(", ")} could not be applied. It may be inactive, expired, or your cart may not meet its conditions.`,
+      }
+    }
 
     return { success: true as const }
   } catch (e) {

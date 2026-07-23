@@ -41,26 +41,27 @@ const AccountLayout: React.FC<AccountLayoutProps> = ({
           </div>
         </div>
 
-        {/* Got questions */}
-        <div
-          className="row align-items-center learts-pt-30"
-          style={{ borderTop: "1px solid #eee", marginTop: 40 }}
-        >
-          <div className="col-md-8 col-12">
-            <h3 className="title" style={{ fontSize: 22, marginBottom: 8 }}>
-              Got questions?
-            </h3>
-            <span style={{ color: "#777" }}>
-              You can find frequently asked questions and answers on our
-              customer service page.
-            </span>
+        {/* Got questions — only for signed-in customers; the logged-out
+            login/signup view should show nothing but the auth forms. */}
+        {customer && (
+          <div
+            className="row align-items-center learts-pt-30"
+            style={{ borderTop: "1px solid #eee", marginTop: 40 }}
+          >
+            <div className="col-md-8 col-12">
+              <h3 className="title" style={{ fontSize: 22, marginBottom: 8 }}>
+                Got questions?
+              </h3>
+              <span style={{ color: "#777" }}>
+                You can find frequently asked questions and answers on our
+                contact page.
+              </span>
+            </div>
+            <div className="col-md-4 col-12 text-md-right">
+              <UnderlineLink href="/contact">Contact us</UnderlineLink>
+            </div>
           </div>
-          <div className="col-md-4 col-12 text-md-right">
-            <UnderlineLink href="/customer-service">
-              Customer Service
-            </UnderlineLink>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )

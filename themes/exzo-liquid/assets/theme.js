@@ -124,13 +124,39 @@
     });
   });
 
-  /* ---- contact form (presentational) ---- */
+  /* ---- contact form — posts to the storefront bridge, which stores the
+     message tenant-stamped via POST /store/contact ---- */
   document.querySelectorAll("[data-contact-form]").forEach(function (form) {
     form.addEventListener("submit", function (e) {
       e.preventDefault();
-      var msg = form.querySelector("[data-contact-msg]");
-      Array.prototype.forEach.call(form.querySelectorAll("input,textarea,button"), function (el) { el.disabled = true; });
-      if (msg) { msg.hidden = false; msg.textContent = "Thanks - your message has been sent. We'll be in touch soon."; }
+      var msg = form.querySelector("[data-cort-msg]") || form.querySelector("[data-contact-msg]");
+      var val = function (sel) {
+        var el = form.querySelector(sel);
+        return el && el.value ? el.value.trim() : "";
+      };
+      var name = val("[name=name]");
+      var email = val("[name=email]");
+      var subject = val("[name=subject]");
+      var message = val("[name=message]");
+      if (!name || !email || !message) {
+        if (msg) { msg.hidden = false; msg.textContent = "Please fill in your name, email and message."; }
+        return;
+      }
+      var fields = form.querySelectorAll("input,textarea,button");
+      Array.prototype.forEach.call(fields, function (el) { el.disabled = true; });
+      fetch("/api/theme-contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name, email: email, subject: subject, message: message }),
+      })
+        .then(function (r) { if (!r.ok) { throw new Error("send failed"); } return r.json(); })
+        .then(function () {
+          if (msg) { msg.hidden = false; msg.textContent = "Thanks — your message has been sent. We'll be in touch soon."; }
+        })
+        .catch(function () {
+          Array.prototype.forEach.call(fields, function (el) { el.disabled = false; });
+          if (msg) { msg.hidden = false; msg.textContent = "Sorry — your message could not be sent. Please try again."; }
+        });
     });
   });
 
