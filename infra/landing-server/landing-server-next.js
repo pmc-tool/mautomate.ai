@@ -284,5 +284,5 @@ const server = http.createServer(async (req, res) => {
 })
 
 server.listen(PORT, "127.0.0.1", () =>
-  console.log(`[b2d-landing] Next export on 127.0.0.1:${PORT} -> ${BACKEND} (dist: ${DIST})`)
+  console.log(`[mautomate-landing] Next export on 127.0.0.1:${PORT} -> ${BACKEND} (dist: ${DIST})`)
 )

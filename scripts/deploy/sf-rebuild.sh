@@ -2,7 +2,7 @@
 # Storefront rebuild + deploy, run as a FILE so the build-detection pattern
 # never appears in an invoking process's command line (avoids pgrep self-match).
 set -u
-cd /home/ratul/brandtodoor/apps/storefront || exit 9
+cd /home/ratul/mautomate/apps/storefront || exit 9
 
 PAT='[.]bin/next build'   # matches the real "node .../.bin/next build", not this script
 
@@ -19,9 +19,9 @@ while pgrep -f "$PAT" >/dev/null 2>&1; do
 done
 echo "slot free (waited ${waited}s)"
 
-export NODE_PATH=/home/ratul/brandtodoor/node_modules:/home/ratul/foreverfinds/node_modules
+export NODE_PATH=/home/ratul/mautomate/node_modules:/home/ratul/foreverfinds/node_modules
 export NODE_OPTIONS=--max-old-space-size=6144
-export PATH=/home/ratul/brandtodoor/node_modules/.bin:/home/ratul/foreverfinds/node_modules/.bin:$PATH
+export PATH=/home/ratul/mautomate/node_modules/.bin:/home/ratul/foreverfinds/node_modules/.bin:$PATH
 
 echo "=== build start ==="
 next build > /tmp/sf-build-final.log 2>&1
@@ -38,7 +38,7 @@ fi
 echo "=== postbuild ==="
 /home/ratul/bin/sf-postbuild.sh 2>&1 | tail -3
 echo "=== restart ==="
-pm2 restart b2d-storefront-next >/dev/null 2>&1 && echo restarted
+pm2 restart mautomate-storefront >/dev/null 2>&1 && echo restarted
 sleep 8
 curl -s -o /dev/null -w "health 8601/dashboard: %{http_code}\n" --max-time 15 http://127.0.0.1:8601/dashboard
 echo "DONE"

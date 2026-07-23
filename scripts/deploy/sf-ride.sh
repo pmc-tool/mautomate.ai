@@ -5,7 +5,7 @@
 # stays incomplete with no build running for a while, it reports and exits so a
 # human decides (rather than spawning a competing build).
 set -u
-SF=/home/ratul/brandtodoor/apps/storefront
+SF=/home/ratul/mautomate/apps/storefront
 D="$SF/.next"
 PAT='[.]bin/next build'
 
@@ -25,7 +25,7 @@ for i in $(seq 1 120); do   # ~20 min max
   if complete; then
     echo "[$i] .next complete + no build running — restarting"
     /home/ratul/bin/sf-postbuild.sh >/dev/null 2>&1
-    pm2 restart b2d-storefront-next >/dev/null 2>&1
+    pm2 restart mautomate-storefront >/dev/null 2>&1
     ok=0
     for j in 1 2 3 4 5 6 7 8; do
       sleep 5

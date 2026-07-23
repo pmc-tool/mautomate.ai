@@ -13,25 +13,24 @@ build output, or runtime data (`.gitignore` enforces this).
 
 | Path | What it is | Runs as |
 |---|---|---|
-| `apps/backend/` | Medusa v2 backend: all APIs (`/merchant`, `/platform`, `/store`, `/admin`), modules (billing, credits, marketing, call-center, CMS, themes) | pm2 `b2d-backend`, port **9500** |
-| `apps/storefront/` | Next.js app serving BOTH every tenant storefront (Liquid themes via `theme-render`) AND the merchant dashboard (`/dashboard`) + visual editor (`/editor`) | pm2 `b2d-storefront-next`, port **8601** |
-| `apps/console/` | Super-admin console ("Control") — static export | pm2 `b2d-console`, port **8700** (serves `~/console/dist`) |
+| `apps/backend/` | Medusa v2 backend: all APIs (`/merchant`, `/platform`, `/store`, `/admin`), modules (billing, credits, marketing, call-center, CMS, themes) | pm2 `mautomate-backend`, port **9500** |
+| `apps/storefront/` | Next.js app serving BOTH every tenant storefront (Liquid themes via `theme-render`) AND the merchant dashboard (`/dashboard`) + visual editor (`/editor`) | pm2 `mautomate-storefront`, port **8601** |
+| `apps/console/` | Super-admin console ("Control") — static export | pm2 `mautomate-console`, port **8700** (serves `~/console/dist`) |
 | `apps/landing/` | mautomate.ai marketing site (Next.js static export: pricing, blog, get-started, signup) | built to `~/mautomate-landing/out`, served by the landing server |
 | `apps/merchant-app/` | Flutter merchant mobile app (Jarvis-first admin) | shipped as APK/IPA |
 | `apps/shopper-app/` | Flutter white-label customer app (server-driven from CMS blocks) | shipped per-store |
-| `apps/voice-agent/` | Python/pipecat voice agent (AI call center + Jarvis voice) | pm2 `b2d-voice-agent`, uvicorn :8790 |
+| `apps/voice-agent/` | Python/pipecat voice agent (AI call center + Jarvis voice) | pm2 `mautomate-voice-agent`, uvicorn :8790 |
 | `themes/` | Liquid theme packages (`katan-liquid`, `learts-liquid`, …) + `pack/validate/upload` scripts | uploaded to backend theme store |
-| `infra/landing-server/` | Node server for mautomate.ai: serves the landing export + proxies `/partners`, `/api/*`, signup | pm2 `b2d-landing`, port **8500** |
+| `infra/landing-server/` | Node server for mautomate.ai: serves the landing export + proxies `/partners`, `/api/*`, signup | pm2 `mautomate-landing`, port **8500** |
 | `scripts/deploy/` | The ONLY sanctioned build/deploy scripts (see below) | run on the server |
 | `THEME_GUIDE.md` | REQUIRED reading before any theme work | — |
 
 ## Where things run
 
-- Server: `ratul@192.168.200.201` (the "VM"), repo checked out at `/home/ratul/brandtodoor`.
-  (The directory name predates the Brand2Door -> mAutomate rebrand; pm2 process
-  names `b2d-*` are the same legacy. Renaming them is pure operational churn, so
-  they stay — but everything user-facing says mAutomate. Historical planning docs
-  live in `docs/archive/`.)
+- Server: `ratul@192.168.200.201` (the "VM"), repo checked out at `/home/ratul/mautomate`.
+  (`/home/ratul/brandtodoor` remains as a compatibility symlink to it; pm2
+  processes are all named `mautomate-*`. Historical planning docs live in
+  `docs/archive/`.)
 - Public entry: Cloudflare tunnels. `mautomate.ai` → :8500 (landing), `merchant.mautomate.ai` → :8600 edge → :8601, `api.mautomate.ai` → :9500, `*.mautomate.ai` tenant stores → :8600 → :8601. Tunnel config: `/home/ratul/vip-tunnel-config.yml`.
 - Secrets: `.env` files exist ONLY on the server (e.g. `apps/backend/.env`). They are gitignored. Never commit one; add a matching `.env.example` if you introduce a new variable.
 

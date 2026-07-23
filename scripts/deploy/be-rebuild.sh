@@ -5,7 +5,7 @@
 #  - the build WIPES .medusa/server/.env -> restore from the canonical apps/backend/.env
 #  - backend health takes ~60-90s; storefronts survive via stale-tenant-config
 set -u
-BE=/home/ratul/brandtodoor/apps/backend
+BE=/home/ratul/mautomate/apps/backend
 cd "$BE" || exit 9
 export NODE_PATH=/home/ratul/foreverfinds/node_modules
 export PATH=/home/ratul/foreverfinds/node_modules/.bin:$PATH
@@ -36,7 +36,7 @@ else
 fi
 
 echo "=== restart backend ==="
-pm2 restart b2d-backend --update-env >/dev/null 2>&1 && echo "restarted"
+pm2 restart mautomate-backend --update-env >/dev/null 2>&1 && echo "restarted"
 for i in $(seq 1 20); do
   sleep 8
   c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://127.0.0.1:9500/health)
