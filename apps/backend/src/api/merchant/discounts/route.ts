@@ -10,7 +10,10 @@ const StatusSchema = z.enum(["draft", "active", "inactive"])
 const CreateDiscountSchema = z.object({
   code: z.string().min(1).max(100),
   type: DiscountTypeSchema,
-  status: StatusSchema.default("draft"),
+  // Default ACTIVE: the discounts UI has no status control, and a draft
+  // promotion is silently ignored at checkout — a merchant creating a code
+  // expects it to work immediately.
+  status: StatusSchema.default("active"),
   value: z.number().int().min(0).default(0),
   currency_code: z.string().min(3).max(3).default("usd"),
   target_type: z.enum(["order", "items", "shipping_methods"]).default("order"),

@@ -1,12 +1,12 @@
 "use client"
 
-import React, { useEffect, useActionState } from "react";
+import React, { useEffect, useActionState } from "react"
 
 import Input from "@modules/common/components/input"
 
 import AccountInfo from "../account-info"
 import { HttpTypes } from "@medusajs/types"
-// import { updateCustomer } from "@lib/data/customer"
+import { updateCustomerEmail } from "@lib/data/customer"
 
 type MyInformationProps = {
   customer: HttpTypes.StoreCustomer
@@ -14,19 +14,6 @@ type MyInformationProps = {
 
 const ProfileEmail: React.FC<MyInformationProps> = ({ customer }) => {
   const [successState, setSuccessState] = React.useState(false)
-
-  // TODO: It seems we don't support updating emails now?
-  const updateCustomerEmail = (
-    _currentState: Record<string, unknown>,
-    _formData: FormData
-  ) => {
-    try {
-      // email: formData.get("email") as string
-      return { success: true, error: null }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
-  }
 
   const [state, formAction] = useActionState(updateCustomerEmail, {
     error: null as string | null,
@@ -54,7 +41,7 @@ const ProfileEmail: React.FC<MyInformationProps> = ({ customer }) => {
       >
         <div className="grid grid-cols-1 gap-y-2">
           <Input
-            label="Email"
+            label="New email"
             name="email"
             type="email"
             autoComplete="email"
@@ -62,6 +49,17 @@ const ProfileEmail: React.FC<MyInformationProps> = ({ customer }) => {
             defaultValue={customer.email}
             data-testid="email-input"
           />
+          <Input
+            label="Current password"
+            name="current_password"
+            type="password"
+            autoComplete="current-password"
+            required
+            data-testid="email-current-password-input"
+          />
+          <span className="txt-small text-ui-fg-subtle">
+            For your security, confirm the change with your current password.
+          </span>
         </div>
       </AccountInfo>
     </form>

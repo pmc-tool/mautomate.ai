@@ -38,6 +38,29 @@ import {
 /* on them changes.                                                    */
 /* ------------------------------------------------------------------ */
 
+/* Default content for the legal pages every store links from signup. A
+   merchant-published CMS page with the same slug replaces these entirely. */
+const POLICY_PAGE_FALLBACKS: Record<string, string> = {
+  "privacy-policy":
+    "<h1>Privacy Policy</h1>" +
+    "<p>This policy explains what information this store collects when you shop with us, how it is used, and the choices you have.</p>" +
+    "<h2>Information we collect</h2><p>When you create an account, place an order or contact us, we collect the information you provide: your name, email address, phone number, shipping and billing addresses, and details of the products you purchase. Payment card details are processed by our payment providers and are never stored on our servers.</p>" +
+    "<h2>How we use your information</h2><p>We use your information to process and deliver your orders, manage your account, respond to your questions, and — where you have agreed — send you updates about products and offers. We do not sell your personal information to third parties.</p>" +
+    "<h2>Sharing</h2><p>We share information only with service providers who need it to operate this store: payment processors, shipping carriers and the platform that hosts this store. Each is bound to use your information solely to provide their service.</p>" +
+    "<h2>Cookies</h2><p>This store uses cookies that are necessary for the shopping experience to work — keeping you signed in and remembering your cart. You can control cookies in your browser settings; disabling them may prevent parts of the store from working.</p>" +
+    "<h2>Data retention and your rights</h2><p>We keep your information for as long as your account is active or as needed to comply with legal obligations. You may request access to, correction of, or deletion of your personal information at any time by contacting us.</p>" +
+    '<h2>Contact</h2><p>If you have any questions about this policy or how your information is handled, please reach out through our <a href="/contact">contact page</a>.</p>',
+  "terms-of-use":
+    "<h1>Terms of Use</h1>" +
+    "<p>By using this store and placing orders you agree to the terms below. Please read them before you shop.</p>" +
+    "<h2>Your account</h2><p>You are responsible for keeping your account credentials confidential and for all activity under your account. Provide accurate, current information when you register and keep it up to date.</p>" +
+    "<h2>Orders and payment</h2><p>All orders are subject to acceptance and availability. Prices, promotions and product availability may change at any time before an order is accepted. If we cannot fulfill your order, we will notify you and refund any amount already paid.</p>" +
+    "<h2>Shipping and returns</h2><p>Delivery estimates are provided in good faith but are not guaranteed. If something arrives damaged or is not what you ordered, contact us and we will make it right in line with our returns process.</p>" +
+    "<h2>Acceptable use</h2><p>You agree not to misuse this store: no attempts to interfere with its operation, access other customers' data, or use its content for unlawful purposes.</p>" +
+    "<h2>Intellectual property</h2><p>All content on this store — product images, text, logos and design — belongs to the store or its licensors and may not be reproduced without permission.</p>" +
+    '<h2>Changes to these terms</h2><p>We may update these terms from time to time. The version published on this page applies to every order at the time it is placed. Continued use of the store after changes means you accept the updated terms. Questions? <a href="/contact">Contact us</a>.</p>',
+}
+
 /** Which theme + template + data does this path map to? */
 function classify(path: string): { template: string; countryCode: string; handle?: string; kind?: string } {
   // path arrives WITHOUT the leading /theme-render, e.g. "bd/products/watch".
@@ -233,9 +256,16 @@ export async function GET(
       // of 404ing, which is the point of previewing before first publish.
       const cmsPage =
         draftSections !== null ? null : await getCmsPage(slug).catch(() => null)
+      // Built-in policy pages: signup links to /privacy-policy and
+      // /terms-of-use on every store, but a fresh store has no CMS page for
+      // them. Serve sensible default content through the theme instead of a
+      // 404; a merchant-published CMS page with the same slug still wins.
+      const policyFallback =
+        template === "page" ? POLICY_PAGE_FALLBACKS[slug] : undefined
       if (
         draftSections === null &&
         template === "page" &&
+        !policyFallback &&
         (!cmsPage || !Array.isArray(cmsPage.sections) || cmsPage.sections.length === 0)
       ) {
         // Unknown slug / unpublished page — 404 like the React catch-all did.
@@ -246,7 +276,16 @@ export async function GET(
           ? draftSections
           : cmsPage?.sections?.length
             ? cmsPage.sections
-            : (bundle.manifest?.defaultSections ?? [])
+            : policyFallback
+              ? [
+                  {
+                    id: `policy-${slug}`,
+                    type: "rich_text",
+                    html: policyFallback,
+                    width: "narrow",
+                  },
+                ]
+              : (bundle.manifest?.defaultSections ?? [])
       data = homeContext(base, sections)
       ;(data as any).categories = categories
       await resolveProductTabs(data, countryCode)

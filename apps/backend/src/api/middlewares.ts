@@ -756,6 +756,38 @@ export default defineMiddlewares({
       middlewares: [scopeCustomerMeToTenant],
     },
     {
+      // Authenticated email change (custom route — core has none). It re-checks
+      // the CURRENT password, so it is a credential-checking endpoint and gets
+      // the same brute-force limiter as the auth routes.
+      matcher: "/store/customers/me/email",
+      method: ["POST"],
+      middlewares: [
+        rateLimitAuth,
+        authenticate("customer", ["bearer", "session"]),
+      ],
+    },
+    {
+      // Customer email verification: check + request need the customer's own
+      // token; confirm is public (link may be opened on another device) but
+      // token-bound and brute-force limited (the limiter keys on body.token).
+      matcher: "/store/auth/email-verification/check",
+      method: ["GET"],
+      middlewares: [authenticate("customer", ["bearer", "session"])],
+    },
+    {
+      matcher: "/store/auth/email-verification/request",
+      method: ["POST"],
+      middlewares: [
+        rateLimitAuth,
+        authenticate("customer", ["bearer", "session"]),
+      ],
+    },
+    {
+      matcher: "/store/auth/email-verification/confirm",
+      method: ["POST"],
+      middlewares: [rateLimitAuth],
+    },
+    {
       // CORS preflight for the merchant SPA. OPTIONS must answer before auth,
       // otherwise the browser blocks /merchant/* calls after login.
       matcher: "/merchant/*",

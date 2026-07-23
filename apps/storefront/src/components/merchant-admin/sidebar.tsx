@@ -113,6 +113,7 @@ const navItems: NavItem[] = [
     ],
   },
   { href: "/dashboard/inbox", label: "Inbox", icon: InboxSolid },
+  { href: "/dashboard/contact", label: "Contact messages", icon: Envelope },
   {
     id: "marketing",
     label: "Marketing",

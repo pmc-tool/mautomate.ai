@@ -688,7 +688,7 @@ export default function PromotionCreatePage() {
   // Form state (defaults = amount_off_products template, like Medusa)
   const [templateId, setTemplateId] = useState(TEMPLATES[0].id)
   const [isAutomatic, setIsAutomatic] = useState<"false" | "true">("false")
-  const [status, setStatus] = useState<"draft" | "active">("draft")
+  const [status, setStatus] = useState<"draft" | "active">("active")
   const [code, setCode] = useState("")
   const [type, setType] = useState<PromotionType>(TEMPLATES[0].defaults.type)
   const [valueType, setValueType] = useState<ValueType>(
@@ -893,7 +893,7 @@ export default function PromotionCreatePage() {
     const t = TEMPLATES.find((x) => x.id === id) || TEMPLATES[0]
     setTemplateId(t.id)
     setIsAutomatic("false")
-    setStatus("draft")
+    setStatus("active")
     setCode("")
     setType(t.defaults.type)
     setValueType(t.defaults.valueType)

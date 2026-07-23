@@ -25,19 +25,14 @@ export type CustomerAuthState =
   | { state: "success" }
   | null
 
-// Requests a verification email for the given customer. The request must be
-// authenticated with a token tied to the auth identity (the token returned by
-// register or by a login that requires verification).
-async function requestVerificationEmail(email: string, token: string) {
-  await sdk.auth.verification.request(
-    {
-      entity_id: email,
-      entity_type: "email",
-    },
-    {
-      authorization: `Bearer ${token}`,
-    }
-  )
+// Requests a verification email for the authenticated customer through the
+// backend's custom email-verification routes (Medusa core has none).
+async function requestVerificationEmail(token: string) {
+  await sdk.client.fetch(`/store/auth/email-verification/request`, {
+    method: "POST",
+    body: {},
+    headers: { authorization: `Bearer ${token}` },
+  })
 }
 
 export const retrieveCustomer =
@@ -84,44 +79,144 @@ export const updateCustomer = async (body: HttpTypes.StoreUpdateCustomer) => {
   return updateRes
 }
 
+// Stricter than the HTML5 email rule (which accepts "user@mail" with no TLD):
+// require a dot-separated domain so obviously undeliverable addresses are
+// rejected before any side effect runs.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+export const updateCustomerEmail = async (
+  _currentState: Record<string, unknown>,
+  formData: FormData
+): Promise<{ success: boolean; error: string | null }> => {
+  const email = ((formData.get("email") as string) || "").trim()
+  const password = (formData.get("current_password") as string) || ""
+
+  if (!EMAIL_PATTERN.test(email)) {
+    return { success: false, error: "Enter a valid email address." }
+  }
+  if (!password) {
+    return {
+      success: false,
+      error: "Enter your current password to confirm the change.",
+    }
+  }
+
+  const headers = {
+    ...(await getAuthHeaders()),
+  }
+
+  try {
+    await sdk.client.fetch(`/store/customers/me/email`, {
+      method: "POST",
+      body: { email, password },
+      headers,
+    })
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error?.message || "Could not update your email. Please try again.",
+    }
+  }
+
+  const cacheTag = await getCacheTag("customers")
+  revalidateTag(cacheTag)
+
+  return { success: true, error: null }
+}
+
+// Returns a human-readable problem with the password, or null when it meets
+// the policy: 8+ chars with upper, lower, digit and special character.
+function passwordPolicyProblem(password: string): string | null {
+  if (password.length < 8) {
+    return "Password must be at least 8 characters."
+  }
+  if (!/[A-Z]/.test(password)) {
+    return "Password must include an uppercase letter."
+  }
+  if (!/[a-z]/.test(password)) {
+    return "Password must include a lowercase letter."
+  }
+  if (!/\d/.test(password)) {
+    return "Password must include a number."
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return "Password must include a special character."
+  }
+  return null
+}
+
 export async function signup(
   _currentState: unknown,
   formData: FormData
 ): Promise<CustomerAuthState> {
-  const password = formData.get("password") as string
+  const password = (formData.get("password") as string) || ""
+  const confirmPassword = (formData.get("confirm_password") as string) || ""
+  const termsAccepted = !!formData.get("terms_accepted")
   const customerForm = {
-    email: formData.get("email") as string,
-    first_name: formData.get("first_name") as string,
-    last_name: formData.get("last_name") as string,
-    phone: formData.get("phone") as string,
+    email: ((formData.get("email") as string) || "").trim(),
+    first_name: ((formData.get("first_name") as string) || "").trim(),
+    last_name: ((formData.get("last_name") as string) || "").trim(),
+    phone: ((formData.get("phone") as string) || "").trim(),
   }
 
-  try {
-    await sdk.auth.register("customer", "emailpass", {
-      email: customerForm.email,
-      password,
-    })
-  } catch (error) {
-    const fetchError = error as FetchError
-    // An existing identity (for example, an admin user with the same email) is
-    // expected and handled: the customer can still log in to link a customer
-    // record. Any other error is surfaced.
-    if (
-      fetchError.statusText !== "Unauthorized" ||
-      fetchError.message !== "Identity with email already exists"
-    ) {
-      return { state: "error", error: String(error) }
+  // Validate everything BEFORE any side effect, so a bad submit surfaces a
+  // visible error instead of half-registering and silently resetting the form.
+  if (!customerForm.first_name || !customerForm.last_name) {
+    return { state: "error", error: "First and last name are required." }
+  }
+  if (!EMAIL_PATTERN.test(customerForm.email)) {
+    return {
+      state: "error",
+      error: "Enter a valid email address, like name@example.com.",
+    }
+  }
+  const passwordProblem = passwordPolicyProblem(password)
+  if (passwordProblem) {
+    return { state: "error", error: passwordProblem }
+  }
+  if (password !== confirmPassword) {
+    return { state: "error", error: "The two passwords do not match." }
+  }
+  if (!termsAccepted) {
+    return {
+      state: "error",
+      error: "Please agree to the Terms of Use and Privacy Policy to continue.",
     }
   }
 
-  // Persist the extra signup fields. The customer record is created during
-  // login, which is deferred until after email verification when the backend
-  // requires it.
-  await setPendingCustomer(customerForm)
+  try {
+    try {
+      await sdk.auth.register("customer", "emailpass", {
+        email: customerForm.email,
+        password,
+      })
+    } catch (error) {
+      const fetchError = error as FetchError
+      // An existing identity (for example, an admin user with the same email) is
+      // expected and handled: the customer can still log in to link a customer
+      // record. Any other error is surfaced.
+      if (
+        fetchError.statusText !== "Unauthorized" ||
+        fetchError.message !== "Identity with email already exists"
+      ) {
+        return { state: "error", error: String(error) }
+      }
+    }
 
-  // Continue by logging in. The login response tells us whether the backend
-  // requires email verification — we don't need a storefront-side flag.
-  return completeLogin(customerForm.email, password)
+    // Persist the extra signup fields. The customer record is created during
+    // login, which is deferred until after email verification when the backend
+    // requires it.
+    await setPendingCustomer(customerForm)
+
+    // Continue by logging in. The login response tells us whether the backend
+    // requires email verification — we don't need a storefront-side flag.
+    return await completeLogin(customerForm.email, password)
+  } catch (error) {
+    // No failure may escape as a rejection: an escaped throw leaves
+    // useActionState at null, which renders NO error and looks like the form
+    // "just reset".
+    return { state: "error", error: String(error) }
+  }
 }
 
 export async function login(
@@ -156,21 +251,6 @@ async function completeLogin(
       state: "error",
       error: "This login method isn't supported by the storefront.",
     }
-  }
-
-  // The backend requires email verification and the customer hasn't verified
-  // yet. Send the verification email and ask them to check their inbox.
-  if (
-    typeof result === "object" &&
-    "verification_required" in result &&
-    result.verification_required
-  ) {
-    try {
-      await requestVerificationEmail(email, result.token)
-    } catch {
-      // Ignore: the customer can resend from the verification page.
-    }
-    return { state: "verification_required", email }
   }
 
   if (typeof result !== "string") {
@@ -218,6 +298,31 @@ async function completeLogin(
     await removePendingCustomer()
   }
 
+  // Email verification (env-gated on the backend): when this deployment
+  // requires it and the customer hasn't verified yet, send the email and stop
+  // short of creating the session. Fail-open on a broken check — verification
+  // must never be able to lock every shopper out.
+  try {
+    const check = await sdk.client.fetch<{
+      required: boolean
+      verified: boolean
+    }>(`/store/auth/email-verification/check`, {
+      method: "GET",
+      headers: { authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+    if (check?.required && !check?.verified) {
+      try {
+        await requestVerificationEmail(token)
+      } catch {
+        // Ignore: the customer can resend by signing in again.
+      }
+      return { state: "verification_required", email }
+    }
+  } catch {
+    // Fail-open.
+  }
+
   await setAuthToken(token)
 
   const customerCacheTag = await getCacheTag("customers")
@@ -240,7 +345,10 @@ export async function confirmEmailVerification(
   token: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await sdk.auth.verification.confirm({ code: token })
+    await sdk.client.fetch(`/store/auth/email-verification/confirm`, {
+      method: "POST",
+      body: { token },
+    })
     return { success: true }
   } catch (error) {
     return { success: false, error: String(error) }

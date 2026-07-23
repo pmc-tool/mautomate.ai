@@ -24,6 +24,21 @@ import { JarvisStage } from "./jarvis-stage"
 // separate dark full-screen voice window. Default: the unified OS owns voice.
 const DARK_STAGE = process.env.NEXT_PUBLIC_JARVIS_DARK_STAGE === "1"
 
+// Where the pill's persisted position is stored between sessions.
+const POSITION_KEY = "pixi:launcher-pos"
+// Approximate pill footprint used for viewport clamping.
+const PILL_W = 130
+const PILL_H = 60
+
+function clampPosition(x: number, y: number) {
+  const maxX = Math.max(8, window.innerWidth - PILL_W)
+  const maxY = Math.max(8, window.innerHeight - PILL_H)
+  return {
+    x: Math.min(Math.max(8, x), maxX),
+    y: Math.min(Math.max(8, y), maxY),
+  }
+}
+
 export function JarvisLauncher() {
   const { token } = useMerchantAuth()
   const [open, setOpen] = useState(false)
@@ -33,6 +48,90 @@ export function JarvisLauncher() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const hoverRef = useRef(false)
   hoverRef.current = hover
+
+  // Draggable position (left/top). null = the default dock, which sits ABOVE
+  // typical bottom action bars (Save / Continue) so it never covers them.
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const dragRef = useRef<{
+    dx: number
+    dy: number
+    startX: number
+    startY: number
+    moved: boolean
+  } | null>(null)
+  const posRef = useRef(pos)
+  posRef.current = pos
+
+  // Hydrate the persisted position, re-clamped so a smaller viewport can never
+  // strand the pill off-screen; keep it in-bounds on window resize too.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const raw = window.localStorage.getItem(POSITION_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Number.isFinite(parsed?.x) && Number.isFinite(parsed?.y)) {
+          setPos(clampPosition(parsed.x, parsed.y))
+        }
+      }
+    } catch {
+      // Ignore a corrupt stored position.
+    }
+    const onResize = () => {
+      const current = posRef.current
+      if (current) setPos(clampPosition(current.x, current.y))
+    }
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [])
+
+  const lastDragMovedRef = useRef(false)
+
+  const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    // Left button / touch only.
+    if (e.pointerType === "mouse" && e.button !== 0) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const rect = e.currentTarget.getBoundingClientRect()
+    dragRef.current = {
+      dx: e.clientX - rect.left,
+      dy: e.clientY - rect.top,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+    }
+    lastDragMovedRef.current = false
+  }
+
+  const onPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current
+    if (!drag) return
+    // A real drag needs a few pixels of travel — protects plain clicks.
+    if (
+      !drag.moved &&
+      Math.abs(e.clientX - drag.startX) < 4 &&
+      Math.abs(e.clientY - drag.startY) < 4
+    ) {
+      return
+    }
+    drag.moved = true
+    setPos(clampPosition(e.clientX - drag.dx, e.clientY - drag.dy))
+  }
+
+  const onPointerUp = () => {
+    const drag = dragRef.current
+    dragRef.current = null
+    lastDragMovedRef.current = !!drag?.moved
+    if (drag?.moved && posRef.current) {
+      try {
+        window.localStorage.setItem(
+          POSITION_KEY,
+          JSON.stringify(posRef.current)
+        )
+      } catch {
+        // Storage full/blocked — position simply won't persist.
+      }
+    }
+  }
 
   // The unified event contract: the panel opens the stage ("jarvis:voice"),
   // tells us when it is open ("jarvis:panel-state") and how many items need
@@ -151,13 +250,37 @@ export function JarvisLauncher() {
       {!open && !panelOpen && (
         <button
           type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("jarvis:open"))}
+          onClick={() => {
+            // A drag that ends on the pill must not also open Pixi.
+            if (lastDragMovedRef.current) {
+              lastDragMovedRef.current = false
+              return
+            }
+            window.dispatchEvent(new CustomEvent("jarvis:open"))
+          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
-          aria-label="Pixi"
-          title="Pixi"
+          aria-label="Pixi (drag to move)"
+          title="Pixi — drag to move"
           className="jv-launch fixed z-40 flex items-center gap-2.5 rounded-full py-2 pl-2 pr-4"
-          style={{ bottom: "1.5rem", right: "1.5rem" }}
+          style={
+            pos
+              ? {
+                  left: pos.x,
+                  top: pos.y,
+                  right: "auto",
+                  bottom: "auto",
+                  touchAction: "none",
+                }
+              : // Default dock is LIFTED above the bottom edge so it clears the
+                // Save / Continue action bars that live bottom-right on the
+                // setup wizard and product forms.
+                { bottom: "6.5rem", right: "1.5rem", touchAction: "none" }
+          }
         >
           <canvas
             ref={canvasRef}
