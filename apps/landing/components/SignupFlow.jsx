@@ -136,6 +136,17 @@ export default function SignupFlow() {
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         const rslug = data.slug ?? finalSlug;
+
+        // Paid plan: the account starts on a free trial and we take the card
+        // FIRST via the Paddle 7-day-trial checkout ($0 today, plan begins after
+        // 7 days). Go straight there — never drop the visitor into the dashboard
+        // before the card step.
+        if (data.requires_card && (data.checkout_url || data.admin_url)) {
+          setStep("redirecting");
+          window.location.href = data.checkout_url || data.admin_url;
+          return;
+        }
+
         setResult({
           slug: rslug,
           admin_url: data.admin_url,
@@ -166,6 +177,23 @@ export default function SignupFlow() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // ---- Redirecting to the card-first trial checkout ----
+  if (step === "redirecting") {
+    return (
+      <StatusCard>
+        <Spinner />
+        <h2 className="mt-6 text-h3 font-bold text-ink">
+          Taking you to secure checkout…
+        </h2>
+        <p className="mt-3 text-sm leading-relaxed text-muted">
+          Add your card to start your {TRIAL_DAYS}-day free trial. You won&apos;t
+          be charged today — your plan begins automatically after {TRIAL_DAYS}{" "}
+          days, and you can cancel any time before then.
+        </p>
+      </StatusCard>
+    );
   }
 
   // ---- Provisioning / success / failed screens ----

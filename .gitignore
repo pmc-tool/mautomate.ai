@@ -22,3 +22,5 @@ apps/shopper-app/build/
 apps/*/android/.gradle/
 out/
 .medusa/
+.next-prev/
+.next-old-*/
