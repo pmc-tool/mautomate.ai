@@ -36,14 +36,26 @@ export default function SignupFlow() {
   const [result, setResult] = useState(null); // { slug, admin_url, store_url }
 
   const pollRef = useRef({ tries: 0, timer: null });
+  const [refCode, setRefCode] = useState("");
 
-  // Read ?plan / ?billing from the URL on mount (set by the pricing CTAs).
+  // Read ?plan / ?billing from the URL on mount (set by the pricing CTAs), and
+  // the referral/partner ?ref code — falling back to the one the layout script
+  // stashed in localStorage if the visitor navigated here from another page.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const p = q.get("plan");
     const b = q.get("billing");
     if (p && PLANS.some((x) => x.id === p)) setPlanKey(p);
     if (b && BILLING.some((x) => x.id === b)) setBilling(b);
+    try {
+      const r = (q.get("ref") || localStorage.getItem("ma_ref") || "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "")
+        .slice(0, 10);
+      if (r) setRefCode(r);
+    } catch {
+      // localStorage unavailable — referral attribution just doesn't apply
+    }
   }, []);
 
   // Keep slug in sync with the store name until the user edits it themselves.
@@ -127,6 +139,8 @@ export default function SignupFlow() {
           email: email.trim(),
           password,
           package: plan.id,
+          billing,
+          ...(refCode ? { ref: refCode } : {}),
         }),
       });
 
