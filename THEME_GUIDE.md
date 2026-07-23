@@ -138,6 +138,12 @@ Page-specific:
 - **product:** `product { id, title, handle, description, available,
   featured_image{url,alt}, images[], price (MAJOR units number), compare_at_price,
   variants[{id,title,available,price,options}], options[{name,values[]}] }`.
+  **Wishlist convention** (see katan-liquid 1.0.2): a heart button
+  `<button data-wishlist-toggle data-product-id="{{ product.id }}">` plus theme.js
+  logic that reads/writes localStorage key `ff_wishlist` (JSON array of product-id
+  strings — the SAME contract as the React wishlist context), and a header link to
+  `{{ root }}/wishlist` (the React wishlist page works on every themed store).
+  Guard hearts with `{% if product.id %}` so they degrade gracefully.
 - **collection:** `collection { title, handle, description, products_count, products[] }`
   (products use the same shape as `product`). Category pages reuse this template.
 - **list-collections:** `products[]` (flat).

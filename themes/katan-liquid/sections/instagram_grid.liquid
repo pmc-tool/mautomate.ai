@@ -1,7 +1,7 @@
 {%- assign s = section.settings -%}
 {%- assign images = s.images -%}
 {%- if images and images.size > 0 -%}
-<section class="kt-section kt-insta">
+<section class="kt-section kt-insta{% if section.in_column %} kt-in-column{% endif %}">
   <div class="kt-container">
     {%- if s.heading != blank or s.handle != blank -%}
     <div class="kt-shead kt-shead-center">
@@ -17,3 +17,4 @@
   </div>
 </section>
 {%- endif -%}
+

@@ -77,6 +77,7 @@ async function resolveProductTabs(
     const price = cp?.calculated_amount ?? 0
     const orig = cp?.original_amount ?? null
     return {
+      id: pr.id,
       title: pr.title,
       handle: pr.handle,
       featured_image: pr.images?.[0] ?? (pr.thumbnail ? { url: pr.thumbnail } : null),
@@ -317,6 +318,7 @@ export async function GET(
         queryParams: { limit: 24, fields: "*variants.calculated_price,*images,thumbnail,title,handle" } as any,
       }).catch(() => ({ response: { products: [] } }))
       ;(data as any).products = (response.products ?? []).map((p: any) => ({
+        id: p.id,
         title: p.title,
         handle: p.handle,
         featured_image: p.images?.[0] ?? (p.thumbnail ? { url: p.thumbnail } : null),

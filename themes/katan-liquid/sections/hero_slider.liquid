@@ -2,7 +2,7 @@
 {%- assign nl = '
 ' -%}
 {%- if slides and slides.size > 0 -%}
-<section class="kt-hero" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 6000 }}">
+<section class="kt-hero{% if section.in_column %} kt-in-column{% endif %}" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 6000 }}">
   <div class="kt-hero-slides">
     {%- for slide in slides -%}
     <div class="kt-hero-slide{% if forloop.first %} is-active{% endif %}{% if slide.image != blank %} has-image{% endif %}" data-el-item="slides:{{ forloop.index0 }}" data-el="image"{% if slide.image != blank %} style="background-image:url('{{ slide.image }}')"{% endif %}>
@@ -17,11 +17,12 @@
     {%- endfor -%}
   </div>
   {%- if slides.size > 1 -%}
-  <button class="kt-hero-arrow kt-hero-prev" data-hero-prev aria-label="Previous">&#8249;</button>
+  {%- unless section.in_column -%}<button class="kt-hero-arrow kt-hero-prev" data-hero-prev aria-label="Previous">&#8249;</button>
   <button class="kt-hero-arrow kt-hero-next" data-hero-next aria-label="Next">&#8250;</button>
-  <div class="kt-hero-dots" data-hero-dots>
+  {% endunless %}<div class="kt-hero-dots" data-hero-dots>
     {%- for slide in slides -%}<button class="kt-hero-dot{% if forloop.first %} is-active{% endif %}" data-hero-dot="{{ forloop.index0 }}" aria-label="Slide {{ forloop.index }}"></button>{%- endfor -%}
   </div>
   {%- endif -%}
 </section>
 {%- endif -%}
+

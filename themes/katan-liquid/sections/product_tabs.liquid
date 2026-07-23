@@ -1,6 +1,6 @@
 {%- assign tabs = section.settings.tabs -%}
 {%- if tabs and tabs.size > 0 -%}
-<section class="kt-section kt-tabs" data-tabs>
+<section class="kt-section kt-tabs{% if section.in_column %} kt-in-column{% endif %}" data-tabs>
   <div class="kt-container">
     <div class="kt-shead kt-shead-center">
       <span class="kt-eyebrow">The collection</span>
@@ -14,7 +14,11 @@
     <div class="kt-tabpanel{% if forloop.first %} is-active{% endif %}" data-tab-panel="{{ forloop.index0 }}" role="tabpanel">
       {%- assign products = tab.products -%}
       {%- if products and products.size > 0 -%}
+      {%- if section.in_column -%}
+      <div class="kt-grid">{%- for product in products limit: 4 -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- else -%}
       <div class="kt-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- endif -%}
       {%- else -%}
       <p class="kt-empty">No products to show here yet.</p>
       {%- endif -%}
@@ -23,3 +27,4 @@
   </div>
 </section>
 {%- endif -%}
+

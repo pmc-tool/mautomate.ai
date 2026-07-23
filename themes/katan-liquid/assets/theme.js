@@ -143,3 +143,45 @@
     });
   });
 })();
+
+/* ---- wishlist — shared with the storefront wishlist page via localStorage.
+   Contract (lib/context/wishlist-context.tsx): key "ff_wishlist" holding a
+   JSON array of product-id strings. ---- */
+(function () {
+  "use strict";
+  var KEY = "ff_wishlist";
+  function read() {
+    try {
+      var v = JSON.parse(window.localStorage.getItem(KEY) || "[]");
+      return Array.isArray(v) ? v.filter(function (x) { return typeof x === "string"; }) : [];
+    } catch (e) { return []; }
+  }
+  function write(ids) { try { window.localStorage.setItem(KEY, JSON.stringify(ids)); } catch (e) {} }
+  function sync() {
+    var ids = read();
+    document.querySelectorAll("[data-wishlist-toggle]").forEach(function (btn) {
+      var on = ids.indexOf(btn.getAttribute("data-product-id")) !== -1;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    document.querySelectorAll("[data-wishlist-count]").forEach(function (el) {
+      if (ids.length) { el.textContent = String(ids.length); el.hidden = false; }
+      else { el.hidden = true; }
+    });
+  }
+  document.addEventListener("click", function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest("[data-wishlist-toggle]") : null;
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var id = btn.getAttribute("data-product-id");
+    if (!id) return;
+    var ids = read();
+    var i = ids.indexOf(id);
+    if (i === -1) ids.push(id); else ids.splice(i, 1);
+    write(ids);
+    sync();
+  });
+  window.addEventListener("storage", function (e) { if (e.key === KEY) sync(); });
+  sync();
+})();

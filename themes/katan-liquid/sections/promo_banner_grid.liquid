@@ -1,5 +1,5 @@
 {%- assign s = section.settings -%}
-<section class="kt-section kt-promo">
+<section class="kt-section kt-promo{% if section.in_column %} kt-in-column{% endif %}">
   <div class="kt-container">
     <div class="kt-promo-grid">
       {%- if s.intro -%}
@@ -48,3 +48,4 @@
     </div>
   </div>
 </section>
+

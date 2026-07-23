@@ -1,6 +1,6 @@
 {%- assign s = section.settings -%}
 {%- assign brands = s.brands -%}
-<section class="kt-section kt-brands">
+<section class="kt-section kt-brands{% if section.in_column %} kt-in-column{% endif %}">
   <div class="kt-container">
     {%- if s.title != blank -%}<div class="kt-shead kt-shead-center"><h2 class="kt-title kt-title-sm" data-el="title">{{ s.title }}</h2></div>{%- endif -%}
     {%- if brands and brands.size > 0 -%}
@@ -10,3 +10,4 @@
     {%- endif -%}
   </div>
 </section>
+

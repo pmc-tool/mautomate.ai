@@ -18,6 +18,11 @@ const BACKEND =
 type Bundle = { handle: string; version: string; manifest: any; files: ThemeFiles }
 
 const cache = new Map<string, Bundle>()
+// The "@current" alias is NOT immutable — a publish changes what it points
+// to. Expire it quickly so new theme versions go live without a restart;
+// explicit-version entries stay cached forever (those ARE immutable).
+const currentAt = new Map<string, number>()
+const CURRENT_TTL_MS = 60_000
 
 /**
  * Load a theme's template bundle. Returns null when the handle isn't an
@@ -31,7 +36,12 @@ export async function loadThemeBundle(
   if (!handle) return null
   const cacheKey = `${handle}@${version ?? "current"}`
   const hit = cache.get(cacheKey)
-  if (hit) return hit
+  if (hit) {
+    const fresh =
+      version != null ||
+      Date.now() - (currentAt.get(handle) ?? 0) < CURRENT_TTL_MS
+    if (fresh) return hit
+  }
 
   try {
     const url = `${BACKEND}/themes-cdn/bundle?handle=${encodeURIComponent(handle)}${
@@ -45,6 +55,7 @@ export async function loadThemeBundle(
     // Cache under BOTH the request key and the resolved version, so a later
     // "current" request and an explicit-version request share one entry.
     cache.set(cacheKey, bundle)
+    if (version == null) currentAt.set(handle, Date.now())
     cache.set(`${handle}@${bundle.version}`, bundle)
     return bundle
   } catch {

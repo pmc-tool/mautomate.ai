@@ -1,7 +1,7 @@
 {%- assign s = section.settings -%}
 {%- assign items = s.items -%}
 {%- if items and items.size > 0 -%}
-<section class="kt-section kt-showcase">
+<section class="kt-section kt-showcase{% if section.in_column %} kt-in-column{% endif %}">
   <div class="kt-container">
     <div class="kt-shead kt-shead-center">
       {%- if s.sub_title != blank -%}<span class="kt-eyebrow">{{ s.sub_title }}</span>{%- endif -%}
@@ -19,3 +19,4 @@
   </div>
 </section>
 {%- endif -%}
+

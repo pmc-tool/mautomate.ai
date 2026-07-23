@@ -1,7 +1,7 @@
 {
   "id": "katan-liquid",
   "name": "Katan",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "engine": "1",
   "author": "mAutomate",
   "description": "Katan — a premium multipurpose fashion theme. Elegant and editorial: airy whitespace, Jost display headings over Poppins body copy, a warm camel-gold accent on ink, pastel hero canvases and portrait product imagery.",
@@ -146,3 +146,4 @@
     }
   ]
 }
+

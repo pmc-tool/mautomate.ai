@@ -13,6 +13,11 @@
       <img class="kt-card-img-main" src="{{ main }}" alt="{{ product.title }}" loading="lazy">
       {%- if hover != main -%}<img class="kt-card-img-hover" src="{{ hover }}" alt="{{ product.title }}" loading="lazy">{%- endif -%}
     </a>
+    {%- if product.id -%}
+    <button type="button" class="kt-wish" data-wishlist-toggle data-product-id="{{ product.id }}" aria-label="Save to wishlist" aria-pressed="false">
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 20.5 5.2 13.7a4.6 4.6 0 0 1 0-6.5 4.6 4.6 0 0 1 6.5 0l.3.3.3-.3a4.6 4.6 0 0 1 6.5 6.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    </button>
+    {%- endif -%}
     <span class="kt-card-cta">View product</span>
   </div>
   <div class="kt-card-body">

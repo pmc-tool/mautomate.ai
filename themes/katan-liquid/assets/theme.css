@@ -473,3 +473,93 @@ a.kt-footer-contact:hover{ color:var(--kt-accent); }
 .kt-composed-col{ min-width:0; }
 .kt-footer-brand{ margin-bottom:18px; }
 .kt-footer-col-wide{ min-width:0; }
+
+/* ==========================================================================
+   COMPACT IN-COLUMN VARIANTS  [.kt-in-column]
+   The page builder can drop a commerce section into a container COLUMN as a
+   widget. The platform sets `section.in_column` on the Liquid context and the
+   section templates translate that into a single modifier class on the section
+   ROOT: `kt-in-column`. EVERY rule below is scoped under that class, so a
+   full-width section (which never gets the class) is untouched — this block is
+   purely additive.
+   Why it is needed: the full-width layouts are sized for the 1360px container
+   and their breakpoints key off the VIEWPORT, not the box. In a ~400px column
+   they would still get the 12-column promo mosaic, a 4-up product grid, a 5-up
+   showcase and a hero whose min-height is 62vh of the WINDOW. These rules
+   re-tune each one to the box instead.
+   ========================================================================== */
+
+/* shared: kill the full-width vertical rhythm + shrink the display type. The
+   container column owns spacing between its widgets. */
+.kt-in-column{ padding-top:0; padding-bottom:0; }
+.kt-in-column .kt-shead,
+.kt-in-column .kt-shead-center{ margin-bottom:20px; max-width:none; }
+/* a centred heading block wastes a narrow box — left-align section heads */
+.kt-in-column .kt-shead-center{ text-align:left; margin-inline:0; }
+.kt-in-column .kt-title{ font-size:20px; }
+.kt-in-column .kt-title-sm{ font-size:18px; }
+.kt-in-column .kt-eyebrow{ font-size:10.5px; letter-spacing:.2em; margin-bottom:10px; }
+.kt-in-column .kt-btn{ padding:11px 22px; font-size:11.5px; letter-spacing:.05em; }
+
+/* hero — a modest banner CARD, not a viewport-height cover crop. No arrows
+   (the template omits them); the dots still drive the autoplay slider. */
+.kt-in-column .kt-hero-slide{ align-items:flex-end; }
+.kt-in-column .kt-hero-inner{ padding-inline:22px; }
+.kt-in-column .kt-hero-content{ min-height:240px; max-width:none; padding:26px 0; justify-content:flex-end; }
+.kt-in-column .kt-hero-title{ font-size:21px; line-height:1.2; margin:0 0 16px; }
+.kt-in-column .kt-hero-dots{ bottom:12px; gap:8px; }
+.kt-in-column .kt-hero-dot{ width:16px; }
+
+/* promo mosaic — the 12-column mosaic has no meaning in a column, so it becomes
+   a single stack of uniform banners. */
+.kt-in-column .kt-promo-grid{ grid-template-columns:1fr; gap:14px; }
+.kt-in-column .kt-promo-intro,
+.kt-in-column .kt-promo-sale,
+.kt-in-column .kt-promo-cat,
+.kt-in-column .kt-promo-cat-wide,
+.kt-in-column .kt-promo-insta{ grid-column:auto; }
+.kt-in-column .kt-promo-intro{ padding:0; }
+.kt-in-column .kt-promo-intro-title{ font-size:20px; margin:0 0 12px; }
+.kt-in-column .kt-promo-intro-body{ margin:0 0 16px; font-size:15px; max-width:none; }
+/* the intro is a flex column, so its inline-block link STRETCHES — keep it on
+   its own width so the underline does not read as a full-width rule. */
+.kt-in-column .kt-promo-intro .kt-link{ align-self:flex-start; }
+.kt-in-column .kt-promo-sale{ min-height:200px; }
+.kt-in-column .kt-promo-sale-body{ padding:18px; }
+.kt-in-column .kt-promo-sale-title{ font-size:18px; margin:4px 0 10px; }
+.kt-in-column .kt-promo-cat-img,
+.kt-in-column .kt-promo-cat-wide .kt-promo-cat-img{ aspect-ratio:3/2; }
+.kt-in-column .kt-promo-cat-cap{ left:14px; bottom:14px; padding:10px 16px; }
+.kt-in-column .kt-promo-cat-cap h3{ font-size:15px; }
+.kt-in-column .kt-promo-insta{ min-height:180px; }
+
+/* product tabs — one non-wrapping scrollable row of tabs, left aligned, and a
+   2-up product grid. The template also caps each panel at 4 products so the
+   widget stays a card-height block instead of a very tall ribbon. */
+.kt-in-column .kt-tabnav{ justify-content:flex-start; flex-wrap:nowrap; gap:18px; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.kt-in-column .kt-tabnav::-webkit-scrollbar{ display:none; }
+.kt-in-column .kt-tabbtn{ font-size:15px; padding:6px 2px; white-space:nowrap; }
+.kt-in-column .kt-grid{ grid-template-columns:repeat(2,1fr); gap:22px 14px; }
+.kt-in-column .kt-card-body{ padding-top:10px; }
+.kt-in-column .kt-card-title{ font-size:13.5px; margin:0 0 3px; }
+.kt-in-column .kt-card-price{ font-size:13px; }
+.kt-in-column .kt-card-badge{ top:9px; left:9px; padding:3px 8px; font-size:9px; }
+
+/* mildly-cramped grids — re-tuned to the box */
+.kt-in-column .kt-brand-row{ gap:22px; }
+.kt-in-column .kt-brand img{ max-height:34px; }
+.kt-in-column .kt-insta-grid{ grid-template-columns:repeat(3,1fr); gap:8px; }
+.kt-in-column .kt-gallery-grid{ grid-template-columns:repeat(2,1fr); gap:12px; }
+.kt-in-column .kt-gallery-cell figcaption{ font-size:11.5px; padding:14px 12px 10px; }
+.kt-in-column .kt-showcase-grid{ grid-template-columns:repeat(2,1fr); gap:18px; }
+.kt-in-column .kt-showcase-label{ font-size:13.5px; margin-top:12px; }
+.kt-in-column .kt-showcase-count{ font-size:11px; }
+
+
+/* ---- wishlist ---- */
+.kt-wish{ position:absolute; top:10px; right:10px; z-index:2; display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; border:1px solid rgba(0,0,0,.08); background:#fff; color:#1a1a1a; cursor:pointer; transition:transform .2s, color .2s; }
+.kt-wish:hover{ transform:scale(1.08); }
+.kt-wish.is-active{ color:var(--kt-accent); }
+.kt-wish.is-active svg path{ fill:currentColor; }
+.kt-wish-pdp{ position:static; width:46px; height:46px; border-radius:8px; flex:0 0 auto; margin-left:8px; }
+.kt-wish-link{ position:relative; display:inline-flex; }
