@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react"
 import {
+  Check,
   CurrencyDollar,
   ArrowPath,
   CheckCircleSolid,
@@ -31,6 +32,16 @@ const usd = (credits: number, rate: number) =>
 
 const nf = (n: number) => n.toLocaleString()
 
+// Billing periods and discounts — kept in lockstep with the public pricing
+// page (mautomate.ai) and the backend Paddle price catalog.
+const BILLING_OPTIONS = [
+  { id: "monthly", label: "Monthly", discount: 0, months: 1, save: null as string | null },
+  { id: "6months", label: "6 Months", discount: 0.1, months: 6, save: "Save 10%" as string | null },
+  { id: "yearly", label: "Yearly", discount: 0.25, months: 12, save: "Save 25%" as string | null },
+]
+
+type PlanMeta = { audience?: string; badge?: string | null; list?: string[] }
+
 export default function BillingPage() {
   const { token } = useMerchantAuth()
   const [ov, setOv] = useState<BillingOverview | null>(null)
@@ -40,6 +51,7 @@ export default function BillingPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [busyPack, setBusyPack] = useState<number | null>(null)
   const [busyPlan, setBusyPlan] = useState<string | null>(null)
+  const [planBilling, setPlanBilling] = useState("monthly")
   const [histOffset, setHistOffset] = useState(0)
   const [histMore, setHistMore] = useState(false)
   const [histBusy, setHistBusy] = useState(false)
@@ -119,7 +131,7 @@ export default function BillingPage() {
     setNotice(null)
     setError(null)
     try {
-      const r = await changePlan(token, key)
+      const r = await changePlan(token, key, planBilling)
       if (r.checkout_url) {
         window.location.href = r.checkout_url
         return
@@ -426,11 +438,49 @@ export default function BillingPage() {
           <SectionCard
             id="plans"
             title="Plans"
-            description="Upgrade or downgrade your subscription."
+            description="Upgrade or downgrade your subscription. Every paid plan starts with a 7-day free trial."
           >
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mb-5 flex justify-center">
+              <div className="inline-flex items-center gap-1 rounded-full bg-grey-10 p-1">
+                {BILLING_OPTIONS.map((opt) => {
+                  const isActive = opt.id === planBilling
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setPlanBilling(opt.id)}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-grey-90 text-white"
+                          : "text-grey-60 hover:text-grey-90"
+                      )}
+                    >
+                      {opt.label}
+                      {opt.save && (
+                        <span
+                          className={cn(
+                            "text-xs font-semibold",
+                            isActive && "text-white/80"
+                          )}
+                          style={isActive ? undefined : { color: "#F15A29" }}
+                        >
+                          {opt.save}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {ov.plans.filter((p) => p.key !== "free_trial").map((p) => {
                 const isCurrent = p.key === ov.current_plan?.key
+                const opt =
+                  BILLING_OPTIONS.find((b) => b.id === planBilling) ??
+                  BILLING_OPTIONS[0]
+                const monthly = Math.round(p.price_usd * (1 - opt.discount))
+                const meta = (p.features ?? {}) as PlanMeta
                 return (
                   <div
                     key={p.key}
@@ -441,32 +491,54 @@ export default function BillingPage() {
                         : "border-grey-20 bg-white"
                     )}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <p className="font-semibold text-grey-90">{p.name}</p>
-                      {isCurrent && (
+                      {isCurrent ? (
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-grey-70">
                           <CheckCircleSolid className="h-4 w-4" /> Current
                         </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-2xl font-semibold text-grey-90">
-                      {p.price_usd > 0 ? `$${p.price_usd}` : "Free"}
-                      {p.price_usd > 0 && (
-                        <span className="text-sm font-normal text-grey-50">
-                          /mo
+                      ) : meta.badge ? (
+                        <span className="rounded-full bg-grey-90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                          {meta.badge}
                         </span>
-                      )}
+                      ) : null}
+                    </div>
+                    {meta.audience && (
+                      <p className="mt-1 text-xs leading-relaxed text-grey-50">
+                        {meta.audience}
+                      </p>
+                    )}
+                    <p className="mt-3 text-2xl font-semibold text-grey-90">
+                      ${nf(monthly)}
+                      <span className="text-sm font-normal text-grey-50">
+                        /mo
+                      </span>
                     </p>
-                    <ul className="mt-3 flex-1 space-y-1 text-xs text-grey-60">
-                      <li>{nf(p.included_credits)} AI credits / month</li>
-                      {p.products_limit != null && (
-                        <li>{nf(p.products_limit)} products</li>
-                      )}
-                      {p.seats_limit != null && (
-                        <li>{nf(p.seats_limit)} staff seats</li>
-                      )}
-                      {p.domains_limit != null && (
-                        <li>{nf(p.domains_limit)} custom domains</li>
+                    <p className="mt-0.5 text-xs text-grey-50">
+                      {opt.months === 1
+                        ? "Billed monthly"
+                        : `$${nf(monthly * opt.months)} billed every ${
+                            opt.months === 12 ? "year" : `${opt.months} months`
+                          }`}
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-grey-90">
+                      {nf(p.included_credits)} AI credits / month
+                    </p>
+                    <ul className="mt-3 flex-1 space-y-1.5 border-t border-grey-10 pt-3 text-xs text-grey-60">
+                      {(meta.list ?? []).map((f) => (
+                        <li key={f} className="flex items-start gap-1.5">
+                          <Check className="mt-0.5 h-3.5 w-3.5 flex-none text-grey-40" />
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                      {p.domains_limit != null && p.domains_limit > 0 && (
+                        <li className="flex items-start gap-1.5">
+                          <Check className="mt-0.5 h-3.5 w-3.5 flex-none text-grey-40" />
+                          <span>
+                            {nf(p.domains_limit)} custom domain
+                            {p.domains_limit === 1 ? "" : "s"}
+                          </span>
+                        </li>
                       )}
                     </ul>
                     <button

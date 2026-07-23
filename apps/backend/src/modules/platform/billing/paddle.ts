@@ -26,11 +26,35 @@ const apiBase = () =>
 
 // Price ids created in this Paddle account (sandbox). Override per plan with
 // PADDLE_PRICE_STARTER etc. Recreate + update these when going live.
-const PLAN_PRICE: Record<string, string> = {
-  starter: "pri_01ky6t4bctpcngr9c8p5yxq24w",
-  growth: "pri_01ky6t4c77dnfq1n93g17eensr",
-  pro: "pri_01ky6t4czb2tny3pd84swhsbk7",
-  scale: "pri_01ky6t4dvsaetvt2v5fgdzm5e2",
+// Billing cycles offered on every paid plan; months paid per cycle. Kept in
+// lockstep with the public pricing page (mautomate.ai lib/plans.js) and the
+// dashboard billing page.
+export const PLAN_BILLING_MONTHS: Record<string, number> = {
+  monthly: 1,
+  "6months": 6,
+  yearly: 12,
+}
+const PLAN_PRICE: Record<string, Record<string, string>> = {
+  starter: {
+    monthly: "pri_01ky743pf8p9zeyh12m3dqsrkq",
+    "6months": "pri_01ky743psxwhe77yq591j5sj9n",
+    yearly: "pri_01ky743q462gs2nd8hfdzjptj8",
+  },
+  growth: {
+    monthly: "pri_01ky743ram8p0b77hrpr82dc6j",
+    "6months": "pri_01ky743rmkg6c0668x0p4aes0b",
+    yearly: "pri_01ky743rydgtp78xkba3ec58td",
+  },
+  pro: {
+    monthly: "pri_01ky743sj4pe9hem74h2383c5n",
+    "6months": "pri_01ky743svmwg98qqzfxsd8qhr6",
+    yearly: "pri_01ky743t56z7hp5tsjh6xm9bdy",
+  },
+  scale: {
+    monthly: "pri_01ky743tsprg67rc5kj0edda52",
+    "6months": "pri_01ky743v3g55n4vq5qxsx5s4kt",
+    yearly: "pri_01ky743vcwn595cj1xhgtjvdk5",
+  },
 }
 const PACK_PRICE: Record<number, string> = {
   1000: "pri_01ky6t4ejdrnzhedrtavy738y2",
@@ -39,8 +63,9 @@ const PACK_PRICE: Record<number, string> = {
   50000: "pri_01ky6t4hfkrpwc9hkzqfssk2eg",
 }
 
-const planPrice = (key: string): string | undefined =>
-  process.env[`PADDLE_PRICE_${key.toUpperCase()}`] || PLAN_PRICE[key]
+const planPrice = (key: string, billing = "monthly"): string | undefined =>
+  process.env[`PADDLE_PRICE_${key.toUpperCase()}_${billing.toUpperCase()}`] ||
+  PLAN_PRICE[key]?.[billing]
 
 export class PaddleGateway implements PaymentGateway {
   readonly name = "paddle"
@@ -107,15 +132,20 @@ export class PaddleGateway implements PaymentGateway {
     plan_key: string
     plan_name: string
     amount_usd: number
+    billing?: string
     success_url: string
     cancel_url: string
   }): Promise<GatewayResult<CheckoutSession>> {
-    const priceId = planPrice(input.plan_key)
-    if (!priceId) return { ok: false, error: `No Paddle price for plan "${input.plan_key}".` }
+    const billing = PLAN_BILLING_MONTHS[input.billing ?? ""] ? input.billing! : "monthly"
+    const priceId = planPrice(input.plan_key, billing)
+    if (!priceId) {
+      return { ok: false, error: `No Paddle price for plan "${input.plan_key}" (${billing}).` }
+    }
     return this.createTransaction(priceId, {
       tenant_id: input.tenant_id,
       kind: "subscription",
       plan_key: input.plan_key,
+      billing,
     })
   }
 
@@ -206,6 +236,7 @@ export class PaddleGateway implements PaymentGateway {
             ...base,
             type: renewal ? "invoice.paid" : "checkout.session.completed",
             plan_key: cd.plan_key ? String(cd.plan_key) : undefined,
+            billing: cd.billing ? String(cd.billing) : undefined,
             stripe_subscription_id: data?.subscription_id
               ? String(data.subscription_id)
               : undefined,

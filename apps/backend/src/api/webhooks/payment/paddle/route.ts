@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { PaddleGateway } from "../../../../modules/platform/billing/paddle"
+import { PaddleGateway, PLAN_BILLING_MONTHS } from "../../../../modules/platform/billing/paddle"
 import { notifyMerchant } from "../../../../modules/platform/notify"
 
 import { getLedger } from "../../../../modules/platform/credits/metering"
@@ -65,7 +65,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     tenantId: string,
     planKey: string | undefined,
     periodEnd: Date | undefined,
-    subMeta: { customer?: string; subscription?: string }
+    subMeta: { customer?: string; subscription?: string },
+    // Months paid in this cycle (1 | 6 | 12). The per-month allowance is
+    // granted for the whole paid period upfront and expires with it.
+    months = 1
   ) => {
     const tier = planFor(planKey)
     if (!tier) return { granted: 0 }
@@ -73,7 +76,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const tenant = await tenantOf(tenantId)
     // Plan credits EXPIRE at the end of the paid period. Purchased credits are
     // a different lot and are never touched by this.
-    const expiresAt = periodEnd ?? new Date(Date.now() + 31 * 86400_000)
+    const expiresAt =
+      periodEnd ?? new Date(Date.now() + 31 * Math.max(1, months) * 86400_000)
 
     await platform.updateTenants({
       id: tenantId,
@@ -87,14 +91,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       },
     })
 
-    await ledger.credit(tenantId, tier.included_credits, {
+    const grantCredits = tier.included_credits * Math.max(1, months)
+    await ledger.credit(tenantId, grantCredits, {
       type: "grant",
       source: "plan",
       expiresAt,
       idempotencyKey: idem, // one grant per Stripe event, ever
       meta: { reason: "plan_allowance", plan: tier.key, period_end: expiresAt.toISOString() },
     })
-    return { granted: tier.included_credits }
+    return { granted: grantCredits }
   }
 
   try {
@@ -142,22 +147,28 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         }
         // A subscription checkout carries a plan; a top-up carries credits.
         if (event.plan_key) {
-          const { granted } = await applyPlan(event.tenant_id, event.plan_key, event.period_end, {
-            customer: event.stripe_customer_id,
-            subscription: event.stripe_subscription_id,
-          })
+          const { granted } = await applyPlan(
+            event.tenant_id,
+            event.plan_key,
+            event.period_end,
+            {
+              customer: event.stripe_customer_id,
+              subscription: event.stripe_subscription_id,
+            },
+            PLAN_BILLING_MONTHS[(event as any).billing ?? ""] ?? 1
+          )
           await accruePartnerCommission(req.scope, {
             tenantId: event.tenant_id,
             source: "subscription",
             sourceRef: idem,
-            baseCents: Math.round((planFor(event.plan_key)?.price_usd ?? 0) * 100),
+            baseCents: Math.round(((event.amount_paid_usd ?? planFor(event.plan_key)?.price_usd) ?? 0) * 100),
             meta: { plan: event.plan_key },
           }).catch(() => undefined)
           await grantMerchantReferralReward(req.scope, {
             tenantId: event.tenant_id,
             sourceRef: idem,
           }).catch(() => undefined)
-          await notifyMerchant(req.scope, { tenantId: event.tenant_id, template: "subscription_activated", data: { plan: event.plan_key, includedCredits: granted, amountUsd: planFor(event.plan_key)?.price_usd, period: "mo" } }).catch(() => {})
+          await notifyMerchant(req.scope, { tenantId: event.tenant_id, template: "subscription_activated", data: { plan: event.plan_key, includedCredits: granted, amountUsd: planFor(event.plan_key)?.price_usd, period: (event as any).billing === "yearly" ? "yr" : (event as any).billing === "6months" ? "6 mo" : "mo" } }).catch(() => {})
           return res.status(200).json({
             received: true,
             processed: true,
@@ -216,15 +227,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
       case "invoice.paid": {
         if (!event.tenant_id) break
-        const { granted } = await applyPlan(event.tenant_id, event.plan_key, event.period_end, {
-          customer: event.stripe_customer_id,
-          subscription: event.stripe_subscription_id,
-        })
+        const { granted } = await applyPlan(
+          event.tenant_id,
+          event.plan_key,
+          event.period_end,
+          {
+            customer: event.stripe_customer_id,
+            subscription: event.stripe_subscription_id,
+          },
+          PLAN_BILLING_MONTHS[(event as any).billing ?? ""] ?? 1
+        )
         await accruePartnerCommission(req.scope, {
           tenantId: event.tenant_id,
           source: "renewal",
           sourceRef: idem,
-          baseCents: Math.round((planFor(event.plan_key)?.price_usd ?? 0) * 100),
+          baseCents: Math.round(((event.amount_paid_usd ?? planFor(event.plan_key)?.price_usd) ?? 0) * 100),
           meta: { plan: event.plan_key },
         }).catch(() => undefined)
         await grantMerchantReferralReward(req.scope, {

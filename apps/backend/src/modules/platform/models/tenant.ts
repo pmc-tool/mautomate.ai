@@ -24,6 +24,9 @@ const Tenant = model
     status: model
       .enum([
         "provisioning",
+        // Paid-plan signup provisioned but card not yet captured: the store is
+        // deliberately NOT public until the payment webhook flips it live.
+        "pending_payment",
         "live",
         "past_due",
         "grace",

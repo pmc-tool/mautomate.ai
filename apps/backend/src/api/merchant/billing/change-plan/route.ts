@@ -29,6 +29,11 @@ export const POST = async (
   const key = String((req.body as any)?.key ?? "").trim()
   if (!key) return res.status(400).json({ message: "plan key required" })
 
+  const billingRaw = String((req.body as any)?.billing ?? "monthly")
+  const billing = ["monthly", "6months", "yearly"].includes(billingRaw)
+    ? billingRaw
+    : "monthly"
+
   const plan = (
     await ctx.svc.listPlatformPackages({ key }, { take: 1 }).catch(() => [])
   )[0]
@@ -62,6 +67,7 @@ export const POST = async (
       plan_key: plan.key,
       plan_name: String(plan.name ?? plan.key),
       amount_usd: price,
+      billing,
       success_url: `${base}/dashboard/billing?subscribed=1`,
       cancel_url: `${base}/dashboard/billing?cancelled=1`,
     })
