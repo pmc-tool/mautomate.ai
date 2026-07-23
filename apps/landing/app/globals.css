@@ -1,0 +1,100 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+/*
+ * Inter typography is loaded via next/font/google in app/layout.jsx and
+ * exposed through the --font-inter CSS variable, which the Tailwind `sans`
+ * font stack (tailwind.config.js) references.
+ */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-surface text-ink font-sans antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    @apply bg-brand/20 text-ink;
+  }
+}
+
+@layer components {
+  .shell {
+    @apply mx-auto w-full max-w-frame px-5 sm:px-6 lg:px-10;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-brand px-6 py-3
+           text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(241,90,41,0.6)]
+           transition-all duration-300 ease-smooth hover:bg-brand-dark hover:-translate-y-0.5
+           hover:shadow-[0_16px_40px_-12px_rgba(241,90,41,0.7)] active:translate-y-0;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-line
+           bg-white px-6 py-3 text-sm font-semibold text-ink transition-all duration-300
+           ease-smooth hover:border-brand/40 hover:text-brand hover:-translate-y-0.5;
+  }
+
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand;
+  }
+
+  .eyebrow::before {
+    content: "";
+    @apply block h-3 w-[3px] rounded-full bg-brand;
+  }
+
+  .card-base {
+    @apply rounded-3xl border border-line bg-white p-6 transition-all duration-300 ease-smooth
+           sm:p-7;
+  }
+}
+
+/* FAQ accordion: strip Ant Design's default outlined box (left/right borders +
+   rounded corners) so only our top/bottom rules and item dividers remain. */
+.faq-collapse.ant-collapse {
+  border-inline: 0 !important;
+  border-radius: 0 !important;
+}
+.faq-collapse .ant-collapse-header {
+  padding-block: 22px !important;
+}
+.faq-collapse .ant-collapse-body {
+  padding-top: 18px !important;
+  padding-bottom: 22px !important;
+}
+
+/* IntersectionObserver entrance animation. Elements start hidden and reveal
+   when .is-visible is toggled on by the AnimatedSection observer. */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+  /* Decorative loops (e.g. the omnichannel hub) pause when motion is reduced. */
+  .channel-hub *,
+  .channel-hub *::before,
+  .channel-hub *::after {
+    animation: none !important;
+  }
+}

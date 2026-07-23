@@ -1,0 +1,36 @@
+{%- assign f = chrome.footer -%}
+<div class="cg-pagehead">
+  <div class="cg-container">
+    <h1 class="cg-pagehead-title">Contact us</h1>
+    <nav class="cg-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="cg-current">Contact</span></nav>
+  </div>
+</div>
+<section class="cg-section">
+  <div class="cg-container">
+    <div class="cg-shead cg-shead-center">
+      <span class="cg-eyebrow">Get in touch</span>
+      <p class="cg-lead">Questions about an order or a bespoke piece? We usually reply within a day.</p>
+    </div>
+    <div class="cg-contact-grid">
+      <div class="cg-contact-info">
+        {%- if f.contact.email != blank -%}
+        <div class="cg-contact-item"><span class="cg-contact-label">Email</span><a href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a></div>
+        {%- endif -%}
+        {%- if f.contact.phone != blank -%}
+        <div class="cg-contact-item"><span class="cg-contact-label">Phone</span><span>{{ f.contact.phone }}</span></div>
+        {%- endif -%}
+        <div class="cg-contact-item"><span class="cg-contact-label">Hours</span><span>Mon&ndash;Sat, 9am&ndash;6pm</span></div>
+      </div>
+      <form class="cg-contact-form" data-contact-form>
+        <div class="cg-field-row">
+          <input type="text" name="name" placeholder="Your name" aria-label="Your name" required>
+          <input type="email" name="email" placeholder="Your email" aria-label="Your email" required>
+        </div>
+        <input type="text" name="subject" placeholder="Subject" aria-label="Subject">
+        <textarea name="message" rows="6" placeholder="How can we help?" aria-label="Message" required></textarea>
+        <button type="submit" class="cg-btn cg-btn-solid">Send message</button>
+        <p class="cg-contact-msg" data-contact-msg hidden></p>
+      </form>
+    </div>
+  </div>
+</section>

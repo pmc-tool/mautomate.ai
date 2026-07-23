@@ -1,0 +1,32 @@
+{%- assign s = section.settings -%}
+{%- assign items = s.items -%}
+{%- if items and items.size > 0 -%}
+<section class="ek-section ek-cats" data-cat-tabs>
+  <div class="ek-container">
+    {%- if s.title != blank or s.sub_title != blank -%}
+    <div class="ek-stitle">
+      {%- if s.title != blank -%}<h2 class="ek-bg-title" aria-hidden="true">{{ s.title }}</h2><h2 class="ek-title">{{ s.title }}</h2>{%- endif -%}
+      {%- if s.sub_title != blank -%}<p class="ek-subtitle">{{ s.sub_title }}</p>{%- endif -%}
+    </div>
+    {%- endif -%}
+    <div class="ek-cats-layout">
+      <ul class="ek-cat-nav">
+        {%- for item in items -%}
+        <li><button class="ek-cat-link{% if forloop.first %} is-active{% endif %}" data-cat-btn="{{ forloop.index0 }}">
+          <span class="ek-cat-label">{{ item.label }}</span>
+          {%- if item.count != blank -%}<span class="ek-cat-count">{{ item.count }} Products</span>{%- endif -%}
+        </button></li>
+        {%- endfor -%}
+      </ul>
+      <div class="ek-cat-panes">
+        {%- for item in items -%}
+        <div class="ek-cat-pane{% if forloop.first %} is-active{% endif %}" data-cat-panel="{{ forloop.index0 }}">
+          {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.label }}">{% endif -%}
+          <span class="ek-cat-overlay"><a class="ek-btn" href="{{ item.href | default: '/store' }}">View All</a></span>
+        </div>
+        {%- endfor -%}
+      </div>
+    </div>
+  </div>
+</section>
+{%- endif -%}

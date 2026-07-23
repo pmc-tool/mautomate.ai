@@ -1,0 +1,17 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="hl-section hl-gallery">
+  <div class="hl-container">
+    {%- if s.title != blank -%}<div class="hl-shead hl-shead-center"><h2 class="hl-title hl-title-center">{{ s.title }}</h2></div>{%- endif -%}
+    <div class="hl-gallery-grid">
+      {%- for item in images -%}
+        {%- assign src = item.image | default: item -%}
+        {%- if src != blank -%}
+        <figure class="hl-gallery-cell"><img src="{{ src }}" alt="{{ item.alt | default: 'Gallery image' }}">{% if item.caption != blank %}<figcaption>{{ item.caption }}</figcaption>{% endif %}</figure>
+        {%- endif -%}
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

@@ -1,0 +1,52 @@
+{%- assign p = product -%}
+<nav class="lz-crumbs"><div class="lz-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="lz-current">{{ p.title }}</span>
+</div></nav>
+
+<section class="lz-section lz-pdp">
+  <div class="lz-container">
+    <div class="lz-pdp-grid">
+      <div class="lz-pdp-gallery">
+        {%- assign main = p.featured_image.url | default: p.featured_image -%}
+        {%- if main == blank -%}{%- assign main = '/learts/assets/images/product/s328/product-1.webp' -%}{%- endif -%}
+        <div class="lz-pdp-main"><img id="pdp-main-img" src="{{ main }}" alt="{{ p.title }}"></div>
+        {%- if p.images and p.images.size > 1 -%}
+        <div class="lz-pdp-thumbs" data-pdp-thumbs>
+          {%- for image in p.images -%}<button class="lz-pdp-thumb{% if forloop.first %} is-active{% endif %}" data-full="{{ image.url }}"><img src="{{ image.url }}" alt="{{ image.alt | default: p.title }}"></button>{%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+
+      <div class="lz-pdp-info">
+        <h1 class="lz-pdp-title">{{ p.title }}</h1>
+        <div class="lz-pdp-price">
+          {%- if p.compare_at_price and p.compare_at_price > p.price -%}<span class="lz-price-old">{{ p.compare_at_price | money }}</span> <span class="lz-price-now">{{ p.price | money }}</span>
+          {%- else -%}<span class="lz-price-now">{{ p.price | money }}</span>{%- endif -%}
+        </div>
+        {%- if p.available -%}<span class="lz-pdp-stock in">In stock</span>{%- else -%}<span class="lz-pdp-stock out">Out of stock</span>{%- endif -%}
+        {%- if p.description != blank -%}<div class="lz-pdp-desc"><p>{{ p.description }}</p></div>{%- endif -%}
+
+        {%- for option in p.options -%}
+        <div class="lz-pdp-opt"><span class="lz-pdp-opt-name">{{ option.name }}</span><div class="lz-pdp-opt-vals">{%- for value in option.values -%}<span class="lz-swatch">{{ value }}</span>{%- endfor -%}</div></div>
+        {%- endfor -%}
+
+        <form class="lz-pdp-cart" data-add-to-cart>
+          {%- if p.variants and p.variants.size > 1 -%}
+          <div class="lz-pdp-opt"><span class="lz-pdp-opt-name">Variant</span>
+            <select class="lz-select" data-variant-select>
+              {%- for v in p.variants -%}<option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>{{ v.title }} — {{ v.price | money }}{% unless v.available %} (sold out){% endunless %}</option>{%- endfor -%}
+            </select>
+          </div>
+          {%- elsif p.variants and p.variants.size == 1 -%}
+          <input type="hidden" data-variant-select value="{{ p.variants[0].id }}">
+          {%- endif -%}
+          <div class="lz-pdp-buy">
+            <input type="number" class="lz-qty" data-qty value="1" min="1" aria-label="Quantity">
+            <button type="submit" class="lz-btn" data-add-btn {% unless p.available %}disabled{% endunless %}>{% if p.available %}Add to cart{% else %}Sold out{% endif %}</button>
+          </div>
+          <p class="lz-pdp-msg" data-cart-msg hidden></p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

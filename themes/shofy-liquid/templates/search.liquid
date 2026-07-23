@@ -1,0 +1,17 @@
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">Search</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="sf-current">Search</span></nav>
+  </div>
+</div>
+<section class="sf-section">
+  <div class="sf-container">
+    <div class="sf-shead sf-shead-center">
+      <form class="sf-search-form" action="{{ routes.search_url }}" method="get">
+        <input type="search" name="q" placeholder="Search for Products..." aria-label="Search products">
+        <button type="submit" class="sf-btn sf-btn-primary">Search</button>
+      </form>
+    </div>
+    <p class="sf-empty">Type above to find products across the store.</p>
+  </div>
+</section>

@@ -1,0 +1,19 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="hl-section hl-insta">
+  <div class="hl-container">
+    {%- if s.heading != blank or s.handle != blank -%}
+    <div class="hl-shead hl-shead-center">
+      {%- if s.heading != blank -%}<span class="hl-eyebrow">{{ s.heading }}</span>{%- endif -%}
+      {%- if s.handle != blank -%}<h2 class="hl-title hl-title-center">{{ s.handle }}</h2>{%- endif -%}
+    </div>
+    {%- endif -%}
+    <div class="hl-insta-grid">
+      {%- for item in images -%}{%- if item.image != blank -%}
+      <a class="hl-insta-cell" href="{{ item.href | default: '#' }}"><img src="{{ item.image }}" alt="Instagram post"><span class="hl-insta-ic"><i class="fab fa-instagram"></i></span></a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

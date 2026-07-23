@@ -1,0 +1,25 @@
+{%- assign href = routes.root_url | append: '/products/' | append: product.handle -%}
+{%- assign main = product.featured_image.url | default: product.featured_image -%}
+{%- if main == blank and product.images -%}{%- assign main = product.images[0].url -%}{%- endif -%}
+{%- if main == blank -%}{%- assign main = '/bazaro/img/fashion-1/product/product-1/front-img-1.jpg' -%}{%- endif -%}
+{%- assign hover = main -%}
+{%- if product.images and product.images.size > 1 -%}{%- assign hover = product.images[1].url -%}{%- endif -%}
+{%- assign on_sale = false -%}
+{%- if product.compare_at_price and product.compare_at_price > product.price -%}{%- assign on_sale = true -%}{%- endif -%}
+<article class="bz-card">
+  <div class="bz-card-media">
+    {%- if on_sale -%}<span class="bz-card-badge">Sale</span>{%- endif -%}
+    <a href="{{ href }}" class="bz-card-img">
+      <img class="bz-card-img-main" src="{{ main }}" alt="{{ product.title }}" loading="lazy">
+      {%- if hover != main -%}<img class="bz-card-img-hover" src="{{ hover }}" alt="{{ product.title }}" loading="lazy">{%- endif -%}
+    </a>
+  </div>
+  <div class="bz-card-body">
+    <div class="bz-card-stars" aria-hidden="true">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+    <h3 class="bz-card-title"><a href="{{ href }}">{{ product.title }}</a></h3>
+    <div class="bz-card-price">
+      <span class="bz-price-now">{{ product.price | money }}</span>
+      {%- if on_sale -%} <span class="bz-price-old">{{ product.compare_at_price | money }}</span>{%- endif -%}
+    </div>
+  </div>
+</article>

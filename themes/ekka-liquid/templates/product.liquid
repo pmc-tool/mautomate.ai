@@ -1,0 +1,56 @@
+{%- assign p = product -%}
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">{{ p.title }}</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="ek-current">{{ p.title }}</span></nav>
+  </div>
+</div>
+
+<section class="ek-section ek-pdp">
+  <div class="ek-container">
+    <div class="ek-pdp-grid">
+      <div class="ek-pdp-gallery">
+        {%- assign main = p.featured_image.url | default: p.featured_image -%}
+        {%- if main == blank -%}{%- assign main = '/ekka/images/product-image/6_1.jpg' -%}{%- endif -%}
+        <div class="ek-pdp-main"><img id="pdp-main-img" src="{{ main }}" alt="{{ p.title }}"></div>
+        {%- if p.images and p.images.size > 1 -%}
+        <div class="ek-pdp-thumbs" data-pdp-thumbs>
+          {%- for image in p.images -%}<button class="ek-pdp-thumb{% if forloop.first %} is-active{% endif %}" data-full="{{ image.url }}"><img src="{{ image.url }}" alt="{{ image.alt | default: p.title }}"></button>{%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+
+      <div class="ek-pdp-info">
+        <h2 class="ek-pdp-title">{{ p.title }}</h2>
+        <div class="ek-pdp-rating"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="far fa-star"></i></div>
+        <div class="ek-pdp-price">
+          {%- if p.compare_at_price and p.compare_at_price > p.price -%}<span class="ek-price-new">{{ p.price | money }}</span> <span class="ek-price-old">{{ p.compare_at_price | money }}</span>
+          {%- else -%}<span class="ek-price-new">{{ p.price | money }}</span>{%- endif -%}
+        </div>
+        {%- if p.available -%}<span class="ek-pdp-stock in">In stock</span>{%- else -%}<span class="ek-pdp-stock out">Out of stock</span>{%- endif -%}
+        {%- if p.description != blank -%}<div class="ek-pdp-desc"><p>{{ p.description }}</p></div>{%- endif -%}
+
+        {%- for option in p.options -%}
+        <div class="ek-pdp-opt"><span class="ek-pdp-opt-name">{{ option.name }}</span><div class="ek-pdp-opt-vals">{%- for value in option.values -%}<span class="ek-swatch">{{ value }}</span>{%- endfor -%}</div></div>
+        {%- endfor -%}
+
+        <form class="ek-pdp-cart" data-add-to-cart>
+          {%- if p.variants and p.variants.size > 1 -%}
+          <div class="ek-pdp-opt"><span class="ek-pdp-opt-name">Variant</span>
+            <select class="ek-select" data-variant-select>
+              {%- for v in p.variants -%}<option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>{{ v.title }} — {{ v.price | money }}{% unless v.available %} (sold out){% endunless %}</option>{%- endfor -%}
+            </select>
+          </div>
+          {%- elsif p.variants and p.variants.size == 1 -%}
+          <input type="hidden" data-variant-select value="{{ p.variants[0].id }}">
+          {%- endif -%}
+          <div class="ek-pdp-buy">
+            <input type="number" class="ek-qty" data-qty value="1" min="1" aria-label="Quantity">
+            <button type="submit" class="ek-btn" data-add-btn {% unless p.available %}disabled{% endunless %}>{% if p.available %}Add To Cart{% else %}Sold out{% endif %}</button>
+          </div>
+          <p class="ek-pdp-msg" data-cart-msg hidden></p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

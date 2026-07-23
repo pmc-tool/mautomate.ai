@@ -1,0 +1,12 @@
+{%- assign s = section.settings -%}
+{%- assign brands = s.brands -%}
+<section class="lz-section lz-brands">
+  <div class="lz-container">
+    {%- if s.title != blank -%}<div class="lz-shead lz-shead-center"><h2 class="lz-title lz-title-sm">{{ s.title }}</h2></div>{%- endif -%}
+    {%- if brands and brands.size > 0 -%}
+    <div class="lz-brand-row">
+      {%- for brand in brands -%}<a class="lz-brand" href="{{ brand.href | default: '#' }}">{% if brand.image %}<img src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
+    </div>
+    {%- endif -%}
+  </div>
+</section>

@@ -1,0 +1,17 @@
+{%- assign s = section.settings -%}
+{%- assign brands = s.brands -%}
+{%- if brands and brands.size > 0 -%}
+<section class="ek-section ek-brands">
+  <div class="ek-container">
+    {%- if s.title != blank -%}
+    <div class="ek-stitle">
+      <h2 class="ek-bg-title" aria-hidden="true">{{ s.title }}</h2>
+      <h2 class="ek-title">{{ s.title }}</h2>
+    </div>
+    {%- endif -%}
+    <div class="ek-brand-row">
+      {%- for brand in brands -%}<a class="ek-brand" href="{{ brand.href | default: '#' }}">{% if brand.image %}<img src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

@@ -1,0 +1,24 @@
+{%- assign s = section.settings -%}
+{%- assign items = s.items -%}
+{%- if items and items.size > 0 -%}
+<section class="cg-section cg-testi">
+  <div class="cg-container">
+    <div class="cg-shead cg-shead-center">
+      <span class="cg-eyebrow cg-eyebrow-light">Testimonials</span>
+      <h2 class="cg-title cg-title-light">{{ s.title | default: 'What our customers say' }}</h2>
+    </div>
+    <div class="cg-testi-grid">
+      {%- for item in items -%}
+      <figure class="cg-testi-card">
+        <div class="cg-testi-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+        {%- if item.quote != blank -%}<blockquote class="cg-testi-quote">{{ item.quote }}</blockquote>{%- endif -%}
+        <figcaption class="cg-testi-author">
+          {%- if item.avatar != blank -%}<img src="{{ item.avatar }}" alt="{{ item.author }}">{%- endif -%}
+          <span class="cg-testi-meta"><span class="cg-testi-name">{{ item.author }}</span>{% if item.role != blank %}<span class="cg-testi-role">{{ item.role }}</span>{% endif %}</span>
+        </figcaption>
+      </figure>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

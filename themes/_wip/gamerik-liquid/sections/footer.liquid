@@ -1,0 +1,58 @@
+{%- comment -%} Self-contained footer (gm- namespace), driven by the store's chrome.footer settings. {%- endcomment -%}
+{%- assign root = routes.root_url -%}
+{%- assign f = chrome.footer -%}
+{%- assign yr = 'now' | date: '%Y' -%}
+<footer class="gm-footer">
+  <div class="gm-container">
+    <div class="gm-footer-top">
+      <div class="gm-footer-brand">
+        {%- comment -%} Tenant logos are often dark transparent SVGs — keep the
+          footer logo on a light chip so it stays visible on the dark ground. {%- endcomment -%}
+        {%- if shop.logo -%}<span class="gm-footer-logochip"><img class="gm-footer-logo" src="{{ shop.logo }}" alt="{{ shop.name }}"></span>
+        {%- else -%}<div class="gm-footer-name">{{ shop.name }}</div>{%- endif -%}
+        {%- if settings.footer_about != blank -%}<p class="gm-footer-about">{{ settings.footer_about }}</p>{%- endif -%}
+        {%- if f.contact.email != blank -%}<a class="gm-footer-contact" href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a>{%- endif -%}
+        {%- if f.contact.phone != blank -%}<span class="gm-footer-contact">{{ f.contact.phone }}</span>{%- endif -%}
+        {%- if f.contact.app_buttons and f.contact.app_buttons.size > 0 -%}
+        <div class="gm-footer-apps">{%- for btn in f.contact.app_buttons -%}<a href="{{ btn.href | default: '#' }}"><img src="{{ btn.img }}" alt="{{ btn.alt }}"></a>{%- endfor -%}</div>
+        {%- endif -%}
+      </div>
+
+      <div class="gm-footer-col">
+        <h4 class="gm-footer-title">Shop</h4>
+        <ul>
+          {%- if categories -%}{%- assign lim = f.column_categories.limit | default: 5 -%}
+          {%- for c in categories limit: lim -%}<li><a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a></li>{%- endfor -%}{%- endif -%}
+          {%- if f.column_categories.extra -%}{%- for item in f.column_categories.extra -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ routes.collections_url }}">All products</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="gm-footer-col">
+        <h4 class="gm-footer-title">Information</h4>
+        <ul>
+          {%- if f.column_links and f.column_links.size > 0 -%}{%- for item in f.column_links -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ root }}/about-us">About us</a></li><li><a href="{{ root }}/contact">Contact</a></li><li><a href="{{ root }}/blog">Blog</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="gm-footer-col">
+        <h4 class="gm-footer-title">Follow us</h4>
+        {%- if f.social and f.social.size > 0 -%}
+        <div class="gm-footer-social">
+          {%- for s in f.social -%}<a href="{{ s.href | default: '#' }}" aria-label="social">{% render 'icon-social', name: s.icon %}</a>{%- endfor -%}
+        </div>
+        {%- endif -%}
+        <form class="gm-footer-news" data-newsletter>
+          <input type="email" placeholder="{{ f.newsletter.placeholder | default: 'Your email address' }}" aria-label="Email">
+          <button type="submit" aria-label="Subscribe"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 12h15M13 5.5 19.5 12 13 18.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+        </form>
+      </div>
+    </div>
+
+    <div class="gm-footer-bottom">
+      <p class="gm-footer-copy">{%- if f.copyright != blank -%}{%- assign _copy = f.copyright | replace: '{year}', yr -%}{% render 'resolve-tokens', text: _copy, shop: shop %}{%- else -%}&copy; {{ yr }} {{ shop.name }}. All rights reserved.{%- endif -%}</p>
+      {%- if f.payment_image != blank -%}<span class="gm-footer-paychip"><img class="gm-footer-pay" src="{{ f.payment_image }}" alt="Payment methods"></span>{%- endif -%}
+    </div>
+  </div>
+</footer>

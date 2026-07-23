@@ -1,0 +1,23 @@
+{%- assign cols = section.settings.columns -%}
+{%- if cols and cols.size > 0 -%}
+<section class="sf-section sf-composed">
+  <div class="sf-container">
+    <div class="sf-composed-row" data-cols="{{ cols.size }}">
+      {%- for col in cols -%}
+      <div class="sf-composed-col">
+        {%- for w in col.widgets -%}
+        <div class="sf-composed-widget">
+          {%- if w.image != blank -%}<img class="sf-composed-img" src="{{ w.image }}" alt="{{ w.title | default: '' }}">{%- endif -%}
+          {%- if w.eyebrow != blank -%}<span class="sf-eyebrow">{{ w.eyebrow }}</span>{%- endif -%}
+          {%- if w.title != blank -%}<h3 class="sf-composed-title">{{ w.title }}</h3>{%- endif -%}
+          {%- if w.html != blank -%}<div class="sf-richtext-inner">{% render 'resolve-tokens', text: w.html, shop: shop %}</div>{%- endif -%}
+          {%- if w.body != blank -%}<p class="sf-composed-body">{{ w.body }}</p>{%- endif -%}
+          {%- if w.cta.href != blank -%}<a class="sf-link" href="{{ w.cta.href }}">{{ w.cta.label | default: 'Learn more' }} <i class="fas fa-arrow-right"></i></a>{%- endif -%}
+        </div>
+        {%- endfor -%}
+      </div>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

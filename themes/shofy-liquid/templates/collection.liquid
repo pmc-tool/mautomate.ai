@@ -1,0 +1,17 @@
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">{{ collection.title }}</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="sf-current">{{ collection.title }}</span></nav>
+  </div>
+</div>
+<section class="sf-section">
+  <div class="sf-container">
+    <div class="sf-shead sf-shead-center">
+      {%- if collection.description != blank -%}<p class="sf-lead">{{ collection.description }}</p>{%- endif -%}
+      <span class="sf-count">{{ collection.products_count }} products</span>
+    </div>
+    {%- if collection.products and collection.products.size > 0 -%}
+    <div class="sf-grid">{%- for product in collection.products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="sf-empty">No products in this collection yet.</p>{%- endif -%}
+  </div>
+</section>

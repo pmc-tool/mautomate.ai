@@ -1,0 +1,7 @@
+{%- assign s = section.settings -%}
+{%- assign width = s.width | default: 'normal' -%}
+<section class="kt-section kt-richtext kt-richtext-{{ width }}">
+  <div class="kt-container">
+    <div class="kt-richtext-inner" data-el="content">{%- if s.html != blank -%}{% render 'resolve-tokens', text: s.html, shop: shop %}{%- endif -%}</div>
+  </div>
+</section>

@@ -1,0 +1,17 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="bz-section bz-gallery">
+  <div class="bz-container">
+    {%- if s.title != blank -%}<div class="bz-shead bz-shead-center"><h2 class="bz-title">{{ s.title }}</h2></div>{%- endif -%}
+    <div class="bz-gallery-grid">
+      {%- for item in images -%}
+        {%- assign src = item.image | default: item -%}
+        {%- if src != blank -%}
+        <figure class="bz-gallery-cell"><img src="{{ src }}" alt="{{ item.alt | default: 'Gallery image' }}">{% if item.caption != blank %}<figcaption>{{ item.caption }}</figcaption>{% endif %}</figure>
+        {%- endif -%}
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

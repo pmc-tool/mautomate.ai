@@ -1,0 +1,14 @@
+<section class="au-section au-listing">
+  <div class="au-container">
+    <header class="au-listing-head">
+      <nav class="au-crumbs-inline" aria-label="Breadcrumb">
+        <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">Shop</span>
+      </nav>
+      <h1 class="au-listing-title">All products</h1>
+      <p class="au-lead">Everything we make, in one place.</p>
+    </header>
+    {%- if products and products.size > 0 -%}
+    <div class="au-grid au-grid-4">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="au-empty">No products yet — check back soon.</p>{%- endif -%}
+  </div>
+</section>

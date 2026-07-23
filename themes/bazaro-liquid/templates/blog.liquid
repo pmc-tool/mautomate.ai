@@ -1,0 +1,30 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">From Our Blog</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="bz-current">Blog</span></nav>
+  </div>
+</div>
+<section class="bz-section">
+  <div class="bz-container">
+    {%- assign posts = blog.posts -%}
+    {%- if posts and posts.size > 0 -%}
+    <div class="bz-blog-grid">
+      {%- for post in posts -%}
+      <article class="bz-blog-card">
+        <a class="bz-blog-cover" href="{{ routes.root_url }}/blog/{{ post.slug }}">
+          {%- if post.cover_image %}<img src="{{ post.cover_image }}" alt="{{ post.title }}" loading="lazy">{% else %}<span class="bz-blog-cover-ph"></span>{% endif -%}
+        </a>
+        <div class="bz-blog-body">
+          {%- if post.published_at != blank -%}<span class="bz-blog-date">{{ post.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+          <h2 class="bz-blog-title"><a href="{{ routes.root_url }}/blog/{{ post.slug }}">{{ post.title }}</a></h2>
+          {%- if post.excerpt != blank -%}<p class="bz-blog-excerpt">{{ post.excerpt }}</p>{%- endif -%}
+          <a class="bz-link" href="{{ routes.root_url }}/blog/{{ post.slug }}">Read more</a>
+        </div>
+      </article>
+      {%- endfor -%}
+    </div>
+    {%- else -%}
+    <p class="bz-empty">No posts yet — check back soon.</p>
+    {%- endif -%}
+  </div>
+</section>

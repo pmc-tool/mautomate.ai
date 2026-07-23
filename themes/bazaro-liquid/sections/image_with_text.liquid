@@ -1,0 +1,31 @@
+{%- assign s = section.settings -%}
+{%- assign nl = '
+' -%}
+{%- if s.image != blank or s.title != blank -%}
+<section class="bz-section bz-imgtext{% if s.image_side == 'right' %} bz-imgtext-right{% endif %}">
+  <div class="bz-container">
+    <div class="bz-imgtext-panel">
+      <div class="bz-imgtext-grid">
+        <div class="bz-imgtext-media">{% if s.image != blank %}<img src="{{ s.image }}" alt="{{ s.title }}">{% endif %}</div>
+        <div class="bz-imgtext-body">
+          {%- if s.eyebrow != blank -%}<span class="bz-subtitle">{{ s.eyebrow }}</span>{%- endif -%}
+          {%- if s.title != blank -%}<h2 class="bz-imgtext-title">{%- assign lines = s.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h2>{%- endif -%}
+          {%- if s.body != blank -%}<p class="bz-imgtext-copy">{{ s.body }}</p>{%- endif -%}
+          {%- if s.cta.href != blank and s.cta.label != blank -%}<a class="bz-btn" href="{{ s.cta.href }}">{{ s.cta.label }}</a>{%- endif -%}
+        </div>
+      </div>
+    </div>
+    {%- if s.items and s.items.size > 0 -%}
+    <div class="bz-features">
+      {%- for item in s.items -%}
+      <div class="bz-feature">
+        {%- if item.icon != blank -%}<span class="bz-feature-icon"><img src="{{ item.icon }}" alt=""></span>{%- endif -%}
+        {%- if item.title != blank -%}<h4 class="bz-feature-title">{{ item.title }}</h4>{%- endif -%}
+        {%- if item.text != blank -%}<p class="bz-feature-text">{{ item.text }}</p>{%- endif -%}
+      </div>
+      {%- endfor -%}
+    </div>
+    {%- endif -%}
+  </div>
+</section>
+{%- endif -%}

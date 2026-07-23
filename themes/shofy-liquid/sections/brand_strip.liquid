@@ -1,0 +1,12 @@
+{%- assign s = section.settings -%}
+{%- assign brands = s.brands -%}
+<section class="sf-section sf-brands">
+  <div class="sf-container">
+    {%- if s.title != blank -%}<div class="sf-shead sf-shead-center"><h2 class="sf-title sf-title-sm">{{ s.title }}</h2></div>{%- endif -%}
+    {%- if brands and brands.size > 0 -%}
+    <div class="sf-brand-row">
+      {%- for brand in brands -%}<a class="sf-brand" href="{{ brand.href | default: '#' }}">{% if brand.image %}<img src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
+    </div>
+    {%- endif -%}
+  </div>
+</section>

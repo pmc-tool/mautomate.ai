@@ -1,0 +1,51 @@
+{%- assign root = routes.root_url -%}
+{%- if settings.show_announcement and settings.announcement_text != blank -%}
+<div class="hl-announce"><div class="hl-container"><p>{{ settings.announcement_text }}</p></div></div>
+{%- endif -%}
+
+{%- comment -%} The Helendo header has NO horizontal desktop nav: a search field
+    on the left, the centred logo, and icons + a hamburger on the right. The
+    hamburger opens the offcanvas drawer, which IS the navigation on every
+    viewport. {%- endcomment -%}
+<header class="hl-header" data-header>
+  <div class="hl-container hl-header-inner">
+    <form class="hl-header-search" action="{{ routes.search_url }}" method="get" role="search">
+      <input type="search" name="q" placeholder="Search Anything..." aria-label="Search products">
+      <button type="submit" aria-label="Submit search"><i class="fas fa-search"></i></button>
+    </form>
+
+    <a class="hl-logo" href="{{ root }}">
+      {%- if shop.logo -%}<img src="{{ shop.logo }}" alt="{{ shop.name }}">
+      {%- else -%}<span class="hl-logo-text">{{ shop.name }}</span>{%- endif -%}
+    </a>
+
+    <div class="hl-header-actions">
+      <a class="hl-icon" href="{{ routes.account_url }}" aria-label="Account"><i class="far fa-user"></i></a>
+      <a class="hl-icon hl-cart" href="{{ routes.cart_url }}" aria-label="Cart">
+        <i class="fas fa-shopping-bag"></i>
+        {%- if cart.item_count > 0 -%}<span class="hl-cart-count">{{ cart.item_count }}</span>{%- endif -%}
+      </a>
+      <button class="hl-icon" data-nav-toggle aria-label="Menu" aria-expanded="false"><i class="fas fa-bars"></i></button>
+    </div>
+  </div>
+</header>
+
+<div class="hl-offcanvas" data-offcanvas aria-hidden="true">
+  <div class="hl-offcanvas-inner">
+    <button class="hl-offcanvas-close" data-offcanvas-close aria-label="Close menu"><i class="fas fa-times"></i></button>
+    <nav class="hl-offcanvas-nav" aria-label="Main navigation">
+      <a href="{{ root }}">Home</a>
+      <a href="{{ routes.collections_url }}">Shop</a>
+      {%- if categories and categories.size > 0 -%}
+      <div class="hl-offcanvas-sub">
+        {%- for c in categories limit: 10 -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}
+      </div>
+      {%- endif -%}
+      <a href="{{ root }}/blog">Blog</a>
+      <a href="{{ root }}/contact">Contact</a>
+      <span class="hl-offcanvas-label">Account</span>
+      <a href="{{ routes.account_url }}">My account</a>
+      <a href="{{ routes.cart_url }}">Cart{% if cart.item_count > 0 %} ({{ cart.item_count }}){% endif %}</a>
+    </nav>
+  </div>
+</div>

@@ -1,0 +1,17 @@
+{%- assign s = section.settings -%}
+{%- if s.title != blank -%}
+<section class="cg-section cg-newsletter">
+  <div class="cg-container">
+    <div class="cg-newsletter-inner">
+      <span class="cg-eyebrow cg-eyebrow-light">Newsletter</span>
+      <h2 class="cg-title cg-title-light">{{ s.title }}</h2>
+      {%- if s.subtitle != blank -%}<p class="cg-newsletter-sub">{{ s.subtitle }}</p>{%- endif -%}
+      <form class="cg-newsletter-form" data-newsletter>
+        <input type="email" placeholder="{{ s.placeholder | default: 'Enter your email address' }}" aria-label="Email address" required>
+        <button type="submit" class="cg-btn cg-btn-white">{{ s.button | default: 'Subscribe' }}</button>
+      </form>
+      {%- if s.provider_note != blank -%}<p class="cg-newsletter-note">{{ s.provider_note }}</p>{%- endif -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

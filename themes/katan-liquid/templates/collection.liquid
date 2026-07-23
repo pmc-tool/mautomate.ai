@@ -1,0 +1,15 @@
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="kt-current">{{ collection.title }}</span>
+</div></nav>
+<div class="kt-titlebar"><div class="kt-container">
+  <h1 class="kt-title">{{ collection.title }}</h1>
+  {%- if collection.description != blank -%}<p class="kt-lead">{{ collection.description }}</p>{%- endif -%}
+  <span class="kt-count">{{ collection.products_count }} products</span>
+</div></div>
+<section class="kt-section">
+  <div class="kt-container">
+    {%- if collection.products and collection.products.size > 0 -%}
+    <div class="kt-grid">{%- for product in collection.products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="kt-empty">No products in this collection yet.</p>{%- endif -%}
+  </div>
+</section>

@@ -1,0 +1,58 @@
+{%- assign s = section.settings -%}
+<section class="hl-section hl-promo">
+  <div class="hl-container">
+    {%- if s.intro -%}
+    <div class="hl-promo-intro">
+      <h2 class="hl-title hl-title-center">{{ s.intro.title }}</h2>
+      {%- if s.intro.body != blank -%}<p class="hl-lead">{{ s.intro.body }}</p>{%- endif -%}
+      {%- if s.intro.href != blank -%}<a class="hl-link" href="{{ s.intro.href }}">{{ s.intro.link_label | default: 'Learn more' }} <i class="fas fa-arrow-right"></i></a>{%- endif -%}
+    </div>
+    {%- endif -%}
+
+    <div class="hl-banner-grid">
+      {%- if s.sale -%}
+      <a class="hl-banner" href="{{ s.sale.href | default: '/store' }}">
+        <div class="hl-banner-img">{% if s.sale.image %}<img src="{{ s.sale.image }}" alt="{{ s.sale.title }}">{% endif %}</div>
+        <div class="hl-banner-cap">
+          <h3>{{ s.sale.title }}</h3>
+          {%- if s.sale.special_title != blank -%}<h6>{{ s.sale.special_title }}</h6>{%- endif -%}
+          <span class="hl-link">{{ s.sale.link_label | default: 'Shop now' }} <i class="fas fa-arrow-right"></i></span>
+        </div>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- unless cat.wide -%}
+      <a class="hl-banner" href="{{ cat.href | default: '/store' }}">
+        <div class="hl-banner-img">{% if cat.image %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</div>
+        <div class="hl-banner-cap">
+          <h3>{{ cat.title }}</h3>
+          {%- if cat.count_label != blank -%}<h6>{{ cat.count_label }}</h6>{%- endif -%}
+          <span class="hl-link">Shop now <i class="fas fa-arrow-right"></i></span>
+        </div>
+      </a>
+      {%- endunless -%}{%- endfor -%}
+
+      {%- if s.instagram -%}
+      <a class="hl-banner" href="{{ s.instagram.href | default: '#' }}">
+        <div class="hl-banner-img">{% if s.instagram.image %}<img src="{{ s.instagram.image }}" alt="{{ s.instagram.handle }}">{% endif %}</div>
+        <div class="hl-insta-cap">
+          <i class="fab fa-instagram"></i>
+          {%- if s.instagram.sub_title != blank -%}<span>{{ s.instagram.sub_title }}</span>{%- endif -%}
+          <h3>{{ s.instagram.handle }}</h3>
+        </div>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- if cat.wide -%}
+      <a class="hl-banner hl-banner-wide" href="{{ cat.href | default: '/store' }}">
+        <div class="hl-banner-img">{% if cat.image %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</div>
+        <div class="hl-banner-cap">
+          <h3>{{ cat.title }}</h3>
+          {%- if cat.count_label != blank -%}<h6>{{ cat.count_label }}</h6>{%- endif -%}
+          <span class="hl-link">Shop now <i class="fas fa-arrow-right"></i></span>
+        </div>
+      </a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>

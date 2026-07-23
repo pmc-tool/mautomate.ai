@@ -1,0 +1,19 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="rk-section rk-insta">
+  <div class="rk-container">
+    {%- if s.heading != blank or s.handle != blank -%}
+    <div class="rk-shead rk-shead-center">
+      {%- if s.heading != blank -%}<h2 class="rk-title rk-title-accent" data-el="title">{{ s.heading }}</h2>{%- endif -%}
+      {%- if s.handle != blank -%}<p class="rk-lead" data-el="instagram">{{ s.handle }}</p>{%- endif -%}
+    </div>
+    {%- endif -%}
+    <div class="rk-insta-grid">
+      {%- for item in images -%}{%- if item.image != blank -%}
+      <a class="rk-insta-cell" data-el="item" data-el-item="images:{{ forloop.index0 }}" href="{{ item.href | default: '#' }}"><img src="{{ item.image }}" alt="Instagram post"><span class="rk-insta-ic"><i class="fab fa-instagram"></i></span></a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

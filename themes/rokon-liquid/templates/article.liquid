@@ -1,0 +1,26 @@
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">{{ article.title }}</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><a href="{{ routes.root_url }}/blog">Blog</a></li>
+      <li><span class="rk-crumb-active">{{ article.title }}</span></li>
+    </ul>
+  </div>
+</section>
+<article class="rk-section rk-article">
+  <div class="rk-container">
+    <header class="rk-article-head">
+      <div class="rk-article-meta">
+        {%- if article.author != blank -%}<span>By {{ article.author }}</span>{%- endif -%}
+        {%- if article.published_at != blank -%}<span>{{ article.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+        {%- if article.reading_time -%}<span>{{ article.reading_time }} min read</span>{%- endif -%}
+      </div>
+    </header>
+    {%- if article.cover_image %}<div class="rk-article-cover"><img src="{{ article.cover_image }}" alt="{{ article.title }}"></div>{% endif -%}
+    <div class="rk-article-body rk-richtext-inner">
+      {%- if article.content != blank -%}{% render 'resolve-tokens', text: article.content, shop: shop %}{%- elsif article.excerpt != blank -%}<p>{{ article.excerpt }}</p>{%- endif -%}
+    </div>
+    <div class="rk-article-foot"><a class="rk-link" href="{{ routes.root_url }}/blog">&#8592; Back to blog</a></div>
+  </div>
+</article>

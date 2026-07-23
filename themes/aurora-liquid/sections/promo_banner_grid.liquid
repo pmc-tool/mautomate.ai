@@ -1,0 +1,57 @@
+{%- assign s = section.settings -%}
+<section class="au-section au-promo">
+  <div class="au-container">
+    <div class="au-promo-grid">
+      {%- if s.intro -%}
+      <div class="au-promo-intro au-card">
+        <h2 class="au-promo-intro-title">{{ s.intro.title }}</h2>
+        {%- if s.intro.body != blank -%}<p class="au-promo-intro-body">{{ s.intro.body }}</p>{%- endif -%}
+        {%- assign intro_label = s.intro.link_label | default: 'Learn more' -%}
+        {%- if s.intro.href != blank and intro_label != blank -%}
+        <a class="au-btn" href="{{ s.intro.href }}">{{ intro_label }}
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+        </a>
+        {%- endif -%}
+      </div>
+      {%- endif -%}
+
+      {%- if s.sale -%}
+      <a class="au-promo-tile au-card" href="{{ s.sale.href | default: '/store' }}">
+        <span class="au-promo-tile-img">{% if s.sale.image %}<img src="{{ s.sale.image }}" alt="{{ s.sale.title }}">{% endif %}</span>
+        <span class="au-promo-tile-body">
+          {%- if s.sale.special_title != blank -%}<span class="au-eyebrow au-eyebrow-accent">{{ s.sale.special_title }}</span>{%- endif -%}
+          <span class="au-promo-tile-title">{{ s.sale.title }}</span>
+          {%- if s.sale.href != blank -%}<span class="au-textlink">{{ s.sale.link_label | default: 'Shop now' }}
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+          </span>{%- endif -%}
+        </span>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- unless cat.wide -%}
+      <a class="au-promo-tile au-card" href="{{ cat.href | default: '/store' }}">
+        <span class="au-promo-tile-img">{% if cat.image %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</span>
+        <span class="au-promo-tile-cap"><span class="au-promo-tile-name">{{ cat.title }}</span>{% if cat.count_label != blank %}<span class="au-promo-tile-count">{{ cat.count_label }}</span>{% endif %}</span>
+      </a>
+      {%- endunless -%}{%- endfor -%}
+
+      {%- if s.instagram -%}
+      <a class="au-promo-tile au-card" href="{{ s.instagram.href | default: '#' }}">
+        <span class="au-promo-tile-img">{% if s.instagram.image %}<img src="{{ s.instagram.image }}" alt="{{ s.instagram.handle }}">{% endif %}</span>
+        <span class="au-promo-tile-body">
+          <span class="au-promo-insta-ic"><i class="fab fa-instagram" aria-hidden="true"></i></span>
+          {%- if s.instagram.sub_title != blank -%}<span class="au-eyebrow">{{ s.instagram.sub_title }}</span>{%- endif -%}
+          <span class="au-promo-tile-title">{{ s.instagram.handle }}</span>
+        </span>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- if cat.wide -%}
+      <a class="au-promo-tile au-promo-tile-wide au-card" href="{{ cat.href | default: '/store' }}">
+        <span class="au-promo-tile-img">{% if cat.image %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</span>
+        <span class="au-promo-tile-cap"><span class="au-promo-tile-name">{{ cat.title }}</span>{% if cat.count_label != blank %}<span class="au-promo-tile-count">{{ cat.count_label }}</span>{% endif %}</span>
+      </a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>

@@ -1,0 +1,28 @@
+{%- assign slides = section.settings.slides -%}
+{%- assign nl = '
+' -%}
+{%- if slides and slides.size > 0 -%}
+<section class="ek-hero" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 6000 }}">
+  <div class="ek-hero-slides">
+    {%- for slide in slides -%}
+    <div class="ek-hero-slide{% if forloop.first %} is-active{% endif %}"{% if slide.image %} style="background-image:url('{{ slide.image }}')"{% endif %}>
+      <div class="ek-container ek-hero-inner">
+        <div class="ek-hero-content">
+          <h1 class="ek-hero-title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
+          {%- if slide.subtitle != blank -%}<h2 class="ek-hero-stitle">{{ slide.subtitle }}</h2>{%- endif -%}
+          {%- if slide.text != blank -%}<p class="ek-hero-text">{{ slide.text }}</p>{%- endif -%}
+          {%- if slide.cta.href != blank -%}<a class="ek-btn ek-btn-dark" href="{{ slide.cta.href }}">{{ slide.cta.label | default: 'Order Now' }}</a>{%- endif -%}
+        </div>
+      </div>
+    </div>
+    {%- endfor -%}
+  </div>
+  {%- if slides.size > 1 -%}
+  <button class="ek-hero-arrow ek-hero-prev" data-hero-prev aria-label="Previous">&#8249;</button>
+  <button class="ek-hero-arrow ek-hero-next" data-hero-next aria-label="Next">&#8250;</button>
+  <div class="ek-hero-dots" data-hero-dots>
+    {%- for slide in slides -%}<button class="ek-hero-dot{% if forloop.first %} is-active{% endif %}" data-hero-dot="{{ forloop.index0 }}" aria-label="Slide {{ forloop.index }}"></button>{%- endfor -%}
+  </div>
+  {%- endif -%}
+</section>
+{%- endif -%}

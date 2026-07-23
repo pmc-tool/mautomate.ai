@@ -1,0 +1,31 @@
+{%- assign f = chrome.footer -%}
+<section class="au-section au-contact">
+  <div class="au-container">
+    <div class="au-shead au-shead-center">
+      <p class="au-eyebrow">Get in touch</p>
+      <h1 class="au-title">Contact us</h1>
+      <p class="au-lead">Questions about an order or a product? We usually reply within a day.</p>
+    </div>
+    <div class="au-contact-grid">
+      <div class="au-contact-info au-card-flat">
+        {%- if f.contact.email != blank -%}
+        <div class="au-contact-item"><span class="au-eyebrow">Email</span><a href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a></div>
+        {%- endif -%}
+        {%- if f.contact.phone != blank -%}
+        <div class="au-contact-item"><span class="au-eyebrow">Phone</span><span>{{ f.contact.phone }}</span></div>
+        {%- endif -%}
+        <div class="au-contact-item"><span class="au-eyebrow">Hours</span><span>Mon&ndash;Sat, 9am&ndash;6pm</span></div>
+      </div>
+      <form class="au-contact-form au-card-flat" data-contact-form>
+        <div class="au-field-row">
+          <input type="text" name="name" placeholder="Your name" aria-label="Your name" required>
+          <input type="email" name="email" placeholder="Your email" aria-label="Your email" required>
+        </div>
+        <input type="text" name="subject" placeholder="Subject" aria-label="Subject">
+        <textarea name="message" rows="6" placeholder="How can we help?" aria-label="Message" required></textarea>
+        <button type="submit" class="au-btn">Send message</button>
+        <p class="au-contact-msg" data-contact-msg hidden></p>
+      </form>
+    </div>
+  </div>
+</section>

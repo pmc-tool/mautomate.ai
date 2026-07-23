@@ -1,0 +1,32 @@
+{%- assign s = section.settings -%}
+<section class="kt-section kt-deal">
+  <div class="kt-container">
+    <div class="kt-deal-grid">
+      <div class="kt-deal-media" data-el="image">
+        {%- if s.image != blank %}<img src="{{ s.image }}" alt="{{ s.title | default: 'Deal of the week' }}">{% else %}<div class="kt-deal-fallback"></div>{% endif -%}
+      </div>
+      <div class="kt-deal-content" data-el="content">
+        <span class="kt-eyebrow">Limited time</span>
+        <h2 class="kt-title" data-el="title">{{ s.title | default: 'Deal of the week' }}</h2>
+        {%- if s.description != blank -%}<p class="kt-deal-desc" data-el="text">{{ s.description }}</p>{%- endif -%}
+        {%- comment -%} Compute the initial countdown server-side so it shows real
+          numbers even before theme.js ticks (and in the editor, which has no JS). {%- endcomment -%}
+        {%- assign _target = s.countdown_to | date: '%s' | plus: 0 -%}
+        {%- assign _now = 'now' | date: '%s' | plus: 0 -%}
+        {%- assign _diff = _target | minus: _now -%}
+        {%- if _diff < 0 -%}{%- assign _diff = 0 -%}{%- endif -%}
+        {%- assign _d = _diff | divided_by: 86400 | floor -%}
+        {%- assign _h = _diff | modulo: 86400 | divided_by: 3600 | floor -%}
+        {%- assign _m = _diff | modulo: 3600 | divided_by: 60 | floor -%}
+        {%- assign _s = _diff | modulo: 60 -%}
+        <div class="kt-countdown" data-el="countdown" data-countdown="{{ s.countdown_to }}">
+          <div class="kt-cd"><span class="kt-cd-num" data-cd="days">{% if _d < 10 %}0{% endif %}{{ _d }}</span><span class="kt-cd-lbl">Days</span></div>
+          <div class="kt-cd"><span class="kt-cd-num" data-cd="hours">{% if _h < 10 %}0{% endif %}{{ _h }}</span><span class="kt-cd-lbl">Hours</span></div>
+          <div class="kt-cd"><span class="kt-cd-num" data-cd="minutes">{% if _m < 10 %}0{% endif %}{{ _m }}</span><span class="kt-cd-lbl">Mins</span></div>
+          <div class="kt-cd"><span class="kt-cd-num" data-cd="seconds">{% if _s < 10 %}0{% endif %}{{ _s }}</span><span class="kt-cd-lbl">Secs</span></div>
+        </div>
+        {%- if s.cta.href != blank and s.cta.label != blank -%}<a class="kt-btn" href="{{ s.cta.href }}" data-el="button">{{ s.cta.label }}</a>{%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

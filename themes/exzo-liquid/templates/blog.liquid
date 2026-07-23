@@ -1,0 +1,32 @@
+<nav class="ex-crumbs"><div class="ex-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ex-current">Blog</span>
+</div></nav>
+<section class="ex-section">
+  <div class="ex-container">
+    <div class="ex-shead ex-shead-center">
+      <span class="ex-eyebrow">Journal</span>
+      <h1 class="ex-title">From our blog</h1>
+      <span class="ex-underline"><span></span></span>
+    </div>
+    {%- assign posts = blog.posts -%}
+    {%- if posts and posts.size > 0 -%}
+    <div class="ex-blog-grid">
+      {%- for post in posts -%}
+      <article class="ex-blog-card">
+        <a class="ex-blog-cover" href="{{ routes.root_url }}/blog/{{ post.slug }}">
+          {%- if post.cover_image != blank %}<img src="{{ post.cover_image }}" alt="{{ post.title }}" loading="lazy">{% else %}<span class="ex-blog-cover-ph"></span>{% endif -%}
+        </a>
+        <div class="ex-blog-body">
+          {%- if post.published_at != blank -%}<span class="ex-blog-date">{{ post.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+          <h2 class="ex-blog-title"><a href="{{ routes.root_url }}/blog/{{ post.slug }}">{{ post.title }}</a></h2>
+          {%- if post.excerpt != blank -%}<p class="ex-blog-excerpt">{{ post.excerpt }}</p>{%- endif -%}
+          <a class="ex-link" href="{{ routes.root_url }}/blog/{{ post.slug }}">Read more</a>
+        </div>
+      </article>
+      {%- endfor -%}
+    </div>
+    {%- else -%}
+    <p class="ex-empty">No posts yet - check back soon.</p>
+    {%- endif -%}
+  </div>
+</section>

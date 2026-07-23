@@ -1,0 +1,119 @@
+{
+  "id": "bazaro-liquid",
+  "name": "Bazaro",
+  "version": "1.0.0",
+  "engine": "1",
+  "author": "mAutomate",
+  "description": "Bazaro — a bold fashion storefront with Satoshi type, oversized display headings, square black buttons and a signature red accent. Ported from the Bazaro React theme to the upload engine as a fully self-contained Liquid package.",
+  "tokens": {
+    "colors": {
+      "primary": "#141414",
+      "dark": "#141414",
+      "text": "#6d6868",
+      "border": "#f2f2f2",
+      "bg": "#ffffff"
+    },
+    "fonts": {
+      "heading": "Satoshi-Regular, sans-serif",
+      "body": "Satoshi-Medium, sans-serif"
+    }
+  },
+  "settings": [
+    { "type": "header", "label": "Brand" },
+    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#de1518" },
+    { "id": "container_width", "type": "range", "label": "Content width", "min": 1200, "max": 1500, "step": 20, "unit": "px", "default": 1430 },
+    { "type": "header", "label": "Announcement bar" },
+    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": true },
+    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "Free shipping for orders over $59 !" },
+    { "type": "header", "label": "Footer" },
+    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "Modern essentials and statement pieces for every season, delivered to your door." },
+    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+  ],
+  "defaultSections": [
+    {
+      "block_type": "hero_slider",
+      "autoplay_ms": 5000,
+      "slides": [
+        { "image": "/bazaro/img/fashion-1/slider/slider-1.jpg", "subtitle": "New Collection", "title": "Style Meets\nEvery Season", "cta": { "label": "Shop Now", "href": "/store" } },
+        { "image": "/bazaro/img/fashion-1/slider/slider-2.jpg", "subtitle": "Trending Now", "title": "Made for the\nModern Wardrobe", "cta": { "label": "Shop Now", "href": "/store" } },
+        { "image": "/bazaro/img/fashion-1/slider/slider-3.png", "subtitle": "Bazaro Edit", "title": "Dress Beyond\nthe Ordinary", "cta": { "label": "Shop Now", "href": "/store" } }
+      ]
+    },
+    {
+      "block_type": "promo_banner_grid",
+      "intro": {
+        "title": "Season Collection",
+        "body": "Fresh silhouettes, honest fabrics and everyday staples — curated drops for the season ahead.",
+        "link_label": "VIEW ALL COLLECTION",
+        "href": "/store"
+      },
+      "sale": {
+        "image": "/bazaro/img/fashion-1/banner/banner-1.jpg",
+        "special_title": "Limited offer",
+        "title": "Sale up to 30% off",
+        "link_label": "SHOP NOW",
+        "href": "/store"
+      },
+      "categories": [
+        { "image": "/bazaro/img/fashion-1/collection/collection-1.jpg", "title": "Women", "count_label": "New drops weekly", "href": "/store", "wide": false },
+        { "image": "/bazaro/img/fashion-1/banner/banner-1-1.jpg", "title": "Accessories", "count_label": "Complete the look", "href": "/store", "wide": true }
+      ],
+      "instagram": {
+        "image": "/bazaro/img/fashion-1/collection/collection-3.jpg",
+        "sub_title": "Follow us on instagram",
+        "handle": "@bazaro",
+        "href": "#"
+      }
+    },
+    {
+      "block_type": "product_tabs",
+      "tabs": [
+        { "label": "New arrivals", "source": "all", "sort": "created_at", "limit": 8 },
+        { "label": "Sale items", "source": "all", "sort": "created_at", "limit": 8 },
+        { "label": "Best sellers", "source": "all", "sort": "price_desc", "limit": 8 }
+      ]
+    },
+    {
+      "block_type": "deal_of_day",
+      "title": "Deal of the day",
+      "description": "One standout piece, one serious price. Refreshed daily — once the timer runs out, the offer is gone for good.",
+      "image": "/bazaro/img/fashion-1/banner/banner-1.jpg",
+      "countdown_to": "2030-01-01T00:00:00.000Z",
+      "cta": { "label": "Shop Now", "href": "/store" }
+    },
+    {
+      "block_type": "category_showcase",
+      "sub_title": "Top Categories",
+      "title": "Shop the Collection",
+      "items": [
+        { "category_id": "", "label": "Women", "image": "/bazaro/img/fashion-1/collection/collection-1.jpg", "href": "/store" },
+        { "category_id": "", "label": "Men", "image": "/bazaro/img/fashion-1/collection/collection-2.jpg", "href": "/store" },
+        { "category_id": "", "label": "Outerwear", "image": "/bazaro/img/fashion-1/collection/collection-3.jpg", "href": "/store" },
+        { "category_id": "", "label": "Denim", "image": "/bazaro/img/fashion-1/collection/collection-4.jpg", "href": "/store" },
+        { "category_id": "", "label": "Accessories", "image": "/bazaro/img/fashion-1/collection/collection-5.jpg", "href": "/store" }
+      ]
+    },
+    {
+      "block_type": "brand_strip",
+      "title": "Shop by brands",
+      "brands": [
+        { "image": "/bazaro/img/brand/logo-1.png", "href": "#" },
+        { "image": "/bazaro/img/brand/logo-2.png", "href": "#" },
+        { "image": "/bazaro/img/brand/logo-3.png", "href": "#" },
+        { "image": "/bazaro/img/brand/logo-4.jpg", "href": "#" },
+        { "image": "/bazaro/img/brand/logo-5.jpg", "href": "#" },
+        { "image": "/bazaro/img/brand/logo-6.jpg", "href": "#" },
+        { "image": "/bazaro/img/brand/logo-7.png", "href": "#" },
+        { "image": "/bazaro/img/brand/logo-8.png", "href": "#" }
+      ]
+    },
+    {
+      "block_type": "newsletter",
+      "title": "Sign up to Newsletter",
+      "subtitle": "...and receive $20 coupon for your first shopping.",
+      "placeholder": "Enter your email address",
+      "button": "Subscribe",
+      "provider_note": "We respect your privacy. Unsubscribe at any time."
+    }
+  ]
+}

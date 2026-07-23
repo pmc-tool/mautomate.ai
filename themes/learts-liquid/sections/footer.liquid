@@ -1,0 +1,56 @@
+{%- comment -%} Self-contained footer (lz- namespace), driven by the store's chrome.footer settings. {%- endcomment -%}
+{%- assign root = routes.root_url -%}
+{%- assign f = chrome.footer -%}
+{%- assign yr = 'now' | date: '%Y' -%}
+<footer class="lz-footer">
+  <div class="lz-container">
+    <div class="lz-footer-top">
+      <div class="lz-footer-brand">
+        {%- if shop.logo -%}<img class="lz-footer-logo" src="{{ shop.logo }}" alt="{{ shop.name }}">
+        {%- else -%}<div class="lz-footer-name">{{ shop.name }}</div>{%- endif -%}
+        {%- if settings.footer_about != blank -%}<p class="lz-footer-about">{{ settings.footer_about }}</p>{%- endif -%}
+        {%- if f.contact.email != blank -%}<a class="lz-footer-contact" href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a>{%- endif -%}
+        {%- if f.contact.phone != blank -%}<span class="lz-footer-contact">{{ f.contact.phone }}</span>{%- endif -%}
+        {%- if f.contact.app_buttons and f.contact.app_buttons.size > 0 -%}
+        <div class="lz-footer-apps">{%- for btn in f.contact.app_buttons -%}<a href="{{ btn.href | default: '#' }}"><img src="{{ btn.img }}" alt="{{ btn.alt }}"></a>{%- endfor -%}</div>
+        {%- endif -%}
+      </div>
+
+      <div class="lz-footer-col">
+        <h4 class="lz-footer-title">Shop</h4>
+        <ul>
+          {%- if categories -%}{%- assign lim = f.column_categories.limit | default: 5 -%}
+          {%- for c in categories limit: lim -%}<li><a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a></li>{%- endfor -%}{%- endif -%}
+          {%- if f.column_categories.extra -%}{%- for item in f.column_categories.extra -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ routes.collections_url }}">All products</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="lz-footer-col">
+        <h4 class="lz-footer-title">Information</h4>
+        <ul>
+          {%- if f.column_links and f.column_links.size > 0 -%}{%- for item in f.column_links -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ root }}/about-us">About us</a></li><li><a href="{{ root }}/contact">Contact</a></li><li><a href="{{ root }}/blog">Blog</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="lz-footer-col">
+        <h4 class="lz-footer-title">Follow us</h4>
+        {%- if f.social and f.social.size > 0 -%}
+        <div class="lz-footer-social">
+          {%- for s in f.social -%}<a href="{{ s.href | default: '#' }}" aria-label="social"><i class="fab {{ s.icon }}"></i></a>{%- endfor -%}
+        </div>
+        {%- endif -%}
+        <form class="lz-footer-news" data-newsletter>
+          <input type="email" placeholder="{{ f.newsletter.placeholder | default: 'Your email address' }}" aria-label="Email">
+          <button type="submit" aria-label="Subscribe"><i class="fas fa-arrow-right"></i></button>
+        </form>
+      </div>
+    </div>
+
+    <div class="lz-footer-bottom">
+      <p class="lz-footer-copy">{%- if f.copyright != blank -%}{{ f.copyright | replace: '{year}', yr }}{%- else -%}&copy; {{ yr }} {{ shop.name }}. All rights reserved.{%- endif -%}</p>
+      {%- if f.payment_image != blank -%}<img class="lz-footer-pay" src="{{ f.payment_image }}" alt="Payment methods">{%- endif -%}
+    </div>
+  </div>
+</footer>

@@ -1,0 +1,37 @@
+{%- assign f = chrome.footer -%}
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">Contact Us</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="bz-current">Contact</span></nav>
+  </div>
+</div>
+<section class="bz-section">
+  <div class="bz-container">
+    <div class="bz-shead bz-shead-center">
+      <span class="bz-subtitle">Get in touch</span>
+      <h2 class="bz-title">Keep in touch with us</h2>
+      <p class="bz-lead">Questions about an order or a piece you have your eye on? We usually reply within a day.</p>
+    </div>
+    <div class="bz-contact-grid">
+      <div class="bz-contact-info">
+        {%- if f.contact.email != blank -%}
+        <div class="bz-contact-item"><span class="bz-contact-label">Email</span><a href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a></div>
+        {%- endif -%}
+        {%- if f.contact.phone != blank -%}
+        <div class="bz-contact-item"><span class="bz-contact-label">Phone</span><span>{{ f.contact.phone }}</span></div>
+        {%- endif -%}
+        <div class="bz-contact-item"><span class="bz-contact-label">Hours</span><span>Mon–Sat, 9am–6pm</span></div>
+      </div>
+      <form class="bz-contact-form" data-contact-form>
+        <div class="bz-field-row">
+          <input type="text" name="name" placeholder="Your name" aria-label="Your name" required>
+          <input type="email" name="email" placeholder="Your email" aria-label="Your email" required>
+        </div>
+        <input type="text" name="subject" placeholder="Subject" aria-label="Subject">
+        <textarea name="message" rows="6" placeholder="How can we help?" aria-label="Message" required></textarea>
+        <button type="submit" class="bz-btn">Send message</button>
+        <p class="bz-contact-msg" data-contact-msg hidden></p>
+      </form>
+    </div>
+  </div>
+</section>

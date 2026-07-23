@@ -1,0 +1,32 @@
+<section class="au-section au-blog">
+  <div class="au-container">
+    <header class="au-listing-head">
+      <nav class="au-crumbs-inline" aria-label="Breadcrumb">
+        <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">Blog</span>
+      </nav>
+      <h1 class="au-listing-title">From our journal</h1>
+    </header>
+    {%- assign posts = blog.posts -%}
+    {%- if posts and posts.size > 0 -%}
+    <div class="au-blog-grid">
+      {%- for post in posts -%}
+      <article class="au-blog-card au-card">
+        <a class="au-blog-cover" href="{{ routes.root_url }}/blog/{{ post.slug }}">
+          {%- if post.cover_image %}<img src="{{ post.cover_image }}" alt="{{ post.title }}" loading="lazy">{% else %}<span class="au-blog-cover-ph"></span>{% endif -%}
+        </a>
+        <div class="au-blog-body">
+          {%- if post.published_at != blank -%}<span class="au-eyebrow">{{ post.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+          <h2 class="au-blog-title"><a href="{{ routes.root_url }}/blog/{{ post.slug }}">{{ post.title }}</a></h2>
+          {%- if post.excerpt != blank -%}<p class="au-blog-excerpt">{{ post.excerpt }}</p>{%- endif -%}
+          <a class="au-textlink" href="{{ routes.root_url }}/blog/{{ post.slug }}">Read more
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+          </a>
+        </div>
+      </article>
+      {%- endfor -%}
+    </div>
+    {%- else -%}
+    <p class="au-empty">No posts yet — check back soon.</p>
+    {%- endif -%}
+  </div>
+</section>

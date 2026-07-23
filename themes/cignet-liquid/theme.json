@@ -1,0 +1,118 @@
+{
+  "id": "cignet-liquid",
+  "name": "Cignet",
+  "version": "1.0.0",
+  "engine": "1",
+  "author": "mAutomate",
+  "description": "Cignet — an elegant jewellery storefront in deep green and ivory. Playfair Display headings, Roboto body, pill section eyebrows, circular category tiles and dark banner bands, ported to the upload engine as a fully self-contained Liquid theme.",
+  "tokens": {
+    "colors": {
+      "primary": "#2f3d38",
+      "dark": "#304038",
+      "text": "#596460",
+      "border": "#e3e6e4",
+      "bg": "#ffffff"
+    },
+    "fonts": {
+      "heading": "Playfair Display, serif",
+      "body": "Roboto, sans-serif"
+    }
+  },
+  "settings": [
+    { "type": "header", "label": "Brand" },
+    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#2f3d38" },
+    { "id": "container_width", "type": "range", "label": "Content width", "min": 1200, "max": 1500, "step": 20, "unit": "px", "default": 1300 },
+    { "type": "header", "label": "Announcement bar" },
+    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": true },
+    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "Free shipping and returns on all orders over $150" },
+    { "type": "header", "label": "Footer" },
+    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "A curated collection of fine jewellery and timeless pieces, crafted with care and delivered to your door." },
+    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+  ],
+  "defaultSections": [
+    {
+      "block_type": "hero_slider",
+      "autoplay_ms": 6000,
+      "slides": [
+        { "image": "/cignet/images/hero-bg-image.jpg", "subtitle": "Timeless jewellery", "title": "Elegance in\nEvery Detail", "cta": { "label": "Explore collection", "href": "/store" } },
+        { "image": "/cignet/images/limited-offer-image-2.jpg", "subtitle": "New arrivals", "title": "Crafted to be\nTreasured Forever", "cta": { "label": "Shop now", "href": "/store" } },
+        { "image": "/cignet/images/page-header-bg-image.jpg", "subtitle": "Handpicked pieces", "title": "Jewellery for\nLife's Moments", "cta": { "label": "Shop now", "href": "/store" } }
+      ]
+    },
+    {
+      "block_type": "promo_banner_grid",
+      "intro": {
+        "title": "Fine jewellery, made for every day and forever.",
+        "body": "Every piece in our collection is chosen for its craftsmanship and character — from delicate everyday essentials to statement pieces for life's biggest moments. Discover rings, necklaces, earrings and bracelets that feel made for you.",
+        "link_label": "ABOUT US",
+        "href": "/store"
+      },
+      "sale": {
+        "image": "/cignet/images/limited-offer-image-1.jpg",
+        "special_title": "Season sale",
+        "title": "Up to 20% off select pieces",
+        "link_label": "SHOP NOW",
+        "href": "/store"
+      },
+      "categories": [
+        { "image": "/cignet/images/collection-item-image-1.jpg", "title": "Necklaces", "count_label": "16 items", "href": "/store", "wide": false },
+        { "image": "/cignet/images/collection-item-image-2.jpg", "title": "Rings", "count_label": "12 items", "href": "/store", "wide": false },
+        { "image": "/cignet/images/mission-vision-item-image-1.jpg", "title": "Earrings", "count_label": "9 items", "href": "/store", "wide": true }
+      ],
+      "instagram": {
+        "image": "/cignet/images/post-1.jpg",
+        "sub_title": "Follow us on instagram",
+        "handle": "@cignet.jewellery",
+        "href": "#"
+      }
+    },
+    {
+      "block_type": "product_tabs",
+      "tabs": [
+        { "label": "New arrivals", "source": "all", "sort": "created_at", "limit": 8 },
+        { "label": "Best sellers", "source": "all", "sort": "price_desc", "limit": 8 },
+        { "label": "Sale items", "source": "all", "sort": "created_at", "limit": 8 }
+      ]
+    },
+    {
+      "block_type": "deal_of_day",
+      "title": "The Signature Edit",
+      "description": "A limited release of our most loved pieces — hand-finished, certified and ready to gift. When they are gone, they are gone.",
+      "image": "/cignet/images/limited-offer-image-1.jpg",
+      "countdown_to": "2030-01-01T00:00:00.000Z",
+      "cta": { "label": "Shop the edit", "href": "/store" }
+    },
+    {
+      "block_type": "category_showcase",
+      "sub_title": "Our best sellers",
+      "title": "Explore signature pieces",
+      "items": [
+        { "category_id": "", "label": "Rings", "image": "/cignet/images/top-selling-item-image-1.jpg", "href": "/store" },
+        { "category_id": "", "label": "Necklaces", "image": "/cignet/images/top-selling-item-image-2.jpg", "href": "/store" },
+        { "category_id": "", "label": "Earrings", "image": "/cignet/images/top-selling-item-image-3.jpg", "href": "/store" },
+        { "category_id": "", "label": "Bracelets", "image": "/cignet/images/top-selling-item-image-4.jpg", "href": "/store" },
+        { "category_id": "", "label": "Pendants", "image": "/cignet/images/top-selling-item-image-5.jpg", "href": "/store" }
+      ]
+    },
+    {
+      "block_type": "brand_strip",
+      "title": "Shop by brands",
+      "brands": [
+        { "image": "/learts/assets/images/brands/brand-7.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-8.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-1.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-2.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-3.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-4.webp", "href": "#" }
+      ]
+    },
+    {
+      "block_type": "newsletter",
+      "title": "Join the Cignet circle",
+      "subtitle": "Early access to new collections, private sales and care guides — straight to your inbox.",
+      "placeholder": "Enter your email address",
+      "button": "Subscribe",
+      "provider_note": "We respect your privacy. Unsubscribe at any time."
+    }
+  ]
+}

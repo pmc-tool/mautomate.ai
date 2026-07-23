@@ -1,0 +1,19 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="sf-section sf-insta">
+  <div class="sf-container">
+    {%- if s.heading != blank or s.handle != blank -%}
+    <div class="sf-shead sf-shead-center">
+      {%- if s.heading != blank -%}<span class="sf-eyebrow">{{ s.heading }}</span>{%- endif -%}
+      {%- if s.handle != blank -%}<h2 class="sf-title">{{ s.handle }}</h2>{%- endif -%}
+    </div>
+    {%- endif -%}
+    <div class="sf-insta-grid">
+      {%- for item in images -%}{%- if item.image != blank -%}
+      <a class="sf-insta-cell" href="{{ item.href | default: '#' }}"><img src="{{ item.image }}" alt="Instagram post"><span class="sf-insta-ic"><i class="fab fa-instagram"></i></span></a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

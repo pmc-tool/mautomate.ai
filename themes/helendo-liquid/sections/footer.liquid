@@ -1,0 +1,82 @@
+{%- comment -%} Self-contained Helendo footer (hl- namespace): widget columns
+    (Contact / Help and Information / Categories / Newsletter) then the
+    copyright strip with bottom menu, centred logo and social row — driven by
+    the store's chrome.footer settings. {%- endcomment -%}
+{%- assign root = routes.root_url -%}
+{%- assign f = chrome.footer -%}
+{%- assign yr = 'now' | date: '%Y' -%}
+<footer class="hl-footer">
+  <div class="hl-container">
+    <div class="hl-footer-top">
+      <div class="hl-footer-col">
+        <h6 class="hl-footer-title">Contact</h6>
+        {%- if settings.footer_about != blank -%}<p class="hl-footer-about">{{ settings.footer_about }}</p>{%- endif -%}
+        <ul class="hl-footer-list">
+          {%- if f.contact.phone != blank -%}<li><i class="fas fa-phone-alt"></i>{{ f.contact.phone }}</li>{%- endif -%}
+          {%- if f.contact.email != blank -%}<li><i class="far fa-envelope"></i><a href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a></li>{%- endif -%}
+        </ul>
+        {%- if f.social and f.social.size > 0 -%}
+        <div class="hl-footer-social">
+          {%- for s in f.social -%}<a href="{{ s.href | default: '#' }}" aria-label="social"><i class="fab {{ s.icon }}"></i></a>{%- endfor -%}
+        </div>
+        {%- endif -%}
+        {%- if f.contact.app_buttons and f.contact.app_buttons.size > 0 -%}
+        <div class="hl-footer-apps">{%- for btn in f.contact.app_buttons -%}<a href="{{ btn.href | default: '#' }}"><img src="{{ btn.img }}" alt="{{ btn.alt }}"></a>{%- endfor -%}</div>
+        {%- endif -%}
+      </div>
+
+      <div class="hl-footer-col">
+        <h6 class="hl-footer-title">Help &amp; Information</h6>
+        <ul class="hl-footer-list">
+          {%- if f.column_links and f.column_links.size > 0 -%}{%- for item in f.column_links -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ root }}/about-us">About us</a></li><li><a href="{{ root }}/contact">Contact</a></li><li><a href="{{ root }}/blog">Blog</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="hl-footer-col">
+        <h6 class="hl-footer-title">Categories</h6>
+        <ul class="hl-footer-list">
+          {%- if categories -%}{%- assign lim = f.column_categories.limit | default: 5 -%}
+          {%- for c in categories limit: lim -%}<li><a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a></li>{%- endfor -%}{%- endif -%}
+          {%- if f.column_categories.extra -%}{%- for item in f.column_categories.extra -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ routes.collections_url }}">All products</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="hl-footer-col">
+        <h6 class="hl-footer-title">{{ f.newsletter.title | default: 'Newsletter' }}</h6>
+        <p class="hl-footer-about">Sign up and be the first to know about new arrivals and offers.</p>
+        <form class="hl-footer-news" data-newsletter>
+          <input type="email" placeholder="{{ f.newsletter.placeholder | default: 'Your email address' }}" aria-label="Email">
+          <button type="submit" aria-label="Subscribe"><i class="fas fa-arrow-right"></i></button>
+        </form>
+      </div>
+    </div>
+
+    <div class="hl-footer-bottom">
+      <div class="hl-footer-bottom-row">
+        <ul class="hl-footer-menu">
+          {%- if f.column_links and f.column_links.size > 0 -%}
+          {%- for item in f.column_links limit: 3 -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}
+          <li><a href="{{ root }}/about-us">About us</a></li><li><a href="{{ root }}/contact">Contact</a></li>
+          {%- endif -%}
+        </ul>
+        <div class="hl-footer-logo">
+          {%- if shop.logo -%}<img src="{{ shop.logo }}" alt="{{ shop.name }}">
+          {%- else -%}<span class="hl-footer-name">{{ shop.name }}</span>{%- endif -%}
+        </div>
+        <div class="hl-footer-follow">
+          {%- if f.payment_image != blank -%}<img class="hl-footer-pay" src="{{ f.payment_image }}" alt="Payment methods">
+          {%- elsif f.social and f.social.size > 0 -%}
+          <p class="hl-footer-follow-title">Follow us on social</p>
+          <div class="hl-footer-social">
+            {%- for s in f.social -%}<a href="{{ s.href | default: '#' }}" aria-label="social"><i class="fab {{ s.icon }}"></i></a>{%- endfor -%}
+          </div>
+          {%- endif -%}
+        </div>
+      </div>
+      <span class="hl-footer-copy">{%- if f.copyright != blank -%}{{ f.copyright | replace: '{year}', yr }}{%- else -%}&copy; {{ yr }} {{ shop.name }}. All rights reserved.{%- endif -%}</span>
+    </div>
+  </div>
+</footer>

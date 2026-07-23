@@ -1,0 +1,51 @@
+{%- assign s = section.settings -%}
+<section class="ex-section ex-promo">
+  <div class="ex-container">
+    <div class="ex-promo-grid">
+      {%- if s.intro -%}
+      <div class="ex-promo-intro">
+        <h2 class="ex-promo-intro-title">{{ s.intro.title }}</h2>
+        <span class="ex-underline ex-underline-left"><span></span></span>
+        {%- if s.intro.body != blank -%}<p class="ex-promo-intro-body">{{ s.intro.body }}</p>{%- endif -%}
+        {%- if s.intro.href != blank -%}<a class="ex-link" href="{{ s.intro.href }}">{{ s.intro.link_label | default: 'Learn more' }}</a>{%- endif -%}
+      </div>
+      {%- endif -%}
+
+      {%- if s.sale -%}
+      <a class="ex-promo-sale" href="{{ s.sale.href | default: '/store' }}">
+        {%- if s.sale.image != blank %}<img src="{{ s.sale.image }}" alt="{{ s.sale.title }}">{% endif -%}
+        <div class="ex-promo-sale-body">
+          {%- if s.sale.special_title != blank -%}<span class="ex-promo-sale-kicker">{{ s.sale.special_title }}</span>{%- endif -%}
+          <h3 class="ex-promo-sale-title">{{ s.sale.title }}</h3>
+          {%- if s.sale.href != blank -%}<span class="ex-btn ex-btn-sm">{{ s.sale.link_label | default: 'Shop now' }}</span>{%- endif -%}
+        </div>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- unless cat.wide -%}
+      <a class="ex-promo-cat" href="{{ cat.href | default: '/store' }}">
+        <div class="ex-promo-cat-img">{% if cat.image != blank %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</div>
+        <div class="ex-promo-cat-cap"><h3>{{ cat.title }}</h3>{% if cat.count_label != blank %}<span>{{ cat.count_label }}</span>{% endif %}</div>
+      </a>
+      {%- endunless -%}{%- endfor -%}
+
+      {%- if s.instagram -%}
+      <a class="ex-promo-insta" href="{{ s.instagram.href | default: '#' }}">
+        {%- if s.instagram.image != blank %}<img src="{{ s.instagram.image }}" alt="{{ s.instagram.handle }}">{% endif -%}
+        <div class="ex-promo-insta-body">
+          <i class="fab fa-instagram"></i>
+          {%- if s.instagram.sub_title != blank -%}<span>{{ s.instagram.sub_title }}</span>{%- endif -%}
+          <h3>{{ s.instagram.handle }}</h3>
+        </div>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- if cat.wide -%}
+      <a class="ex-promo-cat ex-promo-cat-wide" href="{{ cat.href | default: '/store' }}">
+        <div class="ex-promo-cat-img">{% if cat.image != blank %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</div>
+        <div class="ex-promo-cat-cap"><h3>{{ cat.title }}</h3>{% if cat.count_label != blank %}<span>{{ cat.count_label }}</span>{% endif %}</div>
+      </a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>

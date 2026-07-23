@@ -1,0 +1,28 @@
+{%- assign slides = section.settings.slides -%}
+{%- assign nl = '
+' -%}
+{%- if slides and slides.size > 0 -%}
+<section class="ex-hero" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 6000 }}">
+  <div class="ex-hero-slides">
+    {%- for slide in slides -%}
+    <div class="ex-hero-slide{% if forloop.first %} is-active{% endif %}"{% if slide.image != blank %} style="background-image:url('{{ slide.image }}')"{% endif %}>
+      <div class="ex-container ex-hero-inner">
+        <div class="ex-hero-content">
+          {%- if slide.subtitle != blank -%}<span class="ex-hero-kicker">{{ slide.subtitle }}</span>{%- endif -%}
+          <h1 class="ex-hero-title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
+          <span class="ex-underline ex-underline-light ex-underline-left"><span></span></span>
+          {%- if slide.cta.href != blank -%}<a class="ex-btn ex-btn-light" href="{{ slide.cta.href }}">{{ slide.cta.label | default: 'Shop now' }}</a>{%- endif -%}
+        </div>
+      </div>
+    </div>
+    {%- endfor -%}
+  </div>
+  {%- if slides.size > 1 -%}
+  <button class="ex-hero-arrow ex-hero-prev" data-hero-prev aria-label="Previous">&#8249;</button>
+  <button class="ex-hero-arrow ex-hero-next" data-hero-next aria-label="Next">&#8250;</button>
+  <div class="ex-hero-dots" data-hero-dots>
+    {%- for slide in slides -%}<button class="ex-hero-dot{% if forloop.first %} is-active{% endif %}" data-hero-dot="{{ forloop.index0 }}" aria-label="Slide {{ forloop.index }}"></button>{%- endfor -%}
+  </div>
+  {%- endif -%}
+</section>
+{%- endif -%}

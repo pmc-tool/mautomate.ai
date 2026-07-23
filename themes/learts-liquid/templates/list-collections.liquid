@@ -1,0 +1,15 @@
+<nav class="lz-crumbs"><div class="lz-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="lz-current">Shop</span>
+</div></nav>
+<section class="lz-section">
+  <div class="lz-container">
+    <div class="lz-shead lz-shead-center">
+      <span class="lz-eyebrow">Browse</span>
+      <h1 class="lz-title">Shop all</h1>
+      <p class="lz-lead">Everything we make, in one place.</p>
+    </div>
+    {%- if products and products.size > 0 -%}
+    <div class="lz-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="lz-empty">No products yet — check back soon.</p>{%- endif -%}
+  </div>
+</section>

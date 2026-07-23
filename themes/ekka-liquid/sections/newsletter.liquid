@@ -1,0 +1,16 @@
+{%- assign s = section.settings -%}
+{%- if s.title != blank -%}
+<section class="ek-section ek-newsletter">
+  <div class="ek-container">
+    <div class="ek-newsletter-inner">
+      <h2 class="ek-newsletter-title">{{ s.title }}</h2>
+      {%- if s.subtitle != blank -%}<p class="ek-newsletter-sub">{{ s.subtitle }}</p>{%- endif -%}
+      <form class="ek-subscribe ek-subscribe-lg" data-newsletter>
+        <input type="email" placeholder="{{ s.placeholder | default: 'Enter your email here...' }}" aria-label="Email address" required>
+        <button type="submit" aria-label="{{ s.button | default: 'Subscribe' }}" title="{{ s.button | default: 'Subscribe' }}"><i class="far fa-paper-plane"></i></button>
+      </form>
+      {%- if s.provider_note != blank -%}<p class="ek-newsletter-note">{{ s.provider_note }}</p>{%- endif -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

@@ -1,0 +1,37 @@
+{%- assign f = chrome.footer -%}
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">Contact us</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="hl-current">Contact</span></nav>
+  </div>
+</div>
+<section class="hl-section">
+  <div class="hl-container">
+    <div class="hl-shead hl-shead-center">
+      <span class="hl-eyebrow">Get in touch</span>
+      <h2 class="hl-title hl-title-center">Keep in touch with us</h2>
+      <p class="hl-lead">Questions about an order or a custom piece? We usually reply within a day.</p>
+    </div>
+    <div class="hl-contact-grid">
+      <div class="hl-contact-info">
+        {%- if f.contact.email != blank -%}
+        <div class="hl-contact-item"><span class="hl-contact-label">Email</span><a href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a></div>
+        {%- endif -%}
+        {%- if f.contact.phone != blank -%}
+        <div class="hl-contact-item"><span class="hl-contact-label">Phone</span><span>{{ f.contact.phone }}</span></div>
+        {%- endif -%}
+        <div class="hl-contact-item"><span class="hl-contact-label">Hours</span><span>Mon–Sat, 9am–6pm</span></div>
+      </div>
+      <form class="hl-contact-form" data-contact-form>
+        <div class="hl-field-row">
+          <input type="text" name="name" placeholder="Your name" aria-label="Your name" required>
+          <input type="email" name="email" placeholder="Your email" aria-label="Your email" required>
+        </div>
+        <input type="text" name="subject" placeholder="Subject" aria-label="Subject">
+        <textarea name="message" rows="6" placeholder="How can we help?" aria-label="Message" required></textarea>
+        <button type="submit" class="hl-btn">Send message</button>
+        <p class="hl-contact-msg" data-contact-msg hidden></p>
+      </form>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,32 @@
+<section class="au-section au-cart">
+  <div class="au-container">
+    <h1 class="au-listing-title">Shopping Cart</h1>
+    {%- if cart.items and cart.items.size > 0 -%}
+    <div class="au-cart-layout">
+      <div class="au-cart-lines au-card-flat">
+        <div class="au-cart-row au-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+        {%- for item in cart.items -%}
+        <div class="au-cart-row">
+          <div class="au-cart-prod">
+            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
+            <div><a href="{{ routes.root_url }}{{ item.url }}" class="au-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="au-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+          </div>
+          <span>{{ item.line_price | money }}</span>
+          <span>{{ item.quantity }}</span>
+          <span class="au-cart-line-total">{{ item.line_price | money }}</span>
+        </div>
+        {%- endfor -%}
+      </div>
+      <aside class="au-cart-summary au-card-flat">
+        <h2 class="au-cart-summary-title">Summary</h2>
+        <div class="au-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        <div class="au-cart-sum-row au-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <a class="au-btn au-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
+        <a class="au-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+      </aside>
+    </div>
+    {%- else -%}
+    <div class="au-cart-empty au-card-flat"><p>Your cart is empty.</p><a class="au-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+    {%- endif -%}
+  </div>
+</section>

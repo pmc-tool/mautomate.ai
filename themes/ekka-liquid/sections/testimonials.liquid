@@ -1,0 +1,26 @@
+{%- assign s = section.settings -%}
+{%- assign items = s.items -%}
+{%- if items and items.size > 0 -%}
+<section class="ek-section ek-testi">
+  <div class="ek-container">
+    <div class="ek-stitle">
+      <h2 class="ek-bg-title" aria-hidden="true">Testimonial</h2>
+      <h2 class="ek-title">{{ s.title | default: 'Client Review' }}</h2>
+    </div>
+    <div class="ek-testi-grid">
+      {%- for item in items -%}
+      <figure class="ek-testi-card">
+        <i class="fas fa-quote-right ek-testi-quoteic" aria-hidden="true"></i>
+        {%- if item.avatar %}<img class="ek-testi-avatar" src="{{ item.avatar }}" alt="{{ item.author }}">{% endif -%}
+        {%- if item.quote != blank -%}<blockquote class="ek-testi-quote">{{ item.quote }}</blockquote>{%- endif -%}
+        <figcaption class="ek-testi-author">
+          <span class="ek-testi-name">{{ item.author }}</span>
+          {%- if item.role != blank -%}<span class="ek-testi-role">{{ item.role }}</span>{%- endif -%}
+        </figcaption>
+        <div class="ek-testi-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+      </figure>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

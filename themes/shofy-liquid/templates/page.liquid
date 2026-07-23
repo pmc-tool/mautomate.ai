@@ -1,0 +1,5 @@
+{%- if page.sections and page.sections.size > 0 -%}
+  {%- for section in page.sections -%}{% render_section section %}{%- endfor -%}
+{%- else -%}
+  <section class="sf-section"><div class="sf-container sf-shead sf-shead-center"><h1 class="sf-title">{{ shop.name }}</h1></div></section>
+{%- endif -%}

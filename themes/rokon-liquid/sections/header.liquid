@@ -1,0 +1,51 @@
+{%- assign root = routes.root_url -%}
+{%- if settings.show_announcement and settings.announcement_text != blank -%}
+<div class="rk-topbar"><div class="rk-container"><p>{{ settings.announcement_text }}</p></div></div>
+{%- endif -%}
+
+<header class="rk-header" data-header>
+  <div class="rk-container rk-header-inner">
+    <a class="rk-logo" href="{{ root }}">
+      {%- if shop.logo -%}<img src="{{ shop.logo }}" alt="{{ shop.name }}">
+      {%- else -%}<span class="rk-logo-text">{{ shop.name }}</span>{%- endif -%}
+    </a>
+
+    <nav class="rk-nav" aria-label="Primary">
+      <a href="{{ root }}">Home</a>
+      <div class="rk-nav-drop">
+        <a href="{{ routes.collections_url }}">Shop <span class="rk-nav-plus">+</span></a>
+        {%- if categories and categories.size > 0 -%}
+        <div class="rk-dropdown">
+          <a href="{{ routes.collections_url }}">All Products</a>
+          {%- for c in categories limit: 12 -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+      <a href="{{ root }}/blog">Blog</a>
+      <a href="{{ root }}/contact">Contact</a>
+    </nav>
+
+    <div class="rk-header-actions">
+      <a class="rk-icon" href="{{ routes.search_url }}" aria-label="Search">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="1.8"/></svg>
+      </a>
+      <a class="rk-icon" href="{{ routes.account_url }}" aria-label="Account">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 20c0-4 3.6-6 7.5-6s7.5 2 7.5 6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      </a>
+      <a class="rk-icon rk-cart" href="{{ routes.cart_url }}" aria-label="Cart">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 8h14l-1 12a1.6 1.6 0 0 1-1.6 1.4H7.6A1.6 1.6 0 0 1 6 20L5 8z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 8V6a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+        {%- if cart.item_count > 0 -%}<span class="rk-cart-count">{{ cart.item_count }}</span>{%- endif -%}
+      </a>
+      <button class="rk-burger" data-nav-toggle aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    </div>
+  </div>
+
+  <nav class="rk-mobile-nav" data-mobile-nav aria-label="Mobile">
+    <a href="{{ root }}">Home</a>
+    <a href="{{ routes.collections_url }}">Shop</a>
+    {%- if categories -%}{%- for c in categories -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}{%- endif -%}
+    <a href="{{ root }}/blog">Blog</a>
+    <a href="{{ root }}/contact">Contact</a>
+    <a href="{{ routes.account_url }}">Account</a>
+  </nav>
+</header>

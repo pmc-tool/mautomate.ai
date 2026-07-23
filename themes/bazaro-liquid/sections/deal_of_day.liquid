@@ -1,0 +1,29 @@
+{%- assign s = section.settings -%}
+<section class="bz-section bz-deal">
+  <div class="bz-container">
+    <div class="bz-deal-panel">
+      <div class="bz-deal-grid">
+        <div class="bz-deal-media">
+          {%- if s.image != blank -%}<img src="{{ s.image }}" alt="{{ s.title | default: 'Deal of the day' }}">{%- else -%}<div class="bz-deal-fallback"></div>{%- endif -%}
+          {%- if s.cta.href != blank and s.cta.label != blank -%}
+          <div class="bz-deal-media-btn"><a class="bz-btn bz-btn-blur" href="{{ s.cta.href }}">{{ s.cta.label }}</a></div>
+          {%- endif -%}
+        </div>
+        <div class="bz-deal-content">
+          <div class="bz-countrow" data-countdown="{{ s.countdown_to }}">
+            <span class="bz-count-label">Ends in</span>
+            <div class="bz-countboxes">
+              <span class="bz-cd-num" data-cd="days">00</span><i>:</i>
+              <span class="bz-cd-num" data-cd="hours">00</span><i>:</i>
+              <span class="bz-cd-num" data-cd="minutes">00</span><i>:</i>
+              <span class="bz-cd-num" data-cd="seconds">00</span>
+            </div>
+          </div>
+          <h2 class="bz-title">{{ s.title | default: 'Deal of the day' }}</h2>
+          {%- if s.description != blank -%}<p class="bz-deal-desc">{{ s.description }}</p>{%- endif -%}
+          {%- if s.cta.href != blank and s.cta.label != blank -%}<a class="bz-btn" href="{{ s.cta.href }}">{{ s.cta.label }}</a>{%- endif -%}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

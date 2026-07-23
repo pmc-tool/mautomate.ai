@@ -1,0 +1,19 @@
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">{{ collection.title }}</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="hl-current">{{ collection.title }}</span></nav>
+  </div>
+</div>
+<section class="hl-section">
+  <div class="hl-container">
+    {%- if collection.description != blank or collection.products_count -%}
+    <div class="hl-shead">
+      {%- if collection.description != blank -%}<p class="hl-lead" style="margin:0">{{ collection.description }}</p>{%- endif -%}
+      <span class="hl-count">{{ collection.products_count }} products</span>
+    </div>
+    {%- endif -%}
+    {%- if collection.products and collection.products.size > 0 -%}
+    <div class="hl-grid">{%- for product in collection.products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="hl-empty">No products in this collection yet.</p>{%- endif -%}
+  </div>
+</section>

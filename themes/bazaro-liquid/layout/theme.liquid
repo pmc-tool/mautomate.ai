@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="{{ request.locale | default: 'en' }}">
+<head>
+  {{ content_for_header }}
+  {%- comment -%} Satoshi is loaded via font-face rules inside theme.css
+     (the shared /bazaro/fonts vendor files). Font Awesome is used only for
+     the social / instagram icons. No foreign layout stylesheet is loaded —
+     this theme is fully self-contained in theme.css (bz- namespace). {%- endcomment -%}
+  <link rel="stylesheet" href="/learts/assets/css/vendor/fontawesome.min.css">
+  <link rel="stylesheet" href="{{ 'theme.css' | asset_url }}">
+  <style>
+    :root{
+      --bz-accent: {{ settings.accent_color | default: '#de1518' }};
+      --bz-container: {{ settings.container_width | default: 1430 }}px;
+    }
+  </style>
+</head>
+<body class="template-{{ template }} bz-body">
+  {% section 'header' %}
+  <main id="main">
+    {{ content_for_layout }}
+  </main>
+  {% section 'footer' %}
+  <script src="{{ 'theme.js' | asset_url }}" defer></script>
+</body>
+</html>

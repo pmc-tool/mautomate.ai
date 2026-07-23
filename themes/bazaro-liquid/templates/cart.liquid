@@ -1,0 +1,37 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">Your Cart</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="bz-current">Cart</span></nav>
+  </div>
+</div>
+<section class="bz-section bz-cart">
+  <div class="bz-container">
+    {%- if cart.items and cart.items.size > 0 -%}
+    <div class="bz-cart-layout">
+      <div class="bz-cart-lines">
+        <div class="bz-cart-row bz-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+        {%- for item in cart.items -%}
+        <div class="bz-cart-row">
+          <div class="bz-cart-prod">
+            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
+            <div><a href="{{ routes.root_url }}{{ item.url }}" class="bz-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="bz-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+          </div>
+          <span>{{ item.line_price | money }}</span>
+          <span>{{ item.quantity }}</span>
+          <span class="bz-cart-linetotal">{{ item.line_price | money }}</span>
+        </div>
+        {%- endfor -%}
+      </div>
+      <aside class="bz-cart-summary">
+        <h2 class="bz-cart-summary-title">Summary</h2>
+        <div class="bz-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        <div class="bz-cart-sum-row bz-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <a class="bz-btn bz-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
+        <a class="bz-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+      </aside>
+    </div>
+    {%- else -%}
+    <div class="bz-cart-empty"><p>Your cart is empty.</p><a class="bz-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+    {%- endif -%}
+  </div>
+</section>

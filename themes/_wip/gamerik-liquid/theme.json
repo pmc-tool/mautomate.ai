@@ -1,0 +1,128 @@
+{
+  "id": "gamerik-liquid",
+  "name": "Gamerik",
+  "version": "1.0.0",
+  "engine": "1",
+  "author": "mAutomate",
+  "description": "Gamerik — a dark, neon-lit gaming equipment storefront. Deep navy surfaces, electric purple and cyan accents, Orbitron display type and glowing product cards, ported from the Gamerik Shopify theme to the upload engine.",
+  "tokens": {
+    "colors": {
+      "primary": "#9946bb",
+      "dark": "#0b0e17",
+      "text": "#f7f7f7",
+      "border": "#242b40",
+      "bg": "#0b0e17"
+    },
+    "fonts": {
+      "heading": "Orbitron, sans-serif",
+      "body": "Jost, sans-serif"
+    }
+  },
+  "settings": [
+    { "type": "header", "label": "Brand" },
+    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#9946bb" },
+    { "id": "container_width", "type": "range", "label": "Content width", "min": 1200, "max": 1500, "step": 20, "unit": "px", "default": 1280 },
+    { "type": "header", "label": "Announcement bar" },
+    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": true },
+    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "Free shipping on orders over $99 — level up your setup today." },
+    { "type": "header", "label": "Footer" },
+    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "Next-generation gaming gear — VR headsets, AR peripherals and immersive hardware, tested by players and delivered to your door." },
+    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+  ],
+  "defaultSections": [
+    {
+      "block_type": "hero_slider",
+      "autoplay_ms": 6000,
+      "slides": [
+        { "image": "", "subtitle": "Next-gen gaming gear", "title": "Enter the\nMetaverse Arena", "cta": { "label": "shop now", "href": "/store" } },
+        { "image": "", "subtitle": "Virtual reality", "title": "Gear Built for\nTotal Immersion", "cta": { "label": "explore gear", "href": "/store" } },
+        { "image": "", "subtitle": "Play beyond limits", "title": "Power Up\nYour Battlestation", "cta": { "label": "shop now", "href": "/store" } }
+      ]
+    },
+    {
+      "block_type": "promo_banner_grid",
+      "intro": {
+        "title": "Hardware engineered for the next level of play.",
+        "body": "From head-mounted displays to haptic suits and AR controllers, every piece of gear in our arsenal is tuned for low latency, high fidelity and total immersion. Built by gamers, for gamers.",
+        "link_label": "ABOUT US",
+        "href": "/store"
+      },
+      "sale": {
+        "image": "",
+        "special_title": "Season sale",
+        "title": "Up to 40% off VR gear",
+        "link_label": "SHOP NOW",
+        "href": "/store"
+      },
+      "categories": [
+        { "image": "", "title": "VR Headsets", "count_label": "12 items", "href": "/store", "wide": false },
+        { "image": "", "title": "Controllers", "count_label": "16 items", "href": "/store", "wide": false },
+        { "image": "", "title": "Haptic Gear", "count_label": "8 items", "href": "/store", "wide": true }
+      ],
+      "instagram": {
+        "image": "",
+        "sub_title": "Follow us on instagram",
+        "handle": "@gamerik",
+        "href": "#"
+      }
+    },
+    {
+      "block_type": "product_tabs",
+      "tabs": [
+        { "label": "New arrivals", "source": "all", "sort": "created_at", "limit": 8 },
+        { "label": "Best sellers", "source": "all", "sort": "price_desc", "limit": 8 },
+        { "label": "On sale", "source": "all", "sort": "created_at", "limit": 8 }
+      ]
+    },
+    {
+      "block_type": "deal_of_day",
+      "title": "Deal of the day",
+      "description": "One legendary piece of gear, one brutal price cut. When the timer hits zero the deal respawns with something new — grab it before it despawns.",
+      "image": "",
+      "countdown_to": "2030-01-01T00:00:00.000Z",
+      "cta": { "label": "Shop the deal", "href": "/store" }
+    },
+    {
+      "block_type": "category_showcase",
+      "sub_title": "Choose your loadout",
+      "title": "Shop by category",
+      "items": [
+        { "category_id": "", "label": "Headsets", "image": "", "href": "/store" },
+        { "category_id": "", "label": "Controllers", "image": "", "href": "/store" },
+        { "category_id": "", "label": "Smart Glasses", "image": "", "href": "/store" },
+        { "category_id": "", "label": "Haptic Suits", "image": "", "href": "/store" },
+        { "category_id": "", "label": "Mobile Consoles", "image": "", "href": "/store" }
+      ]
+    },
+    {
+      "block_type": "testimonials",
+      "title": "Rated by real players",
+      "items": [
+        { "quote": "The headset tracking is flawless — zero drift after months of ranked sessions. Shipping was fast and the packaging felt premium.", "author": "Marcus V.", "role": "Competitive FPS player" },
+        { "quote": "My haptic suit turned sim racing into a full-body experience. Support helped me dial in the fit within a day.", "author": "Lena K.", "role": "Sim racing enthusiast" },
+        { "quote": "Best AR controller I have owned. Battery life is exactly as advertised and it paired instantly with every device I tried.", "author": "Diego R.", "role": "AR developer" }
+      ]
+    },
+    {
+      "block_type": "instagram_grid",
+      "heading": "Community feed",
+      "handle": "@gamerik",
+      "images": [
+        { "image": "", "href": "#" },
+        { "image": "", "href": "#" },
+        { "image": "", "href": "#" },
+        { "image": "", "href": "#" },
+        { "image": "", "href": "#" },
+        { "image": "", "href": "#" }
+      ]
+    },
+    {
+      "block_type": "newsletter",
+      "title": "Join the guild",
+      "subtitle": "Drops, restocks and 10% off your first order — straight to your inbox.",
+      "placeholder": "Enter your email address",
+      "button": "Subscribe",
+      "provider_note": "We respect your privacy. Unsubscribe at any time."
+    }
+  ]
+}

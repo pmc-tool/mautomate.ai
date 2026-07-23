@@ -1,0 +1,12 @@
+{%- comment -%} Resolve merchant merge-tags (store_name, year) in HTML/text. Token literals are assembled from single braces because liquidjs tokenizes a literal double-brace even inside a string or comment. {%- endcomment -%}
+{%- assign _ob = '{' -%}
+{%- assign _cb = '}' -%}
+{%- assign _lb = _ob | append: _ob -%}
+{%- assign _rb = _cb | append: _cb -%}
+{%- assign _sn1 = _lb | append: 'store_name' | append: _rb -%}
+{%- assign _sn2 = _lb | append: ' store_name ' | append: _rb -%}
+{%- assign _sn3 = _lb | append: 'shop_name' | append: _rb -%}
+{%- assign _yr1 = _lb | append: 'year' | append: _rb -%}
+{%- assign _yr2 = _lb | append: ' year ' | append: _rb -%}
+{%- assign _year = 'now' | date: '%Y' -%}
+{{- text | replace: _sn1, shop.name | replace: _sn2, shop.name | replace: _sn3, shop.name | replace: _yr1, _year | replace: _yr2, _year | raw -}}

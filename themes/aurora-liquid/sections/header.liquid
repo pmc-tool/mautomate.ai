@@ -1,0 +1,72 @@
+{%- assign root = routes.root_url -%}
+{%- if settings.show_announcement and settings.announcement_text != blank -%}
+<div class="au-topbar"><div class="au-container"><p>{{ settings.announcement_text }}</p></div></div>
+{%- endif -%}
+
+<header class="au-header" data-header>
+  <div class="au-container au-header-inner">
+    <div class="au-header-left">
+      <button class="au-iconbtn au-burger" data-nav-toggle aria-label="Open menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <a class="au-logo" href="{{ root }}">
+        {%- if shop.logo -%}<img src="{{ shop.logo }}" alt="{{ shop.name }}">
+        {%- else -%}<span class="au-logo-text">{{ shop.name }}</span>{%- endif -%}
+      </a>
+    </div>
+
+    <nav class="au-nav" aria-label="Primary">
+      <a href="{{ root }}">Home</a>
+      <div class="au-nav-drop">
+        <a class="au-nav-drop-link" href="{{ routes.collections_url }}">Shop
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </a>
+        {%- if categories and categories.size > 0 -%}
+        <div class="au-dropdown">
+          <a href="{{ routes.collections_url }}">All products</a>
+          {%- for c in categories limit: 10 -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+      <a href="{{ root }}/blog">Blog</a>
+      <a href="{{ root }}/contact">Contact</a>
+    </nav>
+
+    <div class="au-header-actions">
+      <a class="au-iconbtn" href="{{ routes.search_url }}" aria-label="Search">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      </a>
+      <a class="au-iconbtn au-hide-sm" href="{{ routes.account_url }}" aria-label="Account">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+      </a>
+      <a class="au-iconbtn au-cart" href="{{ routes.cart_url }}" aria-label="Cart">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+        {%- if cart.item_count > 0 -%}<span class="au-cart-count">{{ cart.item_count }}</span>{%- endif -%}
+      </a>
+    </div>
+  </div>
+</header>
+
+<div class="au-drawer-overlay" data-drawer-overlay aria-hidden="true"></div>
+<aside class="au-drawer" data-mobile-nav aria-hidden="true">
+  <div class="au-drawer-head">
+    <a class="au-logo" href="{{ root }}">
+      {%- if shop.logo -%}<img src="{{ shop.logo }}" alt="{{ shop.name }}">
+      {%- else -%}<span class="au-logo-text">{{ shop.name }}</span>{%- endif -%}
+    </a>
+    <button class="au-iconbtn" data-drawer-close aria-label="Close menu">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <nav class="au-drawer-nav" aria-label="Mobile">
+    <a href="{{ root }}">Home</a>
+    <a href="{{ routes.collections_url }}">Shop</a>
+    {%- if categories -%}{%- for c in categories limit: 12 -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}{%- endif -%}
+    <a href="{{ root }}/blog">Blog</a>
+    <a href="{{ root }}/contact">Contact</a>
+  </nav>
+  <div class="au-drawer-foot">
+    <a href="{{ routes.account_url }}">Account</a>
+    <a href="{{ routes.cart_url }}">Cart</a>
+  </div>
+</aside>

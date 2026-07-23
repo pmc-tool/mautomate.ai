@@ -1,0 +1,12 @@
+{%- assign s = section.settings -%}
+{%- assign brands = s.brands -%}
+<section class="cg-section cg-brands">
+  <div class="cg-container">
+    {%- if s.title != blank -%}<div class="cg-shead cg-shead-center"><h2 class="cg-title cg-title-sm">{{ s.title }}</h2></div>{%- endif -%}
+    {%- if brands and brands.size > 0 -%}
+    <div class="cg-brand-row">
+      {%- for brand in brands -%}<a class="cg-brand" href="{{ brand.href | default: '#' }}">{% if brand.image != blank %}<img src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
+    </div>
+    {%- endif -%}
+  </div>
+</section>

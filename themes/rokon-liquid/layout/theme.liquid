@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="{{ request.locale | default: 'en' }}">
+<head>
+  {{ content_for_header }}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&family=Work+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  {%- comment -%} Font Awesome is used only for social / instagram icons.
+     No Rokon React CSS is loaded — this theme is fully self-contained in
+     theme.css (rk- namespace), so nothing leaks global html/body rules. {%- endcomment -%}
+  <link rel="stylesheet" href="/learts/assets/css/vendor/fontawesome.min.css">
+  <link rel="stylesheet" href="{{ 'theme.css' | asset_url }}">
+  <style>
+    :root{
+      --rk-accent: {{ settings.accent_color | default: '#d72323' }};
+      --rk-container: {{ settings.container_width | default: 1200 }}px;
+    }
+  </style>
+</head>
+<body class="template-{{ template }} rk-body">
+  {% section 'header' %}
+  <main id="main">
+    {{ content_for_layout }}
+  </main>
+  {% section 'footer' %}
+  <script src="{{ 'theme.js' | asset_url }}" defer></script>
+</body>
+</html>

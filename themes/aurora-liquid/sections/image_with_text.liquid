@@ -1,0 +1,23 @@
+{%- assign s = section.settings -%}
+{%- assign nl = '
+' -%}
+{%- if s.image != blank or s.title != blank -%}
+<section class="au-section au-imgtext{% if s.image_side == 'right' %} au-imgtext-right{% endif %}">
+  <div class="au-container">
+    <div class="au-imgtext-grid">
+      <div class="au-imgtext-media">{% if s.image %}<span class="au-card au-imgtext-frame"><img src="{{ s.image }}" alt="{{ s.title }}"></span>{% endif %}</div>
+      <div class="au-imgtext-body">
+        {%- if s.eyebrow != blank -%}<p class="au-eyebrow">{{ s.eyebrow }}</p>{%- endif -%}
+        {%- if s.title != blank -%}<h2 class="au-title">{%- assign lines = s.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h2>{%- endif -%}
+        {%- if s.body != blank -%}<p class="au-imgtext-copy">{{ s.body }}</p>{%- endif -%}
+        {%- assign cta_label = s.cta.label | default: 'Shop now' -%}
+        {%- if s.cta.href != blank and cta_label != blank -%}
+        <a class="au-btn" href="{{ s.cta.href }}">{{ cta_label }}
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+        </a>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>
+{%- endif -%}

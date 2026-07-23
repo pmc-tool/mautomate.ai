@@ -1,0 +1,53 @@
+{%- assign p = product -%}
+<nav class="bz-crumbs"><div class="bz-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="bz-current">{{ p.title }}</span>
+</div></nav>
+
+<section class="bz-section bz-pdp">
+  <div class="bz-container">
+    <div class="bz-pdp-grid">
+      <div class="bz-pdp-gallery">
+        {%- assign main = p.featured_image.url | default: p.featured_image -%}
+        {%- if main == blank -%}{%- assign main = '/bazaro/img/fashion-1/product/product-1/front-img-1.jpg' -%}{%- endif -%}
+        <div class="bz-pdp-main"><img id="pdp-main-img" src="{{ main }}" alt="{{ p.title }}"></div>
+        {%- if p.images and p.images.size > 1 -%}
+        <div class="bz-pdp-thumbs" data-pdp-thumbs>
+          {%- for image in p.images -%}<button class="bz-pdp-thumb{% if forloop.first %} is-active{% endif %}" data-full="{{ image.url }}"><img src="{{ image.url }}" alt="{{ image.alt | default: p.title }}"></button>{%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+
+      <div class="bz-pdp-info">
+        <div class="bz-card-stars bz-pdp-stars" aria-hidden="true">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <h1 class="bz-pdp-title">{{ p.title }}</h1>
+        <div class="bz-pdp-price">
+          {%- if p.compare_at_price and p.compare_at_price > p.price -%}<span class="bz-price-now bz-price-sale">{{ p.price | money }}</span> <span class="bz-price-old">{{ p.compare_at_price | money }}</span>
+          {%- else -%}<span class="bz-price-now">{{ p.price | money }}</span>{%- endif -%}
+        </div>
+        {%- if p.available -%}<span class="bz-pdp-stock in">In stock</span>{%- else -%}<span class="bz-pdp-stock out">Out of stock</span>{%- endif -%}
+        {%- if p.description != blank -%}<div class="bz-pdp-desc"><p>{{ p.description }}</p></div>{%- endif -%}
+
+        {%- for option in p.options -%}
+        <div class="bz-pdp-opt"><span class="bz-pdp-opt-name">{{ option.name }}</span><div class="bz-pdp-opt-vals">{%- for value in option.values -%}<span class="bz-swatch">{{ value }}</span>{%- endfor -%}</div></div>
+        {%- endfor -%}
+
+        <form class="bz-pdp-cart" data-add-to-cart>
+          {%- if p.variants and p.variants.size > 1 -%}
+          <div class="bz-pdp-opt"><span class="bz-pdp-opt-name">Variant</span>
+            <select class="bz-select" data-variant-select>
+              {%- for v in p.variants -%}<option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>{{ v.title }} — {{ v.price | money }}{% unless v.available %} (sold out){% endunless %}</option>{%- endfor -%}
+            </select>
+          </div>
+          {%- elsif p.variants and p.variants.size == 1 -%}
+          <input type="hidden" data-variant-select value="{{ p.variants[0].id }}">
+          {%- endif -%}
+          <div class="bz-pdp-buy">
+            <input type="number" class="bz-qty" data-qty value="1" min="1" aria-label="Quantity">
+            <button type="submit" class="bz-btn" data-add-btn {% unless p.available %}disabled{% endunless %}>{% if p.available %}Add to cart{% else %}Sold out{% endif %}</button>
+          </div>
+          <p class="bz-pdp-msg" data-cart-msg hidden></p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

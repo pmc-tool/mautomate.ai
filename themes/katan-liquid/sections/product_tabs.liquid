@@ -1,0 +1,25 @@
+{%- assign tabs = section.settings.tabs -%}
+{%- if tabs and tabs.size > 0 -%}
+<section class="kt-section kt-tabs" data-tabs>
+  <div class="kt-container">
+    <div class="kt-shead kt-shead-center">
+      <span class="kt-eyebrow">The collection</span>
+      <nav class="kt-tabnav" role="tablist">
+        {%- for tab in tabs -%}
+        <button class="kt-tabbtn{% if forloop.first %} is-active{% endif %}" data-tab-btn="{{ forloop.index0 }}" role="tab">{{ tab.label }}</button>
+        {%- endfor -%}
+      </nav>
+    </div>
+    {%- for tab in tabs -%}
+    <div class="kt-tabpanel{% if forloop.first %} is-active{% endif %}" data-tab-panel="{{ forloop.index0 }}" role="tabpanel">
+      {%- assign products = tab.products -%}
+      {%- if products and products.size > 0 -%}
+      <div class="kt-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- else -%}
+      <p class="kt-empty">No products to show here yet.</p>
+      {%- endif -%}
+    </div>
+    {%- endfor -%}
+  </div>
+</section>
+{%- endif -%}

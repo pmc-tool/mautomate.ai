@@ -1,0 +1,30 @@
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">Blog</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="hl-current">Blog</span></nav>
+  </div>
+</div>
+<section class="hl-section">
+  <div class="hl-container">
+    {%- assign posts = blog.posts -%}
+    {%- if posts and posts.size > 0 -%}
+    <div class="hl-blog-grid">
+      {%- for post in posts -%}
+      <article class="hl-blog-card">
+        <a class="hl-blog-cover" href="{{ routes.root_url }}/blog/{{ post.slug }}">
+          {%- if post.cover_image %}<img src="{{ post.cover_image }}" alt="{{ post.title }}" loading="lazy">{% else %}<span class="hl-blog-cover-ph"></span>{% endif -%}
+        </a>
+        <div class="hl-blog-body">
+          {%- if post.published_at != blank -%}<span class="hl-blog-date">{{ post.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+          <h2 class="hl-blog-title"><a href="{{ routes.root_url }}/blog/{{ post.slug }}">{{ post.title }}</a></h2>
+          {%- if post.excerpt != blank -%}<p class="hl-blog-excerpt">{{ post.excerpt }}</p>{%- endif -%}
+          <a class="hl-link" href="{{ routes.root_url }}/blog/{{ post.slug }}">Read more <i class="fas fa-arrow-right"></i></a>
+        </div>
+      </article>
+      {%- endfor -%}
+    </div>
+    {%- else -%}
+    <p class="hl-empty">No posts yet — check back soon.</p>
+    {%- endif -%}
+  </div>
+</section>

@@ -1,0 +1,120 @@
+{
+  "id": "learts-liquid",
+  "name": "Learts",
+  "version": "1.0.11",
+  "engine": "1",
+  "author": "mAutomate",
+  "description": "The original Forever Finds / Learts storefront — a warm, handcrafted gift-shop design — ported to the upload engine. A first-party reference theme: it reuses the platform's Learts asset bundle so it renders byte-identical to the live React theme.",
+  "tokens": {
+    "colors": {
+      "primary": "#72a499",
+      "dark": "#1f1f1f",
+      "text": "#333333",
+      "border": "#e5e5e5",
+      "bg": "#ffffff"
+    },
+    "fonts": {
+      "heading": "Marcellus, serif",
+      "body": "Jost, sans-serif"
+    }
+  },
+  "settings": [
+    { "type": "header", "label": "Brand" },
+    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#72a499" },
+    { "id": "container_width", "type": "range", "label": "Content width", "min": 1200, "max": 1500, "step": 20, "unit": "px", "default": 1320 },
+    { "type": "header", "label": "Announcement bar" },
+    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": true },
+    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "Free shipping for orders over $59 !" },
+    { "type": "header", "label": "Footer" },
+    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "Handcrafted goods and thoughtful gifts, made by people who care and delivered to your door." },
+    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+  ],
+  "defaultSections": [
+    {
+      "block_type": "hero_slider",
+      "autoplay_ms": 5000,
+      "slides": [
+        { "image": "/learts/assets/images/slider/home3/slide-1.webp", "subtitle": "Handicraft shop", "title": "Inspired by Your\nSweetest Dreams", "cta": { "label": "shop now", "href": "/store" } },
+        { "image": "/learts/assets/images/slider/home3/slide-2.webp", "subtitle": "Handicraft shop", "title": "Daily Recipes\nfor Your Health", "cta": { "label": "shop now", "href": "/store" } },
+        { "image": "/learts/assets/images/slider/home3/slide-3.webp", "subtitle": "Handicraft shop", "title": "Decorative Box\nfor New Aspiration", "cta": { "label": "shop now", "href": "/store" } }
+      ]
+    },
+    {
+      "block_type": "promo_banner_grid",
+      "intro": {
+        "title": "Handcrafted goods and thoughtful gifts, delivered.",
+        "body": "Crafting beautiful stuff with our own hands and the help from useful tools is a wonderful process, where you can enjoy yourself while pulling out some ideas and busy perfecting your work. We provide high-end unique vases, wall arts, home accessories, and furniture pieces.",
+        "link_label": "ABOUT US",
+        "href": "/store"
+      },
+      "sale": {
+        "image": "/learts/assets/images/banner/sale/sale-banner3-1.webp",
+        "special_title": "Spring sale",
+        "title": "Sale up to 10% all",
+        "link_label": "SHOP NOW",
+        "href": "/store"
+      },
+      "categories": [
+        { "image": "/learts/assets/images/banner/category/banner-s2-7.webp", "title": "Home Decor", "count_label": "16 items", "href": "/store", "wide": false },
+        { "image": "/learts/assets/images/banner/category/banner-s2-8.webp", "title": "Gift Ideas", "count_label": "16 items", "href": "/store", "wide": false },
+        { "image": "/learts/assets/images/banner/category/banner-s2-9.webp", "title": "Toys", "count_label": "6 items", "href": "/store", "wide": true }
+      ],
+      "instagram": {
+        "image": "/learts/assets/images/banner/instagram-1.webp",
+        "sub_title": "Follow us on instagram",
+        "handle": "@forever_finds",
+        "href": "#"
+      }
+    },
+    {
+      "block_type": "product_tabs",
+      "tabs": [
+        { "label": "New arrivals", "source": "all", "sort": "created_at", "limit": 10 },
+        { "label": "Sale items", "source": "all", "sort": "created_at", "limit": 10 },
+        { "label": "Best sellers", "source": "all", "sort": "price_desc", "limit": 10 }
+      ]
+    },
+    {
+      "block_type": "deal_of_day",
+      "title": "Deal of the day",
+      "description": "Years of experience brought about by our skilled craftsmen could ensure that every piece produced is a work of art. Our focus is always the best quality possible.",
+      "image": "/learts/assets/images/product/deal-product-1.webp",
+      "countdown_to": "2030-01-01T00:00:00.000Z",
+      "cta": { "label": "Shop Now", "href": "/store" }
+    },
+    {
+      "block_type": "category_showcase",
+      "sub_title": "Shop by categories",
+      "title": "Making & crafting",
+      "items": [
+        { "category_id": "", "label": "Gift ideas", "image": "/learts/assets/images/banner/category/banner-s5-1.webp", "href": "/store" },
+        { "category_id": "", "label": "Home Decor", "image": "/learts/assets/images/banner/category/banner-s5-2.webp", "href": "/store" },
+        { "category_id": "", "label": "Toys", "image": "/learts/assets/images/banner/category/banner-s5-3.webp", "href": "/store" },
+        { "category_id": "", "label": "Pots", "image": "/learts/assets/images/banner/category/banner-s5-4.webp", "href": "/store" },
+        { "category_id": "", "label": "Kniting & Sewing", "image": "/learts/assets/images/banner/category/banner-s5-5.webp", "href": "/store" }
+      ]
+    },
+    {
+      "block_type": "brand_strip",
+      "title": "Shop by brands",
+      "brands": [
+        { "image": "/learts/assets/images/brands/brand-7.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-8.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-1.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-2.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-3.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-4.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-5.webp", "href": "#" },
+        { "image": "/learts/assets/images/brands/brand-6.webp", "href": "#" }
+      ]
+    },
+    {
+      "block_type": "newsletter",
+      "title": "Sign up to Newsletter",
+      "subtitle": "...and receive $20 coupon for your first shopping.",
+      "placeholder": "Enter your email address",
+      "button": "Subscribe",
+      "provider_note": "We respect your privacy. Unsubscribe at any time."
+    }
+  ]
+}

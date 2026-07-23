@@ -1,0 +1,58 @@
+{%- assign s = section.settings -%}
+<section class="ek-section ek-promo">
+  <div class="ek-container">
+    {%- if s.intro -%}
+    <div class="ek-stitle">
+      <h2 class="ek-bg-title" aria-hidden="true">{{ s.intro.title }}</h2>
+      <h2 class="ek-title">{{ s.intro.title }}</h2>
+      {%- if s.intro.body != blank -%}<p class="ek-subtitle">{{ s.intro.body }}</p>{%- endif -%}
+      {%- if s.intro.href != blank and s.intro.link_label != blank -%}<div class="ek-stitle-cta"><a class="ek-btn" href="{{ s.intro.href }}">{{ s.intro.link_label }}</a></div>{%- endif -%}
+    </div>
+    {%- endif -%}
+
+    <div class="ek-promo-grid">
+      {%- if s.sale -%}
+      <a class="ek-banner-tile" href="{{ s.sale.href | default: '/store' }}">
+        {%- if s.sale.image %}<img src="{{ s.sale.image }}" alt="{{ s.sale.title }}">{% endif -%}
+        <div class="ek-banner-text">
+          {%- if s.sale.special_title != blank -%}<span class="ek-banner-stitle">{{ s.sale.special_title }}</span>{%- endif -%}
+          <span class="ek-banner-title">{{ s.sale.title }}</span>
+          <span class="ek-banner-btn">{{ s.sale.link_label | default: 'Order Now' }}</span>
+        </div>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- unless cat.wide -%}
+      <a class="ek-banner-tile" href="{{ cat.href | default: '/store' }}">
+        {%- if cat.image %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif -%}
+        <div class="ek-banner-text">
+          {%- if cat.count_label != blank -%}<span class="ek-banner-stitle">{{ cat.count_label }}</span>{%- endif -%}
+          <span class="ek-banner-title">{{ cat.title }}</span>
+          <span class="ek-banner-btn">Order Now</span>
+        </div>
+      </a>
+      {%- endunless -%}{%- endfor -%}
+
+      {%- if s.instagram -%}
+      <a class="ek-banner-tile" href="{{ s.instagram.href | default: '#' }}">
+        {%- if s.instagram.image %}<img src="{{ s.instagram.image }}" alt="{{ s.instagram.handle }}">{% endif -%}
+        <div class="ek-banner-text">
+          {%- if s.instagram.sub_title != blank -%}<span class="ek-banner-stitle"><i class="fab fa-instagram"></i> {{ s.instagram.sub_title }}</span>{%- endif -%}
+          <span class="ek-banner-title">{{ s.instagram.handle }}</span>
+        </div>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- if cat.wide -%}
+      <a class="ek-banner-tile ek-banner-wide" href="{{ cat.href | default: '/store' }}">
+        {%- if cat.image %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif -%}
+        <div class="ek-banner-text">
+          {%- if cat.count_label != blank -%}<span class="ek-banner-stitle">{{ cat.count_label }}</span>{%- endif -%}
+          <span class="ek-banner-title">{{ cat.title }}</span>
+          <span class="ek-banner-btn">Order Now</span>
+        </div>
+      </a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>

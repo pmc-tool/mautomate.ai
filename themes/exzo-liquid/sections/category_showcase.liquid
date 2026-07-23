@@ -1,0 +1,25 @@
+{%- assign s = section.settings -%}
+{%- assign items = s.items -%}
+{%- if items and items.size > 0 -%}
+<section class="ex-section ex-showcase">
+  <div class="ex-container">
+    <div class="ex-shead ex-shead-center">
+      {%- if s.sub_title != blank -%}<span class="ex-eyebrow">{{ s.sub_title }}</span>{%- endif -%}
+      {%- if s.title != blank -%}<h2 class="ex-title">{{ s.title }}</h2>{%- endif -%}
+      <span class="ex-underline"><span></span></span>
+    </div>
+    <div class="ex-showcase-grid">
+      {%- for item in items -%}
+      <a class="ex-showcase-tile" href="{{ item.href | default: '/store' }}">
+        <span class="ex-showcase-img">{% if item.image != blank %}<img src="{{ item.image }}" alt="{{ item.label }}">{% endif %}</span>
+        <span class="ex-showcase-scrim"></span>
+        <span class="ex-showcase-cap">
+          {%- if item.count != blank -%}<span class="ex-showcase-count">{{ item.count }} items</span>{%- endif -%}
+          <span class="ex-showcase-label">{{ item.label }}</span>
+        </span>
+      </a>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

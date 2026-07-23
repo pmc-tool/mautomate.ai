@@ -1,0 +1,21 @@
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">Search</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><span class="rk-crumb-active">Search</span></li>
+    </ul>
+  </div>
+</section>
+<section class="rk-section">
+  <div class="rk-container">
+    <div class="rk-shead rk-shead-center">
+      <h2 class="rk-title rk-title-accent">Search Products</h2>
+      <form class="rk-search-form" action="{{ routes.search_url }}" method="get">
+        <input type="search" name="q" placeholder="Search here..." aria-label="Search products">
+        <button type="submit" class="rk-btn">Search</button>
+      </form>
+    </div>
+    <p class="rk-empty">Type above to find products across the store.</p>
+  </div>
+</section>

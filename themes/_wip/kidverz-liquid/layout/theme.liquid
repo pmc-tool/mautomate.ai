@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="{{ request.locale | default: 'en' }}">
+<head>
+  {{ content_for_header }}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mali:wght@400;500;600;700&family=Itim&display=swap" rel="stylesheet">
+  {%- comment -%} Fully self-contained theme: all icons are inline SVG and the whole
+     design system lives in theme.css (kv- namespace). No foreign stylesheets. {%- endcomment -%}
+  <link rel="stylesheet" href="{{ 'theme.css' | asset_url }}">
+  <style>
+    :root{
+      --kv-accent: {{ settings.accent_color | default: '#00d82c' }};
+      --kv-container: {{ settings.container_width | default: 1400 }}px;
+    }
+  </style>
+</head>
+<body class="template-{{ template }} kv-body">
+  {% section 'header' %}
+  <main id="main">
+    {{ content_for_layout }}
+  </main>
+  {% section 'footer' %}
+  <script src="{{ 'theme.js' | asset_url }}" defer></script>
+</body>
+</html>

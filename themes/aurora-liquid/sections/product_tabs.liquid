@@ -1,0 +1,21 @@
+{%- comment -%} Aurora renders product groups STACKED (editorial sections with a
+   ruled heading), matching the React theme — not switchable tabs. {%- endcomment -%}
+{%- assign tabs = section.settings.tabs -%}
+{%- if tabs and tabs.size > 0 -%}
+<section class="au-section au-groups">
+  <div class="au-container">
+    {%- for tab in tabs -%}
+    {%- assign products = tab.products -%}
+    {%- if products and products.size > 0 -%}
+    <div class="au-group">
+      <div class="au-group-head">
+        <h2 class="au-group-title">{{ tab.label }}</h2>
+        <span class="au-eyebrow">{{ products.size }} item{% if products.size != 1 %}s{% endif %}</span>
+      </div>
+      <div class="au-grid au-grid-5">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    </div>
+    {%- endif -%}
+    {%- endfor -%}
+  </div>
+</section>
+{%- endif -%}

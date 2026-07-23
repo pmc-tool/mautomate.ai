@@ -1,0 +1,50 @@
+{%- assign s = section.settings -%}
+<section class="kt-section kt-promo">
+  <div class="kt-container">
+    <div class="kt-promo-grid">
+      {%- if s.intro -%}
+      <div class="kt-promo-intro" data-el="intro">
+        <h2 class="kt-promo-intro-title" data-el="title">{{ s.intro.title }}</h2>
+        {%- if s.intro.body != blank -%}<p class="kt-promo-intro-body" data-el="body">{{ s.intro.body }}</p>{%- endif -%}
+        {%- if s.intro.href != blank and s.intro.link_label != blank -%}<a class="kt-link" href="{{ s.intro.href }}" data-el="button">{{ s.intro.link_label }}</a>{%- endif -%}
+      </div>
+      {%- endif -%}
+
+      {%- if s.sale -%}
+      <a class="kt-promo-sale" href="{{ s.sale.href | default: '/store' }}" data-el="sale">
+        {%- if s.sale.image != blank %}<img src="{{ s.sale.image }}" alt="{{ s.sale.title }}">{% endif -%}
+        <div class="kt-promo-sale-body">
+          {%- if s.sale.special_title != blank -%}<span class="kt-eyebrow kt-eyebrow-light">{{ s.sale.special_title }}</span>{%- endif -%}
+          <h3 class="kt-promo-sale-title">{{ s.sale.title }}</h3>
+          {%- if s.sale.href != blank and s.sale.link_label != blank -%}<span class="kt-link kt-link-light">{{ s.sale.link_label }}</span>{%- endif -%}
+        </div>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- unless cat.wide -%}
+      <a class="kt-promo-cat" href="{{ cat.href | default: '/store' }}" data-el-item="categories:{{ forloop.index0 }}" data-el="item">
+        <div class="kt-promo-cat-img" data-el="image">{% if cat.image != blank %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</div>
+        <div class="kt-promo-cat-cap"><h3>{{ cat.title }}</h3>{% if cat.count_label != blank %}<span>{{ cat.count_label }}</span>{% endif %}</div>
+      </a>
+      {%- endunless -%}{%- endfor -%}
+
+      {%- if s.instagram -%}
+      <a class="kt-promo-insta" href="{{ s.instagram.href | default: '#' }}" data-el="instagram">
+        {%- if s.instagram.image != blank %}<img src="{{ s.instagram.image }}" alt="{{ s.instagram.handle }}">{% endif -%}
+        <div class="kt-promo-insta-body">
+          <i class="fab fa-instagram"></i>
+          {%- if s.instagram.sub_title != blank -%}<span>{{ s.instagram.sub_title }}</span>{%- endif -%}
+          <h3>{{ s.instagram.handle }}</h3>
+        </div>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- if cat.wide -%}
+      <a class="kt-promo-cat kt-promo-cat-wide" href="{{ cat.href | default: '/store' }}" data-el-item="categories:{{ forloop.index0 }}" data-el="item">
+        <div class="kt-promo-cat-img" data-el="image">{% if cat.image != blank %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</div>
+        <div class="kt-promo-cat-cap"><h3>{{ cat.title }}</h3>{% if cat.count_label != blank %}<span>{{ cat.count_label }}</span>{% endif %}</div>
+      </a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>

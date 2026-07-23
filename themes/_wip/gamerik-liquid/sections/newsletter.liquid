@@ -1,0 +1,17 @@
+{%- assign s = section.settings -%}
+{%- if s.title != blank -%}
+<section class="gm-section gm-newsletter">
+  <div class="gm-container">
+    <div class="gm-newsletter-inner">
+      <span class="gm-eyebrow gm-eyebrow-neon">Newsletter</span>
+      <h2 class="gm-title gm-title-light" data-el="heading">{{ s.title }}</h2>
+      {%- if s.subtitle != blank -%}<p class="gm-newsletter-sub" data-el="text">{{ s.subtitle }}</p>{%- endif -%}
+      <form class="gm-newsletter-form" data-newsletter data-el="form">
+        <input type="email" placeholder="{{ s.placeholder | default: 'Enter your email address' }}" aria-label="Email address" data-el="input" required>
+        <button type="submit" class="gm-btn gm-btn-accent" data-el="button">{{ s.button | default: 'Subscribe' }}</button>
+      </form>
+      {%- if s.provider_note != blank -%}<p class="gm-newsletter-note">{{ s.provider_note }}</p>{%- endif -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

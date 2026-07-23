@@ -1,0 +1,19 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="kt-section kt-insta">
+  <div class="kt-container">
+    {%- if s.heading != blank or s.handle != blank -%}
+    <div class="kt-shead kt-shead-center">
+      {%- if s.heading != blank -%}<span class="kt-eyebrow">{{ s.heading }}</span>{%- endif -%}
+      {%- if s.handle != blank -%}<h2 class="kt-title" data-el="title">{{ s.handle }}</h2>{%- endif -%}
+    </div>
+    {%- endif -%}
+    <div class="kt-insta-grid">
+      {%- for item in images -%}{%- if item.image != blank -%}
+      <a class="kt-insta-cell" href="{{ item.href | default: '#' }}" data-el-item="images:{{ forloop.index0 }}" data-el="item"><img src="{{ item.image }}" alt="Instagram post"><span class="kt-insta-ic"><i class="fab fa-instagram"></i></span></a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

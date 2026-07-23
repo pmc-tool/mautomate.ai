@@ -1,0 +1,59 @@
+{%- assign s = section.settings -%}
+<section class="bz-section bz-promo">
+  <div class="bz-container">
+    {%- if s.intro -%}
+    <div class="bz-shead bz-shead-center">
+      {%- if s.intro.title != blank -%}<span class="bz-subtitle">{{ s.intro.title }}</span>{%- endif -%}
+      {%- if s.intro.body != blank -%}<h2 class="bz-title">{{ s.intro.body }}</h2>{%- endif -%}
+      {%- if s.intro.href != blank and s.intro.link_label != blank -%}<a class="bz-link" href="{{ s.intro.href }}">{{ s.intro.link_label }}</a>{%- endif -%}
+    </div>
+    {%- endif -%}
+
+    <div class="bz-promo-grid">
+      {%- if s.sale -%}
+      <div class="bz-banner-card">
+        {%- if s.sale.image != blank -%}<a href="{{ s.sale.href | default: '/store' }}" class="bz-banner-thumb"><img src="{{ s.sale.image }}" alt="{{ s.sale.title }}"></a>{%- endif -%}
+        <div class="bz-banner-content">
+          <h3 class="bz-banner-title">{{ s.sale.title }}</h3>
+          {%- if s.sale.special_title != blank -%}<span class="bz-banner-sub">{{ s.sale.special_title }}</span>{%- endif -%}
+        </div>
+        {%- if s.sale.href != blank and s.sale.link_label != blank -%}
+        <div class="bz-banner-btn"><a class="bz-btn bz-btn-blur" href="{{ s.sale.href }}">{{ s.sale.link_label }}</a></div>
+        {%- endif -%}
+      </div>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- unless cat.wide -%}
+      <div class="bz-banner-card">
+        <a href="{{ cat.href | default: '/store' }}" class="bz-banner-thumb">{% if cat.image != blank %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</a>
+        <div class="bz-banner-content">
+          <h3 class="bz-banner-title">{{ cat.title }}</h3>
+          {%- if cat.count_label != blank -%}<span class="bz-banner-sub">{{ cat.count_label }}</span>{%- endif -%}
+        </div>
+        <div class="bz-banner-btn"><a class="bz-btn bz-btn-blur" href="{{ cat.href | default: '/store' }}">Shop Now</a></div>
+      </div>
+      {%- endunless -%}{%- endfor -%}
+
+      {%- if s.instagram -%}
+      <div class="bz-banner-card">
+        <a href="{{ s.instagram.href | default: '#' }}" class="bz-banner-thumb">{% if s.instagram.image != blank %}<img src="{{ s.instagram.image }}" alt="{{ s.instagram.handle }}">{% endif %}</a>
+        <div class="bz-banner-content">
+          <h3 class="bz-banner-title"><i class="fab fa-instagram" aria-hidden="true"></i> {{ s.instagram.handle }}</h3>
+          {%- if s.instagram.sub_title != blank -%}<span class="bz-banner-sub">{{ s.instagram.sub_title }}</span>{%- endif -%}
+        </div>
+      </div>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- if cat.wide -%}
+      <div class="bz-banner-card bz-banner-wide">
+        <a href="{{ cat.href | default: '/store' }}" class="bz-banner-thumb">{% if cat.image != blank %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</a>
+        <div class="bz-banner-content">
+          <h3 class="bz-banner-title">{{ cat.title }}</h3>
+          {%- if cat.count_label != blank -%}<span class="bz-banner-sub">{{ cat.count_label }}</span>{%- endif -%}
+        </div>
+        <div class="bz-banner-btn"><a class="bz-btn bz-btn-blur" href="{{ cat.href | default: '/store' }}">Shop Now</a></div>
+      </div>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>

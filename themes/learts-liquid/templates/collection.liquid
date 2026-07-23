@@ -1,0 +1,16 @@
+<nav class="lz-crumbs"><div class="lz-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="lz-current">{{ collection.title }}</span>
+</div></nav>
+<section class="lz-section">
+  <div class="lz-container">
+    <div class="lz-shead lz-shead-center">
+      <span class="lz-eyebrow">Collection</span>
+      <h1 class="lz-title">{{ collection.title }}</h1>
+      {%- if collection.description != blank -%}<p class="lz-lead">{{ collection.description }}</p>{%- endif -%}
+      <span class="lz-count">{{ collection.products_count }} products</span>
+    </div>
+    {%- if collection.products and collection.products.size > 0 -%}
+    <div class="lz-grid">{%- for product in collection.products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="lz-empty">No products in this collection yet.</p>{%- endif -%}
+  </div>
+</section>

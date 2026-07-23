@@ -1,0 +1,23 @@
+{%- assign cols = section.settings.columns -%}
+{%- if cols and cols.size > 0 -%}
+<section class="bz-section bz-composed">
+  <div class="bz-container">
+    <div class="bz-composed-row" data-cols="{{ cols.size }}">
+      {%- for col in cols -%}
+      <div class="bz-composed-col">
+        {%- for w in col.widgets -%}
+        <div class="bz-composed-widget">
+          {%- if w.image != blank -%}<img class="bz-composed-img" src="{{ w.image }}" alt="{{ w.title | default: '' }}">{%- endif -%}
+          {%- if w.eyebrow != blank -%}<span class="bz-subtitle">{{ w.eyebrow }}</span>{%- endif -%}
+          {%- if w.title != blank -%}<h3 class="bz-composed-title">{{ w.title }}</h3>{%- endif -%}
+          {%- if w.html != blank -%}<div class="bz-richtext-inner">{% render 'resolve-tokens', text: w.html, shop: shop %}</div>{%- endif -%}
+          {%- if w.body != blank -%}<p class="bz-composed-body">{{ w.body }}</p>{%- endif -%}
+          {%- if w.cta.href != blank and w.cta.label != blank -%}<a class="bz-link" href="{{ w.cta.href }}">{{ w.cta.label }}</a>{%- endif -%}
+        </div>
+        {%- endfor -%}
+      </div>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

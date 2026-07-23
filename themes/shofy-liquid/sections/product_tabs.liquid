@@ -1,0 +1,27 @@
+{%- assign tabs = section.settings.tabs -%}
+{%- if tabs and tabs.size > 0 -%}
+<section class="sf-section sf-tabs" data-tabs>
+  <div class="sf-container">
+    <div class="sf-tabs-head">
+      <h2 class="sf-title sf-title-squiggle">{{ section.settings.title | default: 'Trending Products' }}<svg width="114" height="35" viewBox="0 0 114 35" fill="none" aria-hidden="true"><path d="M112 23.275C1.84952 -10.6834 -7.36586 1.48086 7.50443 32.9053" stroke="currentColor" stroke-width="4" stroke-miterlimit="3.8637" stroke-linecap="round"></path></svg></h2>
+      {%- if tabs.size > 1 -%}
+      <nav class="sf-tabnav" role="tablist">
+        {%- for tab in tabs -%}
+        <button class="sf-tabbtn{% if forloop.first %} is-active{% endif %}" data-tab-btn="{{ forloop.index0 }}" role="tab">{{ tab.label }}<span class="sf-tabline"><svg width="52" height="13" viewBox="0 0 52 13" fill="none" aria-hidden="true"><path d="M1 8.97127C11.6061 -5.48521 33 3.99996 51 11.4635" stroke="currentColor" stroke-width="2" stroke-miterlimit="3.8637" stroke-linecap="round"></path></svg></span></button>
+        {%- endfor -%}
+      </nav>
+      {%- endif -%}
+    </div>
+    {%- for tab in tabs -%}
+    <div class="sf-tabpanel{% if forloop.first %} is-active{% endif %}" data-tab-panel="{{ forloop.index0 }}" role="tabpanel">
+      {%- assign products = tab.products -%}
+      {%- if products and products.size > 0 -%}
+      <div class="sf-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- else -%}
+      <p class="sf-empty">No products to show here yet.</p>
+      {%- endif -%}
+    </div>
+    {%- endfor -%}
+  </div>
+</section>
+{%- endif -%}

@@ -1,0 +1,40 @@
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">Shopping Cart</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><span class="rk-crumb-active">Shopping Cart</span></li>
+    </ul>
+  </div>
+</section>
+<section class="rk-section rk-cartpage">
+  <div class="rk-container">
+    {%- if cart.items and cart.items.size > 0 -%}
+    <div class="rk-cart-layout">
+      <div class="rk-cart-lines">
+        <div class="rk-cart-row rk-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+        {%- for item in cart.items -%}
+        <div class="rk-cart-row">
+          <div class="rk-cart-prod">
+            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
+            <div><a href="{{ routes.root_url }}{{ item.url }}" class="rk-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="rk-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+          </div>
+          <span class="rk-cart-price">{{ item.line_price | money }}</span>
+          <span>{{ item.quantity }}</span>
+          <span class="rk-cart-price">{{ item.line_price | money }}</span>
+        </div>
+        {%- endfor -%}
+      </div>
+      <aside class="rk-cart-summary">
+        <h2 class="rk-cart-summary-title">Summary</h2>
+        <div class="rk-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        <div class="rk-cart-sum-row rk-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <a class="rk-btn rk-btn-block" href="{{ cart.checkout_url }}">Proceed To Checkout</a>
+        <a class="rk-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+      </aside>
+    </div>
+    {%- else -%}
+    <div class="rk-cart-empty"><p>Your cart is empty.</p><a class="rk-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+    {%- endif -%}
+  </div>
+</section>

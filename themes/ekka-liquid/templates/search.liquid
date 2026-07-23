@@ -1,0 +1,18 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">Search</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ek-current">Search</span></nav>
+  </div>
+</div>
+<section class="ek-section">
+  <div class="ek-container">
+    <div class="ek-stitle">
+      <p class="ek-subtitle">Find products across the store.</p>
+      <form class="ek-search ek-search-page" action="{{ routes.search_url }}" method="get" role="search">
+        <input type="search" name="q" placeholder="Search products..." aria-label="Search products">
+        <button type="submit" aria-label="Submit search"><i class="fas fa-search"></i></button>
+      </form>
+    </div>
+    <p class="ek-empty">Type above to find products across the store.</p>
+  </div>
+</section>

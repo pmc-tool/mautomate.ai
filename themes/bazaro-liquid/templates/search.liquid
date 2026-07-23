@@ -1,0 +1,19 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">Search</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="bz-current">Search</span></nav>
+  </div>
+</div>
+<section class="bz-section">
+  <div class="bz-container">
+    <div class="bz-shead bz-shead-center">
+      <span class="bz-subtitle">Find it</span>
+      <h2 class="bz-title">What are you looking for?</h2>
+      <form class="bz-search-form" action="{{ routes.search_url }}" method="get">
+        <input type="search" name="q" placeholder="Search products..." aria-label="Search products">
+        <button type="submit" class="bz-btn">Search</button>
+      </form>
+    </div>
+    <p class="bz-empty">Type above to find products across the store.</p>
+  </div>
+</section>

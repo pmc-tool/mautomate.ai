@@ -1,0 +1,25 @@
+{%- assign s = section.settings -%}
+<section class="sf-section sf-deal">
+  <div class="sf-container">
+    <div class="sf-deal-head">
+      <h2 class="sf-title sf-title-squiggle">{{ s.title | default: 'Deal of The Day' }}<svg width="114" height="35" viewBox="0 0 114 35" fill="none" aria-hidden="true"><path d="M112 23.275C1.84952 -10.6834 -7.36586 1.48086 7.50443 32.9053" stroke="currentColor" stroke-width="4" stroke-miterlimit="3.8637" stroke-linecap="round"></path></svg></h2>
+      {%- if s.cta.href != blank -%}<a class="sf-btn sf-btn-primary sf-deal-more" href="{{ s.cta.href }}">{{ s.cta.label | default: 'View All Deals' }} <i class="fas fa-arrow-right"></i></a>{%- endif -%}
+    </div>
+    <div class="sf-deal-grid">
+      <div class="sf-deal-media">
+        {%- if s.image -%}<img src="{{ s.image }}" alt="{{ s.title | default: 'Deal of the day' }}">{%- else -%}<div class="sf-deal-fallback"></div>{%- endif -%}
+      </div>
+      <div class="sf-deal-content">
+        <h3 class="sf-deal-title">{{ s.title | default: 'Deal of The Day' }}</h3>
+        {%- if s.description != blank -%}<p class="sf-deal-desc">{{ s.description }}</p>{%- endif -%}
+        <div class="sf-countdown" data-countdown="{{ s.countdown_to }}">
+          <div class="sf-cd"><span class="sf-cd-num" data-cd="days">00</span><span class="sf-cd-lbl">Days</span></div>
+          <div class="sf-cd"><span class="sf-cd-num" data-cd="hours">00</span><span class="sf-cd-lbl">Hrs</span></div>
+          <div class="sf-cd"><span class="sf-cd-num" data-cd="minutes">00</span><span class="sf-cd-lbl">Min</span></div>
+          <div class="sf-cd"><span class="sf-cd-num" data-cd="seconds">00</span><span class="sf-cd-lbl">Sec</span></div>
+        </div>
+        {%- if s.cta.href != blank -%}<a class="sf-btn sf-btn-primary" href="{{ s.cta.href }}">{{ s.cta.label | default: 'Shop Now' }} <i class="fas fa-arrow-right"></i></a>{%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,17 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="lz-section lz-gallery">
+  <div class="lz-container">
+    {%- if s.title != blank -%}<div class="lz-shead lz-shead-center"><h2 class="lz-title">{{ s.title }}</h2></div>{%- endif -%}
+    <div class="lz-gallery-grid">
+      {%- for item in images -%}
+        {%- assign src = item.image | default: item -%}
+        {%- if src != blank -%}
+        <figure class="lz-gallery-cell"><img src="{{ src }}" alt="{{ item.alt | default: 'Gallery image' }}">{% if item.caption != blank %}<figcaption>{{ item.caption }}</figcaption>{% endif %}</figure>
+        {%- endif -%}
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

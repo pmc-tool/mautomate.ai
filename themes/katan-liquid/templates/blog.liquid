@@ -1,0 +1,31 @@
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="kt-current">Journal</span>
+</div></nav>
+<section class="kt-section">
+  <div class="kt-container">
+    <div class="kt-shead kt-shead-center">
+      <span class="kt-eyebrow">Journal</span>
+      <h1 class="kt-title">Stories &amp; style notes</h1>
+    </div>
+    {%- assign posts = blog.posts -%}
+    {%- if posts and posts.size > 0 -%}
+    <div class="kt-blog-grid">
+      {%- for post in posts -%}
+      <article class="kt-blog-card">
+        <a class="kt-blog-cover" href="{{ routes.root_url }}/blog/{{ post.slug }}">
+          {%- if post.cover_image != blank %}<img src="{{ post.cover_image }}" alt="{{ post.title }}" loading="lazy">{% else %}<span class="kt-blog-cover-ph"></span>{% endif -%}
+        </a>
+        <div class="kt-blog-body">
+          {%- if post.published_at != blank -%}<span class="kt-blog-date">{{ post.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+          <h2 class="kt-blog-title"><a href="{{ routes.root_url }}/blog/{{ post.slug }}">{{ post.title }}</a></h2>
+          {%- if post.excerpt != blank -%}<p class="kt-blog-excerpt">{{ post.excerpt }}</p>{%- endif -%}
+          <a class="kt-link" href="{{ routes.root_url }}/blog/{{ post.slug }}">Read more</a>
+        </div>
+      </article>
+      {%- endfor -%}
+    </div>
+    {%- else -%}
+    <p class="kt-empty">No posts yet — check back soon.</p>
+    {%- endif -%}
+  </div>
+</section>

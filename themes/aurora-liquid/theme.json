@@ -1,0 +1,78 @@
+{
+  "id": "aurora-liquid",
+  "name": "Aurora",
+  "version": "1.0.2",
+  "engine": "1",
+  "author": "mAutomate",
+  "description": "A modern, minimalist editorial design — generous whitespace, clean type, monochrome palette, rounded cards. The Aurora React theme ported to the upload engine as a fully self-contained Liquid package.",
+  "tokens": {
+    "colors": {
+      "primary": "#111111",
+      "dark": "#111111",
+      "text": "#1a1a1a",
+      "border": "#e5e7eb",
+      "bg": "#ffffff"
+    },
+    "fonts": {
+      "heading": "Inter, ui-sans-serif, system-ui, sans-serif",
+      "body": "Inter, ui-sans-serif, system-ui, sans-serif"
+    }
+  },
+  "settings": [
+    { "type": "header", "label": "Brand" },
+    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#111111" },
+    { "id": "container_width", "type": "range", "label": "Content width", "min": 1140, "max": 1440, "step": 20, "unit": "px", "default": 1280 },
+    { "type": "header", "label": "Announcement bar" },
+    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": true },
+    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "Free shipping for orders over $59 !" },
+    { "type": "header", "label": "Footer" },
+    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "Considered goods for everyday living — chosen with care, backed by our support team, delivered to your door." },
+    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+  ],
+  "defaultSections": [
+    {
+      "block_type": "hero_slider",
+      "autoplay_ms": 6000,
+      "slides": [
+        { "image": "/shofy/img/slider/slider-img-1.png", "subtitle": "New in store", "title": "Considered goods,\nfor everyday living", "cta": { "label": "Shop Now", "href": "/store" } },
+        { "image": "/shofy/img/slider/slider-img-2.png", "subtitle": "This week only", "title": "Fresh arrivals,\nthoughtfully chosen", "cta": { "label": "Shop Now", "href": "/store" } }
+      ]
+    },
+    {
+      "block_type": "category_showcase",
+      "sub_title": "Browse the range",
+      "title": "Shop by category",
+      "items": [
+        { "category_id": "", "label": "Gift ideas", "image": "/learts/assets/images/banner/category/banner-s5-1.webp", "href": "/store" },
+        { "category_id": "", "label": "Home decor", "image": "/learts/assets/images/banner/category/banner-s5-2.webp", "href": "/store" },
+        { "category_id": "", "label": "Toys", "image": "/learts/assets/images/banner/category/banner-s5-3.webp", "href": "/store" },
+        { "category_id": "", "label": "Pots", "image": "/learts/assets/images/banner/category/banner-s5-4.webp", "href": "/store" },
+        { "category_id": "", "label": "Knitting", "image": "/learts/assets/images/banner/category/banner-s5-5.webp", "href": "/store" }
+      ]
+    },
+    {
+      "block_type": "product_tabs",
+      "tabs": [
+        { "label": "New arrivals", "source": "all", "sort": "created_at", "limit": 8 },
+        { "label": "Best sellers", "source": "all", "sort": "price_desc", "limit": 8 }
+      ]
+    },
+    {
+      "block_type": "image_with_text",
+      "image": "/shofy/img/product/banner/product-banner-1.jpg",
+      "image_side": "left",
+      "eyebrow": "Our promise",
+      "title": "Chosen with care,\nbuilt to last",
+      "body": "Every product in this store is selected for quality and backed by our support team. If something is not right, we make it right.",
+      "cta": { "label": "Shop the collection", "href": "/store" }
+    },
+    {
+      "block_type": "newsletter",
+      "title": "Stay in the loop",
+      "subtitle": "New arrivals and offers, straight to your inbox.",
+      "placeholder": "Enter your e-mail address",
+      "button": "Subscribe",
+      "provider_note": "We respect your privacy. Unsubscribe at any time."
+    }
+  ]
+}

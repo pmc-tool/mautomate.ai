@@ -1,0 +1,65 @@
+{%- assign s = section.settings -%}
+{%- assign cat_defaults = 'cat-controllers.jpg,cat-hmd.jpg,cat-haptic.jpg' | split: ',' -%}
+<section class="gm-section gm-promo">
+  <div class="gm-container">
+    <div class="gm-promo-grid">
+      {%- if s.intro -%}
+      <div class="gm-promo-intro" data-el="intro">
+        <h2 class="gm-promo-intro-title" data-el="title">{{ s.intro.title }}</h2>
+        {%- if s.intro.body != blank -%}<p class="gm-promo-intro-body" data-el="body">{{ s.intro.body }}</p>{%- endif -%}
+        {%- if s.intro.href != blank -%}<a class="gm-link" href="{{ s.intro.href }}" data-el="button">{{ s.intro.link_label | default: 'Learn more' }}</a>{%- endif -%}
+      </div>
+      {%- endif -%}
+
+      {%- if s.sale -%}
+      {%- assign simg = s.sale.image -%}
+      {%- if simg == blank -%}{%- assign simg = 'sale-1.jpg' | asset_url -%}{%- endif -%}
+      <a class="gm-promo-sale" href="{{ s.sale.href | default: '/store' }}" data-el="sale">
+        {%- if simg != blank %}<img src="{{ simg }}" alt="{{ s.sale.title }}">{% endif -%}
+        <div class="gm-promo-sale-body">
+          {%- if s.sale.special_title != blank -%}<span class="gm-eyebrow gm-eyebrow-neon">{{ s.sale.special_title }}</span>{%- endif -%}
+          <h3 class="gm-promo-sale-title">{{ s.sale.title }}</h3>
+          {%- if s.sale.href != blank -%}<span class="gm-link gm-link-light">{{ s.sale.link_label | default: 'Shop now' }}</span>{%- endif -%}
+        </div>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- unless cat.wide -%}
+      {%- assign cimg = cat.image -%}
+      {%- if cimg == blank -%}
+        {%- assign di = forloop.index0 | modulo: cat_defaults.size -%}
+        {%- assign cimg = cat_defaults[di] | asset_url -%}
+      {%- endif -%}
+      <a class="gm-promo-cat" href="{{ cat.href | default: '/store' }}" data-el-item="categories:{{ forloop.index0 }}" data-el="item">
+        <div class="gm-promo-cat-img" data-el="image">{% if cimg != blank %}<img src="{{ cimg }}" alt="{{ cat.title }}">{% endif %}</div>
+        <div class="gm-promo-cat-cap"><h3>{{ cat.title }}</h3>{% if cat.count_label != blank %}<span>{{ cat.count_label }}</span>{% endif %}</div>
+      </a>
+      {%- endunless -%}{%- endfor -%}
+
+      {%- if s.instagram -%}
+      {%- assign iimg = s.instagram.image -%}
+      {%- if iimg == blank -%}{%- assign iimg = 'insta-1.jpg' | asset_url -%}{%- endif -%}
+      <a class="gm-promo-insta" href="{{ s.instagram.href | default: '#' }}" data-el="instagram">
+        {%- if iimg != blank %}<img src="{{ iimg }}" alt="{{ s.instagram.handle }}">{% endif -%}
+        <div class="gm-promo-insta-body">
+          <span class="gm-insta-glyph"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none"/></svg></span>
+          {%- if s.instagram.sub_title != blank -%}<span>{{ s.instagram.sub_title }}</span>{%- endif -%}
+          <h3>{{ s.instagram.handle }}</h3>
+        </div>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}{%- if cat.wide -%}
+      {%- assign cimg = cat.image -%}
+      {%- if cimg == blank -%}
+        {%- assign di = forloop.index0 | modulo: cat_defaults.size -%}
+        {%- assign cimg = cat_defaults[di] | asset_url -%}
+      {%- endif -%}
+      <a class="gm-promo-cat gm-promo-cat-wide" href="{{ cat.href | default: '/store' }}" data-el-item="categories:{{ forloop.index0 }}" data-el="item">
+        <div class="gm-promo-cat-img" data-el="image">{% if cimg != blank %}<img src="{{ cimg }}" alt="{{ cat.title }}">{% endif %}</div>
+        <div class="gm-promo-cat-cap"><h3>{{ cat.title }}</h3>{% if cat.count_label != blank %}<span>{{ cat.count_label }}</span>{% endif %}</div>
+      </a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>

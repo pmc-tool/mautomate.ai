@@ -1,0 +1,13 @@
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">Shop</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="sf-current">Shop</span></nav>
+  </div>
+</div>
+<section class="sf-section">
+  <div class="sf-container">
+    {%- if products and products.size > 0 -%}
+    <div class="sf-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="sf-empty">No products yet — check back soon.</p>{%- endif -%}
+  </div>
+</section>

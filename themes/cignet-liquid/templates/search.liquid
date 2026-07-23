@@ -1,0 +1,17 @@
+<div class="cg-pagehead">
+  <div class="cg-container">
+    <h1 class="cg-pagehead-title">Search</h1>
+    <nav class="cg-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="cg-current">Search</span></nav>
+  </div>
+</div>
+<section class="cg-section">
+  <div class="cg-container">
+    <div class="cg-shead cg-shead-center">
+      <form class="cg-search-form" action="{{ routes.search_url }}" method="get">
+        <input type="search" name="q" placeholder="Search products..." aria-label="Search products">
+        <button type="submit" class="cg-btn cg-btn-solid">Search</button>
+      </form>
+    </div>
+    <p class="cg-empty">Type above to find products across the store.</p>
+  </div>
+</section>

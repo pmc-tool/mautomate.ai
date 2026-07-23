@@ -1,0 +1,21 @@
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">{{ collection.title }}</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><a href="{{ routes.collections_url }}">Shop</a></li>
+      <li><span class="rk-crumb-active">{{ collection.title }}</span></li>
+    </ul>
+  </div>
+</section>
+<section class="rk-section">
+  <div class="rk-container">
+    <div class="rk-shead rk-shead-center">
+      {%- if collection.description != blank -%}<p class="rk-lead">{{ collection.description }}</p>{%- endif -%}
+      <span class="rk-count">{{ collection.products_count }} products</span>
+    </div>
+    {%- if collection.products and collection.products.size > 0 -%}
+    <div class="rk-grid">{%- for product in collection.products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="rk-empty">No products in this collection yet.</p>{%- endif -%}
+  </div>
+</section>

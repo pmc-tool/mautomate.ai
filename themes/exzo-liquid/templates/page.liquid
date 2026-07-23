@@ -1,0 +1,7 @@
+{%- comment -%} A CMS content page (about-us, faq, privacy, ...) - a block document,
+  rendered exactly like the home page: the merchant's ordered sections. {%- endcomment -%}
+{%- if page.sections and page.sections.size > 0 -%}
+  {%- for section in page.sections -%}{% render_section section %}{%- endfor -%}
+{%- else -%}
+  <section class="ex-section"><div class="ex-container ex-shead ex-shead-center"><h1 class="ex-title">{{ shop.name }}</h1><span class="ex-underline"><span></span></span></div></section>
+{%- endif -%}

@@ -1,0 +1,5 @@
+{%- if page.sections and page.sections.size > 0 -%}
+  {%- for section in page.sections -%}{% render_section section %}{%- endfor -%}
+{%- else -%}
+  <section class="bz-section"><div class="bz-container bz-shead bz-shead-center"><h1 class="bz-title">{{ shop.name }}</h1><p class="bz-lead">Your storefront is ready. Add sections in the editor to build your home page.</p></div></section>
+{%- endif -%}

@@ -1,0 +1,52 @@
+{%- assign p = product -%}
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="kt-current">{{ p.title }}</span>
+</div></nav>
+
+<section class="kt-section kt-pdp">
+  <div class="kt-container">
+    <div class="kt-pdp-grid">
+      <div class="kt-pdp-gallery">
+        {%- assign main = p.featured_image.url | default: p.featured_image -%}
+        {%- if main == blank -%}{%- assign main = '/bazaro/img/fashion-3/product/product-1/product-1.jpg' -%}{%- endif -%}
+        <div class="kt-pdp-main"><img id="pdp-main-img" src="{{ main }}" alt="{{ p.title }}"></div>
+        {%- if p.images and p.images.size > 1 -%}
+        <div class="kt-pdp-thumbs" data-pdp-thumbs>
+          {%- for image in p.images -%}<button class="kt-pdp-thumb{% if forloop.first %} is-active{% endif %}" data-full="{{ image.url }}"><img src="{{ image.url }}" alt="{{ image.alt | default: p.title }}"></button>{%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+
+      <div class="kt-pdp-info">
+        <h1 class="kt-pdp-title">{{ p.title }}</h1>
+        <div class="kt-pdp-price">
+          {%- if p.compare_at_price and p.compare_at_price > p.price -%}<span class="kt-price-old">{{ p.compare_at_price | money }}</span> <span class="kt-price-now kt-price-sale">{{ p.price | money }}</span>
+          {%- else -%}<span class="kt-price-now">{{ p.price | money }}</span>{%- endif -%}
+        </div>
+        {%- if p.available -%}<span class="kt-pdp-stock in">In stock</span>{%- else -%}<span class="kt-pdp-stock out">Out of stock</span>{%- endif -%}
+        {%- if p.description != blank -%}<div class="kt-pdp-desc"><p>{{ p.description }}</p></div>{%- endif -%}
+
+        {%- for option in p.options -%}
+        <div class="kt-pdp-opt"><span class="kt-pdp-opt-name">{{ option.name }}</span><div class="kt-pdp-opt-vals">{%- for value in option.values -%}<span class="kt-swatch">{{ value }}</span>{%- endfor -%}</div></div>
+        {%- endfor -%}
+
+        <form class="kt-pdp-cart" data-add-to-cart>
+          {%- if p.variants and p.variants.size > 1 -%}
+          <div class="kt-pdp-opt"><span class="kt-pdp-opt-name">Variant</span>
+            <select class="kt-select" data-variant-select>
+              {%- for v in p.variants -%}<option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>{{ v.title }} — {{ v.price | money }}{% unless v.available %} (sold out){% endunless %}</option>{%- endfor -%}
+            </select>
+          </div>
+          {%- elsif p.variants and p.variants.size == 1 -%}
+          <input type="hidden" data-variant-select value="{{ p.variants[0].id }}">
+          {%- endif -%}
+          <div class="kt-pdp-buy">
+            <input type="number" class="kt-qty" data-qty value="1" min="1" aria-label="Quantity">
+            <button type="submit" class="kt-btn" data-add-btn {% unless p.available %}disabled{% endunless %}>{% if p.available %}Add to cart{% else %}Sold out{% endif %}</button>
+          </div>
+          <p class="kt-pdp-msg" data-cart-msg hidden></p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

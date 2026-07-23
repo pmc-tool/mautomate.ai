@@ -1,0 +1,23 @@
+{%- assign s = section.settings -%}
+{%- assign items = s.items -%}
+{%- if items and items.size > 0 -%}
+<section class="sf-section sf-showcase">
+  <div class="sf-container">
+    {%- if s.sub_title != blank or s.title != blank -%}
+    <div class="sf-shead sf-shead-center">
+      {%- if s.sub_title != blank -%}<span class="sf-eyebrow">{{ s.sub_title }}</span>{%- endif -%}
+      {%- if s.title != blank -%}<h2 class="sf-title">{{ s.title }}</h2>{%- endif -%}
+    </div>
+    {%- endif -%}
+    <div class="sf-showcase-grid">
+      {%- for item in items -%}
+      <a class="sf-showcase-tile" href="{{ item.href | default: '/store' }}">
+        <span class="sf-showcase-img">{% if item.image %}<img src="{{ item.image }}" alt="{{ item.label }}">{% endif %}</span>
+        <span class="sf-showcase-label">{{ item.label }}</span>
+        {%- if item.count != blank -%}<span class="sf-showcase-count">{{ item.count }} Product</span>{%- endif -%}
+      </a>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

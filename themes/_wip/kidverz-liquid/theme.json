@@ -1,0 +1,106 @@
+{
+  "id": "kidverz-liquid",
+  "name": "Kidverz",
+  "version": "1.0.0",
+  "engine": "1",
+  "author": "mAutomate",
+  "description": "A cheerful children and stationery store theme ported from Kidverz: sunny yellow bands, rounded candy-colored buttons, friendly Mali and Itim handwriting type, and playful doodle accents throughout.",
+  "tokens": {
+    "colors": {
+      "primary": "#00d82c",
+      "dark": "#333333",
+      "text": "#4b4b4b",
+      "border": "#ececec",
+      "bg": "#ffffff"
+    },
+    "fonts": {
+      "heading": "Mali, cursive",
+      "body": "Mali, cursive"
+    }
+  },
+  "settings": [
+    { "type": "header", "label": "Brand" },
+    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#00d82c" },
+    { "id": "container_width", "type": "range", "label": "Content width", "min": 1200, "max": 1500, "step": 20, "unit": "px", "default": 1400 },
+    { "type": "header", "label": "Announcement bar" },
+    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": true },
+    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "Free shipping on orders over $50 — hooray!" },
+    { "type": "header", "label": "Footer" },
+    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "Bright ideas for little minds — toys, art supplies and school gear that make every day feel like playtime." },
+    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+  ],
+  "defaultSections": [
+    {
+      "block_type": "hero_slider",
+      "autoplay_ms": 6000,
+      "slides": [
+        { "image": "", "subtitle": "Kids' stationery wonderland", "title": "A World of Possibilities\nfor Young Minds", "cta": { "label": "Shop now", "href": "/store" } },
+        { "image": "", "subtitle": "Back to school", "title": "Big Smiles,\nBrighter School Days", "cta": { "label": "Explore the fun", "href": "/store" } },
+        { "image": "", "subtitle": "Play and learn", "title": "Toys That Teach,\nColors That Cheer", "cta": { "label": "Start exploring", "href": "/store" } }
+      ]
+    },
+    {
+      "block_type": "promo_banner_grid",
+      "intro": {
+        "title": "Everything little explorers need, in one happy place.",
+        "body": "From crayons and coloring kits to puzzles, plushies and backpacks — we hand-pick cheerful, safe and clever things that make kids smile and parents relax. New goodies land every week.",
+        "link_label": "About us",
+        "href": "/store"
+      },
+      "sale": {
+        "image": "",
+        "special_title": "Weekly deal",
+        "title": "Sale up to 30% off",
+        "link_label": "Shop now",
+        "href": "/store"
+      },
+      "categories": [
+        { "image": "", "title": "Toys & Games", "count_label": "Playtime favourites", "href": "/store", "wide": false },
+        { "image": "", "title": "Art Supplies", "count_label": "Color outside the lines", "href": "/store", "wide": false },
+        { "image": "", "title": "School Bags", "count_label": "Ready for adventure", "href": "/store", "wide": true }
+      ],
+      "instagram": {
+        "image": "",
+        "sub_title": "Follow us on instagram",
+        "handle": "@kidverz",
+        "href": "#"
+      }
+    },
+    {
+      "block_type": "product_tabs",
+      "tabs": [
+        { "label": "New arrivals", "source": "all", "sort": "created_at", "limit": 10 },
+        { "label": "Sale items", "source": "all", "sort": "created_at", "limit": 10 },
+        { "label": "Best sellers", "source": "all", "sort": "price_desc", "limit": 10 }
+      ]
+    },
+    {
+      "block_type": "deal_of_day",
+      "title": "Deal of the day",
+      "description": "One super-fun find at a super-friendly price — every single day. Grab it before the clock runs out and the next treasure takes its place!",
+      "image": "",
+      "countdown_to": "2030-01-01T00:00:00.000Z",
+      "cta": { "label": "Grab the deal", "href": "/store" }
+    },
+    {
+      "block_type": "category_showcase",
+      "sub_title": "Shop by categories",
+      "title": "Little Hands, Big Fun",
+      "items": [
+        { "category_id": "", "label": "Coloring Kits", "image": "", "href": "/store" },
+        { "category_id": "", "label": "Puzzles & Games", "image": "", "href": "/store" },
+        { "category_id": "", "label": "Notebooks", "image": "", "href": "/store" },
+        { "category_id": "", "label": "Pencils & Pens", "image": "", "href": "/store" },
+        { "category_id": "", "label": "Backpacks", "image": "", "href": "/store" }
+      ]
+    },
+    {
+      "block_type": "newsletter",
+      "title": "Join the Kidverz Club",
+      "subtitle": "...and get a 10% coupon for your first order, plus first dibs on new toys.",
+      "placeholder": "Enter your email address",
+      "button": "Subscribe",
+      "provider_note": "We respect your privacy. Unsubscribe at any time."
+    }
+  ]
+}

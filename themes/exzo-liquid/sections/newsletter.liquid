@@ -1,0 +1,18 @@
+{%- assign s = section.settings -%}
+{%- if s.title != blank -%}
+<section class="ex-section ex-newsletter">
+  <div class="ex-container">
+    <div class="ex-newsletter-inner">
+      <span class="ex-eyebrow">Newsletter</span>
+      <h2 class="ex-title">{{ s.title }}</h2>
+      <span class="ex-underline"><span></span></span>
+      {%- if s.subtitle != blank -%}<p class="ex-newsletter-sub">{{ s.subtitle }}</p>{%- endif -%}
+      <form class="ex-newsletter-form" data-newsletter>
+        <input type="email" placeholder="{{ s.placeholder | default: 'Enter your e-mail address' }}" aria-label="Email address" required>
+        <button type="submit" class="ex-btn">{{ s.button | default: 'Subscribe' }}</button>
+      </form>
+      {%- if s.provider_note != blank -%}<p class="ex-newsletter-note">{{ s.provider_note }}</p>{%- endif -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

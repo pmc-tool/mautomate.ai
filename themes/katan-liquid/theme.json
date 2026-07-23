@@ -1,0 +1,148 @@
+{
+  "id": "katan-liquid",
+  "name": "Katan",
+  "version": "1.0.0",
+  "engine": "1",
+  "author": "mAutomate",
+  "description": "Katan — a premium multipurpose fashion theme. Elegant and editorial: airy whitespace, Jost display headings over Poppins body copy, a warm camel-gold accent on ink, pastel hero canvases and portrait product imagery.",
+  "tokens": {
+    "colors": {
+      "primary": "#b78b52",
+      "dark": "#151524",
+      "text": "#333333",
+      "border": "#dddddd",
+      "bg": "#ffffff"
+    },
+    "fonts": {
+      "heading": "Jost, sans-serif",
+      "body": "Poppins, sans-serif"
+    }
+  },
+  "settings": [
+    { "type": "header", "label": "Brand" },
+    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#b78b52" },
+    { "id": "container_width", "type": "range", "label": "Content width", "min": 1200, "max": 1500, "step": 20, "unit": "px", "default": 1400 },
+    { "type": "header", "label": "Announcement bar" },
+    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": true },
+    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "Mid-season sale — up to 40% off selected styles. Free shipping over $79." },
+    { "type": "header", "label": "Footer" },
+    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "Considered wardrobe essentials and statement pieces, curated each season and delivered to your door." },
+    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+  ],
+  "defaultSections": [
+    {
+      "block_type": "hero_slider",
+      "autoplay_ms": 6000,
+      "slides": [
+        { "image": "/bazaro/img/fashion-1/slider/slider-1.jpg", "subtitle": "New season", "title": "Trending Fashion Styles\nFor Your Wardrobe", "cta": { "label": "Shop Now", "href": "/store" } },
+        { "image": "/bazaro/img/fashion-1/slider/slider-2.jpg", "subtitle": "Limited offers", "title": "Affordable Offers on\nFashionable Dresses", "cta": { "label": "Shop Now", "href": "/store" } },
+        { "image": "/bazaro/img/fashion-3/slider/slider-1.jpg", "subtitle": "The edit", "title": "It's Time to Upgrade\nHow You Look", "cta": { "label": "Shop Now", "href": "/store" } }
+      ]
+    },
+    {
+      "block_type": "promo_banner_grid",
+      "intro": {
+        "title": "A statement with everything you wear.",
+        "body": "Why settle for ordinary clothing? We help you choose the pieces that reflect your distinct character — tailored silhouettes, honest fabrics and details that last beyond the season.",
+        "link_label": "About us",
+        "href": "/store"
+      },
+      "sale": {
+        "image": "/bazaro/img/fashion-1/banner/banner-1.jpg",
+        "special_title": "Season sale",
+        "title": "Up to 40% off styles",
+        "link_label": "Shop now",
+        "href": "/store"
+      },
+      "categories": [
+        { "image": "/bazaro/img/fashion-1/categories/category-1.jpg", "title": "Dresses", "count_label": "New in", "href": "/store", "wide": false },
+        { "image": "/bazaro/img/fashion-1/categories/category-2.jpg", "title": "Outerwear", "count_label": "The edit", "href": "/store", "wide": false },
+        { "image": "/bazaro/img/fashion-1/banner/banner-1-1.jpg", "title": "Accessories", "count_label": "Most wanted", "href": "/store", "wide": true }
+      ],
+      "instagram": {
+        "image": "/bazaro/img/fashion-2/shop-gram/shop-1.jpg",
+        "sub_title": "Follow us on instagram",
+        "handle": "@katan.studio",
+        "href": "#"
+      }
+    },
+    {
+      "block_type": "product_tabs",
+      "tabs": [
+        { "label": "New arrivals", "source": "all", "sort": "created_at", "limit": 8 },
+        { "label": "Best sellers", "source": "all", "sort": "price_desc", "limit": 8 },
+        { "label": "Sale", "source": "all", "sort": "created_at", "limit": 8 }
+      ]
+    },
+    {
+      "block_type": "deal_of_day",
+      "title": "Deal of the week",
+      "description": "One standout piece, one considered price. Refresh your rotation with this week's featured style before the countdown runs out.",
+      "image": "/bazaro/img/fashion-1/summer-suits/summer-1.jpg",
+      "countdown_to": "2030-01-01T00:00:00.000Z",
+      "cta": { "label": "Shop the deal", "href": "/store" }
+    },
+    {
+      "block_type": "category_showcase",
+      "sub_title": "Shop by category",
+      "title": "Curated for every occasion",
+      "items": [
+        { "category_id": "", "label": "Dresses", "image": "/bazaro/img/fashion-3/category/cat-1.jpg", "href": "/store" },
+        { "category_id": "", "label": "Knitwear", "image": "/bazaro/img/fashion-3/category/cat-2.jpg", "href": "/store" },
+        { "category_id": "", "label": "Suits", "image": "/bazaro/img/fashion-3/category/cat-3.jpg", "href": "/store" },
+        { "category_id": "", "label": "Bags", "image": "/bazaro/img/fashion-3/category/cat-4.jpg", "href": "/store" },
+        { "category_id": "", "label": "Shoes", "image": "/bazaro/img/fashion-3/category/cat-5.jpg", "href": "/store" }
+      ]
+    },
+    {
+      "block_type": "image_with_text",
+      "image": "/bazaro/img/fashion-1/collection/collection-1.jpg",
+      "image_side": "left",
+      "eyebrow": "Our philosophy",
+      "title": "Quiet luxury,\nhonest making",
+      "body": "Every Katan piece begins with fabric. We work with small mills, cut in limited runs and finish by hand — so what you wear feels as considered as it looks.",
+      "cta": { "label": "Discover the story", "href": "/store" }
+    },
+    {
+      "block_type": "testimonials",
+      "title": "Loved by our customers",
+      "items": [
+        { "quote": "The tailoring is immaculate — it drapes exactly like the photos. Easily the best coat I have owned.", "author": "Amelia Hart", "role": "Verified buyer", "avatar": "/bazaro/img/testimonial/testi-1.jpg" },
+        { "quote": "Shipping was fast and the packaging felt like a gift. The fabric quality genuinely surprised me.", "author": "Sofia Lindqvist", "role": "Verified buyer", "avatar": "/bazaro/img/testimonial/testi-2.jpg" },
+        { "quote": "Elegant, understated and comfortable. I keep coming back every season for the new edit.", "author": "Maya Chen", "role": "Verified buyer", "avatar": "/bazaro/img/testimonial/testi-3.jpg" }
+      ]
+    },
+    {
+      "block_type": "instagram_grid",
+      "heading": "Shop the gram",
+      "handle": "@katan.studio",
+      "images": [
+        { "image": "/bazaro/img/fashion-2/shop-gram/shop-2.jpg", "href": "#" },
+        { "image": "/bazaro/img/fashion-2/shop-gram/shop-3.jpg", "href": "#" },
+        { "image": "/bazaro/img/fashion-2/shop-gram/shop-4.jpg", "href": "#" },
+        { "image": "/bazaro/img/fashion-2/shop-gram/shop-5.jpg", "href": "#" },
+        { "image": "/bazaro/img/fashion-2/shop-gram/shop-6.jpg", "href": "#" },
+        { "image": "/bazaro/img/fashion-2/shop-gram/shop-7.jpg", "href": "#" }
+      ]
+    },
+    {
+      "block_type": "brand_strip",
+      "title": "Our maisons",
+      "brands": [
+        { "image": "/bazaro/img/brand/logo-1.png", "href": "#" },
+        { "image": "/bazaro/img/brand/logo-2.png", "href": "#" },
+        { "image": "/bazaro/img/brand/logo-3.png", "href": "#" },
+        { "image": "/bazaro/img/brand/logo-7.png", "href": "#" },
+        { "image": "/bazaro/img/brand/logo-8.png", "href": "#" }
+      ]
+    },
+    {
+      "block_type": "newsletter",
+      "title": "Join the Katan list",
+      "subtitle": "Early access to drops, private sales and 10% off your first order.",
+      "placeholder": "Enter your email address",
+      "button": "Subscribe",
+      "provider_note": "We respect your privacy. Unsubscribe at any time."
+    }
+  ]
+}

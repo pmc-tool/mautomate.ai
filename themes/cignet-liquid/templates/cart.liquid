@@ -1,0 +1,37 @@
+<div class="cg-pagehead">
+  <div class="cg-container">
+    <h1 class="cg-pagehead-title">Your cart</h1>
+    <nav class="cg-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="cg-current">Cart</span></nav>
+  </div>
+</div>
+<section class="cg-section cg-cart">
+  <div class="cg-container">
+    {%- if cart.items and cart.items.size > 0 -%}
+    <div class="cg-cart-layout">
+      <div class="cg-cart-lines">
+        <div class="cg-cart-row cg-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+        {%- for item in cart.items -%}
+        <div class="cg-cart-row">
+          <div class="cg-cart-prod">
+            {%- if item.image != blank -%}<img src="{{ item.image }}" alt="{{ item.title }}">{%- endif -%}
+            <div><a href="{{ routes.root_url }}{{ item.url }}" class="cg-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="cg-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+          </div>
+          <span>{{ item.line_price | money }}</span>
+          <span>{{ item.quantity }}</span>
+          <span>{{ item.line_price | money }}</span>
+        </div>
+        {%- endfor -%}
+      </div>
+      <aside class="cg-cart-summary">
+        <h2 class="cg-cart-summary-title">Summary</h2>
+        <div class="cg-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        <div class="cg-cart-sum-row cg-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <a class="cg-btn cg-btn-solid cg-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
+        <a class="cg-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+      </aside>
+    </div>
+    {%- else -%}
+    <div class="cg-cart-empty"><p>Your cart is empty.</p><a class="cg-btn cg-btn-solid" href="{{ routes.collections_url }}">Start shopping</a></div>
+    {%- endif -%}
+  </div>
+</section>

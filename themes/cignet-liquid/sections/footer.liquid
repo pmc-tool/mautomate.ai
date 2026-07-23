@@ -1,0 +1,56 @@
+{%- comment -%} Self-contained Cignet footer (cg- namespace) — deep green dark-section, driven by the store's chrome.footer settings. Tenant logos may be dark-fill transparent SVGs, so the logo sits on a light chip. {%- endcomment -%}
+{%- assign root = routes.root_url -%}
+{%- assign f = chrome.footer -%}
+{%- assign yr = 'now' | date: '%Y' -%}
+<footer class="cg-footer">
+  <div class="cg-container">
+    <div class="cg-footer-top">
+      <div class="cg-footer-brand">
+        {%- if shop.logo != blank -%}<span class="cg-footer-logochip"><img class="cg-footer-logo" src="{{ shop.logo }}" alt="{{ shop.name }}"></span>
+        {%- else -%}<div class="cg-footer-name">{{ shop.name }}</div>{%- endif -%}
+        {%- if settings.footer_about != blank -%}<p class="cg-footer-about">{{ settings.footer_about }}</p>{%- endif -%}
+        {%- if f.contact.email != blank -%}<a class="cg-footer-contact" href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a>{%- endif -%}
+        {%- if f.contact.phone != blank -%}<span class="cg-footer-contact">{{ f.contact.phone }}</span>{%- endif -%}
+        {%- if f.contact.app_buttons and f.contact.app_buttons.size > 0 -%}
+        <div class="cg-footer-apps">{%- for btn in f.contact.app_buttons -%}<a href="{{ btn.href | default: '#' }}">{% if btn.img != blank %}<img src="{{ btn.img }}" alt="{{ btn.alt }}">{% endif %}</a>{%- endfor -%}</div>
+        {%- endif -%}
+      </div>
+
+      <div class="cg-footer-col">
+        <h4 class="cg-footer-title">Shop</h4>
+        <ul>
+          {%- if categories -%}{%- assign lim = f.column_categories.limit | default: 5 -%}
+          {%- for c in categories limit: lim -%}<li><a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a></li>{%- endfor -%}{%- endif -%}
+          {%- if f.column_categories.extra -%}{%- for item in f.column_categories.extra -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ routes.collections_url }}">All products</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="cg-footer-col">
+        <h4 class="cg-footer-title">Information</h4>
+        <ul>
+          {%- if f.column_links and f.column_links.size > 0 -%}{%- for item in f.column_links -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ root }}/about-us">About us</a></li><li><a href="{{ root }}/contact">Contact</a></li><li><a href="{{ root }}/blog">Blog</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="cg-footer-col">
+        <h4 class="cg-footer-title">Follow us</h4>
+        {%- if f.social and f.social.size > 0 -%}
+        <div class="cg-footer-social">
+          {%- for s in f.social -%}<a href="{{ s.href | default: '#' }}" aria-label="social"><i class="fab {{ s.icon }}"></i></a>{%- endfor -%}
+        </div>
+        {%- endif -%}
+        <form class="cg-footer-news" data-newsletter>
+          <input type="email" placeholder="{{ f.newsletter.placeholder | default: 'Your email address' }}" aria-label="Email">
+          <button type="submit" aria-label="Subscribe"><i class="fas fa-arrow-right"></i></button>
+        </form>
+      </div>
+    </div>
+
+    <div class="cg-footer-bottom">
+      <p class="cg-footer-copy">{%- if f.copyright != blank -%}{{ f.copyright | replace: '{year}', yr }}{%- else -%}&copy; {{ yr }} {{ shop.name }}. All rights reserved.{%- endif -%}</p>
+      {%- if f.payment_image != blank -%}<img class="cg-footer-pay" src="{{ f.payment_image }}" alt="Payment methods">{%- endif -%}
+    </div>
+  </div>
+</footer>

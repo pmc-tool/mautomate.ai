@@ -1,0 +1,39 @@
+{%- assign f = chrome.footer -%}
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">Contact Us</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><span class="rk-crumb-active">Contact</span></li>
+    </ul>
+  </div>
+</section>
+<section class="rk-section">
+  <div class="rk-container">
+    <div class="rk-shead rk-shead-center">
+      <h2 class="rk-title rk-title-accent">Keep in touch with us</h2>
+      <p class="rk-lead">Questions about an order or a product? We usually reply within a day.</p>
+    </div>
+    <div class="rk-contact-grid">
+      <div class="rk-contact-info">
+        {%- if f.contact.email != blank -%}
+        <div class="rk-contact-item"><span class="rk-contact-label">Email</span><a href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a></div>
+        {%- endif -%}
+        {%- if f.contact.phone != blank -%}
+        <div class="rk-contact-item"><span class="rk-contact-label">Phone</span><span>{{ f.contact.phone }}</span></div>
+        {%- endif -%}
+        <div class="rk-contact-item"><span class="rk-contact-label">Hours</span><span>Mon–Sat, 9am–6pm</span></div>
+      </div>
+      <form class="rk-contact-form" data-contact-form>
+        <div class="rk-field-row">
+          <input type="text" name="name" placeholder="Your name" aria-label="Your name" required>
+          <input type="email" name="email" placeholder="Your email" aria-label="Your email" required>
+        </div>
+        <input type="text" name="subject" placeholder="Subject" aria-label="Subject">
+        <textarea name="message" rows="6" placeholder="How can we help?" aria-label="Message" required></textarea>
+        <button type="submit" class="rk-btn">Send Message</button>
+        <p class="rk-contact-msg" data-contact-msg hidden></p>
+      </form>
+    </div>
+  </div>
+</section>

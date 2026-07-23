@@ -1,0 +1,17 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">{{ collection.title }}</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="ek-current">{{ collection.title }}</span></nav>
+  </div>
+</div>
+<section class="ek-section">
+  <div class="ek-container">
+    <div class="ek-stitle">
+      {%- if collection.description != blank -%}<p class="ek-subtitle">{{ collection.description }}</p>{%- endif -%}
+      <span class="ek-count">{{ collection.products_count }} products</span>
+    </div>
+    {%- if collection.products and collection.products.size > 0 -%}
+    <div class="ek-grid">{%- for product in collection.products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="ek-empty">No products in this collection yet.</p>{%- endif -%}
+  </div>
+</section>

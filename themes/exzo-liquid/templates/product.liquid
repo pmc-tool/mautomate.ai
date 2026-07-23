@@ -1,0 +1,53 @@
+{%- assign p = product -%}
+<nav class="ex-crumbs"><div class="ex-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="ex-current">{{ p.title }}</span>
+</div></nav>
+
+<section class="ex-section ex-pdp">
+  <div class="ex-container">
+    <div class="ex-pdp-grid">
+      <div class="ex-pdp-gallery">
+        {%- assign main = p.featured_image.url | default: p.featured_image -%}
+        {%- if main == blank -%}{%- assign main = '/exzo/img/product-62.jpg' -%}{%- endif -%}
+        <div class="ex-pdp-main"><img id="pdp-main-img" src="{{ main | image_url: width: 900 }}" alt="{{ p.title }}"></div>
+        {%- if p.images and p.images.size > 1 -%}
+        <div class="ex-pdp-thumbs" data-pdp-thumbs>
+          {%- for image in p.images -%}<button class="ex-pdp-thumb{% if forloop.first %} is-active{% endif %}" data-full="{{ image.url }}"><img src="{{ image.url | image_url: width: 200 }}" alt="{{ image.alt | default: p.title }}"></button>{%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+
+      <div class="ex-pdp-info">
+        <h1 class="ex-pdp-title">{{ p.title }}</h1>
+        <span class="ex-underline ex-underline-left"><span></span></span>
+        <div class="ex-pdp-price">
+          {%- if p.compare_at_price and p.compare_at_price > p.price -%}<span class="ex-price-now ex-price-sale">{{ p.price | money }}</span> <span class="ex-price-old">{{ p.compare_at_price | money }}</span>
+          {%- else -%}<span class="ex-price-now">{{ p.price | money }}</span>{%- endif -%}
+        </div>
+        {%- if p.available -%}<span class="ex-pdp-stock in">In stock</span>{%- else -%}<span class="ex-pdp-stock out">Out of stock</span>{%- endif -%}
+        {%- if p.description != blank -%}<div class="ex-pdp-desc"><p>{{ p.description }}</p></div>{%- endif -%}
+
+        {%- for option in p.options -%}
+        <div class="ex-pdp-opt"><span class="ex-pdp-opt-name">{{ option.name }}</span><div class="ex-pdp-opt-vals">{%- for value in option.values -%}<span class="ex-swatch">{{ value }}</span>{%- endfor -%}</div></div>
+        {%- endfor -%}
+
+        <form class="ex-pdp-cart" data-add-to-cart>
+          {%- if p.variants and p.variants.size > 1 -%}
+          <div class="ex-pdp-opt"><span class="ex-pdp-opt-name">Variant</span>
+            <select class="ex-select" data-variant-select>
+              {%- for v in p.variants -%}<option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>{{ v.title }} &mdash; {{ v.price | money }}{% unless v.available %} (sold out){% endunless %}</option>{%- endfor -%}
+            </select>
+          </div>
+          {%- elsif p.variants and p.variants.size == 1 -%}
+          <input type="hidden" data-variant-select value="{{ p.variants[0].id }}">
+          {%- endif -%}
+          <div class="ex-pdp-buy">
+            <input type="number" class="ex-qty" data-qty value="1" min="1" aria-label="Quantity">
+            <button type="submit" class="ex-btn" data-add-btn {% unless p.available %}disabled{% endunless %}>{% if p.available %}Add to cart{% else %}Sold out{% endif %}</button>
+          </div>
+          <p class="ex-pdp-msg" data-cart-msg hidden></p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

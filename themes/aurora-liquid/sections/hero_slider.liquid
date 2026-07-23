@@ -1,0 +1,42 @@
+{%- assign slides = section.settings.slides -%}
+{%- assign nl = '
+' -%}
+{%- if slides and slides.size > 0 -%}
+<section class="au-section au-hero" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 6000 }}">
+  <div class="au-container">
+    <div class="au-hero-frame">
+      <div class="au-hero-slides">
+        {%- for slide in slides -%}
+        <div class="au-hero-slide{% if forloop.first %} is-active{% endif %}">
+          {%- if slide.image -%}<img class="au-hero-img" src="{{ slide.image }}" alt="">{%- endif -%}
+          <div class="au-hero-scrim"></div>
+          <div class="au-hero-inner">
+            <div class="au-hero-content">
+              {%- if slide.subtitle != blank -%}<p class="au-eyebrow">{{ slide.subtitle }}</p>{%- endif -%}
+              <h1 class="au-hero-title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
+              {%- assign cta_label = slide.cta.label | default: 'Shop now' -%}
+              {%- if slide.cta.href != blank and cta_label != blank -%}
+              <a class="au-btn" href="{{ slide.cta.href }}">{{ cta_label }}
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+              </a>
+              {%- endif -%}
+            </div>
+          </div>
+        </div>
+        {%- endfor -%}
+      </div>
+      {%- if slides.size > 1 -%}
+      <button class="au-hero-arrow au-hero-prev" data-hero-prev aria-label="Previous slide">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+      </button>
+      <button class="au-hero-arrow au-hero-next" data-hero-next aria-label="Next slide">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+      </button>
+      <div class="au-hero-dots" data-hero-dots>
+        {%- for slide in slides -%}<button class="au-hero-dot{% if forloop.first %} is-active{% endif %}" data-hero-dot="{{ forloop.index0 }}" aria-label="Slide {{ forloop.index }}"></button>{%- endfor -%}
+      </div>
+      {%- endif -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

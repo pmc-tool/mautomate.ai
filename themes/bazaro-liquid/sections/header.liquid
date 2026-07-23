@@ -1,0 +1,63 @@
+{%- assign root = routes.root_url -%}
+{%- if settings.show_announcement and settings.announcement_text != blank -%}
+<div class="bz-announce"><div class="bz-container"><p>{{ settings.announcement_text }}</p></div></div>
+{%- endif -%}
+
+<header class="bz-header" data-header>
+  <div class="bz-header-top">
+    <div class="bz-container bz-header-top-inner">
+      <div class="bz-header-left">
+        <button class="bz-burger" data-nav-toggle aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
+        <nav class="bz-toplinks" aria-label="Utility">
+          <a href="{{ root }}/contact">Store Location</a>
+          <a href="{{ routes.account_url }}">Order Status</a>
+        </nav>
+      </div>
+      <a class="bz-logo" href="{{ root }}">
+        {%- if shop.logo -%}<img src="{{ shop.logo }}" alt="{{ shop.name }}">
+        {%- else -%}<span class="bz-logo-text">{{ shop.name }}</span>{%- endif -%}
+      </a>
+      <div class="bz-header-actions">
+        <a class="bz-icon" href="{{ routes.search_url }}" aria-label="Search">
+          <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M18.75 18.75 14.4 14.4M16.75 8.75a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <a class="bz-icon" href="{{ routes.account_url }}" aria-label="Account">
+          <svg viewBox="0 0 17 20" width="17" height="20" aria-hidden="true"><path d="M16.21 18.75c0-3.48-3.46-6.3-7.73-6.3-4.27 0-7.73 2.82-7.73 6.3M12.98 5.25a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <a class="bz-icon bz-cartlink" href="{{ routes.cart_url }}" aria-label="Cart">
+          <svg viewBox="0 0 20 21" width="20" height="21" aria-hidden="true"><path d="M5.49 5.07a4.32 4.32 0 0 1 8.66 0M6.84 9.57h.05m5.78 0h.05M5.62 19.97h8.35c3.07 0 5.42-1.1 4.75-5.56l-.78-6.04c-.41-2.23-1.83-3.08-3.07-3.08H4.69c-1.26 0-2.6.92-3.08 3.08l-.78 6.04c-.56 3.95 1.72 5.56 4.79 5.56Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          {%- if cart.item_count > 0 -%}<span class="bz-cart-count">{{ cart.item_count }}</span>{%- endif -%}
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="bz-navbar">
+    <div class="bz-container">
+      <nav class="bz-nav" aria-label="Primary">
+        <a href="{{ root }}">Home</a>
+        <div class="bz-nav-drop">
+          <a href="{{ routes.collections_url }}">Shop</a>
+          {%- if categories and categories.size > 0 -%}
+          <div class="bz-dropdown">
+            <a href="{{ routes.collections_url }}">All Products</a>
+            {%- for c in categories limit: 12 -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}
+          </div>
+          {%- endif -%}
+        </div>
+        {%- if categories -%}{%- for c in categories limit: 3 -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}{%- endif -%}
+        <a href="{{ root }}/blog">Blog</a>
+        <a href="{{ root }}/contact">Contact</a>
+      </nav>
+    </div>
+  </div>
+
+  <nav class="bz-mobile-nav" data-mobile-nav aria-label="Mobile">
+    <a href="{{ root }}">Home</a>
+    <a href="{{ routes.collections_url }}">Shop</a>
+    {%- if categories -%}{%- for c in categories -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}{%- endif -%}
+    <a href="{{ root }}/blog">Blog</a>
+    <a href="{{ root }}/contact">Contact</a>
+    <a href="{{ routes.account_url }}">Account</a>
+  </nav>
+</header>

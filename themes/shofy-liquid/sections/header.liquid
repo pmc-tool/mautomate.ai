@@ -1,0 +1,85 @@
+{%- assign root = routes.root_url -%}
+{%- assign f = chrome.footer -%}
+<header class="sf-header" data-header>
+  {%- if settings.show_announcement and settings.announcement_text != blank -%}
+  <div class="sf-topbar">
+    <div class="sf-container sf-topbar-inner">
+      <p class="sf-topbar-text"><i class="fas fa-truck"></i> {{ settings.announcement_text }}</p>
+      <div class="sf-topbar-links">
+        <a href="{{ routes.account_url }}">My Account</a>
+        <a href="{{ root }}/contact">Contact</a>
+      </div>
+    </div>
+  </div>
+  {%- endif -%}
+
+  <div class="sf-header-main">
+    <div class="sf-container sf-header-main-inner">
+      <a class="sf-logo" href="{{ root }}">
+        {%- if shop.logo -%}<img src="{{ shop.logo }}" alt="{{ shop.name }}">
+        {%- else -%}<span class="sf-logo-text">{{ shop.name }}</span>{%- endif -%}
+      </a>
+
+      <form class="sf-search" action="{{ routes.search_url }}" method="get" role="search">
+        <input type="search" name="q" placeholder="Search for Products..." aria-label="Search products">
+        <button type="submit" aria-label="Search"><i class="fas fa-search"></i></button>
+      </form>
+
+      <div class="sf-header-actions">
+        <a class="sf-login" href="{{ routes.account_url }}">
+          <span class="sf-login-icon"><i class="far fa-user"></i></span>
+          <span class="sf-login-text">
+            {%- if customer -%}
+            <span>Hello, {{ customer.first_name | default: 'there' }}</span>
+            <strong>Your Account</strong>
+            {%- else -%}
+            <span>Hello, Sign In</span>
+            <strong>Your Account</strong>
+            {%- endif -%}
+          </span>
+        </a>
+        <a class="sf-action-btn sf-cart" href="{{ routes.cart_url }}" aria-label="Cart">
+          <i class="fas fa-shopping-cart"></i>
+          {%- if cart.item_count > 0 -%}<span class="sf-cart-count">{{ cart.item_count }}</span>{%- endif -%}
+        </a>
+        <button class="sf-burger" data-nav-toggle aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sf-header-bottom">
+    <div class="sf-container sf-header-bottom-inner">
+      <div class="sf-cats">
+        <button class="sf-cats-btn" type="button"><i class="fas fa-bars"></i> All Departments <i class="fas fa-angle-down"></i></button>
+        <div class="sf-cats-drop">
+          <a href="{{ routes.collections_url }}">All products</a>
+          {%- if categories -%}{%- for c in categories limit: 12 -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}{%- endif -%}
+        </div>
+      </div>
+      <nav class="sf-nav" aria-label="Primary">
+        <a href="{{ root }}">Home</a>
+        <a href="{{ routes.collections_url }}">Shop</a>
+        <a href="{{ root }}/blog">Blog</a>
+        <a href="{{ root }}/contact">Contact</a>
+      </nav>
+      {%- if f.contact.phone != blank -%}
+      <div class="sf-header-contact">
+        <span class="sf-header-contact-icon"><i class="fas fa-headphones"></i></span>
+        <span class="sf-header-contact-body">
+          <small>Hotline:</small>
+          <strong>{{ f.contact.phone }}</strong>
+        </span>
+      </div>
+      {%- endif -%}
+    </div>
+  </div>
+
+  <nav class="sf-mobile-nav" data-mobile-nav aria-label="Mobile">
+    <a href="{{ root }}">Home</a>
+    <a href="{{ routes.collections_url }}">Shop</a>
+    {%- if categories -%}{%- for c in categories limit: 12 -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}{%- endif -%}
+    <a href="{{ root }}/blog">Blog</a>
+    <a href="{{ root }}/contact">Contact</a>
+    <a href="{{ routes.account_url }}">Account</a>
+  </nav>
+</header>

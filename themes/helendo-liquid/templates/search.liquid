@@ -1,0 +1,19 @@
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">Search</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="hl-current">Search</span></nav>
+  </div>
+</div>
+<section class="hl-section">
+  <div class="hl-container">
+    <div class="hl-shead hl-shead-center">
+      <span class="hl-eyebrow">Find it</span>
+      <h2 class="hl-title hl-title-center">Search Anything...</h2>
+      <form class="hl-search-form" action="{{ routes.search_url }}" method="get">
+        <input type="search" name="q" placeholder="Search products..." aria-label="Search products">
+        <button type="submit" class="hl-btn">Search</button>
+      </form>
+    </div>
+    <p class="hl-empty">Type above to find products across the store.</p>
+  </div>
+</section>

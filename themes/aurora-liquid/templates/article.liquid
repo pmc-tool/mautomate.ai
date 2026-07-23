@@ -1,0 +1,22 @@
+<article class="au-section au-article">
+  <div class="au-container">
+    <div class="au-article-col">
+      <nav class="au-crumbs-inline" aria-label="Breadcrumb">
+        <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><a href="{{ routes.root_url }}/blog">Blog</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">{{ article.title }}</span>
+      </nav>
+      <header class="au-article-head">
+        <h1 class="au-article-title">{{ article.title }}</h1>
+        <div class="au-article-meta">
+          {%- if article.author != blank -%}<span>By {{ article.author }}</span>{%- endif -%}
+          {%- if article.published_at != blank -%}<span>{{ article.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+          {%- if article.reading_time -%}<span>{{ article.reading_time }} min read</span>{%- endif -%}
+        </div>
+      </header>
+      {%- if article.cover_image %}<div class="au-article-cover au-card"><img src="{{ article.cover_image }}" alt="{{ article.title }}"></div>{% endif -%}
+      <div class="au-article-body au-prose">
+        {%- if article.content != blank -%}{% render 'resolve-tokens', text: article.content, shop: shop %}{%- elsif article.excerpt != blank -%}<p>{{ article.excerpt }}</p>{%- endif -%}
+      </div>
+      <div class="au-article-foot"><a class="au-textlink" href="{{ routes.root_url }}/blog">&#8592; Back to blog</a></div>
+    </div>
+  </div>
+</article>

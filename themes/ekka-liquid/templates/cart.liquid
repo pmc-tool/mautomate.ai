@@ -1,0 +1,37 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">Your Cart</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ek-current">Cart</span></nav>
+  </div>
+</div>
+<section class="ek-section ek-cartpage">
+  <div class="ek-container">
+    {%- if cart.items and cart.items.size > 0 -%}
+    <div class="ek-cart-layout">
+      <div class="ek-cart-lines">
+        <div class="ek-cart-row ek-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+        {%- for item in cart.items -%}
+        <div class="ek-cart-row">
+          <div class="ek-cart-prod">
+            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
+            <div><a href="{{ routes.root_url }}{{ item.url }}" class="ek-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="ek-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+          </div>
+          <span>{{ item.line_price | money }}</span>
+          <span>{{ item.quantity }}</span>
+          <span>{{ item.line_price | money }}</span>
+        </div>
+        {%- endfor -%}
+      </div>
+      <aside class="ek-cart-summary">
+        <h2 class="ek-cart-summary-title">Summary</h2>
+        <div class="ek-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        <div class="ek-cart-sum-row ek-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <a class="ek-btn ek-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
+        <a class="ek-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+      </aside>
+    </div>
+    {%- else -%}
+    <div class="ek-cart-empty"><p>Your cart is empty.</p><a class="ek-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+    {%- endif -%}
+  </div>
+</section>

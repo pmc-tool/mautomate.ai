@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="{{ request.locale | default: 'en' }}">
+<head>
+  {{ content_for_header }}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
+  {%- comment -%} Gamerik is fully self-contained: no foreign stylesheet is loaded.
+     All icons are inline SVG, the whole design system lives in theme.css
+     (gm- namespace) so no global html/body rules can leak in. {%- endcomment -%}
+  <link rel="stylesheet" href="{{ 'theme.css' | asset_url }}">
+  <style>
+    :root{
+      --gm-accent: {{ settings.accent_color | default: '#9946bb' }};
+      --gm-container: {{ settings.container_width | default: 1280 }}px;
+    }
+  </style>
+</head>
+<body class="template-{{ template }} gm-body">
+  {% section 'header' %}
+  <main id="main">
+    {{ content_for_layout }}
+  </main>
+  {% section 'footer' %}
+  <script src="{{ 'theme.js' | asset_url }}" defer></script>
+</body>
+</html>

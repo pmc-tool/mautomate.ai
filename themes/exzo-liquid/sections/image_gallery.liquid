@@ -1,0 +1,22 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="ex-section ex-gallery">
+  <div class="ex-container">
+    {%- if s.title != blank -%}
+    <div class="ex-shead ex-shead-center">
+      <h2 class="ex-title">{{ s.title }}</h2>
+      <span class="ex-underline"><span></span></span>
+    </div>
+    {%- endif -%}
+    <div class="ex-gallery-grid">
+      {%- for item in images -%}
+        {%- assign src = item.image | default: item -%}
+        {%- if src != blank -%}
+        <figure class="ex-gallery-cell"><img src="{{ src }}" alt="{{ item.alt | default: 'Gallery image' }}">{% if item.caption != blank %}<figcaption>{{ item.caption }}</figcaption>{% endif %}</figure>
+        {%- endif -%}
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

@@ -1,0 +1,17 @@
+<nav class="ex-crumbs"><div class="ex-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="ex-current">{{ collection.title }}</span>
+</div></nav>
+<section class="ex-section">
+  <div class="ex-container">
+    <div class="ex-shead ex-shead-center">
+      <span class="ex-eyebrow">Collection</span>
+      <h1 class="ex-title">{{ collection.title }}</h1>
+      <span class="ex-underline"><span></span></span>
+      {%- if collection.description != blank -%}<p class="ex-lead">{{ collection.description }}</p>{%- endif -%}
+      <span class="ex-count">{{ collection.products_count }} products</span>
+    </div>
+    {%- if collection.products and collection.products.size > 0 -%}
+    <div class="ex-grid">{%- for product in collection.products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="ex-empty">No products in this collection yet.</p>{%- endif -%}
+  </div>
+</section>

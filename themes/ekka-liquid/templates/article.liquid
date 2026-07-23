@@ -1,0 +1,22 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">{{ article.title }}</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.root_url }}/blog">Blog</a><span>/</span><span class="ek-current">{{ article.title }}</span></nav>
+  </div>
+</div>
+<article class="ek-section ek-article">
+  <div class="ek-container">
+    <header class="ek-article-head">
+      <div class="ek-article-meta">
+        {%- if article.author != blank -%}<span>By {{ article.author }}</span>{%- endif -%}
+        {%- if article.published_at != blank -%}<span>{{ article.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+        {%- if article.reading_time -%}<span>{{ article.reading_time }} min read</span>{%- endif -%}
+      </div>
+    </header>
+    {%- if article.cover_image %}<div class="ek-article-cover"><img src="{{ article.cover_image }}" alt="{{ article.title }}"></div>{% endif -%}
+    <div class="ek-article-body ek-richtext-inner">
+      {%- if article.content != blank -%}{% render 'resolve-tokens', text: article.content, shop: shop %}{%- elsif article.excerpt != blank -%}<p>{{ article.excerpt }}</p>{%- endif -%}
+    </div>
+    <div class="ek-article-foot"><a class="ek-link" href="{{ routes.root_url }}/blog">&#8592; Back to blog</a></div>
+  </div>
+</article>

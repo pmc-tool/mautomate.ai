@@ -1,0 +1,5 @@
+{%- if page.sections and page.sections.size > 0 -%}
+  {%- for section in page.sections -%}{% render_section section %}{%- endfor -%}
+{%- else -%}
+  <section class="cg-section"><div class="cg-container cg-shead cg-shead-center"><h1 class="cg-title">{{ shop.name }}</h1><p class="cg-lead">Your storefront is ready. Add sections in the editor to build your home page.</p></div></section>
+{%- endif -%}

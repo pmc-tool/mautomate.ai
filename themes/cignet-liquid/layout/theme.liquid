@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="{{ request.locale | default: 'en' }}">
+<head>
+  {{ content_for_header }}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Roboto:wght@300;400;500;600&display=swap" rel="stylesheet">
+  {%- comment -%} Font Awesome is used only for the social / instagram icons.
+     No template CSS is loaded — this theme is fully self-contained in
+     theme.css (cg- namespace), so nothing leaks global html/body rules. {%- endcomment -%}
+  <link rel="stylesheet" href="/learts/assets/css/vendor/fontawesome.min.css">
+  <link rel="stylesheet" href="{{ 'theme.css' | asset_url }}">
+  <style>
+    :root{
+      --cg-accent: {{ settings.accent_color | default: '#2f3d38' }};
+      --cg-container: {{ settings.container_width | default: 1300 }}px;
+    }
+  </style>
+</head>
+<body class="template-{{ template }} cg-body">
+  {% section 'header' %}
+  <main id="main">
+    {{ content_for_layout }}
+  </main>
+  {% section 'footer' %}
+  <script src="{{ 'theme.js' | asset_url }}" defer></script>
+</body>
+</html>

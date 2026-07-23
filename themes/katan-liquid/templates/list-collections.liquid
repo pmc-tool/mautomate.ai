@@ -1,0 +1,14 @@
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="kt-current">Shop</span>
+</div></nav>
+<div class="kt-titlebar"><div class="kt-container">
+  <h1 class="kt-title">Shop all</h1>
+  <p class="kt-lead">Every piece in the collection, in one place.</p>
+</div></div>
+<section class="kt-section">
+  <div class="kt-container">
+    {%- if products and products.size > 0 -%}
+    <div class="kt-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="kt-empty">No products yet — check back soon.</p>{%- endif -%}
+  </div>
+</section>

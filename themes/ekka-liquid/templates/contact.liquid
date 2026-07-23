@@ -1,0 +1,37 @@
+{%- assign f = chrome.footer -%}
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">Contact Us</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ek-current">Contact</span></nav>
+  </div>
+</div>
+<section class="ek-section">
+  <div class="ek-container">
+    <div class="ek-stitle">
+      <h2 class="ek-bg-title" aria-hidden="true">Keep In Touch</h2>
+      <h2 class="ek-title">Keep In Touch With Us</h2>
+      <p class="ek-subtitle">Questions about an order or a product? We usually reply within a day.</p>
+    </div>
+    <div class="ek-contact-grid">
+      <div class="ek-contact-info">
+        {%- if f.contact.email != blank -%}
+        <div class="ek-contact-item"><span class="ek-contact-icon"><i class="fas fa-envelope"></i></span><div><span class="ek-contact-label">Email</span><a href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a></div></div>
+        {%- endif -%}
+        {%- if f.contact.phone != blank -%}
+        <div class="ek-contact-item"><span class="ek-contact-icon"><i class="fas fa-phone-alt"></i></span><div><span class="ek-contact-label">Phone</span><span>{{ f.contact.phone }}</span></div></div>
+        {%- endif -%}
+        <div class="ek-contact-item"><span class="ek-contact-icon"><i class="far fa-clock"></i></span><div><span class="ek-contact-label">Hours</span><span>Mon–Sat, 9am–6pm</span></div></div>
+      </div>
+      <form class="ek-contact-form" data-contact-form>
+        <div class="ek-field-row">
+          <input type="text" name="name" placeholder="Your name" aria-label="Your name" required>
+          <input type="email" name="email" placeholder="Your email" aria-label="Your email" required>
+        </div>
+        <input type="text" name="subject" placeholder="Subject" aria-label="Subject">
+        <textarea name="message" rows="6" placeholder="How can we help?" aria-label="Message" required></textarea>
+        <button type="submit" class="ek-btn">Send Message</button>
+        <p class="ek-contact-msg" data-contact-msg hidden></p>
+      </form>
+    </div>
+  </div>
+</section>

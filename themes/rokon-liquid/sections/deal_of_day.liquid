@@ -1,0 +1,17 @@
+{%- assign s = section.settings -%}
+<section class="rk-deal"{% if s.image != blank %} style="background-image:url('{{ s.image }}')"{% endif %}>
+  <div class="rk-container">
+    <div class="rk-deal-content">
+      <span class="rk-eyebrow rk-eyebrow-light">Limited time</span>
+      <h2 class="rk-deal-title" data-el="title">{{ s.title | default: 'Deal of the day' }}</h2>
+      {%- if s.description != blank -%}<p class="rk-deal-desc" data-el="text">{{ s.description }}</p>{%- endif -%}
+      <div class="rk-countdown" data-countdown="{{ s.countdown_to }}" data-el="countdown">
+        <div class="rk-cd"><span class="rk-cd-num" data-cd="days">00</span><span class="rk-cd-lbl">Days</span></div>
+        <div class="rk-cd"><span class="rk-cd-num" data-cd="hours">00</span><span class="rk-cd-lbl">Hrs</span></div>
+        <div class="rk-cd"><span class="rk-cd-num" data-cd="minutes">00</span><span class="rk-cd-lbl">Min</span></div>
+        <div class="rk-cd"><span class="rk-cd-num" data-cd="seconds">00</span><span class="rk-cd-lbl">Sec</span></div>
+      </div>
+      {%- if s.cta.href != blank -%}<a class="rk-btn" data-el="button" href="{{ s.cta.href }}">{{ s.cta.label | default: 'Shop Now' }}</a>{%- endif -%}
+    </div>
+  </div>
+</section>

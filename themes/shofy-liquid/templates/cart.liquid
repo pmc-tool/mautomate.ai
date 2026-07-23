@@ -1,0 +1,37 @@
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">Your Cart</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="sf-current">Cart</span></nav>
+  </div>
+</div>
+<section class="sf-section sf-cartpage">
+  <div class="sf-container">
+    {%- if cart.items and cart.items.size > 0 -%}
+    <div class="sf-cart-layout">
+      <div class="sf-cart-lines">
+        <div class="sf-cart-row sf-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+        {%- for item in cart.items -%}
+        <div class="sf-cart-row">
+          <div class="sf-cart-prod">
+            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
+            <div><a href="{{ routes.root_url }}{{ item.url }}" class="sf-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="sf-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+          </div>
+          <span>{{ item.line_price | money }}</span>
+          <span>{{ item.quantity }}</span>
+          <span>{{ item.line_price | money }}</span>
+        </div>
+        {%- endfor -%}
+      </div>
+      <aside class="sf-cart-summary">
+        <h2 class="sf-cart-summary-title">Summary</h2>
+        <div class="sf-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        <div class="sf-cart-sum-row sf-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <a class="sf-btn sf-btn-primary sf-btn-block" href="{{ cart.checkout_url }}">Proceed to Checkout</a>
+        <a class="sf-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+      </aside>
+    </div>
+    {%- else -%}
+    <div class="sf-cart-empty"><p>Your cart is empty.</p><a class="sf-btn sf-btn-primary" href="{{ routes.collections_url }}">Start shopping</a></div>
+    {%- endif -%}
+  </div>
+</section>

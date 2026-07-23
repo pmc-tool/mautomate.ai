@@ -1,0 +1,63 @@
+{%- assign root = routes.root_url -%}
+{%- assign f = chrome.footer -%}
+{%- assign yr = 'now' | date: '%Y' -%}
+<footer class="sf-footer">
+  <div class="sf-container">
+    <div class="sf-footer-top">
+      <div class="sf-footer-brand">
+        {%- if shop.logo -%}<a href="{{ root }}"><img class="sf-footer-logo" src="{{ shop.logo }}" alt="{{ shop.name }}"></a>
+        {%- else -%}<a href="{{ root }}" class="sf-footer-name">{{ shop.name }}</a>{%- endif -%}
+        {%- if settings.footer_about != blank -%}<p class="sf-footer-desc">{{ settings.footer_about }}</p>{%- endif -%}
+        {%- if f.social and f.social.size > 0 -%}
+        <div class="sf-footer-social">
+          {%- for s in f.social -%}<a href="{{ s.href | default: '#' }}" aria-label="social"><i class="fab {{ s.icon }}"></i></a>{%- endfor -%}
+        </div>
+        {%- endif -%}
+        {%- if f.contact.app_buttons and f.contact.app_buttons.size > 0 -%}
+        <div class="sf-footer-apps">{%- for btn in f.contact.app_buttons -%}<a href="{{ btn.href | default: '#' }}"><img src="{{ btn.img }}" alt="{{ btn.alt }}"></a>{%- endfor -%}</div>
+        {%- endif -%}
+      </div>
+
+      <div class="sf-footer-col">
+        <h4 class="sf-footer-title">Quick Links</h4>
+        <ul>
+          {%- if categories -%}{%- assign lim = f.column_categories.limit | default: 5 -%}
+          {%- for c in categories limit: lim -%}<li><a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a></li>{%- endfor -%}{%- endif -%}
+          {%- if f.column_categories.extra -%}{%- for item in f.column_categories.extra -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ routes.collections_url }}">All products</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="sf-footer-col">
+        <h4 class="sf-footer-title">Information</h4>
+        <ul>
+          {%- if f.column_links and f.column_links.size > 0 -%}{%- for item in f.column_links -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ root }}/about-us">About us</a></li><li><a href="{{ root }}/contact">Contact</a></li><li><a href="{{ root }}/blog">Blog</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="sf-footer-col sf-footer-talkcol">
+        <h4 class="sf-footer-title">Talk To Us</h4>
+        {%- if f.contact.phone != blank -%}
+        <div class="sf-footer-talk">
+          <span>Got Questions? Call us</span>
+          <strong>{{ f.contact.phone }}</strong>
+        </div>
+        {%- endif -%}
+        {%- if f.contact.email != blank -%}
+        <div class="sf-footer-contact"><span class="sf-footer-contact-icon"><i class="far fa-envelope"></i></span><a href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a></div>
+        {%- endif -%}
+        <div class="sf-footer-contact"><span class="sf-footer-contact-icon"><i class="fas fa-map-marker-alt"></i></span><a href="{{ root }}/contact">Visit our contact page</a></div>
+        <form class="sf-footer-news" data-newsletter>
+          <input type="email" placeholder="{{ f.newsletter.placeholder | default: 'Your email address' }}" aria-label="Email">
+          <button type="submit" aria-label="Subscribe"><i class="fas fa-arrow-right"></i></button>
+        </form>
+      </div>
+    </div>
+
+    <div class="sf-footer-bottom">
+      <p class="sf-footer-copy">{%- if f.copyright != blank -%}{{ f.copyright | replace: '{year}', yr }}{%- else -%}&copy; {{ yr }} {{ shop.name }}. {{ settings.footer_copyright | default: 'All rights reserved.' }}{%- endif -%}</p>
+      {%- if f.payment_image != blank -%}<img class="sf-footer-pay" src="{{ f.payment_image }}" alt="Payment methods">{%- endif -%}
+    </div>
+  </div>
+</footer>

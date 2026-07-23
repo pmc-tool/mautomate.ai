@@ -1,0 +1,17 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">{{ collection.title }}</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="bz-current">{{ collection.title }}</span></nav>
+  </div>
+</div>
+<section class="bz-section">
+  <div class="bz-container">
+    <div class="bz-listing-head">
+      {%- if collection.description != blank -%}<p class="bz-lead">{{ collection.description }}</p>{%- endif -%}
+      <span class="bz-count">{{ collection.products_count }} products</span>
+    </div>
+    {%- if collection.products and collection.products.size > 0 -%}
+    <div class="bz-grid">{%- for product in collection.products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="bz-empty">No products in this collection yet.</p>{%- endif -%}
+  </div>
+</section>

@@ -1,0 +1,20 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="ex-section ex-insta">
+  <div class="ex-container">
+    {%- if s.heading != blank or s.handle != blank -%}
+    <div class="ex-shead ex-shead-center">
+      {%- if s.heading != blank -%}<span class="ex-eyebrow">{{ s.heading }}</span>{%- endif -%}
+      {%- if s.handle != blank -%}<h2 class="ex-title">{{ s.handle }}</h2>{%- endif -%}
+      <span class="ex-underline"><span></span></span>
+    </div>
+    {%- endif -%}
+    <div class="ex-insta-grid">
+      {%- for item in images -%}{%- if item.image != blank -%}
+      <a class="ex-insta-cell" href="{{ item.href | default: '#' }}"><img src="{{ item.image }}" alt="Instagram post"><span class="ex-insta-ic"><i class="fab fa-instagram"></i></span></a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

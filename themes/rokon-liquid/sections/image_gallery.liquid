@@ -1,0 +1,17 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="rk-section rk-gallery">
+  <div class="rk-container">
+    {%- if s.title != blank -%}<div class="rk-shead rk-shead-center"><h2 class="rk-title rk-title-accent" data-el="title">{{ s.title }}</h2></div>{%- endif -%}
+    <div class="rk-gallery-grid">
+      {%- for item in images -%}
+        {%- assign src = item.image | default: item -%}
+        {%- if src != blank -%}
+        <figure class="rk-gallery-cell" data-el-item="images:{{ forloop.index0 }}"><img src="{{ src }}" alt="{{ item.alt | default: 'Gallery image' }}">{% if item.caption != blank %}<figcaption>{{ item.caption }}</figcaption>{% endif %}</figure>
+        {%- endif -%}
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

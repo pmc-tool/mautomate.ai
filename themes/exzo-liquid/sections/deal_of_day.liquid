@@ -1,0 +1,23 @@
+{%- assign s = section.settings -%}
+<section class="ex-section ex-deal">
+  <div class="ex-container">
+    <div class="ex-deal-grid">
+      <div class="ex-deal-media">
+        {%- if s.image != blank %}<img src="{{ s.image }}" alt="{{ s.title | default: 'Deal of the day' }}">{% else %}<div class="ex-deal-fallback"></div>{% endif -%}
+      </div>
+      <div class="ex-deal-content">
+        <span class="ex-eyebrow">Limited time offer</span>
+        <h2 class="ex-title">{{ s.title | default: 'Deal of the day' }}</h2>
+        <span class="ex-underline ex-underline-left"><span></span></span>
+        <div class="ex-countdown" data-countdown="{{ s.countdown_to }}">
+          <div class="ex-cd"><span class="ex-cd-ring"><span class="ex-cd-num" data-cd="days">00</span></span><span class="ex-cd-lbl">Days</span></div>
+          <div class="ex-cd"><span class="ex-cd-ring"><span class="ex-cd-num" data-cd="hours">00</span></span><span class="ex-cd-lbl">Hours</span></div>
+          <div class="ex-cd"><span class="ex-cd-ring"><span class="ex-cd-num" data-cd="minutes">00</span></span><span class="ex-cd-lbl">Min</span></div>
+          <div class="ex-cd"><span class="ex-cd-ring"><span class="ex-cd-num" data-cd="seconds">00</span></span><span class="ex-cd-lbl">Sec</span></div>
+        </div>
+        {%- if s.description != blank -%}<p class="ex-deal-desc">{{ s.description }}</p>{%- endif -%}
+        {%- if s.cta.href != blank -%}<a class="ex-btn" href="{{ s.cta.href }}">{{ s.cta.label | default: 'Shop now' }}</a>{%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

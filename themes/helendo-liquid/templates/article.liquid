@@ -1,0 +1,23 @@
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">Blog</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.root_url }}/blog">Blog</a><span>/</span><span class="hl-current">{{ article.title }}</span></nav>
+  </div>
+</div>
+<article class="hl-section hl-article">
+  <div class="hl-container">
+    <header class="hl-article-head">
+      <h1 class="hl-article-title">{{ article.title }}</h1>
+      <div class="hl-article-meta">
+        {%- if article.author != blank -%}<span>By {{ article.author }}</span>{%- endif -%}
+        {%- if article.published_at != blank -%}<span>{{ article.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+        {%- if article.reading_time -%}<span>{{ article.reading_time }} min read</span>{%- endif -%}
+      </div>
+    </header>
+    {%- if article.cover_image %}<div class="hl-article-cover"><img src="{{ article.cover_image }}" alt="{{ article.title }}"></div>{% endif -%}
+    <div class="hl-article-body hl-richtext-inner">
+      {%- if article.content != blank -%}{% render 'resolve-tokens', text: article.content, shop: shop %}{%- elsif article.excerpt != blank -%}<p>{{ article.excerpt }}</p>{%- endif -%}
+    </div>
+    <div class="hl-article-foot"><a class="hl-link" href="{{ routes.root_url }}/blog"><i class="fas fa-arrow-left"></i> Back to blog</a></div>
+  </div>
+</article>

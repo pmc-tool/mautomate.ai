@@ -1,0 +1,7 @@
+{%- assign s = section.settings -%}
+{%- assign width = s.width | default: 'normal' -%}
+<section class="hl-section hl-richtext hl-richtext-{{ width }}">
+  <div class="hl-container">
+    <div class="hl-richtext-inner">{%- if s.html != blank -%}{% render 'resolve-tokens', text: s.html, shop: shop %}{%- endif -%}</div>
+  </div>
+</section>

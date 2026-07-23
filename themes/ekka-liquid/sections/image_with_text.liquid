@@ -1,0 +1,43 @@
+{%- assign s = section.settings -%}
+{%- assign nl = '
+' -%}
+{%- if s.image != blank or s.title != blank -%}
+<section class="ek-section ek-imgtext{% if s.image_side == 'right' %} ek-imgtext-right{% endif %}">
+  <div class="ek-container">
+    <div class="ek-imgtext-grid">
+      <div class="ek-imgtext-media">{% if s.image %}<img src="{{ s.image }}" alt="{{ s.title }}">{% endif %}</div>
+      <div class="ek-imgtext-body">
+        <div class="ek-stitle ek-stitle-left">
+          {%- if s.title != blank -%}
+          <h2 class="ek-bg-title" aria-hidden="true">{{ s.title | replace: nl, ' ' }}</h2>
+          <h2 class="ek-title">{%- assign lines = s.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h2>
+          {%- endif -%}
+          {%- if s.eyebrow != blank -%}<p class="ek-subtitle">{{ s.eyebrow }}</p>{%- endif -%}
+        </div>
+        {%- if s.body != blank -%}<p class="ek-imgtext-copy">{{ s.body }}</p>{%- endif -%}
+        {%- if s.cta.href != blank -%}<a class="ek-btn" href="{{ s.cta.href }}">{{ s.cta.label | default: 'Shop Now' }}</a>{%- endif -%}
+      </div>
+    </div>
+
+    {%- assign feats = s.items -%}
+    {%- if feats and feats.size > 0 -%}
+    <div class="ek-services">
+      {%- for feat in feats -%}
+      <div class="ek-service">
+        {%- if feat.icon != blank -%}<div class="ek-service-icon"><img src="{{ feat.icon }}" alt=""></div>{%- endif -%}
+        {%- if feat.title != blank -%}<h3>{{ feat.title }}</h3>{%- endif -%}
+        {%- if feat.text != blank -%}<p>{{ feat.text }}</p>{%- endif -%}
+      </div>
+      {%- endfor -%}
+    </div>
+    {%- else -%}
+    <div class="ek-services">
+      <div class="ek-service"><div class="ek-service-icon"><i class="fas fa-truck"></i></div><h3>Free Shipping</h3><p>Free shipping on all US order or order above $200</p></div>
+      <div class="ek-service"><div class="ek-service-icon"><i class="fas fa-headphones"></i></div><h3>24X7 Support</h3><p>Contact us 24 hours a day, 7 days a week</p></div>
+      <div class="ek-service"><div class="ek-service-icon"><i class="fas fa-percent"></i></div><h3>30 Days Return</h3><p>Simply return it within 30 days for an exchange</p></div>
+      <div class="ek-service"><div class="ek-service-icon"><i class="fas fa-lock"></i></div><h3>Payment Secure</h3><p>Your payment details are always protected</p></div>
+    </div>
+    {%- endif -%}
+  </div>
+</section>
+{%- endif -%}

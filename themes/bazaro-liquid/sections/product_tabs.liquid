@@ -1,0 +1,28 @@
+{%- assign tabs = section.settings.tabs -%}
+{%- if tabs and tabs.size > 0 -%}
+<section class="bz-section bz-tabs" data-tabs>
+  <div class="bz-container">
+    <div class="bz-tabs-head">
+      <div class="bz-tabs-headline">
+        <span class="bz-subtitle">All Product Shop</span>
+        <h2 class="bz-title">Favorite Style Product</h2>
+      </div>
+      <nav class="bz-tabnav" role="tablist">
+        {%- for tab in tabs -%}
+        <button class="bz-tabbtn{% if forloop.first %} is-active{% endif %}" data-tab-btn="{{ forloop.index0 }}" role="tab">{{ tab.label }}</button>
+        {%- endfor -%}
+      </nav>
+    </div>
+    {%- for tab in tabs -%}
+    <div class="bz-tabpanel{% if forloop.first %} is-active{% endif %}" data-tab-panel="{{ forloop.index0 }}" role="tabpanel">
+      {%- assign products = tab.products -%}
+      {%- if products and products.size > 0 -%}
+      <div class="bz-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- else -%}
+      <p class="bz-empty">No products to show here yet.</p>
+      {%- endif -%}
+    </div>
+    {%- endfor -%}
+  </div>
+</section>
+{%- endif -%}

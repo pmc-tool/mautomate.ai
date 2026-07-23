@@ -1,0 +1,5 @@
+{%- if page.sections and page.sections.size > 0 -%}
+  {%- for section in page.sections -%}{% render_section section %}{%- endfor -%}
+{%- else -%}
+  <section class="ek-section"><div class="ek-container ek-stitle"><h1 class="ek-title">{{ shop.name }}</h1><p class="ek-subtitle">Your storefront is ready. Add sections in the editor to build your home page.</p></div></section>
+{%- endif -%}

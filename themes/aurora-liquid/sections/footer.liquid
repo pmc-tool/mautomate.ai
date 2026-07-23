@@ -1,0 +1,63 @@
+{%- comment -%} Aurora footer (au- namespace) — modern editorial grid driven by the
+   store's chrome.footer settings. Fully self-contained. {%- endcomment -%}
+{%- assign root = routes.root_url -%}
+{%- assign f = chrome.footer -%}
+{%- assign yr = 'now' | date: '%Y' -%}
+<footer class="au-footer">
+  <div class="au-container">
+    <div class="au-footer-top">
+      <div class="au-footer-contact">
+        <p class="au-eyebrow">Get in touch</p>
+        {%- if shop.logo -%}<img class="au-footer-logo" src="{{ shop.logo }}" alt="{{ shop.name }}">{%- endif -%}
+        {%- if f.contact.email != blank -%}<a class="au-footer-email" href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a>
+        {%- else -%}<span class="au-footer-email">{{ shop.name }}</span>{%- endif -%}
+        {%- if f.contact.phone != blank -%}<p class="au-footer-phone">{{ f.contact.phone }}</p>{%- endif -%}
+        {%- if settings.footer_about != blank -%}<p class="au-footer-about">{{ settings.footer_about }}</p>{%- endif -%}
+        {%- if f.contact.app_buttons and f.contact.app_buttons.size > 0 -%}
+        <div class="au-footer-apps">{%- for btn in f.contact.app_buttons -%}<a href="{{ btn.href | default: '#' }}"><img src="{{ btn.img }}" alt="{{ btn.alt }}"></a>{%- endfor -%}</div>
+        {%- endif -%}
+      </div>
+
+      <div class="au-footer-col">
+        <p class="au-eyebrow">Shop</p>
+        <ul>
+          {%- if categories -%}{%- assign lim = f.column_categories.limit | default: 5 -%}
+          {%- for c in categories limit: lim -%}<li><a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a></li>{%- endfor -%}{%- endif -%}
+          {%- if f.column_categories.extra -%}{%- for item in f.column_categories.extra -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ routes.collections_url }}">All products</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="au-footer-col">
+        <p class="au-eyebrow">Company</p>
+        <ul>
+          {%- if f.column_links and f.column_links.size > 0 -%}{%- for item in f.column_links -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ root }}/about-us">About us</a></li><li><a href="{{ root }}/contact">Contact</a></li><li><a href="{{ root }}/blog">Blog</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="au-footer-news-col">
+        <p class="au-eyebrow">{{ f.newsletter.title | default: 'Newsletter' }}</p>
+        <form class="au-footer-news" data-newsletter>
+          <div class="au-input-wrap">
+            <i class="far fa-envelope" aria-hidden="true"></i>
+            <input type="email" placeholder="{{ f.newsletter.placeholder | default: 'Your email address' }}" aria-label="Email" required>
+          </div>
+          <button type="submit" class="au-btn">{{ f.newsletter.button | default: 'Subscribe' }}</button>
+        </form>
+        {%- if f.social and f.social.size > 0 -%}
+        <div class="au-footer-social">
+          {%- for s in f.social -%}<a href="{{ s.href | default: '#' }}" aria-label="social"><i class="fab {{ s.icon }}"></i></a>{%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+
+  <div class="au-footer-bottom">
+    <div class="au-container au-footer-bottom-inner">
+      <p class="au-footer-copy">{%- if f.copyright != blank -%}{{ f.copyright | replace: '{year}', yr }}{%- else -%}&copy; {{ yr }} {{ shop.name }}. {{ settings.footer_copyright | default: 'All rights reserved.' }}{%- endif -%}</p>
+      {%- if f.payment_image != blank -%}<img class="au-footer-pay" src="{{ f.payment_image }}" alt="Payment methods">{%- endif -%}
+    </div>
+  </div>
+</footer>

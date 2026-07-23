@@ -1,0 +1,21 @@
+<nav class="ex-crumbs"><div class="ex-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.root_url }}/blog">Blog</a><span>/</span><span class="ex-current">{{ article.title }}</span>
+</div></nav>
+<article class="ex-section ex-article">
+  <div class="ex-container">
+    <header class="ex-article-head">
+      <h1 class="ex-article-title">{{ article.title }}</h1>
+      <span class="ex-underline"><span></span></span>
+      <div class="ex-article-meta">
+        {%- if article.author != blank -%}<span>By {{ article.author }}</span>{%- endif -%}
+        {%- if article.published_at != blank -%}<span>{{ article.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+        {%- if article.reading_time -%}<span>{{ article.reading_time }} min read</span>{%- endif -%}
+      </div>
+    </header>
+    {%- if article.cover_image != blank %}<div class="ex-article-cover"><img src="{{ article.cover_image }}" alt="{{ article.title }}"></div>{% endif -%}
+    <div class="ex-article-body ex-richtext-inner">
+      {%- if article.content != blank -%}{% render 'resolve-tokens', text: article.content, shop: shop %}{%- elsif article.excerpt != blank -%}<p>{{ article.excerpt }}</p>{%- endif -%}
+    </div>
+    <div class="ex-article-foot"><a class="ex-link" href="{{ routes.root_url }}/blog">&#8592; Back to blog</a></div>
+  </div>
+</article>

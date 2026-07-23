@@ -1,0 +1,78 @@
+{%- assign root = routes.root_url -%}
+{%- assign f = chrome.footer -%}
+<header class="ek-header" data-header>
+  {%- if settings.show_announcement and settings.announcement_text != blank -%}
+  <div class="ek-topbar">
+    <div class="ek-container ek-topbar-inner">
+      <div class="ek-topbar-social">
+        <span class="ek-topbar-label">Follow us on:</span>
+        {%- if f.social and f.social.size > 0 -%}
+          {%- for s in f.social limit: 4 -%}<a href="{{ s.href | default: '#' }}" aria-label="social"><i class="fab {{ s.icon }}"></i></a>{%- endfor -%}
+        {%- else -%}
+          <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+          <a href="#" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+          <a href="#" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+        {%- endif -%}
+      </div>
+      <p class="ek-topbar-msg">{{ settings.announcement_text }}</p>
+      <div class="ek-topbar-links">
+        <a href="{{ routes.account_url }}">My Account</a>
+      </div>
+    </div>
+  </div>
+  {%- endif -%}
+
+  <div class="ek-header-mid">
+    <div class="ek-container ek-header-mid-inner">
+      <a class="ek-logo" href="{{ root }}">
+        {%- if shop.logo -%}<img src="{{ shop.logo }}" alt="{{ shop.name }}">
+        {%- else -%}<span class="ek-logo-text">{{ shop.name }}</span>{%- endif -%}
+      </a>
+
+      <form class="ek-search" action="{{ routes.search_url }}" method="get" role="search">
+        <input type="search" name="q" placeholder="Search products..." aria-label="Search products">
+        <button type="submit" aria-label="Submit search"><i class="fas fa-search"></i></button>
+      </form>
+
+      <div class="ek-header-actions">
+        <a class="ek-hbtn" href="{{ routes.account_url }}" aria-label="Account"><i class="far fa-user"></i></a>
+        <a class="ek-hbtn ek-cart" href="{{ routes.cart_url }}" aria-label="Cart">
+          <i class="fas fa-shopping-bag"></i>
+          {%- if cart.item_count > 0 -%}<span class="ek-cart-count">{{ cart.item_count }}</span>{%- endif -%}
+        </a>
+        <button class="ek-burger" data-nav-toggle aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ek-nav-row">
+    <div class="ek-container">
+      <nav class="ek-nav" aria-label="Primary">
+        <a href="{{ root }}">Home</a>
+        <div class="ek-nav-drop">
+          <a href="{{ routes.collections_url }}">Shop <i class="fas fa-chevron-down"></i></a>
+          {%- if categories and categories.size > 0 -%}
+          <div class="ek-dropdown">
+            <a href="{{ routes.collections_url }}">All Products</a>
+            {%- for c in categories limit: 12 -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}
+          </div>
+          {%- endif -%}
+        </div>
+        {%- if categories -%}{%- for c in categories limit: 3 -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}{%- endif -%}
+        <a href="{{ root }}/blog">Blog</a>
+        <a href="{{ root }}/contact">Contact</a>
+      </nav>
+    </div>
+  </div>
+
+  <nav class="ek-mobile-nav" data-mobile-nav aria-label="Mobile">
+    <div class="ek-mobile-nav-head">My Menu</div>
+    <a href="{{ root }}">Home</a>
+    <a href="{{ routes.collections_url }}">Shop</a>
+    {%- if categories -%}{%- for c in categories -%}<a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a>{%- endfor -%}{%- endif -%}
+    <a href="{{ root }}/blog">Blog</a>
+    <a href="{{ root }}/contact">Contact</a>
+    <a href="{{ routes.account_url }}">My Account</a>
+    <a href="{{ routes.cart_url }}">Cart</a>
+  </nav>
+</header>

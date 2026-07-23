@@ -1,0 +1,17 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="kt-section kt-gallery">
+  <div class="kt-container">
+    {%- if s.title != blank -%}<div class="kt-shead kt-shead-center"><h2 class="kt-title" data-el="heading">{{ s.title }}</h2></div>{%- endif -%}
+    <div class="kt-gallery-grid" data-el="grid">
+      {%- for item in images -%}
+        {%- assign src = item.image | default: item -%}
+        {%- if src != blank -%}
+        <figure class="kt-gallery-cell" data-el-item="items:{{ forloop.index0 }}" data-el="item"><img src="{{ src }}" alt="{{ item.alt | default: 'Gallery image' }}">{% if item.caption != blank %}<figcaption data-el="caption">{{ item.caption }}</figcaption>{% endif %}</figure>
+        {%- endif -%}
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

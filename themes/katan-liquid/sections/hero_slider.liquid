@@ -1,0 +1,27 @@
+{%- assign slides = section.settings.slides -%}
+{%- assign nl = '
+' -%}
+{%- if slides and slides.size > 0 -%}
+<section class="kt-hero" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 6000 }}">
+  <div class="kt-hero-slides">
+    {%- for slide in slides -%}
+    <div class="kt-hero-slide{% if forloop.first %} is-active{% endif %}{% if slide.image != blank %} has-image{% endif %}" data-el-item="slides:{{ forloop.index0 }}" data-el="image"{% if slide.image != blank %} style="background-image:url('{{ slide.image }}')"{% endif %}>
+      <div class="kt-container kt-hero-inner">
+        <div class="kt-hero-content" data-el="content">
+          {%- if slide.subtitle != blank -%}<span class="kt-eyebrow" data-el="kicker">{{ slide.subtitle }}</span>{%- endif -%}
+          <h1 class="kt-hero-title" data-el="title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
+          {%- if slide.cta.href != blank and slide.cta.label != blank -%}<a class="kt-btn kt-btn-gold" href="{{ slide.cta.href }}" data-el="button">{{ slide.cta.label }}</a>{%- endif -%}
+        </div>
+      </div>
+    </div>
+    {%- endfor -%}
+  </div>
+  {%- if slides.size > 1 -%}
+  <button class="kt-hero-arrow kt-hero-prev" data-hero-prev aria-label="Previous">&#8249;</button>
+  <button class="kt-hero-arrow kt-hero-next" data-hero-next aria-label="Next">&#8250;</button>
+  <div class="kt-hero-dots" data-hero-dots>
+    {%- for slide in slides -%}<button class="kt-hero-dot{% if forloop.first %} is-active{% endif %}" data-hero-dot="{{ forloop.index0 }}" aria-label="Slide {{ forloop.index }}"></button>{%- endfor -%}
+  </div>
+  {%- endif -%}
+</section>
+{%- endif -%}

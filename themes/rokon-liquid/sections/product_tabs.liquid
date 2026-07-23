@@ -1,0 +1,25 @@
+{%- assign tabs = section.settings.tabs -%}
+{%- if tabs and tabs.size > 0 -%}
+<section class="rk-section rk-tabs" data-tabs>
+  <div class="rk-container">
+    <div class="rk-shead rk-shead-center">
+      <h2 class="rk-title rk-title-accent">Our Featured Products</h2>
+      <nav class="rk-tabnav" role="tablist">
+        {%- for tab in tabs -%}
+        <button class="rk-tabbtn{% if forloop.first %} is-active{% endif %}" data-tab-btn="{{ forloop.index0 }}" data-el="tab" data-el-item="tabs:{{ forloop.index0 }}" role="tab">{{ tab.label }}</button>
+        {%- endfor -%}
+      </nav>
+    </div>
+    {%- for tab in tabs -%}
+    <div class="rk-tabpanel{% if forloop.first %} is-active{% endif %}" data-tab-panel="{{ forloop.index0 }}" role="tabpanel">
+      {%- assign products = tab.products -%}
+      {%- if products and products.size > 0 -%}
+      <div class="rk-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- else -%}
+      <p class="rk-empty">No products to show here yet.</p>
+      {%- endif -%}
+    </div>
+    {%- endfor -%}
+  </div>
+</section>
+{%- endif -%}

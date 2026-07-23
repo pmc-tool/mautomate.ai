@@ -1,0 +1,23 @@
+{%- assign cols = section.settings.columns -%}
+{%- if cols and cols.size > 0 -%}
+<section class="hl-section hl-composed">
+  <div class="hl-container">
+    <div class="hl-composed-row" data-cols="{{ cols.size }}">
+      {%- for col in cols -%}
+      <div class="hl-composed-col">
+        {%- for w in col.widgets -%}
+        <div class="hl-composed-widget">
+          {%- if w.image != blank -%}<img class="hl-composed-img" src="{{ w.image }}" alt="{{ w.title | default: '' }}">{%- endif -%}
+          {%- if w.eyebrow != blank -%}<span class="hl-eyebrow">{{ w.eyebrow }}</span>{%- endif -%}
+          {%- if w.title != blank -%}<h3 class="hl-composed-title">{{ w.title }}</h3>{%- endif -%}
+          {%- if w.html != blank -%}<div class="hl-richtext-inner">{% render 'resolve-tokens', text: w.html, shop: shop %}</div>{%- endif -%}
+          {%- if w.body != blank -%}<p class="hl-composed-body">{{ w.body }}</p>{%- endif -%}
+          {%- if w.cta.href != blank -%}<a class="hl-link" href="{{ w.cta.href }}">{{ w.cta.label | default: 'Learn more' }} <i class="fas fa-arrow-right"></i></a>{%- endif -%}
+        </div>
+        {%- endfor -%}
+      </div>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

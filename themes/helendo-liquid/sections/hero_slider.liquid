@@ -1,0 +1,27 @@
+{%- assign slides = section.settings.slides -%}
+{%- assign nl = '
+' -%}
+{%- if slides and slides.size > 0 -%}
+<section class="hl-hero" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 6000 }}">
+  <div class="hl-hero-slides">
+    {%- for slide in slides -%}
+    <div class="hl-hero-slide{% if forloop.first %} is-active{% endif %}"{% if slide.image %} style="background-image:url('{{ slide.image }}')"{% endif %}>
+      <div class="hl-container hl-hero-inner">
+        <div class="hl-hero-content">
+          {%- if slide.subtitle != blank -%}<span class="hl-hero-kicker">{{ slide.subtitle }}</span>{%- endif -%}
+          <h1 class="hl-hero-title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
+          {%- if slide.cta.href != blank -%}<a class="hl-btn" href="{{ slide.cta.href }}">{{ slide.cta.label | default: 'Shop now' }} <i class="fas fa-arrow-right"></i></a>{%- endif -%}
+        </div>
+      </div>
+    </div>
+    {%- endfor -%}
+  </div>
+  {%- if slides.size > 1 -%}
+  <button class="hl-hero-arrow hl-hero-prev" data-hero-prev aria-label="Previous"><i class="fas fa-arrow-left"></i></button>
+  <button class="hl-hero-arrow hl-hero-next" data-hero-next aria-label="Next"><i class="fas fa-arrow-right"></i></button>
+  <div class="hl-hero-dots" data-hero-dots>
+    {%- for slide in slides -%}<button class="hl-hero-dot{% if forloop.first %} is-active{% endif %}" data-hero-dot="{{ forloop.index0 }}" aria-label="Slide {{ forloop.index }}"></button>{%- endfor -%}
+  </div>
+  {%- endif -%}
+</section>
+{%- endif -%}

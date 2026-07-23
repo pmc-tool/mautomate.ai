@@ -1,0 +1,47 @@
+{%- assign s = section.settings -%}
+<section class="sf-section sf-promo">
+  <div class="sf-container">
+    {%- if s.intro -%}
+    <div class="sf-shead">
+      <h2 class="sf-title sf-title-squiggle">{{ s.intro.title }}<svg width="114" height="35" viewBox="0 0 114 35" fill="none" aria-hidden="true"><path d="M112 23.275C1.84952 -10.6834 -7.36586 1.48086 7.50443 32.9053" stroke="currentColor" stroke-width="4" stroke-miterlimit="3.8637" stroke-linecap="round"></path></svg></h2>
+      {%- if s.intro.body != blank -%}<p class="sf-promo-intro-body">{{ s.intro.body }}</p>{%- endif -%}
+      {%- if s.intro.href != blank -%}<a class="sf-link" href="{{ s.intro.href }}">{{ s.intro.link_label | default: 'Learn more' }} <i class="fas fa-arrow-right"></i></a>{%- endif -%}
+    </div>
+    {%- endif -%}
+
+    <div class="sf-promo-grid">
+      {%- if s.sale -%}
+      <a class="sf-promo-tile sf-promo-wide" href="{{ s.sale.href | default: '/store' }}">
+        {%- if s.sale.image -%}<span class="sf-promo-bg" style="background-image:url('{{ s.sale.image }}')"></span>{%- endif -%}
+        <span class="sf-promo-body">
+          {%- if s.sale.special_title != blank -%}<span class="sf-promo-eyebrow">{{ s.sale.special_title }}</span>{%- endif -%}
+          <span class="sf-promo-title">{{ s.sale.title }}</span>
+          <span class="sf-link-btn">{{ s.sale.link_label | default: 'Shop Now' }} <i class="fas fa-arrow-right"></i></span>
+        </span>
+      </a>
+      {%- endif -%}
+
+      {%- for cat in s.categories -%}
+      <a class="sf-promo-tile{% if cat.wide %} sf-promo-wide{% endif %}" href="{{ cat.href | default: '/store' }}">
+        {%- if cat.image -%}<span class="sf-promo-bg" style="background-image:url('{{ cat.image }}')"></span>{%- endif -%}
+        <span class="sf-promo-body">
+          <span class="sf-promo-title sf-promo-title-sm">{{ cat.title }}</span>
+          {%- if cat.count_label != blank -%}<span class="sf-promo-note">{{ cat.count_label }}</span>{%- endif -%}
+          <span class="sf-link-btn">Shop Now <i class="fas fa-arrow-right"></i></span>
+        </span>
+      </a>
+      {%- endfor -%}
+
+      {%- if s.instagram -%}
+      <a class="sf-promo-tile" href="{{ s.instagram.href | default: '#' }}">
+        {%- if s.instagram.image -%}<span class="sf-promo-bg" style="background-image:url('{{ s.instagram.image }}')"></span>{%- endif -%}
+        <span class="sf-promo-body">
+          {%- if s.instagram.sub_title != blank -%}<span class="sf-promo-eyebrow">{{ s.instagram.sub_title }}</span>{%- endif -%}
+          <span class="sf-promo-title sf-promo-title-sm"><i class="fab fa-instagram"></i> {{ s.instagram.handle }}</span>
+          <span class="sf-link-btn">{{ s.instagram.handle }} <i class="fas fa-arrow-right"></i></span>
+        </span>
+      </a>
+      {%- endif -%}
+    </div>
+  </div>
+</section>

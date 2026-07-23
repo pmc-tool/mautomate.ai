@@ -1,0 +1,16 @@
+<div class="cg-pagehead">
+  <div class="cg-container">
+    <h1 class="cg-pagehead-title">Shop all</h1>
+    <nav class="cg-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="cg-current">Shop</span></nav>
+  </div>
+</div>
+<section class="cg-section">
+  <div class="cg-container">
+    <div class="cg-shead cg-shead-center">
+      <p class="cg-lead">Every piece we make, in one place.</p>
+    </div>
+    {%- if products and products.size > 0 -%}
+    <div class="cg-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="cg-empty">No products yet &mdash; check back soon.</p>{%- endif -%}
+  </div>
+</section>

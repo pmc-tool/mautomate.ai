@@ -1,0 +1,12 @@
+{%- assign s = section.settings -%}
+{%- assign brands = s.brands -%}
+<section class="gm-section gm-brands">
+  <div class="gm-container">
+    {%- if s.title != blank -%}<div class="gm-shead gm-shead-center"><h2 class="gm-title gm-title-sm" data-el="title">{{ s.title }}</h2></div>{%- endif -%}
+    {%- if brands and brands.size > 0 -%}
+    <div class="gm-brand-row">
+      {%- for brand in brands -%}<a class="gm-brand" href="{{ brand.href | default: '#' }}" data-el-item="brands:{{ forloop.index0 }}" data-el="logo">{% if brand.image %}<img src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
+    </div>
+    {%- endif -%}
+  </div>
+</section>

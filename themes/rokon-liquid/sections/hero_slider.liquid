@@ -1,0 +1,27 @@
+{%- assign slides = section.settings.slides -%}
+{%- assign nl = '
+' -%}
+{%- if slides and slides.size > 0 -%}
+<section class="rk-hero" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 6000 }}">
+  <div class="rk-hero-slides">
+    {%- for slide in slides -%}
+    <div class="rk-hero-slide{% if forloop.first %} is-active{% endif %}" data-el-item="slides:{{ forloop.index0 }}"{% if slide.image != blank %} style="background-image:url('{{ slide.image }}')"{% endif %}>
+      <div class="rk-container rk-hero-inner">
+        <div class="rk-hero-content">
+          {%- if slide.subtitle != blank -%}<span class="rk-eyebrow" data-el="kicker">{{ slide.subtitle }}</span>{%- endif -%}
+          <h1 class="rk-hero-title" data-el="title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
+          {%- if slide.cta.href != blank -%}<a class="rk-btn" data-el="button" href="{{ slide.cta.href }}">{{ slide.cta.label | default: 'Shop Now' }}</a>{%- endif -%}
+        </div>
+      </div>
+    </div>
+    {%- endfor -%}
+  </div>
+  {%- if slides.size > 1 -%}
+  <button class="rk-hero-arrow rk-hero-prev" data-hero-prev aria-label="Previous">&#8249;</button>
+  <button class="rk-hero-arrow rk-hero-next" data-hero-next aria-label="Next">&#8250;</button>
+  <div class="rk-hero-dots" data-hero-dots>
+    {%- for slide in slides -%}<button class="rk-hero-dot{% if forloop.first %} is-active{% endif %}" data-hero-dot="{{ forloop.index0 }}" aria-label="Slide {{ forloop.index }}"></button>{%- endfor -%}
+  </div>
+  {%- endif -%}
+</section>
+{%- endif -%}

@@ -1,0 +1,20 @@
+{%- assign s = section.settings -%}
+{%- if s.title != blank -%}
+<section class="hl-section hl-newsletter">
+  <div class="hl-container">
+    <div class="hl-newsletter-grid">
+      <div class="hl-newsletter-copy">
+        <h2 class="hl-title">{{ s.title }}</h2>
+        {%- if s.subtitle != blank -%}<p class="hl-lead" style="margin-left:0">{{ s.subtitle }}</p>{%- endif -%}
+      </div>
+      <div class="hl-newsletter-side">
+        <form class="hl-newsletter-form" data-newsletter>
+          <input type="email" placeholder="{{ s.placeholder | default: 'Your email address' }}" aria-label="Email address" required>
+          <button type="submit">{{ s.button | default: 'Subscribe' }}</button>
+        </form>
+        {%- if s.provider_note != blank -%}<p class="hl-newsletter-note">{{ s.provider_note }}</p>{%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>
+{%- endif -%}

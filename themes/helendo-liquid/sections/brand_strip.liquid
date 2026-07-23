@@ -1,0 +1,12 @@
+{%- assign s = section.settings -%}
+{%- assign brands = s.brands -%}
+<section class="hl-section hl-brands">
+  <div class="hl-container">
+    {%- if s.title != blank -%}<div class="hl-shead hl-shead-center"><h2 class="hl-title hl-title-center hl-title-sm">{{ s.title }}</h2></div>{%- endif -%}
+    {%- if brands and brands.size > 0 -%}
+    <div class="hl-brand-row">
+      {%- for brand in brands -%}<a class="hl-brand" href="{{ brand.href | default: '#' }}">{% if brand.image %}<img src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
+    </div>
+    {%- endif -%}
+  </div>
+</section>

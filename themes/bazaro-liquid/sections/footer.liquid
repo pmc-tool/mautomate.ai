@@ -1,0 +1,69 @@
+{%- comment -%} Self-contained footer (bz- namespace) on Bazaro's warm gray ground, driven by the store's chrome.footer settings. {%- endcomment -%}
+{%- assign root = routes.root_url -%}
+{%- assign f = chrome.footer -%}
+{%- assign yr = 'now' | date: '%Y' -%}
+<footer class="bz-footer">
+  <div class="bz-container">
+    <div class="bz-footer-top">
+      <div class="bz-footer-brand">
+        {%- if shop.logo -%}<img class="bz-footer-logo" src="{{ shop.logo }}" alt="{{ shop.name }}">
+        {%- else -%}<div class="bz-footer-name">{{ shop.name }}</div>{%- endif -%}
+        {%- if settings.footer_about != blank -%}<p class="bz-footer-about">{{ settings.footer_about }}</p>{%- endif -%}
+        {%- if f.contact.email != blank -%}
+        <a class="bz-footer-contact" href="mailto:{{ f.contact.email }}"><i class="fas fa-envelope"></i> {{ f.contact.email }}</a>
+        {%- endif -%}
+        {%- if f.contact.phone != blank -%}<span class="bz-footer-phone">{{ f.contact.phone }}</span>{%- endif -%}
+        {%- if f.contact.app_buttons and f.contact.app_buttons.size > 0 -%}
+        <div class="bz-footer-apps">{%- for btn in f.contact.app_buttons -%}<a href="{{ btn.href | default: '#' }}"><img src="{{ btn.img }}" alt="{{ btn.alt }}"></a>{%- endfor -%}</div>
+        {%- endif -%}
+      </div>
+
+      <div class="bz-footer-col">
+        <h4 class="bz-footer-title">Shop</h4>
+        <ul>
+          {%- if categories -%}{%- assign lim = f.column_categories.limit | default: 5 -%}
+          {%- for c in categories limit: lim -%}<li><a href="{{ root }}/categories/{{ c.handle }}">{{ c.name }}</a></li>{%- endfor -%}{%- endif -%}
+          {%- if f.column_categories.extra -%}{%- for item in f.column_categories.extra -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ routes.collections_url }}">All Products</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="bz-footer-col">
+        <h4 class="bz-footer-title">Information</h4>
+        <ul>
+          {%- if f.column_links and f.column_links.size > 0 -%}{%- for item in f.column_links -%}<li><a href="{{ item.href | default: '#' }}">{{ item.label }}</a></li>{%- endfor -%}
+          {%- else -%}<li><a href="{{ root }}/about-us">About us</a></li><li><a href="{{ root }}/contact">Contact</a></li><li><a href="{{ root }}/blog">Blog</a></li>{%- endif -%}
+        </ul>
+      </div>
+
+      <div class="bz-footer-col">
+        <h4 class="bz-footer-title">Account</h4>
+        <ul>
+          <li><a href="{{ routes.account_url }}">My Account</a></li>
+          <li><a href="{{ routes.cart_url }}">Cart</a></li>
+          <li><a href="{{ root }}/contact">Contact Us</a></li>
+        </ul>
+      </div>
+
+      <div class="bz-footer-col bz-footer-news-col">
+        <h4 class="bz-footer-title">{{ f.newsletter.title | default: 'Subscribe Newsletter' }}</h4>
+        <p class="bz-footer-news-note">Our conversation is just getting started</p>
+        <form class="bz-footer-news" data-newsletter>
+          <input type="email" placeholder="{{ f.newsletter.placeholder | default: 'Enter Your Email' }}" aria-label="Email" required>
+          <button type="submit">{{ f.newsletter.button | default: 'Subscribe' }}</button>
+        </form>
+        {%- if f.social and f.social.size > 0 -%}
+        <h4 class="bz-footer-social-title">Follow Us On</h4>
+        <div class="bz-footer-social">
+          {%- for s in f.social -%}<a href="{{ s.href | default: '#' }}" aria-label="social"><i class="fab {{ s.icon }}"></i></a>{%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+    </div>
+
+    <div class="bz-footer-bottom">
+      <p class="bz-footer-copy">{%- if f.copyright != blank -%}{{ f.copyright | replace: '{year}', yr }}{%- else -%}&copy; {{ yr }} {{ shop.name }}. {{ settings.footer_copyright | default: 'All rights reserved.' }}{%- endif -%}</p>
+      {%- if f.payment_image != blank -%}<img class="bz-footer-pay" src="{{ f.payment_image }}" alt="Payment methods">{%- endif -%}
+    </div>
+  </div>
+</footer>

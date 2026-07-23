@@ -1,0 +1,15 @@
+<section class="au-section au-listing">
+  <div class="au-container">
+    <header class="au-listing-head">
+      <nav class="au-crumbs-inline" aria-label="Breadcrumb">
+        <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><a href="{{ routes.collections_url }}">Shop</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">{{ collection.title }}</span>
+      </nav>
+      <h1 class="au-listing-title">{{ collection.title }}</h1>
+      {%- if collection.description != blank -%}<p class="au-lead">{{ collection.description }}</p>{%- endif -%}
+      <span class="au-eyebrow">{{ collection.products_count }} products</span>
+    </header>
+    {%- if collection.products and collection.products.size > 0 -%}
+    <div class="au-grid au-grid-4">{%- for product in collection.products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="au-empty">No products in this collection yet.</p>{%- endif -%}
+  </div>
+</section>

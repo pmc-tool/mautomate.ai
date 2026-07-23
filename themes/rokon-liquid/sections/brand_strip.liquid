@@ -1,0 +1,12 @@
+{%- assign s = section.settings -%}
+{%- assign brands = s.brands -%}
+<section class="rk-section rk-brands">
+  <div class="rk-container">
+    {%- if s.title != blank -%}<div class="rk-shead rk-shead-center"><h2 class="rk-title rk-title-accent rk-title-sm" data-el="title">{{ s.title }}</h2></div>{%- endif -%}
+    {%- if brands and brands.size > 0 -%}
+    <div class="rk-brand-row">
+      {%- for brand in brands -%}<a class="rk-brand" data-el="logo" href="{{ brand.href | default: '#' }}">{% if brand.image %}<img data-el-item="brands:{{ forloop.index0 }}" src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
+    </div>
+    {%- endif -%}
+  </div>
+</section>

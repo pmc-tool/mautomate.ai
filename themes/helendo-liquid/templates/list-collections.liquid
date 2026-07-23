@@ -1,0 +1,13 @@
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">Shop</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="hl-current">Shop</span></nav>
+  </div>
+</div>
+<section class="hl-section">
+  <div class="hl-container">
+    {%- if products and products.size > 0 -%}
+    <div class="hl-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="hl-empty">No products yet — check back soon.</p>{%- endif -%}
+  </div>
+</section>

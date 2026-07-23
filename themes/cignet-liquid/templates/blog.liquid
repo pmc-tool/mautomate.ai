@@ -1,0 +1,30 @@
+<div class="cg-pagehead">
+  <div class="cg-container">
+    <h1 class="cg-pagehead-title">From our journal</h1>
+    <nav class="cg-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="cg-current">Blog</span></nav>
+  </div>
+</div>
+<section class="cg-section">
+  <div class="cg-container">
+    {%- assign posts = blog.posts -%}
+    {%- if posts and posts.size > 0 -%}
+    <div class="cg-blog-grid">
+      {%- for post in posts -%}
+      <article class="cg-blog-card">
+        <a class="cg-blog-cover" href="{{ routes.root_url }}/blog/{{ post.slug }}">
+          {%- if post.cover_image != blank -%}<img src="{{ post.cover_image }}" alt="{{ post.title }}" loading="lazy">{%- else -%}<span class="cg-blog-cover-ph"></span>{%- endif -%}
+        </a>
+        <div class="cg-blog-body">
+          {%- if post.published_at != blank -%}<span class="cg-blog-date">{{ post.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+          <h2 class="cg-blog-title"><a href="{{ routes.root_url }}/blog/{{ post.slug }}">{{ post.title }}</a></h2>
+          {%- if post.excerpt != blank -%}<p class="cg-blog-excerpt">{{ post.excerpt }}</p>{%- endif -%}
+          <a class="cg-link" href="{{ routes.root_url }}/blog/{{ post.slug }}">Read more</a>
+        </div>
+      </article>
+      {%- endfor -%}
+    </div>
+    {%- else -%}
+    <p class="cg-empty">No posts yet &mdash; check back soon.</p>
+    {%- endif -%}
+  </div>
+</section>

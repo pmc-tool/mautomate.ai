@@ -1,0 +1,53 @@
+{%- assign p = product -%}
+<nav class="sf-crumbs"><div class="sf-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.collections_url }}">Shop</a><span>/</span><span class="sf-current">{{ p.title }}</span>
+</div></nav>
+
+<section class="sf-section sf-pdp">
+  <div class="sf-container">
+    <div class="sf-pdp-grid">
+      <div class="sf-pdp-gallery">
+        {%- assign main = p.featured_image.url | default: p.featured_image -%}
+        <div class="sf-pdp-main">{%- if main != blank -%}<img id="pdp-main-img" src="{{ main }}" alt="{{ p.title }}">{%- else -%}<span class="sf-pdp-ph"></span>{%- endif -%}</div>
+        {%- if p.images and p.images.size > 1 -%}
+        <div class="sf-pdp-thumbs" data-pdp-thumbs>
+          {%- for image in p.images -%}<button class="sf-pdp-thumb{% if forloop.first %} is-active{% endif %}" data-full="{{ image.url }}"><img src="{{ image.url }}" alt="{{ image.alt | default: p.title }}"></button>{%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+
+      <div class="sf-pdp-info">
+        <h1 class="sf-pdp-title">{{ p.title }}</h1>
+        <div class="sf-pdp-rating"><span class="sf-pdp-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></span>
+          {%- if p.available -%}<span class="sf-pdp-stock in">In stock</span>{%- else -%}<span class="sf-pdp-stock out">Out of stock</span>{%- endif -%}
+        </div>
+        <div class="sf-pdp-price">
+          {%- if p.compare_at_price and p.compare_at_price > p.price -%}<span class="sf-price-old">{{ p.compare_at_price | money }}</span> <span class="sf-price-now">{{ p.price | money }}</span>
+          {%- else -%}<span class="sf-price-now">{{ p.price | money }}</span>{%- endif -%}
+        </div>
+        {%- if p.description != blank -%}<div class="sf-pdp-desc"><p>{{ p.description }}</p></div>{%- endif -%}
+
+        {%- for option in p.options -%}
+        <div class="sf-pdp-opt"><span class="sf-pdp-opt-name">{{ option.name }}</span><div class="sf-pdp-opt-vals">{%- for value in option.values -%}<span class="sf-swatch">{{ value }}</span>{%- endfor -%}</div></div>
+        {%- endfor -%}
+
+        <form class="sf-pdp-cart" data-add-to-cart>
+          {%- if p.variants and p.variants.size > 1 -%}
+          <div class="sf-pdp-opt"><span class="sf-pdp-opt-name">Variant</span>
+            <select class="sf-select" data-variant-select>
+              {%- for v in p.variants -%}<option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>{{ v.title }} — {{ v.price | money }}{% unless v.available %} (sold out){% endunless %}</option>{%- endfor -%}
+            </select>
+          </div>
+          {%- elsif p.variants and p.variants.size == 1 -%}
+          <input type="hidden" data-variant-select value="{{ p.variants[0].id }}">
+          {%- endif -%}
+          <div class="sf-pdp-buy">
+            <input type="number" class="sf-qty" data-qty value="1" min="1" aria-label="Quantity">
+            <button type="submit" class="sf-btn sf-btn-primary" data-add-btn {% unless p.available %}disabled{% endunless %}>{% if p.available %}Add to Cart{% else %}Sold out{% endif %}</button>
+          </div>
+          <p class="sf-pdp-msg" data-cart-msg hidden></p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

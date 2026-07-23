@@ -1,0 +1,115 @@
+{
+  "id": "shofy-liquid",
+  "name": "Shofy",
+  "version": "1.0.1",
+  "engine": "1",
+  "author": "mAutomate",
+  "description": "Shofy — a bright, modern multipurpose electronics-style storefront: Jost typography, a vivid blue accent, rounded cards and a classic three-tier shop header. Ported from the compiled Shofy React theme to the upload engine as a fully self-contained Liquid package.",
+  "tokens": {
+    "colors": {
+      "primary": "#0989ff",
+      "dark": "#010f1c",
+      "text": "#55585b",
+      "border": "#eaebed",
+      "bg": "#ffffff"
+    },
+    "fonts": {
+      "heading": "Jost, sans-serif",
+      "body": "Jost, sans-serif"
+    }
+  },
+  "settings": [
+    { "type": "header", "label": "Brand" },
+    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#0989ff" },
+    { "id": "container_width", "type": "range", "label": "Content width", "min": 1200, "max": 1500, "step": 20, "unit": "px", "default": 1320 },
+    { "type": "header", "label": "Announcement bar" },
+    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": true },
+    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "FREE Express Shipping On Orders $570+" },
+    { "type": "header", "label": "Footer" },
+    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "We bring you a curated collection of premium products, chosen with care and delivered with love." },
+    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+  ],
+  "defaultSections": [
+    {
+      "block_type": "hero_slider",
+      "autoplay_ms": 5000,
+      "slides": [
+        { "image": "/shofy/img/slider/slider-img-1.png", "subtitle": "Starting at $274.00", "title": "The best tablet\nCollection 2026", "cta": { "label": "Shop Now", "href": "/store" } },
+        { "image": "/shofy/img/slider/slider-img-2.png", "subtitle": "Starting at $99.00", "title": "The best note book\ncollection 2026", "cta": { "label": "Shop Now", "href": "/store" } },
+        { "image": "/shofy/img/slider/slider-img-3.png", "subtitle": "Starting at $999.00", "title": "The best gadget\ncollection 2026", "cta": { "label": "Shop Now", "href": "/store" } }
+      ]
+    },
+    {
+      "block_type": "category_showcase",
+      "sub_title": "Shop by category",
+      "title": "Popular on the store",
+      "items": [
+        { "category_id": "", "label": "Headphones", "image": "/shofy/img/product/category/product-cat-1.png", "href": "/store" },
+        { "category_id": "", "label": "Smart Watch", "image": "/shofy/img/product/category/product-cat-2.png", "href": "/store" },
+        { "category_id": "", "label": "Bluetooth", "image": "/shofy/img/product/category/product-cat-3.png", "href": "/store" },
+        { "category_id": "", "label": "Mobile Tablet", "image": "/shofy/img/product/category/product-cat-4.png", "href": "/store" },
+        { "category_id": "", "label": "CPU Heat Pipes", "image": "/shofy/img/product/category/product-cat-5.png", "href": "/store" }
+      ]
+    },
+    {
+      "block_type": "product_tabs",
+      "tabs": [
+        { "label": "All Collection", "source": "all", "sort": "created_at", "limit": 8 },
+        { "label": "New Arrivals", "source": "all", "sort": "created_at", "limit": 8 },
+        { "label": "Best Sellers", "source": "all", "sort": "price_desc", "limit": 8 }
+      ]
+    },
+    {
+      "block_type": "promo_banner_grid",
+      "sale": {
+        "image": "/shofy/img/product/banner/product-banner-1.jpg",
+        "special_title": "Sale 20% off all store",
+        "title": "Smartphone BLU G91 Pro 2026",
+        "link_label": "Shop Now",
+        "href": "/store"
+      },
+      "categories": [
+        { "image": "/shofy/img/product/banner/product-banner-2.jpg", "title": "HyperX Cloud II Wireless", "count_label": "Sale 35% off", "href": "/store", "wide": false }
+      ]
+    },
+    {
+      "block_type": "deal_of_day",
+      "title": "Deal of The Day",
+      "description": "Grab today's featured offer before the timer runs out — premium quality at the sharpest price on the store.",
+      "image": "/shofy/img/product/offer/product-offer-1.jpg",
+      "countdown_to": "2030-01-01T00:00:00.000Z",
+      "cta": { "label": "View All Deals", "href": "/store" }
+    },
+    {
+      "block_type": "brand_strip",
+      "title": "Featured Brands",
+      "brands": [
+        { "image": "/shofy/img/brand/logo_01.png", "href": "#" },
+        { "image": "/shofy/img/brand/logo_02.png", "href": "#" },
+        { "image": "/shofy/img/brand/logo_03.png", "href": "#" },
+        { "image": "/shofy/img/brand/logo_04.png", "href": "#" },
+        { "image": "/shofy/img/brand/logo_05.png", "href": "#" }
+      ]
+    },
+    {
+      "block_type": "instagram_grid",
+      "heading": "Follow us on instagram",
+      "handle": "@shofy_store",
+      "images": [
+        { "image": "/shofy/img/instagram/instagram-1.jpg", "href": "#" },
+        { "image": "/shofy/img/instagram/instagram-2.jpg", "href": "#" },
+        { "image": "/shofy/img/instagram/instagram-3.jpg", "href": "#" },
+        { "image": "/shofy/img/instagram/instagram-4.jpg", "href": "#" },
+        { "image": "/shofy/img/instagram/instagram-5.jpg", "href": "#" }
+      ]
+    },
+    {
+      "block_type": "newsletter",
+      "title": "Subscribe on our store",
+      "subtitle": "Sale 20% off all store",
+      "placeholder": "Enter Your Email",
+      "button": "Subscribe",
+      "provider_note": "We respect your privacy. Unsubscribe at any time."
+    }
+  ]
+}

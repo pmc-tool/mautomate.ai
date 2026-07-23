@@ -1,0 +1,33 @@
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">From Our Blog</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><span class="rk-crumb-active">Blog</span></li>
+    </ul>
+  </div>
+</section>
+<section class="rk-section">
+  <div class="rk-container">
+    {%- assign posts = blog.posts -%}
+    {%- if posts and posts.size > 0 -%}
+    <div class="rk-blog-grid">
+      {%- for post in posts -%}
+      <article class="rk-blog-card">
+        <a class="rk-blog-cover" href="{{ routes.root_url }}/blog/{{ post.slug }}">
+          {%- if post.cover_image %}<img src="{{ post.cover_image }}" alt="{{ post.title }}" loading="lazy">{% else %}<span class="rk-blog-cover-ph"></span>{% endif -%}
+        </a>
+        <div class="rk-blog-body">
+          {%- if post.published_at != blank -%}<span class="rk-blog-date">{{ post.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+          <h2 class="rk-blog-title"><a href="{{ routes.root_url }}/blog/{{ post.slug }}">{{ post.title }}</a></h2>
+          {%- if post.excerpt != blank -%}<p class="rk-blog-excerpt">{{ post.excerpt }}</p>{%- endif -%}
+          <a class="rk-link" href="{{ routes.root_url }}/blog/{{ post.slug }}">Read More</a>
+        </div>
+      </article>
+      {%- endfor -%}
+    </div>
+    {%- else -%}
+    <p class="rk-empty">No posts yet — check back soon.</p>
+    {%- endif -%}
+  </div>
+</section>

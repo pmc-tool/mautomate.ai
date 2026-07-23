@@ -1,0 +1,33 @@
+{%- assign slides = section.settings.slides -%}
+{%- assign nl = '
+' -%}
+{%- assign hero_defaults = 'hero-1.jpg,hero-2.jpg,hero-3.jpg' | split: ',' -%}
+{%- if slides and slides.size > 0 -%}
+<section class="gm-hero" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 6000 }}">
+  <div class="gm-hero-slides">
+    {%- for slide in slides -%}
+    {%- assign img = slide.image -%}
+    {%- if img == blank -%}
+      {%- assign di = forloop.index0 | modulo: hero_defaults.size -%}
+      {%- assign img = hero_defaults[di] | asset_url -%}
+    {%- endif -%}
+    <div class="gm-hero-slide{% if forloop.first %} is-active{% endif %}" data-el-item="slides:{{ forloop.index0 }}" data-el="image"{% if img != blank %} style="background-image:url('{{ img }}')"{% endif %}>
+      <div class="gm-container gm-hero-inner">
+        <div class="gm-hero-content" data-el="content">
+          {%- if slide.subtitle != blank -%}<span class="gm-eyebrow gm-eyebrow-neon" data-el="kicker">{{ slide.subtitle }}</span>{%- endif -%}
+          <h1 class="gm-hero-title" data-el="title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
+          {%- if slide.cta.href != blank -%}<a class="gm-btn" href="{{ slide.cta.href }}" data-el="button">{{ slide.cta.label | default: 'Shop now' }}</a>{%- endif -%}
+        </div>
+      </div>
+    </div>
+    {%- endfor -%}
+  </div>
+  {%- if slides.size > 1 -%}
+  <button class="gm-hero-arrow gm-hero-prev" data-hero-prev aria-label="Previous">&#8249;</button>
+  <button class="gm-hero-arrow gm-hero-next" data-hero-next aria-label="Next">&#8250;</button>
+  <div class="gm-hero-dots" data-hero-dots>
+    {%- for slide in slides -%}<button class="gm-hero-dot{% if forloop.first %} is-active{% endif %}" data-hero-dot="{{ forloop.index0 }}" aria-label="Slide {{ forloop.index }}"></button>{%- endfor -%}
+  </div>
+  {%- endif -%}
+</section>
+{%- endif -%}

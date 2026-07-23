@@ -1,0 +1,35 @@
+{%- assign f = chrome.footer -%}
+<nav class="ex-crumbs"><div class="ex-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ex-current">Contact</span>
+</div></nav>
+<section class="ex-section">
+  <div class="ex-container">
+    <div class="ex-shead ex-shead-center">
+      <span class="ex-eyebrow">Get in touch</span>
+      <h1 class="ex-title">Contact us</h1>
+      <span class="ex-underline"><span></span></span>
+      <p class="ex-lead">Questions about an order or a product? We usually reply within a day.</p>
+    </div>
+    <div class="ex-contact-grid">
+      <div class="ex-contact-info">
+        {%- if f.contact.email != blank -%}
+        <div class="ex-contact-item"><span class="ex-contact-label">Email</span><a href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a></div>
+        {%- endif -%}
+        {%- if f.contact.phone != blank -%}
+        <div class="ex-contact-item"><span class="ex-contact-label">Phone</span><span>{{ f.contact.phone }}</span></div>
+        {%- endif -%}
+        <div class="ex-contact-item"><span class="ex-contact-label">Hours</span><span>Mon-Sat, 9am-6pm</span></div>
+      </div>
+      <form class="ex-contact-form" data-contact-form>
+        <div class="ex-field-row">
+          <input type="text" name="name" placeholder="Your name" aria-label="Your name" required>
+          <input type="email" name="email" placeholder="Your email" aria-label="Your email" required>
+        </div>
+        <input type="text" name="subject" placeholder="Subject" aria-label="Subject">
+        <textarea name="message" rows="6" placeholder="How can we help?" aria-label="Message" required></textarea>
+        <button type="submit" class="ex-btn">Send message</button>
+        <p class="ex-contact-msg" data-contact-msg hidden></p>
+      </form>
+    </div>
+  </div>
+</section>

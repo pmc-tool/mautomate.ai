@@ -1,0 +1,19 @@
+{%- assign s = section.settings -%}
+{%- assign images = s.images -%}
+{%- if images and images.size > 0 -%}
+<section class="ek-section ek-insta">
+  <div class="ek-container">
+    {%- if s.heading != blank or s.handle != blank -%}
+    <div class="ek-stitle">
+      {%- if s.handle != blank -%}<h2 class="ek-bg-title" aria-hidden="true">{{ s.handle }}</h2><h2 class="ek-title">{{ s.handle }}</h2>{%- endif -%}
+      {%- if s.heading != blank -%}<p class="ek-subtitle">{{ s.heading }}</p>{%- endif -%}
+    </div>
+    {%- endif -%}
+    <div class="ek-insta-grid">
+      {%- for item in images -%}{%- if item.image != blank -%}
+      <a class="ek-insta-cell" href="{{ item.href | default: '#' }}"><img src="{{ item.image }}" alt="Instagram post"><span class="ek-insta-ic"><i class="fab fa-instagram"></i></span></a>
+      {%- endif -%}{%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

@@ -1,0 +1,23 @@
+{%- assign cols = section.settings.columns -%}
+{%- if cols and cols.size > 0 -%}
+<section class="ex-section ex-composed">
+  <div class="ex-container">
+    <div class="ex-composed-row" data-cols="{{ cols.size }}">
+      {%- for col in cols -%}
+      <div class="ex-composed-col">
+        {%- for w in col.widgets -%}
+        <div class="ex-composed-widget">
+          {%- if w.image != blank -%}<img class="ex-composed-img" src="{{ w.image }}" alt="{{ w.title | default: '' }}">{%- endif -%}
+          {%- if w.eyebrow != blank -%}<span class="ex-eyebrow">{{ w.eyebrow }}</span>{%- endif -%}
+          {%- if w.title != blank -%}<h3 class="ex-composed-title">{{ w.title }}</h3>{%- endif -%}
+          {%- if w.html != blank -%}<div class="ex-richtext-inner">{% render 'resolve-tokens', text: w.html, shop: shop %}</div>{%- endif -%}
+          {%- if w.body != blank -%}<p class="ex-composed-body">{{ w.body }}</p>{%- endif -%}
+          {%- if w.cta.href != blank -%}<a class="ex-link" href="{{ w.cta.href }}">{{ w.cta.label | default: 'Learn more' }}</a>{%- endif -%}
+        </div>
+        {%- endfor -%}
+      </div>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

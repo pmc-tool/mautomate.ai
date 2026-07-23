@@ -1,0 +1,37 @@
+{%- assign f = chrome.footer -%}
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">Contact Us</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="sf-current">Contact</span></nav>
+  </div>
+</div>
+<section class="sf-section">
+  <div class="sf-container">
+    <div class="sf-shead sf-shead-center">
+      <span class="sf-eyebrow">Get in touch</span>
+      <h2 class="sf-title">Send a Message</h2>
+      <p class="sf-lead">Questions about an order or a product? We usually reply within a day.</p>
+    </div>
+    <div class="sf-contact-grid">
+      <div class="sf-contact-info">
+        {%- if f.contact.email != blank -%}
+        <div class="sf-contact-item"><span class="sf-contact-icon"><i class="far fa-envelope"></i></span><div><span class="sf-contact-label">Email</span><a href="mailto:{{ f.contact.email }}">{{ f.contact.email }}</a></div></div>
+        {%- endif -%}
+        {%- if f.contact.phone != blank -%}
+        <div class="sf-contact-item"><span class="sf-contact-icon"><i class="fas fa-phone-alt"></i></span><div><span class="sf-contact-label">Phone</span><span>{{ f.contact.phone }}</span></div></div>
+        {%- endif -%}
+        <div class="sf-contact-item"><span class="sf-contact-icon"><i class="far fa-clock"></i></span><div><span class="sf-contact-label">Hours</span><span>Mon–Sat, 9am–6pm</span></div></div>
+      </div>
+      <form class="sf-contact-form" data-contact-form>
+        <div class="sf-field-row">
+          <input type="text" name="name" placeholder="Your Name" aria-label="Your name" required>
+          <input type="email" name="email" placeholder="Your Email" aria-label="Your email" required>
+        </div>
+        <input type="text" name="subject" placeholder="Subject" aria-label="Subject">
+        <textarea name="message" rows="6" placeholder="How can we help?" aria-label="Message" required></textarea>
+        <button type="submit" class="sf-btn sf-btn-primary">Send Message</button>
+        <p class="sf-contact-msg" data-contact-msg hidden></p>
+      </form>
+    </div>
+  </div>
+</section>

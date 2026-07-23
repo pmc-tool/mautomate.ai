@@ -1,0 +1,16 @@
+<nav class="ex-crumbs"><div class="ex-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ex-current">Shop</span>
+</div></nav>
+<section class="ex-section">
+  <div class="ex-container">
+    <div class="ex-shead ex-shead-center">
+      <span class="ex-eyebrow">Browse</span>
+      <h1 class="ex-title">Shop all</h1>
+      <span class="ex-underline"><span></span></span>
+      <p class="ex-lead">Everything we stock, in one place.</p>
+    </div>
+    {%- if products and products.size > 0 -%}
+    <div class="ex-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="ex-empty">No products yet - check back soon.</p>{%- endif -%}
+  </div>
+</section>

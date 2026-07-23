@@ -1,0 +1,16 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">Shop All</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="bz-current">Shop</span></nav>
+  </div>
+</div>
+<section class="bz-section">
+  <div class="bz-container">
+    <div class="bz-listing-head">
+      <p class="bz-lead">Everything we make, in one place.</p>
+    </div>
+    {%- if products and products.size > 0 -%}
+    <div class="bz-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="bz-empty">No products yet — check back soon.</p>{%- endif -%}
+  </div>
+</section>

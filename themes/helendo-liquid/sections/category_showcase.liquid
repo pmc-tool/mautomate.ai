@@ -1,0 +1,24 @@
+{%- assign s = section.settings -%}
+{%- assign items = s.items -%}
+{%- if items and items.size > 0 -%}
+<section class="hl-section hl-showcase">
+  <div class="hl-container">
+    <div class="hl-shead hl-shead-center">
+      {%- if s.sub_title != blank -%}<span class="hl-eyebrow">{{ s.sub_title }}</span>{%- endif -%}
+      {%- if s.title != blank -%}<h2 class="hl-title hl-title-center">{{ s.title }}</h2>{%- endif -%}
+    </div>
+    <div class="hl-banner-grid">
+      {%- for item in items -%}
+      <a class="hl-banner" href="{{ item.href | default: '/store' }}">
+        <div class="hl-banner-img">{% if item.image %}<img src="{{ item.image }}" alt="{{ item.label }}">{% endif %}</div>
+        <div class="hl-banner-cap">
+          <h3>{{ item.label }}</h3>
+          {%- if item.count != blank -%}<h6>{{ item.count }} items</h6>{%- endif -%}
+          <span class="hl-link">Shop now <i class="fas fa-arrow-right"></i></span>
+        </div>
+      </a>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

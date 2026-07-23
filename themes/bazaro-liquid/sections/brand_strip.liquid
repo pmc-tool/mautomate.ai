@@ -1,0 +1,17 @@
+{%- assign s = section.settings -%}
+{%- assign brands = s.brands -%}
+<section class="bz-section bz-brands">
+  {%- if s.title != blank -%}<div class="bz-container"><div class="bz-shead bz-shead-center"><h2 class="bz-title bz-title-sm">{{ s.title }}</h2></div></div>{%- endif -%}
+  {%- if brands and brands.size > 0 -%}
+  <div class="bz-marquee-band">
+    <div class="bz-marquee">
+      <div class="bz-marquee-run">
+        {%- for brand in brands -%}<a class="bz-brand" href="{{ brand.href | default: '#' }}">{% if brand.image != blank %}<img src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
+      </div>
+      <div class="bz-marquee-run" aria-hidden="true">
+        {%- for brand in brands -%}<a class="bz-brand" href="{{ brand.href | default: '#' }}" tabindex="-1">{% if brand.image != blank %}<img src="{{ brand.image }}" alt="">{% endif %}</a>{%- endfor -%}
+      </div>
+    </div>
+  </div>
+  {%- endif -%}
+</section>

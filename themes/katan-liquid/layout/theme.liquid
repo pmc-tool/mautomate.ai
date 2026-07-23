@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="{{ request.locale | default: 'en' }}">
+<head>
+  {{ content_for_header }}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+  {%- comment -%} Font Awesome is used only for the social / instagram icons.
+     No foreign layout CSS is loaded — Katan is fully self-contained in
+     theme.css (kt- namespace), so nothing leaks global html/body rules. {%- endcomment -%}
+  <link rel="stylesheet" href="/learts/assets/css/vendor/fontawesome.min.css">
+  <link rel="stylesheet" href="{{ 'theme.css' | asset_url }}">
+  <style>
+    :root{
+      --kt-accent: {{ settings.accent_color | default: '#b78b52' }};
+      --kt-container: {{ settings.container_width | default: 1400 }}px;
+    }
+  </style>
+</head>
+<body class="template-{{ template }} kt-body">
+  {% section 'header' %}
+  <main id="main">
+    {{ content_for_layout }}
+  </main>
+  {% section 'footer' %}
+  <script src="{{ 'theme.js' | asset_url }}" defer></script>
+</body>
+</html>

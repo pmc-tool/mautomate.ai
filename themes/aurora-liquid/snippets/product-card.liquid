@@ -1,0 +1,22 @@
+{%- assign href = routes.root_url | append: '/products/' | append: product.handle -%}
+{%- assign main = product.featured_image.url | default: product.featured_image -%}
+{%- if main == blank and product.images -%}{%- assign main = product.images[0].url -%}{%- endif -%}
+{%- if main == blank -%}{%- assign main = '/learts/assets/images/product/s328/product-1.webp' -%}{%- endif -%}
+{%- assign hover = main -%}
+{%- if product.images and product.images.size > 1 -%}{%- assign hover = product.images[1].url -%}{%- endif -%}
+{%- assign on_sale = false -%}
+{%- if product.compare_at_price and product.compare_at_price > product.price -%}{%- assign on_sale = true -%}{%- endif -%}
+<a class="au-pcard au-card" href="{{ href }}">
+  <span class="au-pcard-media">
+    {%- if on_sale -%}<span class="au-pcard-badge">Sale</span>{%- endif -%}
+    <img class="au-pcard-img-main" src="{{ main }}" alt="{{ product.title }}" loading="lazy">
+    {%- if hover != main -%}<img class="au-pcard-img-hover" src="{{ hover }}" alt="{{ product.title }}" loading="lazy">{%- endif -%}
+  </span>
+  <span class="au-pcard-body">
+    <span class="au-pcard-title">{{ product.title }}</span>
+    <span class="au-pcard-price">
+      <span class="au-price-now">{{ product.price | money }}</span>
+      {%- if on_sale -%} <span class="au-price-old">{{ product.compare_at_price | money }}</span>{%- endif -%}
+    </span>
+  </span>
+</a>

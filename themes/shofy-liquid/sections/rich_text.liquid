@@ -1,0 +1,7 @@
+{%- assign s = section.settings -%}
+{%- assign width = s.width | default: 'normal' -%}
+<section class="sf-section sf-richtext sf-richtext-{{ width }}">
+  <div class="sf-container">
+    <div class="sf-richtext-inner">{%- if s.html != blank -%}{% render 'resolve-tokens', text: s.html, shop: shop %}{%- endif -%}</div>
+  </div>
+</section>

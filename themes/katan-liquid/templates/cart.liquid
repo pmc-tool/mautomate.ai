@@ -1,0 +1,35 @@
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="kt-current">Cart</span>
+</div></nav>
+<section class="kt-section kt-cart-page">
+  <div class="kt-container">
+    <div class="kt-shead"><h1 class="kt-title">Your cart</h1></div>
+    {%- if cart.items and cart.items.size > 0 -%}
+    <div class="kt-cart-layout">
+      <div class="kt-cart-lines">
+        <div class="kt-cart-row kt-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+        {%- for item in cart.items -%}
+        <div class="kt-cart-row">
+          <div class="kt-cart-prod">
+            {%- if item.image != blank %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
+            <div><a href="{{ routes.root_url }}{{ item.url }}" class="kt-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="kt-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+          </div>
+          <span>{{ item.line_price | money }}</span>
+          <span>{{ item.quantity }}</span>
+          <span>{{ item.line_price | money }}</span>
+        </div>
+        {%- endfor -%}
+      </div>
+      <aside class="kt-cart-summary">
+        <h2 class="kt-cart-summary-title">Order summary</h2>
+        <div class="kt-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        <div class="kt-cart-sum-row kt-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <a class="kt-btn kt-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
+        <a class="kt-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+      </aside>
+    </div>
+    {%- else -%}
+    <div class="kt-cart-empty"><p>Your cart is empty.</p><a class="kt-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+    {%- endif -%}
+  </div>
+</section>

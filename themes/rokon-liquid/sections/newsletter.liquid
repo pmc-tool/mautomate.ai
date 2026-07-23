@@ -1,0 +1,20 @@
+{%- assign s = section.settings -%}
+{%- if s.title != blank -%}
+<section class="rk-newsletter">
+  <div class="rk-container">
+    <div class="rk-newsletter-grid">
+      <div class="rk-newsletter-copy">
+        <h2 class="rk-newsletter-title" data-el="heading">{{ s.title }}</h2>
+        {%- if s.subtitle != blank -%}<p class="rk-newsletter-sub" data-el="text">{{ s.subtitle }}</p>{%- endif -%}
+      </div>
+      <div class="rk-newsletter-side">
+        <form class="rk-newsletter-form" data-newsletter data-el="form">
+          <input type="email" data-el="input" placeholder="{{ s.placeholder | default: 'Enter your e-mail address' }}" aria-label="Email address" required>
+          <button type="submit" class="rk-newsletter-btn" data-el="button">{{ s.button | default: 'Subscribe' }}</button>
+        </form>
+        {%- if s.provider_note != blank -%}<p class="rk-newsletter-note">{{ s.provider_note }}</p>{%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>
+{%- endif -%}

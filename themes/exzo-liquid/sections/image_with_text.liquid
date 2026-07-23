@@ -1,0 +1,19 @@
+{%- assign s = section.settings -%}
+{%- assign nl = '
+' -%}
+{%- if s.image != blank or s.title != blank -%}
+<section class="ex-section ex-imgtext{% if s.image_side == 'right' %} ex-imgtext-right{% endif %}">
+  <div class="ex-container">
+    <div class="ex-imgtext-grid">
+      <div class="ex-imgtext-media">{% if s.image != blank %}<img src="{{ s.image }}" alt="{{ s.title }}">{% endif %}</div>
+      <div class="ex-imgtext-body">
+        {%- if s.eyebrow != blank -%}<span class="ex-eyebrow">{{ s.eyebrow }}</span>{%- endif -%}
+        {%- if s.title != blank -%}<h2 class="ex-title">{%- assign lines = s.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h2>{%- endif -%}
+        <span class="ex-underline ex-underline-left"><span></span></span>
+        {%- if s.body != blank -%}<p class="ex-imgtext-copy">{{ s.body }}</p>{%- endif -%}
+        {%- if s.cta.href != blank -%}<a class="ex-btn" href="{{ s.cta.href }}">{{ s.cta.label | default: 'Learn more' }}</a>{%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>
+{%- endif -%}

@@ -1,0 +1,27 @@
+{%- assign s = section.settings -%}
+{%- assign items = s.items -%}
+{%- if items and items.size > 0 -%}
+<section class="bz-section bz-testi">
+  <div class="bz-container">
+    <div class="bz-shead bz-shead-center">
+      <span class="bz-subtitle">Testimonials</span>
+      <h2 class="bz-title">{{ s.title | default: 'What our customers say' }}</h2>
+    </div>
+    <div class="bz-testi-grid">
+      {%- for item in items -%}
+      <figure class="bz-testi-card">
+        <span class="bz-testi-quotemark" aria-hidden="true">
+          <svg viewBox="0 0 56 41" width="42" height="31"><path d="M25.45.75v23.38L13.35 38.54V23.65H.75V.75h24.7Zm29.4 0v23.38L42.75 38.54V23.65h-12.6V.75h24.7Z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        </span>
+        {%- if item.quote != blank -%}<blockquote class="bz-testi-quote">{{ item.quote }}</blockquote>{%- endif -%}
+        <div class="bz-testi-stars" aria-hidden="true">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <figcaption class="bz-testi-author">
+          {%- if item.avatar != blank -%}<img src="{{ item.avatar }}" alt="{{ item.author }}">{%- endif -%}
+          <span class="bz-testi-name">{{ item.author }}{% if item.role != blank %} - {{ item.role }}{% endif %}</span>
+        </figcaption>
+      </figure>
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+{%- endif -%}

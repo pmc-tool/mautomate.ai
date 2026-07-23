@@ -1,0 +1,16 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">Shop All</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ek-current">Shop</span></nav>
+  </div>
+</div>
+<section class="ek-section">
+  <div class="ek-container">
+    <div class="ek-stitle">
+      <p class="ek-subtitle">Everything we sell, in one place.</p>
+    </div>
+    {%- if products and products.size > 0 -%}
+    <div class="ek-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+    {%- else -%}<p class="ek-empty">No products yet — check back soon.</p>{%- endif -%}
+  </div>
+</section>

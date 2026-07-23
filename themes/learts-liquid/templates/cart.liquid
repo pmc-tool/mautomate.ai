@@ -1,0 +1,35 @@
+<nav class="lz-crumbs"><div class="lz-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="lz-current">Cart</span>
+</div></nav>
+<section class="lz-section lz-cart">
+  <div class="lz-container">
+    <div class="lz-shead"><h1 class="lz-title">Your cart</h1></div>
+    {%- if cart.items and cart.items.size > 0 -%}
+    <div class="lz-cart-layout">
+      <div class="lz-cart-lines">
+        <div class="lz-cart-row lz-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+        {%- for item in cart.items -%}
+        <div class="lz-cart-row">
+          <div class="lz-cart-prod">
+            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
+            <div><a href="{{ routes.root_url }}{{ item.url }}" class="lz-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="lz-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+          </div>
+          <span>{{ item.line_price | money }}</span>
+          <span>{{ item.quantity }}</span>
+          <span>{{ item.line_price | money }}</span>
+        </div>
+        {%- endfor -%}
+      </div>
+      <aside class="lz-cart-summary">
+        <h2 class="lz-cart-summary-title">Summary</h2>
+        <div class="lz-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        <div class="lz-cart-sum-row lz-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <a class="lz-btn lz-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
+        <a class="lz-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+      </aside>
+    </div>
+    {%- else -%}
+    <div class="lz-cart-empty"><p>Your cart is empty.</p><a class="lz-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+    {%- endif -%}
+  </div>
+</section>

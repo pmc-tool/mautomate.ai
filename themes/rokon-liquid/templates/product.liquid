@@ -1,0 +1,59 @@
+{%- assign p = product -%}
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">{{ p.title }}</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><a href="{{ routes.collections_url }}">Shop</a></li>
+      <li><span class="rk-crumb-active">{{ p.title }}</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="rk-section rk-pdp">
+  <div class="rk-container">
+    <div class="rk-pdp-grid">
+      <div class="rk-pdp-gallery">
+        {%- assign main = p.featured_image.url | default: p.featured_image -%}
+        {%- if main == blank -%}{%- assign main = '/rokon/img/product/product1.webp' -%}{%- endif -%}
+        <div class="rk-pdp-main"><img id="pdp-main-img" src="{{ main }}" alt="{{ p.title }}"></div>
+        {%- if p.images and p.images.size > 1 -%}
+        <div class="rk-pdp-thumbs" data-pdp-thumbs>
+          {%- for image in p.images -%}<button class="rk-pdp-thumb{% if forloop.first %} is-active{% endif %}" data-full="{{ image.url }}"><img src="{{ image.url }}" alt="{{ image.alt | default: p.title }}"></button>{%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+
+      <div class="rk-pdp-info">
+        <h1 class="rk-pdp-title">{{ p.title }}</h1>
+        <div class="rk-pdp-price">
+          {%- if p.compare_at_price and p.compare_at_price > p.price -%}<span class="rk-price-now">{{ p.price | money }}</span> <span class="rk-price-old">{{ p.compare_at_price | money }}</span>
+          {%- else -%}<span class="rk-price-now">{{ p.price | money }}</span>{%- endif -%}
+        </div>
+        {%- if p.available -%}<span class="rk-pdp-stock in">In stock</span>{%- else -%}<span class="rk-pdp-stock out">Out of stock</span>{%- endif -%}
+        {%- if p.description != blank -%}<div class="rk-pdp-desc"><p>{{ p.description }}</p></div>{%- endif -%}
+
+        {%- for option in p.options -%}
+        <div class="rk-pdp-opt"><span class="rk-pdp-opt-name">{{ option.name }}</span><div class="rk-pdp-opt-vals">{%- for value in option.values -%}<span class="rk-swatch">{{ value }}</span>{%- endfor -%}</div></div>
+        {%- endfor -%}
+
+        <form class="rk-pdp-cart" data-add-to-cart>
+          {%- if p.variants and p.variants.size > 1 -%}
+          <div class="rk-pdp-opt"><span class="rk-pdp-opt-name">Variant</span>
+            <select class="rk-select" data-variant-select>
+              {%- for v in p.variants -%}<option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>{{ v.title }} — {{ v.price | money }}{% unless v.available %} (sold out){% endunless %}</option>{%- endfor -%}
+            </select>
+          </div>
+          {%- elsif p.variants and p.variants.size == 1 -%}
+          <input type="hidden" data-variant-select value="{{ p.variants[0].id }}">
+          {%- endif -%}
+          <div class="rk-pdp-buy">
+            <input type="number" class="rk-qty" data-qty value="1" min="1" aria-label="Quantity">
+            <button type="submit" class="rk-btn" data-add-btn {% unless p.available %}disabled{% endunless %}>{% if p.available %}Add to cart{% else %}Sold out{% endif %}</button>
+          </div>
+          <p class="rk-pdp-msg" data-cart-msg hidden></p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

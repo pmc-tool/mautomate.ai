@@ -1,0 +1,103 @@
+{
+  "id": "rokon-liquid",
+  "name": "Rokon",
+  "version": "1.0.2",
+  "engine": "1",
+  "author": "mAutomate",
+  "description": "Bold product-led design ported from the Rokon React theme: red accent on near-black ink, Rubik body and Work Sans headings, tech-store energy. Fully self-contained Liquid package.",
+  "tokens": {
+    "colors": {
+      "primary": "#d72323",
+      "dark": "#222222",
+      "text": "#4a4c59",
+      "border": "#e4e4e4",
+      "bg": "#ffffff"
+    },
+    "fonts": {
+      "heading": "\"Work Sans\", sans-serif",
+      "body": "\"Rubik\", sans-serif"
+    }
+  },
+  "settings": [
+    { "type": "header", "label": "Brand" },
+    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#d72323" },
+    { "id": "container_width", "type": "range", "label": "Content width", "min": 1140, "max": 1500, "step": 20, "unit": "px", "default": 1200 },
+    { "type": "header", "label": "Announcement bar" },
+    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": true },
+    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "Free shipping for orders over $59 !" },
+    { "type": "header", "label": "Footer" },
+    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "A curated collection of quality products, hand-picked for you and delivered to your door." },
+    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+  ],
+  "defaultSections": [
+    {
+      "block_type": "hero_slider",
+      "autoplay_ms": 6000,
+      "slides": [
+        { "image": "/rokon/img/slider/home1-slider-bg.webp", "subtitle": "New in store", "title": "Gear Built For\nEvery Adventure", "cta": { "label": "Shop now", "href": "/store" } },
+        { "image": "/rokon/img/slider/home2-slider-bg.webp", "subtitle": "Latest arrivals", "title": "Quality You Can\nCount On", "cta": { "label": "Browse the range", "href": "/store" } }
+      ]
+    },
+    {
+      "block_type": "promo_banner_grid",
+      "intro": {
+        "title": "Built for the way you live",
+        "body": "Every product in this store is selected for quality and backed by our team. Explore the range and find the gear that fits your life.",
+        "link_label": "SHOP NOW",
+        "href": "/store"
+      },
+      "sale": {
+        "image": "/rokon/img/banner/banner-bg1.webp",
+        "special_title": "Season sale",
+        "title": "Sale up to 10% all",
+        "link_label": "SHOP NOW",
+        "href": "/store"
+      },
+      "categories": [
+        { "image": "/rokon/img/banner/banner-bg2.webp", "title": "Best Sellers", "count_label": "Shop the favourites", "href": "/store", "wide": false },
+        { "image": "/rokon/img/banner/banner-bg3.webp", "title": "New Arrivals", "count_label": "Fresh this week", "href": "/store", "wide": true }
+      ]
+    },
+    {
+      "block_type": "product_tabs",
+      "tabs": [
+        { "label": "New arrivals", "source": "all", "sort": "created_at", "limit": 8 },
+        { "label": "Best sellers", "source": "all", "sort": "price_desc", "limit": 8 }
+      ]
+    },
+    {
+      "block_type": "deal_of_day",
+      "title": "Deal of the day",
+      "description": "Grab this week's featured offer before the timer runs out. Quality gear at its best price.",
+      "image": "/rokon/img/banner/banner-bg3.webp",
+      "countdown_to": "2030-01-01T00:00:00.000Z",
+      "cta": { "label": "Shop Now", "href": "/store" }
+    },
+    {
+      "block_type": "image_with_text",
+      "image": "/rokon/img/other/drone-image.webp",
+      "image_side": "left",
+      "eyebrow": "Our promise",
+      "title": "Chosen with care,\nbuilt to last",
+      "body": "Every product in this store is selected for quality and backed by our team. If something is not right, we make it right.",
+      "cta": { "label": "Shop the collection", "href": "/store" }
+    },
+    {
+      "block_type": "testimonials",
+      "title": "What our customers say",
+      "items": [
+        { "quote": "Fast delivery and the quality is even better than the photos. Will definitely order again.", "author": "Adam Rose", "role": "Verified buyer", "avatar": "/rokon/img/other/testimonial1.webp" },
+        { "quote": "Great service from start to finish. The team answered every question before I bought.", "author": "Sara Khan", "role": "Verified buyer", "avatar": "/rokon/img/other/testimonial2.webp" },
+        { "quote": "Exactly as described and beautifully packed. This store is now my first stop.", "author": "David Chen", "role": "Verified buyer", "avatar": "/rokon/img/other/testimonial3.webp" }
+      ]
+    },
+    {
+      "block_type": "newsletter",
+      "title": "Stay in the loop",
+      "subtitle": "New arrivals and offers, straight to your inbox.",
+      "placeholder": "Enter your e-mail address",
+      "button": "Subscribe",
+      "provider_note": "We respect your privacy. Unsubscribe at any time."
+    }
+  ]
+}

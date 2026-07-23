@@ -1,0 +1,20 @@
+<nav class="bz-crumbs"><div class="bz-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.root_url }}/blog">Blog</a><span>/</span><span class="bz-current">{{ article.title }}</span>
+</div></nav>
+<article class="bz-section bz-article">
+  <div class="bz-container">
+    <header class="bz-article-head">
+      <h1 class="bz-article-title">{{ article.title }}</h1>
+      <div class="bz-article-meta">
+        {%- if article.author != blank -%}<span>By {{ article.author }}</span>{%- endif -%}
+        {%- if article.published_at != blank -%}<span>{{ article.published_at | date: "%b %d, %Y" }}</span>{%- endif -%}
+        {%- if article.reading_time -%}<span>{{ article.reading_time }} min read</span>{%- endif -%}
+      </div>
+    </header>
+    {%- if article.cover_image %}<div class="bz-article-cover"><img src="{{ article.cover_image }}" alt="{{ article.title }}"></div>{% endif -%}
+    <div class="bz-article-body bz-richtext-inner">
+      {%- if article.content != blank -%}{% render 'resolve-tokens', text: article.content, shop: shop %}{%- elsif article.excerpt != blank -%}<p>{{ article.excerpt }}</p>{%- endif -%}
+    </div>
+    <div class="bz-article-foot"><a class="bz-link" href="{{ routes.root_url }}/blog">&#8592; Back to blog</a></div>
+  </div>
+</article>
