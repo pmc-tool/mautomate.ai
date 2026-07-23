@@ -28,6 +28,10 @@ build output, or runtime data (`.gitignore` enforces this).
 ## Where things run
 
 - Server: `ratul@192.168.200.201` (the "VM"), repo checked out at `/home/ratul/brandtodoor`.
+  (The directory name predates the Brand2Door -> mAutomate rebrand; pm2 process
+  names `b2d-*` are the same legacy. Renaming them is pure operational churn, so
+  they stay — but everything user-facing says mAutomate. Historical planning docs
+  live in `docs/archive/`.)
 - Public entry: Cloudflare tunnels. `mautomate.ai` → :8500 (landing), `merchant.mautomate.ai` → :8600 edge → :8601, `api.mautomate.ai` → :9500, `*.mautomate.ai` tenant stores → :8600 → :8601. Tunnel config: `/home/ratul/vip-tunnel-config.yml`.
 - Secrets: `.env` files exist ONLY on the server (e.g. `apps/backend/.env`). They are gitignored. Never commit one; add a matching `.env.example` if you introduce a new variable.
 
