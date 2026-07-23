@@ -510,7 +510,7 @@ export function PostEditor({ postId }: { postId?: string }) {
             }
           >
             <div className="space-y-4">
-              <FormField label="Title" htmlFor="post-title">
+              <FormField label="Title" htmlFor="post-title" required>
                 <Input
                   id="post-title"
                   value={title}
@@ -624,7 +624,7 @@ export function PostEditor({ postId }: { postId?: string }) {
 
           <SectionCard
             title="Cover image"
-            description="Shown on the blog listing and at the top of the post."
+            description="Shown on the blog listing and at the top of the post. Recommended: a landscape image around 1200 x 630 px. JPG, PNG, WebP or GIF, up to 10 MB."
           >
             <div className="space-y-3">
               {coverImage ? (

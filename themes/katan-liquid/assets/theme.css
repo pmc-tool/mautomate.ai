@@ -563,3 +563,8 @@ a.kt-footer-contact:hover{ color:var(--kt-accent); }
 .kt-wish.is-active svg path{ fill:currentColor; }
 .kt-wish-pdp{ position:static; width:46px; height:46px; border-radius:8px; flex:0 0 auto; margin-left:8px; }
 .kt-wish-link{ position:relative; display:inline-flex; }
+
+/* blog-article QA fixes 2026-07-23 */
+.kt-article-cover{max-width:760px;margin-left:auto;margin-right:auto}
+.kt-article-cover img{width:100%;height:auto;display:block}
+.kt-article-body img{max-width:100%;height:auto}

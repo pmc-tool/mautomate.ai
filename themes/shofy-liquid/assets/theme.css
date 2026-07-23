@@ -506,3 +506,11 @@ body.sf-body{ margin:0; min-height:100vh; overflow-x:hidden; background:var(--sf
   .sf-composed-row[data-cols="3"],.sf-composed-row[data-cols="4"]{ grid-template-columns:1fr; }
   .sf-tabs-head{ flex-direction:column; align-items:flex-start; }
 }
+
+/* blog-article QA fixes 2026-07-23 */
+.sf-richtext-inner ul{list-style:disc;padding-left:1.4em;margin:0 0 1em}
+.sf-richtext-inner ol{list-style:decimal;padding-left:1.4em;margin:0 0 1em}
+.sf-richtext-inner li{margin:.25em 0}
+.sf-article-cover{max-width:760px;margin-left:auto;margin-right:auto}
+.sf-article-cover img{width:100%;height:auto;display:block}
+.sf-article-body img{max-width:100%;height:auto}

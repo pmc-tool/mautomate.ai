@@ -626,3 +626,8 @@ main#main { display: block; min-height: 40vh; }
   .ex-newsletter-form input { border-radius: 25px; }
   .ex-newsletter-form .ex-btn { border-radius: 25px; }
 }
+
+/* blog-article QA fixes 2026-07-23 */
+.ex-article-cover{max-width:760px;margin-left:auto;margin-right:auto}
+.ex-article-cover img{width:100%;height:auto;display:block}
+.ex-article-body img{max-width:100%;height:auto}

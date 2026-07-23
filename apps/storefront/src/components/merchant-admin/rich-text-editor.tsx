@@ -368,7 +368,7 @@ export function RichTextEditor({
         </ToolbarButton>
         {onUploadImage && (
           <ToolbarButton
-            title="Insert image"
+            title="Insert image — recommended width 1200px or more; JPG, PNG, WebP or GIF up to 10 MB"
             disabled={uploading}
             onClick={pickImage}
           >
