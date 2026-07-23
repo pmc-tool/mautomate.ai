@@ -100,8 +100,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         if (callCredits > 0 && call.tenant_id) {
           try {
             const ledger = getLedger(req.scope)
+            // Stamp the billed action on the clawback tx so voice spend is
+            // self-describing in the ledger — the billing overview + credits
+            // pages attribute and label it as AI call minutes (not generic
+            // "usage"). Balance math is unchanged; this only adds attribution.
             const r = await ledger.clawback(call.tenant_id, callCredits, {
               idempotencyKey: `call:${call.id}`,
+              action: callAction,
+              meta: { call_id: call.id, channel: isPhone ? "phone" : "web" },
             })
             // Voice settles post-paid (clawback, not reserve/commit), so the
             // usage row has to be written explicitly — otherwise call minutes

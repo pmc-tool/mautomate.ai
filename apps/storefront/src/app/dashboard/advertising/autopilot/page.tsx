@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useState } from "react"
 import {
   CheckCircleSolid,
   ExclamationCircle,
-  Robot,
   Spinner,
 } from "@medusajs/icons"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
@@ -20,15 +19,22 @@ import {
   updateAdsAutopilot,
 } from "@lib/merchant-admin/api"
 import { PageHeader } from "@components/merchant-admin/page-header"
-import { SectionCard } from "@components/merchant-admin/section-card"
 import { cn } from "@lib/util/cn"
 
 /**
- * Advertising — Autopilot. The automated media buyer with its guardrails on
- * display: it can pause and it can alert, never raise budgets or delete; the
- * monthly cap is the hard stop above every rule; every action it takes shows
- * up here and on the campaign timeline with the numbers that triggered it.
+ * Advertising — Autopilot, presented as a watch console. One dark panel
+ * answers the three questions a merchant comes here with — is the watch
+ * armed, what will it do, what has it done — and the rules read as the
+ * sentences they actually are. Ink is for action, ember is for state.
  */
+
+const METRIC_SENTENCE: Record<string, string> = {
+  spend: "spend",
+  cpa: "cost per purchase",
+  ctr: "CTR",
+  clicks: "clicks",
+  conversions: "purchases",
+}
 
 const METRIC_LABEL: Record<string, string> = {
   spend: "Spend",
@@ -38,6 +44,28 @@ const METRIC_LABEL: Record<string, string> = {
   conversions: "Purchases",
 }
 
+const fmt = (n: number) =>
+  n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+
+const metricValue = (metric: string, value: number) =>
+  metric === "ctr" ? `${fmt(value)}%` : fmt(value)
+
+/** Value chips inside a rule sentence. */
+const Tok = ({ children, act = false }: { children: React.ReactNode; act?: boolean }) => (
+  <span
+    className={cn(
+      "inline-block whitespace-nowrap rounded px-2 py-px font-semibold tabular-nums",
+      act ? "bg-[#FEF1EA] text-[#B44A12]" : "bg-grey-5 text-grey-90"
+    )}
+  >
+    {children}
+  </span>
+)
+
+/** Inline editable tokens for the sentence composer. */
+const tokenField =
+  "border-0 border-b border-dashed border-grey-30 bg-transparent font-semibold text-grey-90 focus:outline-none focus:border-solid focus:border-[#F26522] focus:bg-[#FEF1EA]"
+
 export default function AutopilotPage() {
   const { token } = useMerchantAuth()
   const [data, setData] = useState<AdsAutopilot | null>(null)
@@ -45,9 +73,11 @@ export default function AutopilotPage() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [capDraft, setCapDraft] = useState("")
+  const [capEditing, setCapEditing] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const [notice, setNotice] = useState<{ kind: "success" | "error"; text: string } | null>(null)
 
-  // Rule builder
+  // Rule composer
   const [rName, setRName] = useState("")
   const [rMetric, setRMetric] = useState<"spend" | "cpa" | "ctr" | "clicks" | "conversions">("cpa")
   const [rOp, setROp] = useState<"gt" | "lt">("gt")
@@ -78,6 +108,11 @@ export default function AutopilotPage() {
     load()
   }, [load])
 
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(t)
+  }, [])
+
   const saveSettings = useCallback(
     async (patch: { enabled?: boolean; monthly_cap?: number | null }) => {
       if (!token || busy) return
@@ -95,6 +130,11 @@ export default function AutopilotPage() {
     [token, busy, load]
   )
 
+  const saveCap = useCallback(async () => {
+    await saveSettings({ monthly_cap: capDraft.trim() === "" ? null : Number(capDraft) })
+    setCapEditing(false)
+  }, [saveSettings, capDraft])
+
   const runNow = useCallback(async () => {
     if (!token || busy) return
     setBusy("run")
@@ -104,7 +144,7 @@ export default function AutopilotPage() {
       setNotice({
         kind: "success",
         text: !summary.enabled
-          ? "Autopilot is switched off — turn it on first."
+          ? "Autopilot is standing down — arm it first."
           : summary.cap_hit
             ? `Monthly cap reached (${summary.month_spend.toFixed(2)} spent) — active campaigns were paused.`
             : summary.fired.length
@@ -154,28 +194,38 @@ export default function AutopilotPage() {
   }
 
   const settings = data?.settings
+  const armed = Boolean(settings?.enabled)
+  const cap = settings?.monthly_cap ?? null
+  const spend = data?.month_spend ?? null
+  const rules = data?.rules ?? []
+  const activity = data?.activity ?? []
+  const activeCount = campaigns.filter(
+    (c) => String(c.status).toUpperCase() === "ACTIVE"
+  ).length
+  const capPct =
+    cap != null && spend != null ? Math.min(100, (spend / cap) * 100) : 0
+
+  const campaignName = (id: string | null) =>
+    id ? campaigns.find((c) => c.id === id)?.name ?? "one campaign" : "every active campaign"
+
+  const dotFor = (action: string) =>
+    action.includes("cap")
+      ? "bg-rose-600"
+      : action.includes("pause")
+        ? "bg-[#F26522]"
+        : "bg-grey-30"
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader
-          title="Autopilot"
-          description="Watches your campaigns on the numbers the platform reports. It can pause and it can alert — it never raises budgets and never deletes anything."
-        />
-        <button
-          onClick={runNow}
-          disabled={busy != null}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-grey-20 bg-white px-4 py-2 text-sm font-medium text-grey-90 hover:bg-grey-5 disabled:opacity-50"
-        >
-          {busy === "run" ? <Spinner className="animate-spin" /> : <Robot />}
-          Run a check now · free
-        </button>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Autopilot"
+        description="Watches your campaigns on the numbers the platform reports. It can pause and it can alert — nothing more."
+      />
 
       {notice && (
         <div
           className={cn(
-            "flex items-start gap-2 rounded-base border p-4 text-sm",
+            "flex items-start gap-2 rounded-md border px-4 py-3 text-[13px]",
             notice.kind === "success"
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
               : "border-rose-200 bg-rose-50 text-rose-700"
@@ -190,195 +240,391 @@ export default function AutopilotPage() {
         </div>
       )}
 
-      <SectionCard
-        title="Status & spending cap"
-        description="The scheduled watch costs 3 credits per active day. The cap is the hard stop: month-to-date spend reaching it pauses every campaign, before any rule runs."
-      >
-        <div className="flex flex-wrap items-end gap-6">
-          <div>
-            <span className="text-xs font-medium text-grey-70">Autopilot</span>
-            <div className="mt-1">
-              <button
-                onClick={() => saveSettings({ enabled: !settings?.enabled })}
-                disabled={busy != null}
+      {/* The watch console */}
+      <section className="overflow-hidden rounded-[10px] bg-gradient-to-b from-[#171C24] to-[#0F1319] text-white shadow-[0_6px_24px_-8px_rgba(15,19,25,0.4)]">
+        <div className="grid items-center gap-7 p-7 md:grid-cols-[1.15fr_1fr_auto]">
+          {/* Status */}
+          <div className="flex items-center gap-4">
+            <span className="relative flex h-11 w-11 shrink-0 items-center justify-center" aria-hidden="true">
+              {armed && (
+                <span className="absolute inline-flex h-full w-full rounded-full border border-[#F26522] opacity-60 [animation-duration:2.6s] animate-ping motion-reduce:hidden" />
+              )}
+              <span
                 className={cn(
-                  "rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50",
-                  settings?.enabled
-                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                    : "border border-grey-20 bg-white text-grey-90 hover:bg-grey-5"
+                  "h-3 w-3 rounded-full transition-all duration-300",
+                  armed
+                    ? "bg-[#F26522] shadow-[0_0_12px_2px_rgba(242,101,34,0.35)]"
+                    : "bg-[#3A4350]"
                 )}
-              >
-                {settings?.enabled ? "On — watching" : "Off — turn on"}
-              </button>
+              />
+            </span>
+            <div>
+              <p className={cn("text-lg font-semibold leading-tight", armed ? "text-white" : "text-white/55")}>
+                {armed ? "Armed" : "Standing by"}
+              </p>
+              <p className="mt-0.5 text-xs text-white/55">
+                {armed ? (
+                  <>
+                    Watching{" "}
+                    <b className="font-medium text-white">
+                      {activeCount} active campaign{activeCount === 1 ? "" : "s"}
+                    </b>{" "}
+                    · checks run hourly
+                  </>
+                ) : rules.length ? (
+                  "Rules are written, but nothing is watching them yet."
+                ) : (
+                  "Write a rule below, then arm it."
+                )}
+              </p>
             </div>
           </div>
-          <label className="block">
-            <span className="text-xs font-medium text-grey-70">
-              Monthly spend cap <span className="font-normal text-grey-50">(ad account currency; empty = no cap)</span>
-            </span>
-            <div className="mt-1 flex items-center gap-2">
-              <input
-                value={capDraft}
-                onChange={(e) => setCapDraft(e.target.value)}
-                inputMode="decimal"
-                placeholder="e.g. 300"
-                className="w-36 rounded-md border border-grey-20 px-3 py-2 text-sm tabular-nums"
-              />
-              <button
-                onClick={() =>
-                  saveSettings({
-                    monthly_cap: capDraft.trim() === "" ? null : Number(capDraft),
-                  })
-                }
-                disabled={busy != null}
-                className="rounded-md bg-grey-90 px-3 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:opacity-50"
-              >
-                Save cap
-              </button>
-            </div>
-          </label>
-        </div>
-      </SectionCard>
 
-      <SectionCard
-        title="Rules"
-        description='Condition → action. Example: "Cost per purchase above 20 over 3 days (after at least 10 spent) → pause the campaign."'
-      >
-        <div className="grid grid-cols-2 gap-3 rounded-lg border border-grey-20 bg-grey-5 p-3 sm:grid-cols-4 lg:grid-cols-8">
-          <label className="col-span-2 block">
-            <span className="text-[11px] font-medium text-grey-60">Name (optional)</span>
-            <input value={rName} onChange={(e) => setRName(e.target.value)} placeholder="auto" className="mt-0.5 w-full rounded-md border border-grey-20 px-2 py-1.5 text-sm" />
-          </label>
-          <label className="block">
-            <span className="text-[11px] font-medium text-grey-60">Metric</span>
-            <select value={rMetric} onChange={(e) => setRMetric(e.target.value as any)} className="mt-0.5 w-full rounded-md border border-grey-20 bg-white px-2 py-1.5 text-sm">
-              {Object.entries(METRIC_LABEL).map(([v, l]) => (
-                <option key={v} value={v}>{l}</option>
+          {/* Spend vs the hard stop */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-white/50">
+              Month-to-date spend
+            </p>
+            <div className="mt-1 flex items-baseline gap-2 tabular-nums">
+              <span className="text-[22px] font-semibold leading-none">
+                {spend != null ? fmt(spend) : "—"}
+              </span>
+              {cap != null && (
+                <span className="text-xs text-white/55">of {fmt(cap)} cap</span>
+              )}
+            </div>
+            {cap != null && (
+              <div className="relative mt-2.5 h-1 rounded-full bg-white/10">
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#8A919C] to-[#C3C9D1] transition-[width] duration-1000 ease-out"
+                  style={{ width: mounted ? `${capPct}%` : "0%" }}
+                />
+                <span className="absolute -inset-y-1 right-0 w-0.5 rounded-full bg-[#F26522]" />
+              </div>
+            )}
+            {capEditing ? (
+              <div className="mt-2.5 flex items-center gap-2">
+                <input
+                  value={capDraft}
+                  onChange={(e) => setCapDraft(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="e.g. 300"
+                  autoFocus
+                  className="w-28 rounded-md border border-white/20 bg-white/10 px-2.5 py-1.5 text-sm tabular-nums text-white placeholder-white/40 focus:border-[#F26522] focus:outline-none"
+                />
+                <button
+                  onClick={saveCap}
+                  disabled={busy != null}
+                  className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-[#0F1319] hover:bg-grey-10 disabled:opacity-50"
+                >
+                  Save cap
+                </button>
+                <button
+                  onClick={() => setCapEditing(false)}
+                  className="text-xs text-white/55 hover:text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <p className="mt-2 text-[11px] leading-relaxed text-white/50">
+                {cap != null ? (
+                  <>
+                    The cap is the{" "}
+                    <b className="font-medium text-[#F26522]">hard stop</b> — reaching it
+                    pauses every campaign, before any rule runs.{" "}
+                    <button
+                      onClick={() => setCapEditing(true)}
+                      className="underline underline-offset-2 hover:text-white"
+                    >
+                      Change
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    No cap set — autopilot has no hard stop.{" "}
+                    <button
+                      onClick={() => setCapEditing(true)}
+                      className="underline underline-offset-2 hover:text-white"
+                    >
+                      Add one
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex min-w-[190px] flex-col gap-2.5">
+            <button
+              onClick={() => saveSettings({ enabled: !armed })}
+              disabled={busy != null}
+              className={cn(
+                "rounded-md px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50",
+                armed
+                  ? "border border-white/15 text-white hover:border-white/30"
+                  : "bg-white text-[#0F1319] hover:bg-grey-10"
+              )}
+            >
+              {busy === "settings" ? (
+                <Spinner className="mx-auto animate-spin" />
+              ) : armed ? (
+                "Stand down"
+              ) : (
+                "Arm autopilot"
+              )}
+            </button>
+            <button
+              onClick={runNow}
+              disabled={busy != null}
+              className="rounded-md border border-white/15 px-4 py-2 text-sm font-medium text-white/70 transition-colors hover:border-white/30 hover:text-white disabled:opacity-50"
+            >
+              {busy === "run" ? <Spinner className="mx-auto animate-spin" /> : "Run a check now — free"}
+            </button>
+            <p className="text-center text-[11px] text-white/45">
+              3 credits per active day, only while armed
+            </p>
+          </div>
+        </div>
+
+        {/* What it can and cannot do */}
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-1 border-t border-white/10 px-7 py-3 text-xs text-white/55">
+          <span className="flex items-center gap-2 py-0.5">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="6" y="5" width="4" height="14" rx="1" />
+              <rect x="14" y="5" width="4" height="14" rx="1" />
+            </svg>
+            Can pause a campaign
+          </span>
+          <span className="flex items-center gap-2 py-0.5">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M10.3 21a2 2 0 003.4 0" />
+            </svg>
+            Can alert you with the numbers
+          </span>
+          <span className="flex items-center gap-2 py-0.5 text-white">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#F26522" strokeWidth="2">
+              <path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z" />
+            </svg>
+            Never raises budgets. Never deletes anything.
+          </span>
+        </div>
+      </section>
+
+      {/* Rules */}
+      <section>
+        <div className="mb-3 flex items-baseline gap-2.5">
+          <h2 className="text-sm font-semibold text-grey-90">Rules</h2>
+          <span className="text-[11px] tabular-nums text-grey-40">{rules.length}</span>
+          <span className="ml-auto text-xs text-grey-40">Checked every hour while armed</span>
+        </div>
+
+        {rules.length > 0 && (
+          <div className="divide-y divide-grey-10 rounded-[10px] border border-grey-20 bg-white shadow-sm">
+            {rules.map((r) => (
+              <article
+                key={r.id}
+                className={cn("px-5 py-4", !r.enabled && "opacity-55")}
+              >
+                <p className="text-sm leading-[2] text-grey-90">
+                  If <Tok>{METRIC_SENTENCE[r.metric]}</Tok> stays{" "}
+                  <Tok>
+                    {r.op === "gt" ? "above" : "below"} {metricValue(r.metric, r.value)}
+                  </Tok>{" "}
+                  for <Tok>{r.window_days} day{r.window_days === 1 ? "" : "s"}</Tok>
+                  {r.min_spend > 0 && (
+                    <>
+                      {" "}— with at least <Tok>{fmt(r.min_spend)} spent</Tok> —
+                    </>
+                  )}{" "}
+                  <Tok act>{r.action === "pause_campaign" ? "pause the campaign" : "alert me"}</Tok>.
+                </p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-grey-40">
+                  <span>{campaignName(r.campaign_id)}</span>
+                  {r.last_fired_at ? (
+                    <span className="font-medium text-grey-60">
+                      Last fired {new Date(r.last_fired_at).toLocaleString()}
+                    </span>
+                  ) : (
+                    <span>Never fired</span>
+                  )}
+                  <span className="ml-auto flex items-center gap-3">
+                    <button
+                      onClick={async () => {
+                        if (!token) return
+                        await toggleAdsRule(token, r.id, !r.enabled).catch(() => null)
+                        await load()
+                      }}
+                      className={cn(
+                        "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                        r.enabled
+                          ? "bg-[#FEF1EA] text-[#B44A12]"
+                          : "bg-grey-10 text-grey-50"
+                      )}
+                    >
+                      {r.enabled ? "On" : "Off"}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!token) return
+                        await deleteAdsRule(token, r.id).catch(() => null)
+                        await load()
+                      }}
+                      className="text-grey-40 hover:text-rose-600 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {/* Sentence composer */}
+        <div
+          className={cn(
+            "rounded-[10px] border border-dashed border-grey-30 bg-white px-5 py-4",
+            rules.length > 0 && "mt-3"
+          )}
+        >
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.07em] text-grey-40">
+            New rule
+          </p>
+          <p className="text-sm leading-[2.4] text-grey-90">
+            If{" "}
+            <select
+              value={rMetric}
+              onChange={(e) => setRMetric(e.target.value as any)}
+              className={tokenField}
+            >
+              {Object.entries(METRIC_SENTENCE).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
               ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-[11px] font-medium text-grey-60">Is</span>
-            <select value={rOp} onChange={(e) => setROp(e.target.value as any)} className="mt-0.5 w-full rounded-md border border-grey-20 bg-white px-2 py-1.5 text-sm">
+            </select>{" "}
+            is{" "}
+            <select
+              value={rOp}
+              onChange={(e) => setROp(e.target.value as any)}
+              className={tokenField}
+            >
               <option value="gt">above</option>
               <option value="lt">below</option>
+            </select>{" "}
+            <input
+              value={rValue}
+              onChange={(e) => setRValue(e.target.value)}
+              inputMode="decimal"
+              aria-label="Value"
+              className={cn(tokenField, "w-14 text-center tabular-nums")}
+            />{" "}
+            over{" "}
+            <input
+              value={rWindow}
+              onChange={(e) => setRWindow(e.target.value)}
+              inputMode="numeric"
+              aria-label="Days"
+              className={cn(tokenField, "w-10 text-center tabular-nums")}
+            />{" "}
+            days — after at least{" "}
+            <input
+              value={rMinSpend}
+              onChange={(e) => setRMinSpend(e.target.value)}
+              inputMode="decimal"
+              aria-label="Minimum spend"
+              className={cn(tokenField, "w-14 text-center tabular-nums")}
+            />{" "}
+            spent —{" "}
+            <select
+              value={rAction}
+              onChange={(e) => setRAction(e.target.value as any)}
+              className={cn(tokenField, "text-[#B44A12]")}
+            >
+              <option value="pause_campaign">pause the campaign</option>
+              <option value="notify">alert me</option>
             </select>
-          </label>
-          <label className="block">
-            <span className="text-[11px] font-medium text-grey-60">Value</span>
-            <input value={rValue} onChange={(e) => setRValue(e.target.value)} inputMode="decimal" className="mt-0.5 w-full rounded-md border border-grey-20 px-2 py-1.5 text-sm tabular-nums" />
-          </label>
-          <label className="block">
-            <span className="text-[11px] font-medium text-grey-60">Over (days)</span>
-            <input value={rWindow} onChange={(e) => setRWindow(e.target.value)} inputMode="numeric" className="mt-0.5 w-full rounded-md border border-grey-20 px-2 py-1.5 text-sm tabular-nums" />
-          </label>
-          <label className="block">
-            <span className="text-[11px] font-medium text-grey-60">Min spend</span>
-            <input value={rMinSpend} onChange={(e) => setRMinSpend(e.target.value)} inputMode="decimal" className="mt-0.5 w-full rounded-md border border-grey-20 px-2 py-1.5 text-sm tabular-nums" />
-          </label>
-          <label className="block">
-            <span className="text-[11px] font-medium text-grey-60">Then</span>
-            <select value={rAction} onChange={(e) => setRAction(e.target.value as any)} className="mt-0.5 w-full rounded-md border border-grey-20 bg-white px-2 py-1.5 text-sm">
-              <option value="pause_campaign">Pause it</option>
-              <option value="notify">Alert only</option>
-            </select>
-          </label>
-          <label className="col-span-2 block sm:col-span-3 lg:col-span-6">
-            <span className="text-[11px] font-medium text-grey-60">Applies to</span>
-            <select value={rCampaign} onChange={(e) => setRCampaign(e.target.value)} className="mt-0.5 w-full rounded-md border border-grey-20 bg-white px-2 py-1.5 text-sm">
-              <option value="">Every active campaign</option>
+            , for{" "}
+            <select
+              value={rCampaign}
+              onChange={(e) => setRCampaign(e.target.value)}
+              className={tokenField}
+            >
+              <option value="">every active campaign</option>
               {campaigns.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
             </select>
-          </label>
-          <div className="col-span-2 flex items-end justify-end">
+            .
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <button
               onClick={addRule}
-              disabled={busy != null || !Number.isFinite(Number(rValue))}
-              className="rounded-md bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:opacity-50"
+              disabled={
+                busy != null ||
+                !Number.isFinite(Number(rValue)) ||
+                !Number.isFinite(Number(rWindow))
+              }
+              className="rounded-md bg-[#0F1319] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1F2630] disabled:opacity-50"
             >
               {busy === "rule" ? <Spinner className="animate-spin" /> : "Add rule"}
             </button>
+            <input
+              value={rName}
+              onChange={(e) => setRName(e.target.value)}
+              placeholder="Name it (optional)"
+              className="w-40 rounded-md border border-grey-20 px-2.5 py-1.5 text-xs text-grey-90 placeholder-grey-40 focus:border-[#F26522] focus:outline-none"
+            />
+            <span className="text-xs text-grey-40">
+              The classic starter: cost per purchase above your break-even, over 3 days, pause it.
+            </span>
           </div>
         </div>
+      </section>
 
-        {(data?.rules ?? []).length === 0 ? (
-          <p className="mt-4 text-sm text-grey-50">
-            No rules yet. Add one above — the classic starter is cost per
-            purchase above your break-even, over 3 days, pause it.
-          </p>
-        ) : (
-          <div className="mt-4 divide-y divide-grey-10">
-            {data!.rules.map((r) => (
-              <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
-                <div className="min-w-0 text-sm">
-                  <span className="font-medium text-grey-90">{r.name}</span>{" "}
-                  <span className="text-grey-50">
-                    — {METRIC_LABEL[r.metric]} {r.op === "gt" ? ">" : "<"} {r.value} over {r.window_days}d
-                    {r.min_spend ? `, after ${r.min_spend} spent` : ""} →{" "}
-                    {r.action === "pause_campaign" ? "pause" : "alert"}
-                    {r.campaign_id ? "" : " (all campaigns)"}
-                  </span>
-                  {r.last_fired_at && (
-                    <span className="block text-xs text-grey-40">
-                      last fired {new Date(r.last_fired_at).toLocaleString()}
-                    </span>
-                  )}
+      {/* Ledger */}
+      <section>
+        <div className="mb-3 flex items-baseline gap-2.5">
+          <h2 className="text-sm font-semibold text-grey-90">What autopilot did</h2>
+          <span className="ml-auto text-xs text-grey-40">
+            The same entries appear on each campaign&apos;s timeline
+          </span>
+        </div>
+        <div className="rounded-[10px] border border-grey-20 bg-white shadow-sm">
+          {activity.length === 0 ? (
+            <p className="px-5 py-5 text-sm text-grey-40">
+              Nothing yet — it acts only when a rule or the cap actually trips. Every
+              action lands here with the numbers that triggered it.
+            </p>
+          ) : (
+            <div className="divide-y divide-grey-10">
+              {activity.map((a) => (
+                <div
+                  key={a.id}
+                  className="grid grid-cols-[92px_16px_1fr] items-start gap-x-3 px-5 py-3"
+                >
+                  <time className="pt-px text-[11px] tabular-nums text-grey-40">
+                    {new Date(a.at).toLocaleString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </time>
+                  <span className={cn("mt-1.5 h-2 w-2 rounded-full justify-self-center", dotFor(a.action))} />
+                  <p className="text-[13px] leading-relaxed text-grey-90">
+                    {a.reason ?? a.action}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={async () => {
-                      if (!token) return
-                      await toggleAdsRule(token, r.id, !r.enabled).catch(() => null)
-                      await load()
-                    }}
-                    className={cn(
-                      "rounded-full px-2.5 py-1 text-xs font-medium",
-                      r.enabled ? "bg-emerald-50 text-emerald-700" : "bg-grey-10 text-grey-50"
-                    )}
-                  >
-                    {r.enabled ? "On" : "Off"}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (!token) return
-                      await deleteAdsRule(token, r.id).catch(() => null)
-                      await load()
-                    }}
-                    className="text-xs text-grey-40 underline hover:text-rose-600"
-                  >
-                    delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        title="What autopilot did"
-        description="Every automated action, with the numbers that triggered it. The same entries appear on each campaign's timeline."
-      >
-        {(data?.activity ?? []).length === 0 ? (
-          <p className="text-sm text-grey-50">Nothing yet — it acts only when a rule or the cap actually trips.</p>
-        ) : (
-          <ol className="space-y-2.5">
-            {data!.activity.map((a) => (
-              <li key={a.id} className="flex gap-3">
-                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-grey-10 text-grey-60">
-                  <Robot className="h-3.5 w-3.5" />
-                </span>
-                <div className="min-w-0">
-                  <div className="text-sm text-grey-90">{a.reason ?? a.action}</div>
-                  <div className="text-xs text-grey-50">{new Date(a.at).toLocaleString()}</div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-      </SectionCard>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   )
 }

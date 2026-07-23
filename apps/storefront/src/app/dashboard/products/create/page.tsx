@@ -108,11 +108,22 @@ type SelectedTag = {
 // Small presentational pieces
 // ---------------------------------------------------------------------------
 
-function StepError({ message }: { message: string }) {
+function StepError({ messages }: { messages: string[] }) {
   return (
     <div className="flex items-start gap-2 rounded-base border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
       <ExclamationCircle className="mt-0.5 h-4 w-4 shrink-0" />
-      {message}
+      {messages.length === 1 ? (
+        <span>{messages[0]}</span>
+      ) : (
+        <div>
+          <p className="font-medium">Please fix the following:</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+            {messages.map((m, i) => (
+              <li key={i}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
@@ -227,7 +238,7 @@ export default function ProductCreatePage() {
   const [completed, setCompleted] = useState<boolean[]>(
     STEPS.map(() => false)
   )
-  const [stepError, setStepError] = useState<string | null>(null)
+  const [stepErrors, setStepErrors] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
   // Toast (no global toast library in this app; local fixed-position toast).
@@ -500,10 +511,10 @@ export default function ProductCreatePage() {
     const t = optionTitle.trim()
     if (!t) return
     if (options.some((o) => o.title.toLowerCase() === t.toLowerCase())) {
-      setStepError(`Option "${t}" already exists.`)
+      setStepErrors([`Option "${t}" already exists.`])
       return
     }
-    setStepError(null)
+    setStepErrors([])
     setOptions((prev) => [
       ...prev,
       { id: `opt_${Date.now()}`, title: t, values: [] },
@@ -527,7 +538,7 @@ export default function ProductCreatePage() {
       .map((v) => v.trim())
       .filter(Boolean)
     if (!values.length) return
-    setStepError(null)
+    setStepErrors([])
     setOptions((prev) =>
       prev.map((o) => {
         if (o.id !== optionId) return o
@@ -553,61 +564,66 @@ export default function ProductCreatePage() {
   const someIncluded = rows.some((r) => r.include)
 
   // ---- validation ----
-  const validateStep = (index: number): string | null => {
+  const validateStep = (index: number): string[] => {
+    const errs: string[] = []
     if (index === 0) {
-      if (!title.trim()) return "Title is required."
-      return null
-    }
-    if (index === 1) {
-      return null
+      if (!title.trim()) errs.push("Title is required.")
     }
     if (index === 2) {
       if (options.length > 0) {
-        const emptyOption = options.find((o) => o.values.length === 0)
-        if (emptyOption) {
-          return `Option "${emptyOption.title}" needs at least one value.`
+        for (const o of options) {
+          if (o.values.length === 0) {
+            errs.push(`Option "${o.title}" needs at least one value.`)
+          }
         }
         if (!rows.some((r) => r.include)) {
-          return "Please select at least one variant."
+          errs.push("Please select at least one variant.")
         }
       }
       const skus = new Set<string>()
+      let dupFlagged = false
       for (const row of includedRows) {
         const sku = row.sku.trim()
         if (!sku) continue
-        if (skus.has(sku.toLowerCase())) return "SKU must be unique."
-        skus.add(sku.toLowerCase())
+        if (skus.has(sku.toLowerCase())) {
+          if (!dupFlagged) {
+            errs.push("SKU must be unique.")
+            dupFlagged = true
+          }
+        } else {
+          skus.add(sku.toLowerCase())
+        }
       }
-      return null
     }
     if (index === 3) {
+      let priceFlagged = false
       for (const row of includedRows) {
         for (const code of currencies) {
           const raw = (row.prices[code] ?? "").trim()
           if (!raw) continue
           const n = parseFloat(raw)
-          if (!Number.isFinite(n) || n < 0) {
-            return "Prices must be valid non-negative amounts."
+          if ((!Number.isFinite(n) || n < 0) && !priceFlagged) {
+            errs.push("Prices must be valid non-negative amounts.")
+            priceFlagged = true
           }
         }
       }
-      return null
     }
-    return null
+    return errs
   }
 
   const goToStep = (target: number) => {
     if (saving || target === step) return
     if (target < step) {
-      setStepError(null)
+      setStepErrors([])
       setStep(target)
       return
     }
     for (let i = step; i < target; i++) {
-      const err = validateStep(i)
-      if (err) {
+      const errs = validateStep(i)
+      if (errs.length) {
         setStep(i)
-        setStepError(err)
+        setStepErrors(errs)
         return
       }
       setCompleted((prev) => {
@@ -616,7 +632,7 @@ export default function ProductCreatePage() {
         return next
       })
     }
-    setStepError(null)
+    setStepErrors([])
     setStep(target)
   }
 
@@ -691,15 +707,21 @@ export default function ProductCreatePage() {
 
   const handleSubmit = async (finalStatus: string) => {
     if (!token || saving) return
+    const allErrors: string[] = []
+    let firstBadStep = -1
     for (let i = 0; i < STEPS.length; i++) {
-      const err = validateStep(i)
-      if (err) {
-        setStep(i)
-        setStepError(err)
-        return
+      const errs = validateStep(i)
+      if (errs.length) {
+        if (firstBadStep < 0) firstBadStep = i
+        allErrors.push(...errs)
       }
     }
-    setStepError(null)
+    if (allErrors.length) {
+      setStep(firstBadStep)
+      setStepErrors(allErrors)
+      return
+    }
+    setStepErrors([])
     setSaving(true)
 
     const trimmedTitle = title.trim()
@@ -855,7 +877,7 @@ export default function ProductCreatePage() {
           disabled={saving}
         />
 
-        {stepError && <StepError message={stepError} />}
+        {stepErrors.length > 0 && <StepError messages={stepErrors} />}
 
         {/* ------------------------------ Step 1: Details ------------------------------ */}
         {step === 0 && (
@@ -865,13 +887,13 @@ export default function ProductCreatePage() {
               description="Give the product a title and describe it."
             >
               <div className="space-y-4">
-                <FormField label="Title" htmlFor="title">
+                <FormField label="Title" htmlFor="title" required>
                   <Input
                     id="title"
                     value={title}
                     onChange={(e) => {
                       setTitle(e.target.value)
-                      if (stepError) setStepError(null)
+                      if (stepErrors.length) setStepErrors([])
                     }}
                     placeholder="Winter jacket"
                     required

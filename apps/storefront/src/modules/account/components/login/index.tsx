@@ -1,16 +1,29 @@
-import { login } from "@lib/data/customer"
+import { login, requestPasswordReset } from "@lib/data/customer"
 import { LOGIN_VIEW } from "@modules/account/templates/login-template"
 import ErrorMessage from "@modules/checkout/components/error-message"
 import { SubmitButton } from "@modules/checkout/components/submit-button"
 import Input from "@modules/common/components/input"
-import { useActionState } from "react"
+import { useActionState, useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 type Props = {
   setCurrentView: (view: LOGIN_VIEW) => void
 }
 
 const Login = ({ setCurrentView }: Props) => {
+  const router = useRouter()
   const [message, formAction] = useActionState(login, null)
+  const [showReset, setShowReset] = useState(false)
+  const [resetState, resetAction] = useActionState(requestPasswordReset, null)
+
+  // On a successful sign-in the auth cookie is set server-side; refresh so the
+  // server-rendered account page re-renders as logged-in instead of keeping this
+  // login form mounted (the "still shows Log in" bug).
+  useEffect(() => {
+    if (message?.state === "success") {
+      router.refresh()
+    }
+  }, [message, router])
 
   return (
     <div
@@ -58,6 +71,60 @@ const Login = ({ setCurrentView }: Props) => {
           Sign in
         </SubmitButton>
       </form>
+      <button
+        type="button"
+        onClick={() => setShowReset((v) => !v)}
+        aria-expanded={showReset}
+        aria-controls="customer-reset-panel"
+        className="text-ui-fg-base text-small-regular underline mt-4"
+        data-testid="forgot-password-button"
+      >
+        Forgot your password?
+      </button>
+      {showReset && (
+        <div
+          id="customer-reset-panel"
+          className="w-full mt-4 border border-ui-border-base rounded-rounded p-4"
+        >
+          {resetState?.state === "sent" ? (
+            <p
+              className="text-small-regular text-ui-fg-base"
+              data-testid="reset-sent-message"
+              role="status"
+            >
+              If an account exists for{" "}
+              <strong>{resetState.email}</strong>, we&apos;ve sent a link to
+              reset your password. Check your inbox and spam folder.
+            </p>
+          ) : (
+            <form className="w-full" action={resetAction}>
+              <p className="text-small-regular text-ui-fg-subtle mb-3">
+                Enter your account email and we&apos;ll send you a link to set a
+                new password.
+              </p>
+              <Input
+                label="Email"
+                name="email"
+                type="email"
+                title="Enter a valid email address."
+                autoComplete="email"
+                required
+                data-testid="reset-email-input"
+              />
+              <ErrorMessage
+                error={resetState?.state === "error" ? resetState.error : null}
+                data-testid="reset-error-message"
+              />
+              <SubmitButton
+                data-testid="send-reset-link-button"
+                className="w-full mt-4"
+              >
+                Send reset link
+              </SubmitButton>
+            </form>
+          )}
+        </div>
+      )}
       <span className="text-center text-ui-fg-base text-small-regular mt-6">
         Not a member?{" "}
         <button

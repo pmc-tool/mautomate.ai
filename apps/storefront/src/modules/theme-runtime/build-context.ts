@@ -12,6 +12,8 @@
 /* it looks. So every value here is data, never markup.                 */
 /* ------------------------------------------------------------------ */
 
+import { buildDocumentSections } from "@modules/cms/render/document"
+
 export type ThemeContext = Record<string, unknown>
 
 type ShopInput = {
@@ -68,13 +70,11 @@ export function homeContext(base: ThemeContext, sections: any[]): ThemeContext {
       // Each section arrives as { id, type, settings } — the theme renders it
       // via sections/<type>.liquid. Commerce-bound sections (product_tabs,
       // category_showcase) are already resolved upstream, so a theme never
-      // fetches anything.
-      sections: (sections ?? []).map((s, i) => ({
-        id: s.id ?? `section-${i}`,
-        type: s.block_type ?? s.type,
-        settings: stripMeta(s),
-        css_class: s.advanced?.cssClasses ?? "",
-      })),
+      // fetches anything. The per-section entry (settings flattening, style
+      // scope, wrap_class / wrap_css) is built by the SHARED document
+      // composer — the same code the editor canvas consumes — so the two
+      // render paths can never disagree about a section's context shape.
+      sections: buildDocumentSections(sections),
     },
   }
 }
@@ -178,11 +178,4 @@ function mapCustomer(c: any): any {
     email: c.email ?? "",
     orders_count: c.orders?.length ?? 0,
   }
-}
-
-/** A section's settings are everything except our internal bookkeeping. */
-function stripMeta(section: any): any {
-  const { id, block_type, type, schema_version, style, advanced, elementStyles, ...rest } =
-    section ?? {}
-  return rest
 }

@@ -3,10 +3,18 @@
 /* ------------------------------------------------------------------ */
 /* Media Library picker (visual editor)                                 */
 /*                                                                     */
-/* A key-gated modal that lets an image field pick an existing media    */
-/* item, upload a new one, or paste a raw URL. Talks to the storefront   */
-/* proxy /api/puck/media (which forwards to the secret-gated backend     */
-/* bridge). Inline styles come from the editor design system.            */
+/* A key-gated FULL-SCREEN BOTTOM SHEET that lets an image field pick an */
+/* existing media item, upload a new one, paste a raw URL, or generate    */
+/* one with AI. Talks to the storefront proxy /api/puck/media (which       */
+/* forwards to the secret-gated backend bridge). Inline styles come from   */
+/* the editor design system.                                              */
+/*                                                                     */
+/* Layout: the panel is anchored to the bottom of the viewport, spans the  */
+/* full width and slides up. On the Library tab it splits into a fixed     */
+/* left "add image" rail and a right grid that fills the rest; on the       */
+/* Generate tab the AI studio simply gets the extra room. Below ~820px the */
+/* columns stack and scroll. Animation is CSS-only and honours             */
+/* prefers-reduced-motion.                                                 */
 /* ------------------------------------------------------------------ */
 
 import React, { useCallback, useEffect, useState } from "react"
@@ -17,6 +25,8 @@ import { useSearchParams } from "next/navigation"
 import {
   accent,
   button,
+  ease,
+  eyebrow,
   field,
   font,
   grey,
@@ -38,33 +48,53 @@ type MediaItem = {
   height?: number | null
 }
 
+/* Full-viewport dim scrim; the sheet is docked to the bottom edge and
+   spans the full width, so the scrim only centres horizontally (irrelevant
+   at 100% width) and pins to flex-end vertically. */
 const overlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
   background: "rgba(15, 19, 25, 0.55)",
   display: "flex",
-  alignItems: "center",
+  alignItems: "flex-end",
   justifyContent: "center",
   zIndex: 100000,
-  padding: 20,
+  padding: 0,
 }
-const modal: React.CSSProperties = {
+/* The sheet itself — full width, tall, only the TOP corners rounded. */
+const sheet: React.CSSProperties = {
   background: grey[0],
-  border: hairline,
-  borderRadius: radius.lg,
-  width: "min(720px, 100%)",
-  maxHeight: "85vh",
+  borderTop: hairline,
+  borderTopLeftRadius: radius.lg,
+  borderTopRightRadius: radius.lg,
+  width: "100%",
+  height: "92vh",
+  maxHeight: "92vh",
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
   boxShadow: shadow.lg,
   fontFamily: font,
 }
+const grabWrap: React.CSSProperties = {
+  flex: "0 0 auto",
+  display: "flex",
+  justifyContent: "center",
+  paddingTop: 8,
+  paddingBottom: 2,
+}
+const grabBar: React.CSSProperties = {
+  width: 40,
+  height: 4,
+  borderRadius: radius.pill,
+  background: grey[30],
+}
 const headerRow: React.CSSProperties = {
+  flex: "0 0 auto",
   display: "flex",
   alignItems: "center",
   gap: 8,
-  padding: "16px 20px",
+  padding: "10px 20px 12px",
   borderBottom: hairline,
 }
 const titleStyle: React.CSSProperties = {
@@ -77,20 +107,47 @@ const closeBtn: React.CSSProperties = {
   marginLeft: "auto",
   color: grey[50],
 }
-const body: React.CSSProperties = {
-  padding: 20,
-  overflowY: "auto",
-}
-const toolbar: React.CSSProperties = {
+const tabBar: React.CSSProperties = {
+  flex: "0 0 auto",
   display: "flex",
-  alignItems: "center",
-  gap: 8,
-  marginBottom: 16,
-  flexWrap: "wrap",
+  borderBottom: hairline,
+  padding: "0 16px",
 }
+/* The region below the tab bar that the active tab fills. */
+const contentRegion: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  display: "flex",
+  overflow: "hidden",
+}
+/* Generate tab wrapper: column so the AI studio stretches to full width;
+   scrolls if its intrinsic height exceeds the sheet. */
+const aiWrap: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+}
+/* Library tab: the two-column shell. Direction / per-column scroll /
+   the narrow-viewport stacking all live in the stylesheet class so a
+   media query can flip them. */
+const colsBase: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+}
+const railInner: React.CSSProperties = {
+  padding: 16,
+  display: "flex",
+  flexDirection: "column",
+}
+const mainInner: React.CSSProperties = {
+  padding: 16,
+}
+const toolbarBtn: React.CSSProperties = { width: "100%" }
 const grid: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
   gap: 12,
 }
 const tile: React.CSSProperties = {
@@ -105,7 +162,7 @@ const tile: React.CSSProperties = {
 }
 const thumb: React.CSSProperties = {
   width: "100%",
-  height: 96,
+  height: 110,
   objectFit: "cover",
   display: "block",
   background: grey[10],
@@ -120,6 +177,26 @@ const tileName: React.CSSProperties = {
   textOverflow: "ellipsis",
   textAlign: "left",
 }
+
+/* Bottom-sheet chrome: slide-up + scrim fade, the responsive column split,
+   and the reduced-motion opt-out. Scoped by ffmedia-* class names. */
+const sheetCss = `
+@keyframes ffmedia-scrim-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes ffmedia-sheet-up { from { transform: translateY(100%) } to { transform: translateY(0) } }
+.ffmedia-scrim { animation: ffmedia-scrim-in 160ms ${ease} both }
+.ffmedia-sheet { animation: ffmedia-sheet-up 240ms ${ease} both }
+.ffmedia-cols { flex-direction: row }
+.ffmedia-rail { width: 380px; max-width: 380px; flex: 0 0 auto; border-right: ${hairline}; overflow-y: auto }
+.ffmedia-main { flex: 1 1 auto; min-width: 0; overflow-y: auto }
+@media (max-width: 820px) {
+  .ffmedia-cols { flex-direction: column; overflow-y: auto }
+  .ffmedia-rail { width: auto; max-width: none; border-right: none; border-bottom: ${hairline}; overflow-y: visible }
+  .ffmedia-main { overflow-y: visible }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ffmedia-scrim, .ffmedia-sheet { animation: none !important }
+}
+`
 
 /** Human labels + what the AI is told to make, per slot. */
 const SLOT_INFO: Record<string, { label: string; size: string; note: string }> = {
@@ -262,14 +339,21 @@ export default function MediaPicker({
   })
 
   return (
-    <div style={overlay} onClick={onClose}>
+    <div className="ffmedia-scrim" style={overlay} onClick={onClose}>
+      <style>{sheetCss}</style>
       <div
-        style={{
-          ...modal,
-          ...(tab === "generate" ? { width: "min(980px, 95vw)", maxWidth: "min(980px, 95vw)" } : null),
-        }}
+        className="ffmedia-sheet"
+        style={sheet}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Choose image"
       >
+        {/* Grab-handle affordance — the bottom-sheet cue. */}
+        <div style={grabWrap}>
+          <div style={grabBar} />
+        </div>
+
         <div style={headerRow}>
           <span style={titleStyle}>Choose image</span>
           <button style={closeBtn} onClick={onClose} title="Close" aria-label="Close" type="button">
@@ -277,7 +361,7 @@ export default function MediaPicker({
           </button>
         </div>
 
-        <div style={{ display: "flex", borderBottom: hairline, padding: "0 16px" }}>
+        <div style={tabBar}>
           <button type="button" style={tabBtn(tab === "library")} onClick={() => setTab("library")}>
             Library
           </button>
@@ -286,93 +370,117 @@ export default function MediaPicker({
           </button>
         </div>
 
-        {tab === "generate" && (
-          <AiImageStudio
-            slot={slot}
-            editorKey={editorKey}
-            products={products as any}
-            onUse={(u) => pick(u)}
-            currentImage={value}
-          />
-        )}
-
-        <div style={{ ...body, display: tab === "library" ? undefined : "none" }}>
-          <div style={toolbar}>
-            <label style={button("accent")}>
-              <UiIcon name="plus" size={14} />
-              {uploading ? "Uploading…" : "Upload"}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={onUpload}
-                disabled={uploading}
-                style={{ display: "none" }}
+        <div style={contentRegion}>
+          {tab === "generate" && (
+            <div style={aiWrap}>
+              <AiImageStudio
+                slot={slot}
+                editorKey={editorKey}
+                products={products as any}
+                onUse={(u) => pick(u)}
+                currentImage={value}
               />
-            </label>
-            <input
-              style={{ ...field(), flex: 1, minWidth: 180, width: "auto" }}
-              value={urlValue}
-              placeholder="…or paste an image URL"
-              onChange={(e) => setUrlValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && urlValue.trim()) pick(urlValue.trim())
-              }}
-            />
-            <button
-              style={{ ...button("primary"), opacity: urlValue.trim() ? 1 : 0.5 }}
-              type="button"
-              disabled={!urlValue.trim()}
-              onClick={() => urlValue.trim() && pick(urlValue.trim())}
-            >
-              Use URL
-            </button>
-          </div>
-
-          {error ? (
-            <div
-              style={{
-                ...type.label,
-                fontFamily: font,
-                color: semantic.dangerFg,
-                background: semantic.dangerBg,
-                border: `1px solid ${semantic.dangerBorder}`,
-                borderRadius: radius.md,
-                padding: "8px 10px",
-                marginBottom: 12,
-              }}
-            >
-              {error}
-            </div>
-          ) : null}
-
-          {loading ? (
-            <div style={{ ...type.body, fontFamily: font, color: grey[50], padding: "24px 0", textAlign: "center" }}>
-              Loading media…
-            </div>
-          ) : items.length === 0 ? (
-            <div style={{ ...type.body, fontFamily: font, color: grey[40], padding: "24px 0", textAlign: "center" }}>
-              No images yet. Upload one or paste a URL above.
-            </div>
-          ) : (
-            <div style={grid}>
-              {items.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  style={{
-                    ...tile,
-                    outline: value && value === m.url ? `2px solid ${accent.base}` : "none",
-                  }}
-                  onClick={() => pick(m.url)}
-                  title={m.original_filename ?? m.url}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={m.url} alt="" style={thumb} />
-                  <div style={tileName}>{m.original_filename ?? m.url}</div>
-                </button>
-              ))}
             </div>
           )}
+
+          {/* Library stays mounted (display toggled) so its list + scroll
+              survive a hop to the Generate tab and back. */}
+          <div
+            className="ffmedia-cols"
+            style={{ ...colsBase, display: tab === "library" ? "flex" : "none" }}
+          >
+            {/* Left rail: add-an-image controls. */}
+            <div className="ffmedia-rail">
+              <div style={railInner}>
+                <div style={{ ...eyebrow(), marginBottom: 10 }}>Add an image</div>
+                <label style={{ ...button("accent"), ...toolbarBtn }}>
+                  <UiIcon name="plus" size={14} />
+                  {uploading ? "Uploading…" : "Upload from device"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={onUpload}
+                    disabled={uploading}
+                    style={{ display: "none" }}
+                  />
+                </label>
+
+                <div style={{ ...eyebrow(), margin: "18px 0 8px" }}>Or paste a URL</div>
+                <input
+                  style={{ ...field() }}
+                  value={urlValue}
+                  placeholder="https://…"
+                  onChange={(e) => setUrlValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && urlValue.trim()) pick(urlValue.trim())
+                  }}
+                />
+                <button
+                  style={{ ...button("primary"), ...toolbarBtn, marginTop: 8, opacity: urlValue.trim() ? 1 : 0.5 }}
+                  type="button"
+                  disabled={!urlValue.trim()}
+                  onClick={() => urlValue.trim() && pick(urlValue.trim())}
+                >
+                  Use URL
+                </button>
+
+                <div style={{ ...type.label, fontFamily: font, color: grey[40], marginTop: 18 }}>
+                  Recommended for this slot: {info.label} · {info.size}
+                </div>
+              </div>
+            </div>
+
+            {/* Right area: the media grid (and its states). */}
+            <div className="ffmedia-main">
+              <div style={mainInner}>
+                {error ? (
+                  <div
+                    style={{
+                      ...type.label,
+                      fontFamily: font,
+                      color: semantic.dangerFg,
+                      background: semantic.dangerBg,
+                      border: `1px solid ${semantic.dangerBorder}`,
+                      borderRadius: radius.md,
+                      padding: "8px 10px",
+                      marginBottom: 12,
+                    }}
+                  >
+                    {error}
+                  </div>
+                ) : null}
+
+                {loading ? (
+                  <div style={{ ...type.body, fontFamily: font, color: grey[50], padding: "24px 0", textAlign: "center" }}>
+                    Loading media…
+                  </div>
+                ) : items.length === 0 ? (
+                  <div style={{ ...type.body, fontFamily: font, color: grey[40], padding: "24px 0", textAlign: "center" }}>
+                    No images yet. Upload one or paste a URL on the left.
+                  </div>
+                ) : (
+                  <div style={grid}>
+                    {items.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        style={{
+                          ...tile,
+                          outline: value && value === m.url ? `2px solid ${accent.base}` : "none",
+                        }}
+                        onClick={() => pick(m.url)}
+                        title={m.original_filename ?? m.url}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={m.url} alt="" style={thumb} />
+                        <div style={tileName}>{m.original_filename ?? m.url}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

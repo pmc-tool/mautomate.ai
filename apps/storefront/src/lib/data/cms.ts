@@ -134,15 +134,22 @@ export interface FooterSettings extends ChromeStyleFields {
 }
 
 export interface ThemeSettings {
+  /**
+   * Brand tokens (U7 — explicit null-inherit): `null` = inherit the active
+   * theme's manifest token; a string is a merchant override. Tenants still on
+   * the legacy shape carry the concrete FF-default strings instead (sentinels)
+   * — every reader must accept BOTH (buildThemeVars/pick and legacyThemeColor
+   * are the shared dual-readers).
+   */
   colors: {
-    primary: string
-    dark: string
-    border: string
-    text: string
-    heading: string
-    bg: string
+    primary: string | null
+    dark: string | null
+    border: string | null
+    text: string | null
+    heading: string | null
+    bg: string | null
   }
-  fonts: { body: string; heading: string }
+  fonts: { body: string | null; heading: string | null }
   /** Owner-defined color tokens (F2a). Emitted as --ff-c-<slug>. */
   custom_colors?: { name: string; value: string }[]
   /** Owner-defined font tokens (F2a). Emitted as --ff-font-c-<slug>. */
@@ -280,7 +287,7 @@ export const CMS_DEFAULTS: ResolvedSettings = {
     og_image: "/learts/assets/images/logo/forever-finds.png",
     twitter_card: "summary_large_image",
   },
-  active_theme: "learts",
+  active_theme: "learts-liquid",
 }
 
 /* ------------------------------------------------------------------ */

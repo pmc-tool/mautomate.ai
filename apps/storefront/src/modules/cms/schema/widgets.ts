@@ -16,7 +16,20 @@
 /* or a <video> tag for direct .mp4 files — never an arbitrary iframe.    */
 /* ------------------------------------------------------------------ */
 
-import type { FieldDef } from "./types"
+import type { BlockSchema, FieldDef } from "./types"
+
+import heroSliderSchema from "./blocks/hero-slider"
+import promoBannerGridSchema from "./blocks/promo-banner-grid"
+import productTabsSchema from "./blocks/product-tabs"
+import dealOfDaySchema from "./blocks/deal-of-day"
+import categoryShowcaseSchema from "./blocks/category-showcase"
+import brandStripSchema from "./blocks/brand-strip"
+import richTextSchema from "./blocks/rich-text"
+import imageWithTextSchema from "./blocks/image-with-text"
+import newsletterSchema from "./blocks/newsletter"
+import instagramGridSchema from "./blocks/instagram-grid"
+import testimonialsSchema from "./blocks/testimonials"
+import imageGallerySchema from "./blocks/image-gallery"
 
 export interface WidgetDef {
   /** stable key (snake-less, lowercase) — matches `widget_type` everywhere. */
@@ -182,11 +195,11 @@ export const WIDGET_SCHEMAS: Record<string, WidgetDef> = {
     fields: [
       {
         name: "url",
-        type: "url",
-        label: "Video URL",
+        type: "video",
+        label: "Video",
         required: true,
         group: "Content",
-        help: "YouTube / Vimeo URL or a direct .mp4 file. Other hosts are not embedded.",
+        help: "Paste a YouTube / Vimeo / .mp4 URL, or generate a clip with AI.",
       },
     ],
     defaults: { url: "" },
@@ -199,12 +212,15 @@ export const WIDGET_SCHEMAS: Record<string, WidgetDef> = {
     fields: [
       {
         name: "icon",
-        type: "text",
+        // 3E: the icon picker. Same stored value shape (the FA5 class
+        // string) — legacy bare classes ("fa-star") keep rendering and are
+        // never rewritten until the merchant picks.
+        type: "icon",
         label: "Icon class",
-        default: "fa-star",
+        default: "fas fa-star",
         required: true,
         group: "Content",
-        help: "Font Awesome class, e.g. fa-star or fa-heart.",
+        help: "Font Awesome class, e.g. fas fa-star or fas fa-heart.",
       },
       {
         name: "size",
@@ -218,7 +234,7 @@ export const WIDGET_SCHEMAS: Record<string, WidgetDef> = {
         step: 1,
       },
     ],
-    defaults: { icon: "fa-star", size: { value: 24, unit: "px" } },
+    defaults: { icon: "fas fa-star", size: { value: 24, unit: "px" } },
   },
 
   html: {
@@ -298,6 +314,92 @@ export const WIDGET_SCHEMAS: Record<string, WidgetDef> = {
   },
 }
 
+/* -------------------- commerce widgets (Elementor structure) -------------------- */
+/*                                                                                  */
+/* Elementor has ONE world: everything is a widget you drop into a column, which is  */
+/* why a "+" is always available. We had two disjoint worlds — 12 fixed commerce     */
+/* SECTIONS rendered by each theme's `sections/<type>.liquid`, and one free-form     */
+/* `container` block holding widgets. This makes the structure Elementor's WITHOUT   */
+/* losing the thing Elementor lacks (commerce sections that automatically match the  */
+/* merchant's theme): each commerce block is ALSO a widget type, and its renderer    */
+/* DELEGATES to the theme's own Liquid section (see render/container-html.ts).       */
+/*                                                                                  */
+/* There is exactly ONE source of truth for their fields and defaults: the block     */
+/* schemas in ./blocks/*. They are DERIVED here, never forked — edit the block file  */
+/* and both the section form and the widget form change together.                    */
+/*                                                                                  */
+/* No backend deploy is needed: apps/backend/src/modules/cms/registry/container.ts   */
+/* validates widgets PERMISSIVELY ("any object with a string widget_type passes;     */
+/* all other keys are passthrough … so new widget types never require a backend      */
+/* deploy") — verified against that file.                                            */
+/* -------------------------------------------------------------------------------- */
+
+/** The widget types that existed before commerce delegation — the palette's
+ *  "Basic elements" grid, kept separate so it does not become a wall of 21 cards. */
+export const BASIC_WIDGET_TYPES: ReadonlySet<string> = new Set(
+  Object.keys(WIDGET_SCHEMAS)
+)
+
+/** The 12 commerce blocks, in the order the section palette lists them. */
+const COMMERCE_BLOCK_SCHEMAS: BlockSchema[] = [
+  heroSliderSchema,
+  promoBannerGridSchema,
+  productTabsSchema,
+  dealOfDaySchema,
+  categoryShowcaseSchema,
+  brandStripSchema,
+  richTextSchema,
+  imageWithTextSchema,
+  newsletterSchema,
+  instagramGridSchema,
+  testimonialsSchema,
+  imageGallerySchema,
+]
+
+/**
+ * Deep-clone a block's `defaultProps` so a freshly added widget never shares a
+ * nested array (a slider's `slides`, a testimonial list) with the schema itself
+ * — editing one widget must not mutate the defaults for the next one.
+ */
+function cloneDefaults(
+  props: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  if (!props) {
+    return {}
+  }
+  try {
+    return JSON.parse(JSON.stringify(props)) as Record<string, unknown>
+  } catch {
+    return { ...props }
+  }
+}
+
+/** Derive a WidgetDef from a BlockSchema — same fields, same defaults, no fork. */
+function widgetFromBlockSchema(schema: BlockSchema): WidgetDef {
+  return {
+    type: schema.type,
+    label: schema.label,
+    icon: schema.icon,
+    fields: schema.fields,
+    defaults: cloneDefaults(
+      schema.defaultProps as Record<string, unknown> | undefined
+    ),
+  }
+}
+
+/** Widget types whose markup comes from the THEME's `sections/<type>.liquid`. */
+export const COMMERCE_WIDGET_TYPES: ReadonlySet<string> = new Set(
+  COMMERCE_BLOCK_SCHEMAS.map((s) => s.type)
+)
+
+export function isCommerceWidget(type: unknown): boolean {
+  return typeof type === "string" && COMMERCE_WIDGET_TYPES.has(type)
+}
+
+for (const schema of COMMERCE_BLOCK_SCHEMAS) {
+  WIDGET_SCHEMAS[schema.type] = widgetFromBlockSchema(schema)
+}
+
 /** Widget types that hold their own columns of widgets (recursive render). */
 export const NESTED_WIDGET_TYPES = new Set(["inner_section"])
 
@@ -312,4 +414,18 @@ export function getWidgetSchema(type: string): WidgetDef | undefined {
 /** All widget schemas, for the "Add widget" picker. */
 export function listWidgetSchemas(): WidgetDef[] {
   return Object.values(WIDGET_SCHEMAS)
+}
+
+/** Only the atomic widgets — the palette's "Basic elements" grid. */
+export function listBasicWidgetSchemas(): WidgetDef[] {
+  return Object.values(WIDGET_SCHEMAS).filter((w) =>
+    BASIC_WIDGET_TYPES.has(w.type)
+  )
+}
+
+/** Only the theme-delegating commerce widgets. */
+export function listCommerceWidgetSchemas(): WidgetDef[] {
+  return COMMERCE_BLOCK_SCHEMAS.map((s) => WIDGET_SCHEMAS[s.type]).filter(
+    Boolean
+  )
 }

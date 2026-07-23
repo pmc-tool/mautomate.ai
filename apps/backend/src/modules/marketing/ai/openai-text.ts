@@ -5,6 +5,7 @@ import type {
   AiToolExecution,
   AiToolRunOptions,
   AiToolRunResult,
+  AiUsageReporter,
 } from "./ai-provider"
 
 /**
@@ -83,6 +84,19 @@ const sleep = (ms: number): Promise<void> =>
 const chatModel = (): string =>
   process.env.MARKETING_TEXT_MODEL ?? (useNovita() ? DEFAULT_MODEL_NOVITA : DEFAULT_MODEL_OPENAI)
 
+/**
+ * Cheap/fast model for TRIVIAL short-text (inline "sparkle" rewrites: shorten,
+ * punch-up, hashtags, translate). Novita-only: an 8B instruct model is ~10-40x
+ * cheaper than Kimi-K2 and more than good enough for a one-line rewrite. On the
+ * OpenAI backend (or when unset) it returns undefined, so the caller falls back
+ * to the default chat model -- a Novita id is never sent to OpenAI. Override the
+ * model via MARKETING_SPARKLE_MODEL.
+ */
+export const cheapTextModel = (): string | undefined =>
+  useNovita()
+    ? process.env.MARKETING_SPARKLE_MODEL || "meta-llama/llama-3.1-8b-instruct"
+    : undefined
+
 /** Serialize a tool result for the model, bounded in size. */
 const serializeToolResult = (result: unknown): string => {
   let text: string
@@ -133,7 +147,10 @@ export class OpenAiTextProvider implements AiTextProvider {
    * POST one chat-completion. Retries a 429/5xx once; a 4xx fails fast. Returns
    * the raw `choices[0].message` object. Throws a clean Error on failure.
    */
-  private async complete(body: Record<string, unknown>): Promise<any> {
+  private async complete(
+    body: Record<string, unknown>,
+    onUsage?: AiUsageReporter
+  ): Promise<any> {
     const apiKey = chatApiKey()
     if (!apiKey) {
       throw new Error("[marketing] chat AI: no OPENAI_API_KEY or NOVITA_API_KEY set")
@@ -164,6 +181,26 @@ export class OpenAiTextProvider implements AiTextProvider {
           const data = (await resp.json()) as any
           const message = data?.choices?.[0]?.message
           if (message && typeof message === "object") {
+            // Best-effort observability: report the resolved model + token usage
+            // (OpenAI/Novita return `usage` alongside `choices`). NEVER throws.
+            if (onUsage) {
+              try {
+                const u = data?.usage ?? {}
+                onUsage({
+                  model:
+                    typeof data?.model === "string"
+                      ? data.model
+                      : (body.model as string | undefined),
+                  usage: {
+                    promptTokens: u.prompt_tokens,
+                    completionTokens: u.completion_tokens,
+                    totalTokens: u.total_tokens,
+                  },
+                })
+              } catch {
+                /* usage reporting must never affect the call */
+              }
+            }
             return message
           }
           lastError = new Error(
@@ -202,7 +239,10 @@ export class OpenAiTextProvider implements AiTextProvider {
     messages.push({ role: "user", content: prompt })
 
     const body: Record<string, unknown> = {
-      model: chatModel(),
+      // Per-call override wins (trivial short-text can pick a cheaper model);
+      // otherwise fall back to the configured default. runTools deliberately
+      // does NOT honor this -- agentic tool-calling stays on the default brain.
+      model: opts.model || chatModel(),
       messages,
       temperature: typeof opts.temperature === "number" ? opts.temperature : 0.7,
     }
@@ -213,7 +253,7 @@ export class OpenAiTextProvider implements AiTextProvider {
       body.response_format = { type: "json_object" }
     }
 
-    const message = await this.complete(body)
+    const message = await this.complete(body, opts.onUsage)
     const content: unknown = message?.content
     if (typeof content === "string" && content.length > 0) {
       return content
@@ -276,7 +316,7 @@ export class OpenAiTextProvider implements AiTextProvider {
         body.tool_choice = "auto"
       }
 
-      const message = await this.complete(body)
+      const message = await this.complete(body, opts.onUsage)
       rounds += 1
 
       const toolCalls: any[] = Array.isArray(message?.tool_calls)
@@ -321,7 +361,7 @@ export class OpenAiTextProvider implements AiTextProvider {
       // Cap reached while still calling tools -> force a final, tool-free answer.
       if (rounds >= maxRounds) {
         truncated = true
-        const finalMessage = await this.complete(baseBody())
+        const finalMessage = await this.complete(baseBody(), opts.onUsage)
         rounds += 1
         const content =
           typeof finalMessage?.content === "string" ? finalMessage.content : ""

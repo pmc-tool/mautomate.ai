@@ -5,6 +5,10 @@ import { validateSlug } from "../../../modules/platform/abuse/quota"
 import { provisionTenantWorkflow } from "../../../workflows/platform/provision-tenant"
 import { createMerchantIdentity } from "../_provision-helpers"
 import jwt from "jsonwebtoken"
+import { notifyMerchant } from "../../../modules/platform/notify"
+import { attributeSignupReferral } from "../../../modules/platform/partners/merchant-referral"
+import { gatewayForCountry } from "../../../modules/platform/billing/provider"
+import { EncryptedConfigService } from "../../../modules/platform/secure-config"
 
 /**
  * POST /platform/signup — public self-serve store creation (shared-pooled model).
@@ -13,12 +17,18 @@ import jwt from "jsonwebtoken"
  * publishable API key. No per-tenant instance, database, or process is created,
  * so provisioning is fast (~2-5s) and cost is flat regardless of tenant count.
  *
- * The workflow is awaited before the response is sent. Medusa's request-scoped
- * container cannot be safely used after the response is dispatched, and the
- * in-memory workflow/event bus does not support reliable background execution.
+ * TRIAL / CARD-FIRST BILLING:
+ * If the visitor picks a PAID plan, we DO NOT hand them the paid plan for free.
+ * The store is provisioned on `free_trial`, and `admin_url` is pointed at the
+ * Paddle checkout for that plan's 7-day trial (card captured, $0 charged now,
+ * the plan price auto-charged after 7 days). The paid plan is only applied when
+ * Paddle confirms the card (webhook → applyPlan). If the visitor abandons the
+ * card step they simply remain on the free trial — never a free paid plan.
+ * Picking the free plan keeps the old cardless straight-to-dashboard flow.
  */
 const ROOT = process.env.PLATFORM_ROOT_DOMAIN ?? "mautomate.ai"
 const PACKAGES = ["free_trial", "starter", "growth", "pro", "scale"]
+const TRIAL_DAYS = 7
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 const recent = new Map<string, number[]>()
 const PER_IP_HOUR = 5
@@ -75,18 +85,37 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(409).json({ message: `an account with ${email} already exists` })
   }
 
-  let trialCredits = 300
+  // Look up the chosen plan (price + name) and the free-trial baseline credits.
+  let planPriceUsd = 0
+  let planName = pkg
   try {
     const [p] = await svc.listPlatformPackages({ key: pkg, active: true }, { take: 1 })
-    if (p?.included_credits != null) trialCredits = Number(p.included_credits)
+    if (p?.price_usd != null) planPriceUsd = Number(p.price_usd)
+    if (p?.name) planName = String(p.name)
   } catch {}
+
+  const isPaidPlan = planPriceUsd > 0
+
+  // Credits granted at provision time. A paid plan is provisioned on free_trial
+  // (card-first), so it gets the free-trial allowance now; the full plan
+  // allowance is granted by the payment webhook once the card is captured.
+  let provisionCredits = 300
+  try {
+    const [fp] = await svc.listPlatformPackages(
+      { key: isPaidPlan ? "free_trial" : pkg, active: true },
+      { take: 1 }
+    )
+    if (fp?.included_credits != null) provisionCredits = Number(fp.included_credits)
+  } catch {}
+
+  const provisionPkg = isPaidPlan ? "free_trial" : pkg
 
   recent.set(ip, [...hits, now])
 
   // Run provisioning synchronously: the request scope is not safe to use after
   // the response is sent, and the in-memory bus cannot reliably queue work.
   const { result, errors } = await provisionTenantWorkflow(req.scope).run({
-    input: { slug, name, package: pkg, trial_credits: trialCredits },
+    input: { slug, name, package: provisionPkg, trial_credits: provisionCredits },
     throwOnError: false,
   })
 
@@ -102,6 +131,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(500).json({ message: "provisioning returned no tenant_id" })
   }
 
+  // Partner referral attribution (?ref=CODE forwarded by the signup form).
+  // Best-effort: a bad code must never fail a signup.
+  const refCode = String(body.ref ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10)
+  if (refCode) {
+    try {
+      await attributeSignupReferral(req.scope, { code: refCode, tenantId, email })
+    } catch {}
+  }
+
   const identity = await createMerchantIdentity(req.scope, { tenantId, email, password, name })
   if (!identity.ok) {
     await svc.updateTenants({ id: tenantId, status: "failed" }).catch(() => undefined)
@@ -113,10 +151,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   await svc.updateTenants({
     id: tenantId,
-    trial_ends_at: new Date(now + 14 * 864e5),
+    trial_ends_at: new Date(now + TRIAL_DAYS * 864e5),
   })
 
   const tenant = await svc.retrieveTenant(tenantId).catch(() => null)
+  await notifyMerchant(req.scope, {
+    tenantId,
+    to: email,
+    merchantName: name,
+    template: "welcome",
+    data: { plan: isPaidPlan ? `${planName} (7-day trial)` : "free trial", trialDays: TRIAL_DAYS },
+  }).catch(() => {})
 
   // Mint a short-lived session for the NEW store's merchant and hand it off in
   // the admin URL (#imp=), so "go to admin" always opens THIS store's dashboard
@@ -132,9 +177,38 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     process.env.JWT_SECRET as string,
     { expiresIn: "30m" }
   )
-  const adminUrl = `https://merchant.${ROOT}/dashboard/overview#imp=${encodeURIComponent(
+
+  const dashboardUrl = `https://merchant.${ROOT}/dashboard/overview#imp=${encodeURIComponent(
     sessionToken
   )}`
+
+  // For a PAID plan: send the visitor to the Paddle 7-day-trial checkout FIRST
+  // (card captured, $0 now). The `imp` token rides along so the checkout page
+  // logs them into THIS store's dashboard after the card is confirmed. If the
+  // gateway is down we fall back to the dashboard rather than blocking signup.
+  let adminUrl = dashboardUrl
+  let checkoutUrl: string | null = null
+  if (isPaidPlan) {
+    try {
+      const cfg = new EncryptedConfigService(req.scope)
+      const gateway = gatewayForCountry((tenant as any)?.billing_country ?? "US", cfg)
+      if ((await gateway.isConfigured()) && gateway.createSubscriptionCheckout) {
+        const out = await gateway.createSubscriptionCheckout({
+          tenant_id: tenantId,
+          plan_key: pkg,
+          plan_name: planName,
+          amount_usd: planPriceUsd,
+          success_url: `https://merchant.${ROOT}/dashboard/overview`,
+          cancel_url: `https://merchant.${ROOT}/dashboard/billing`,
+        })
+        if (out.ok && out.data?.url) {
+          const sep = out.data.url.includes("?") ? "&" : "?"
+          checkoutUrl = `${out.data.url}${sep}imp=${encodeURIComponent(sessionToken)}`
+          adminUrl = checkoutUrl
+        }
+      }
+    } catch {}
+  }
 
   res.status(201).json({
     slug,
@@ -143,6 +217,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     status: tenant?.status ?? "live",
     store_url: `https://${slug}.${ROOT}`,
     admin_url: adminUrl,
+    checkout_url: checkoutUrl,
+    dashboard_url: dashboardUrl,
+    trial_days: TRIAL_DAYS,
+    requires_card: isPaidPlan,
+    plan: pkg,
     merchant_login_url: `https://merchant.${ROOT}`,
     tenant_id: tenantId,
     merchant_id: identity.merchant_id,

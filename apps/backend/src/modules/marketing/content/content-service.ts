@@ -2,6 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 
 import { MARKETING_MODULE } from "../index"
 import { getAiTextProvider } from "../ai/registry"
+import { cheapTextModel } from "../ai/openai-text"
 import { buildBrandContext } from "./brand-context"
 
 /**
@@ -340,7 +341,7 @@ export const generatePost = async (
   } = input
 
   const mk = resolveMk(container)
-  const provider = getAiTextProvider()
+  const provider = getAiTextProvider(tenantId)
 
   let body: string | null = null
   let hashtags: string[] = []
@@ -548,7 +549,7 @@ export const generateText = async (
   input: GenerateTextInput
 ): Promise<string> => {
   const { tenantId, prompt, brandVoiceId, productIds, action = "custom" } = input
-  const provider = getAiTextProvider()
+  const provider = getAiTextProvider(tenantId)
   if (!provider) {
     return ""
   }
@@ -564,6 +565,10 @@ export const generateText = async (
     const out = await provider.generate(userPrompt, {
       system,
       temperature: 0.6,
+      // Trivial inline rewrite -- route to the cheap/fast model (Novita 8B) when
+      // available; undefined on OpenAI falls back to the default. Metering is
+      // unchanged: the metered/traced wrapper still bills 1 ai_text unit.
+      model: cheapTextModel(),
     })
     return typeof out === "string" ? out.trim() : ""
   } catch {
@@ -612,7 +617,7 @@ export const reworkPost = async (
     userId,
   })
 
-  const provider = getAiTextProvider()
+  const provider = getAiTextProvider(tenantId)
   if (!provider) {
     return { post, changed: false, needs_ai: true }
   }
@@ -699,7 +704,7 @@ export const tailorForPlatform = async (
     return { target: null, changed: false }
   }
 
-  const provider = getAiTextProvider()
+  const provider = getAiTextProvider(tenantId)
   if (!provider) {
     return { target, changed: false, needs_ai: true }
   }

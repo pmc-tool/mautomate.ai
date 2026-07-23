@@ -39,8 +39,10 @@ export type BlockType = (typeof BLOCK_TYPES)[number]
  * A block renderer. It receives the RESOLVED block data spread as props
  * (plus the active region's `countryCode`, which the product/category blocks
  * need and the rest ignore). Kept as `any` because each block has its own
- * data interface (see modules/cms/blocks/*); the data CONTRACT is enforced by
- * the shared block data shapes, not by this map's generic.
+ * data interface; the data CONTRACT is enforced by the shared block data
+ * shapes, not by this map's generic. NOTE (Phase 2): the React CMS block
+ * renderers are deleted — every theme ships `blocks: {}` and CMS pages render
+ * through the Liquid engine; this type remains for the manifest shape only.
  */
 export type BlockComponent = ComponentType<any>
 

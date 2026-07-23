@@ -131,6 +131,15 @@ export type CreditsResponse = {
   has_more?: boolean
 }
 
+export type OverviewRange = { from?: string; to?: string; label?: string }
+
+export type OverviewSeriesPoint = {
+  key: string
+  label: string
+  sales: number
+  orders: number
+}
+
 export type OverviewStats = {
   totalSales: number
   ordersThisMonth: number
@@ -138,6 +147,9 @@ export type OverviewStats = {
   customers: number
   creditBalance: number
   currencyCode: string
+  periodLabel?: string
+  granularity?: "day" | "month"
+  series?: OverviewSeriesPoint[]
 }
 
 export class ApiError extends Error {
@@ -372,38 +384,136 @@ export async function getRecentOrders(token: string, limit = 5): Promise<Order[]
   return (orders || []).slice(0, limit)
 }
 
-export async function fetchOverview(token: string): Promise<{
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : `${n}`
+}
+
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
+function monthKey(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`
+}
+
+/**
+ * Build a sales/orders time series across [from, to] (or across the span of the
+ * returned orders when the range is open). Uses day buckets for spans up to ~62
+ * days and month buckets beyond that, so the chart stays readable for any period.
+ */
+function buildOverviewSeries(
+  orders: Order[],
+  from?: string,
+  to?: string
+): { granularity: "day" | "month"; series: OverviewSeriesPoint[] } {
+  const times = (orders || []).map((o) => new Date(o.created_at).getTime())
+  const now = Date.now()
+  const start = from ? new Date(from) : new Date(times.length ? Math.min(...times) : now)
+  const end = to ? new Date(to) : new Date(times.length ? Math.max(...times) : now)
+
+  const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+  const spanDays = Math.floor((endDay.getTime() - startDay.getTime()) / 86400000) + 1
+  const granularity: "day" | "month" = spanDays > 62 ? "month" : "day"
+
+  const buckets = new Map<string, OverviewSeriesPoint>()
+  const order: string[] = []
+
+  if (granularity === "day") {
+    for (let i = 0; i < spanDays; i++) {
+      const d = new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate() + i)
+      const key = dayKey(d)
+      buckets.set(key, {
+        key,
+        label: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        sales: 0,
+        orders: 0,
+      })
+      order.push(key)
+    }
+  } else {
+    const cur = new Date(startDay.getFullYear(), startDay.getMonth(), 1)
+    const last = new Date(endDay.getFullYear(), endDay.getMonth(), 1)
+    while (cur <= last) {
+      const key = monthKey(cur)
+      buckets.set(key, {
+        key,
+        label: cur.toLocaleDateString(undefined, { month: "short", year: "2-digit" }),
+        sales: 0,
+        orders: 0,
+      })
+      order.push(key)
+      cur.setMonth(cur.getMonth() + 1)
+    }
+  }
+
+  for (const o of orders || []) {
+    const d = new Date(o.created_at)
+    const key = granularity === "day" ? dayKey(d) : monthKey(d)
+    const bucket = buckets.get(key)
+    if (bucket) {
+      bucket.sales += o.total ?? 0
+      bucket.orders += 1
+    }
+  }
+
+  return { granularity, series: order.map((k) => buckets.get(k)!) }
+}
+
+export async function fetchOverview(
+  token: string,
+  range?: OverviewRange
+): Promise<{
   stats: OverviewStats
   recentOrders: Order[]
   products: Product[]
 }> {
+  const from = range?.from
+  const to = range?.to
+  const scoped = Boolean(from || to)
+
   const [{ products }, { orders }, { customers }, { balance = 0 }] = await Promise.all([
     listProducts(token),
-    listOrders(token),
+    listOrders(token, scoped ? { from, to } : {}),
     listCustomers(token),
     getCredits(token),
   ])
 
-  const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const fromTs = from ? new Date(from).getTime() : null
+  const toTs = to ? new Date(to).getTime() : null
+  const inRange = (iso: string) => {
+    const t = new Date(iso).getTime()
+    if (fromTs !== null && t < fromTs) return false
+    if (toTs !== null && t > toTs) return false
+    return true
+  }
 
-  const totalSales = (orders || []).reduce((sum, o) => sum + (o.total ?? 0), 0)
-  const ordersThisMonth = (orders || []).filter((o) => new Date(o.created_at) >= startOfMonth).length
+  const periodOrders = scoped ? (orders || []).filter((o) => inRange(o.created_at)) : orders || []
+  const totalSales = periodOrders.reduce((sum, o) => sum + (o.total ?? 0), 0)
+  const ordersThisMonth = periodOrders.length
   const productsLive = (products || []).filter(
     (p) => p.status === "published" && (p.metadata as any)?.is_sample !== true
   ).length
+  const customersInRange = scoped
+    ? (customers || []).filter((c) => inRange(c.created_at))
+    : customers || []
   const currencyCode = orders?.[0]?.currency_code || "USD"
+
+  const { granularity, series } = buildOverviewSeries(periodOrders, from, to)
 
   return {
     stats: {
       totalSales,
       ordersThisMonth,
       productsLive,
-      customers: customers?.length ?? 0,
+      customers: customersInRange.length,
       creditBalance: balance ?? 0,
       currencyCode,
+      periodLabel: range?.label,
+      granularity,
+      series,
     },
-    recentOrders: (orders || []).slice(0, 5),
+    recentOrders: periodOrders.slice(0, 5),
     products: products || [],
   }
 }
@@ -768,6 +878,135 @@ export async function createCallAgent(
   })
 }
 
+
+// -----------------------------
+// Call Center — phone numbers
+// -----------------------------
+
+export type CallPhoneNumber = {
+  id: string
+  e164: string
+  provider: "twilio" | "vonage"
+  /** Carrier-side id when the number was bought THROUGH the platform; null for
+   * numbers the merchant owns at their own carrier account. */
+  provider_number_id?: string | null
+  country?: string | null
+  agent_id: string | null
+  label: string | null
+  active: boolean
+  created_at?: string
+}
+
+export type AvailablePhoneNumber = {
+  e164: string
+  friendly: string
+  locality: string | null
+  region: string | null
+  country: string
+  capabilities: { voice: boolean; sms: boolean }
+  monthly_credits: number
+}
+
+/** GET /merchant/call-center/phone-numbers */
+export async function listCallPhoneNumbers(token: string): Promise<{
+  phone_numbers: CallPhoneNumber[]
+  providers: Record<string, boolean>
+  monthly_credits: number
+}> {
+  return request("/merchant/call-center/phone-numbers", { token })
+}
+
+/** GET /merchant/call-center/phone-numbers/available — search buyable numbers. */
+export async function searchAvailablePhoneNumbers(
+  token: string,
+  params: { provider: string; country: string; type: string; contains?: string }
+): Promise<{ numbers: AvailablePhoneNumber[]; monthly_credits: number }> {
+  const q = new URLSearchParams({
+    provider: params.provider,
+    country: params.country,
+    type: params.type,
+  })
+  if (params.contains) q.set("contains", params.contains)
+  return request(`/merchant/call-center/phone-numbers/available?${q.toString()}`, { token })
+}
+
+/** POST /merchant/call-center/phone-numbers/buy — buy at the carrier + map. */
+export async function buyCallPhoneNumber(
+  token: string,
+  body: { provider: string; e164: string; country: string; agent_id?: string; label?: string }
+): Promise<{ phone_number: CallPhoneNumber; message?: string; inbound_configured?: boolean }> {
+  return request("/merchant/call-center/phone-numbers/buy", { method: "POST", token, body })
+}
+
+/** POST /merchant/call-center/phone-numbers — register a number you own (BYO). */
+export async function registerCallPhoneNumber(
+  token: string,
+  body: { e164: string; provider?: string; agent_id?: string; label?: string }
+): Promise<{ phone_number: CallPhoneNumber }> {
+  return request("/merchant/call-center/phone-numbers", { method: "POST", token, body })
+}
+
+/** POST /merchant/call-center/phone-numbers/:id — attach agent / relabel / toggle. */
+export async function updateCallPhoneNumber(
+  token: string,
+  id: string,
+  body: { agent_id?: string; label?: string; active?: boolean }
+): Promise<{ phone_number: CallPhoneNumber }> {
+  return request(`/merchant/call-center/phone-numbers/${id}`, { method: "POST", token, body })
+}
+
+/** DELETE /merchant/call-center/phone-numbers/:id — release/remove. */
+export async function deleteCallPhoneNumber(
+  token: string,
+  id: string
+): Promise<{ id: string; deleted: boolean; carrier_released?: boolean | null }> {
+  return request(`/merchant/call-center/phone-numbers/${id}`, { method: "DELETE", token })
+}
+
+// -----------------------------
+// Call Center — human transfers (incoming-call ring)
+// -----------------------------
+
+export type CallTransfer = {
+  id: string
+  call_id: string
+  status: "ringing" | "answered" | "declined" | "missed" | "canceled"
+  channel: "web" | "phone"
+  caller_number: string | null
+  created_at: string
+}
+
+/** GET /merchant/call-center/transfers — the dashboard's incoming-call feed. */
+export async function listCallTransfers(
+  token: string,
+  status: string = "ringing"
+): Promise<{ transfers: CallTransfer[] }> {
+  return request(`/merchant/call-center/transfers?status=${encodeURIComponent(status)}`, { token })
+}
+
+/** POST answer — join the caller's live room in the browser. */
+export async function answerCallTransfer(
+  token: string,
+  id: string
+): Promise<{ transfer_id: string; status: string; room_url: string; token: string; caller_number: string | null }> {
+  return request(`/merchant/call-center/transfers/${id}`, {
+    method: "POST",
+    token,
+    body: { action: "answer" },
+  })
+}
+
+/** POST decline. */
+export async function declineCallTransfer(
+  token: string,
+  id: string
+): Promise<{ transfer_id: string; status: string }> {
+  return request(`/merchant/call-center/transfers/${id}`, {
+    method: "POST",
+    token,
+    body: { action: "decline" },
+  })
+}
 
 // Call Agent — training definition + editor
 // -----------------------------
@@ -3955,10 +4194,13 @@ export async function listExchanges(
 
 // Shape mirrors formatPriceList() in price-lists/route.ts. `expires_at` maps to
 // the pricing module's `ends_at` server-side.
+export type PriceListType = "sale" | "override"
+
 export type PriceList = {
   id: string
   title: string
   description?: string | null
+  type?: PriceListType
   status: "draft" | "active" | "inactive"
   starts_at?: string | null
   expires_at?: string | null
@@ -3967,13 +4209,8 @@ export type PriceList = {
   updated_at?: string
 }
 
-// A single price row. NOTE: the backend (CreatePriceListSchema in
-// price-lists/route.ts) REQUIRES `variant_id` on every price and rejects the
-// request otherwise. `variant_id` is optional here only so the current create
-// page (which does not yet supply one) still type-checks — the POST will 400
-// until the page adds a variant selector.
 export type PriceListPriceInput = {
-  variant_id?: string
+  variant_id: string
   amount: number
   currency_code: string
 }
@@ -3981,23 +4218,47 @@ export type PriceListPriceInput = {
 export type CreatePriceListInput = {
   title: string
   description?: string
+  type?: PriceListType
   status?: "draft" | "active" | "inactive"
+  customer_group_ids?: string[]
   prices: PriceListPriceInput[]
   starts_at?: string | null
   expires_at?: string | null
 }
 
-// NOTE: the backend PUT (UpdatePriceListSchema) validates only
-// title/description/status/starts_at/expires_at and IGNORES `prices`. It is
-// accepted here so the edit page type-checks, but price edits are a no-op until
-// the backend adds price mutation support.
+// Full desired set: on the backend PUT, `customer_group_ids` and `prices` each
+// replace the stored set (the route diffs prices into create/update/delete).
 export type UpdatePriceListInput = {
   title?: string
   description?: string | null
+  type?: PriceListType
   status?: "draft" | "active" | "inactive"
+  customer_group_ids?: string[]
   prices?: PriceListPriceInput[]
   starts_at?: string | null
   expires_at?: string | null
+}
+
+export type PriceListDetailPrice = {
+  id: string
+  amount: number
+  currency_code: string
+  variant_id: string | null
+  variant_title: string | null
+  product_id: string | null
+  product_title: string | null
+}
+
+export type PriceListDetail = {
+  id: string
+  title: string
+  description?: string | null
+  type: PriceListType
+  status: "draft" | "active" | "inactive"
+  starts_at?: string | null
+  expires_at?: string | null
+  customer_group_ids: string[]
+  prices: PriceListDetailPrice[]
 }
 
 export async function listPriceLists(
@@ -4023,8 +4284,8 @@ export async function createPriceList(
 export async function getPriceList(
   token: string,
   id: string
-): Promise<{ price_list: PriceList }> {
-  return request<{ price_list: PriceList }>(`/merchant/price-lists/${id}`, { token })
+): Promise<{ price_list: PriceListDetail }> {
+  return request<{ price_list: PriceListDetail }>(`/merchant/price-lists/${id}`, { token })
 }
 
 export async function updatePriceList(
@@ -7902,6 +8163,32 @@ export async function generateAdVideo(
   return request("/merchant/ads/ai/video", { method: "POST", token, body: input })
 }
 
+export async function getAdStrategy(
+  token: string,
+  input: { budget_usd?: number; answers?: Record<string, string>; notes?: string } = {}
+): Promise<{
+  recommendation: {
+    goal: "sales" | "traffic" | "awareness"
+    daily_budget: number
+    countries: string[]
+    genders: "all" | "female" | "male"
+    age_min: number
+    age_max: number
+    creative_angle: string
+  }
+  why: Record<string, string>
+  questions: { field: string; ask: string }[]
+  confidence: string
+  evidence: {
+    orders_analyzed: number
+    top_countries: { code: string; count: number; pct: number }[]
+    products_in_catalog: number
+    has_sales: boolean
+  }
+}> {
+  return request("/merchant/ads/strategy", { method: "POST", token, body: input })
+}
+
 // --- Advertising autopilot ---------------------------------------------------
 
 export type AdsRuleInfo = {
@@ -7984,4 +8271,176 @@ export async function runAdsAutopilotNow(
   token: string
 ): Promise<{ summary: AdsAutopilotRun }> {
   return request("/merchant/ads/autopilot/run", { method: "POST", token })
+}
+
+/* ------------------------------------------------------------------ *
+ * Password recovery (merchant persona)
+ *
+ * Both routes are UNAUTHENTICATED entry points into the control-plane auth
+ * provider, proxied same-origin like every other /auth/* call.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Request a password-reset email. The backend ALWAYS returns 201 and never
+ * reveals whether an account exists for the identifier (no user enumeration),
+ * so a resolved promise here means "the request was accepted" — not "an account
+ * was found". Only a network/gateway failure rejects.
+ */
+export async function requestMerchantPasswordReset(
+  identifier: string
+): Promise<void> {
+  const res = await fetch(apiUrl("/auth/merchant/emailpass/reset-password"), {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "text/plain" },
+    body: JSON.stringify({ identifier }),
+  })
+  if (!res.ok) {
+    throw new ApiError(
+      await httpErrorMessage(res, "Could not send the reset link"),
+      res.status
+    )
+  }
+}
+
+/**
+ * Confirm a new password using the single-use token from the reset email. The
+ * token travels as a Bearer credential (it is NOT a session token). A 4xx here
+ * means the token is expired, already used, or malformed.
+ */
+export async function updateMerchantPassword(
+  token: string,
+  password: string
+): Promise<void> {
+  const res = await fetch(apiUrl("/auth/merchant/emailpass/update"), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ password }),
+  })
+  if (!res.ok) {
+    throw new ApiError(
+      await httpErrorMessage(res, "This reset link is invalid or has expired"),
+      res.status
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mobile App (/merchant/mobile-app/*) — the merchant brands their own
+// CUSTOMER-facing shopper app (white-label), can request a self-serve build,
+// or pay for done-for-you publishing. The UI NEVER sends a price/amount: it
+// sends ONLY the tier, and the server owns the money. Every function here
+// degrades gracefully (callers catch) so the panel renders before the backend
+// routes are live.
+// ---------------------------------------------------------------------------
+
+export type MobileAppConfig = {
+  app_name: string
+  icon_url: string | null
+  accent_color: string | null
+  android_bundle_id: string | null
+  ios_bundle_id: string | null
+  status: string | null
+}
+
+export type MobileAppBuildResponse = {
+  request_id: string
+  status: string
+  download_url?: string | null
+}
+
+/** A single done-for-you tier as PRICED BY THE SERVER. Amounts are display-only
+ *  (already formatted or numeric with a currency); the UI never sends them back. */
+export type MobileAppServiceTier = {
+  tier: "play" | "full"
+  label?: string | null
+  description?: string | null
+  regular_usd?: number | null
+  launch_usd?: number | null
+  regular_cents?: number | null
+  launch_cents?: number | null
+  discount_pct?: number | null
+}
+
+export type MobileAppService = {
+  status?: string | null
+  request_id?: string | null
+  /** The tenant's effective publish-service order, as reported by the server:
+   *  none | awaiting_payment | paid | in_progress | published | payment_mismatch. */
+  service?: {
+    state: string
+    tier?: string | null
+    amount_paid_usd?: number | null
+    order_id?: string | null
+    updated_at?: string | null
+  } | null
+  tiers?: MobileAppServiceTier[]
+}
+
+export async function getMobileAppConfig(token: string): Promise<MobileAppConfig> {
+  return request("/merchant/mobile-app/config", { token })
+}
+
+export async function updateMobileAppConfig(
+  token: string,
+  body: Partial<MobileAppConfig>
+): Promise<MobileAppConfig> {
+  return request("/merchant/mobile-app/config", { method: "PUT", token, body })
+}
+
+export async function requestMobileAppBuild(
+  token: string
+): Promise<MobileAppBuildResponse> {
+  return request("/merchant/mobile-app/build-request", {
+    method: "POST",
+    token,
+    body: {},
+  })
+}
+
+export type MobileAppBuildStatus = {
+  requests: {
+    request_id: string
+    status: string
+    download_url: string | null
+    created_at: string
+  }[]
+  latest_status: string | null
+  download_url: string | null
+}
+
+/** Current state of the free self-serve build pipeline. */
+export async function getMobileAppBuildStatus(
+  token: string
+): Promise<MobileAppBuildStatus> {
+  return request("/merchant/mobile-app/build-request", { token })
+}
+
+export async function getMobileAppService(token: string): Promise<MobileAppService> {
+  return request("/merchant/mobile-app/service", { token })
+}
+
+/** Start a REAL Stripe checkout for a done-for-you tier. The UI sends ONLY the
+ *  tier — never an amount. Returns the hosted checkout URL to redirect to. */
+export async function startMobileAppCheckout(
+  token: string,
+  tier: "play" | "full"
+): Promise<{ checkout_url?: string; message?: string }> {
+  return request("/merchant/mobile-app/checkout", {
+    method: "POST",
+    token,
+    body: { tier },
+  })
+}
+
+/** Upload an app icon, reusing the setup logo uploader (same media pipeline the
+ *  dashboard already uses for the store logo). Returns the stored URL, which the
+ *  caller persists via updateMobileAppConfig({ icon_url }). */
+export async function uploadMobileAppIcon(
+  token: string,
+  file: File
+): Promise<{ url: string }> {
+  return uploadSetupLogo(token, file)
 }

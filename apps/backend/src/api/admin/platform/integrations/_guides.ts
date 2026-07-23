@@ -128,7 +128,7 @@ export const GUIDES: PlatformGuide[] = [
         title: "Add the products the platform uses",
         details: [
           "From the app dashboard add ALL of: 'Facebook Login for Business', 'Messenger', 'Instagram', 'Webhooks', 'Marketing API'. Add 'WhatsApp' too if we are enabling WhatsApp messaging.",
-          "Facebook Login for Business → Settings → Valid OAuth Redirect URIs: paste all three redirect URIs below, one per line. Leave 'Client OAuth login' and 'Web OAuth login' ON, 'Enforce HTTPS' ON.",
+          "Facebook Login for Business → Settings → Valid OAuth Redirect URIs: paste the three redirect URIs below — each one ENDS IN /callback — one per line. (These are the OAuth redirect URIs, NOT the webhook URLs.) Leave 'Client OAuth login' and 'Web OAuth login' ON, 'Enforce HTTPS' ON.",
         ],
         copy: [
           { label: "Redirect URI — Facebook posting", value: `${B}/marketing-oauth/facebook/callback` },
@@ -139,7 +139,7 @@ export const GUIDES: PlatformGuide[] = [
       {
         title: "Webhooks (messaging inboxes)",
         details: [
-          "Messenger → Settings → Webhooks: Callback URL = the Messenger webhook below. Verify Token = invent a long random string, paste it BOTH into Meta and into the 'Messenger Webhook Verify Token' field on this page (they must match exactly). Subscribe to: messages, messaging_postbacks.",
+          "Messenger → Settings → Webhooks: Callback URL = the Messenger webhook below (this webhook URL has NO /callback — it is a DIFFERENT URL from the OAuth redirect URIs in the previous step). Verify Token = invent a long random string, paste it BOTH into Meta and into the 'Messenger Webhook Verify Token' field on this page (they must match exactly). Subscribe to: messages, messaging_postbacks.",
           "Instagram → Webhooks: same procedure with the Instagram webhook URL + the 'Instagram Webhook Verify Token' field. Subscribe to: messages.",
           "WhatsApp (if enabling) → Configuration: same procedure with the WhatsApp webhook + its verify token field. Subscribe to: messages.",
           "Meta will call the URL the moment you click Verify — the field on this page must be SAVED FIRST or verification fails.",

@@ -6,7 +6,7 @@ import SkeletonRelatedProducts from "@modules/skeletons/templates/skeleton-relat
 import { notFound } from "next/navigation"
 import { HttpTypes } from "@medusajs/types"
 
-import LeartsActionsWrapper from "./learts-actions-wrapper"
+import BaseActionsWrapper from "./base-actions-wrapper"
 
 type ProductTemplateProps = {
   product: HttpTypes.StoreProduct
@@ -49,7 +49,7 @@ const ProductTemplate: React.FC<ProductTemplateProps> = ({
                   </div>
                 }
               >
-                <LeartsActionsWrapper id={product.id} region={region} />
+                <BaseActionsWrapper id={product.id} region={region} />
               </Suspense>
             </div>
           </div>

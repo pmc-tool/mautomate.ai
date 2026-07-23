@@ -13,7 +13,9 @@ export const metadata: Metadata = {
 export default async function Cart() {
   const cart = await retrieveCart().catch((error) => {
     console.error(error)
-    return notFound()
+    // Never dead-end on a 404: the cart template renders a friendly empty state
+    // when the cart is null/empty.
+    return null
   })
 
   const customer = await retrieveCustomer()

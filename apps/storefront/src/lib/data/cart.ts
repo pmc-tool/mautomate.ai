@@ -4,6 +4,7 @@ import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
 import { HttpTypes } from "@medusajs/types"
 import { revalidateTag } from "next/cache"
+import { headers as nextHeaders } from "next/headers"
 import { redirect } from "next/navigation"
 import {
   getAuthHeaders,
@@ -362,12 +363,30 @@ export async function submitPromotionForm(
 }
 
 // TODO: Pass a POJO instead of a form entity here
+/**
+ * Set the cart's shipping/billing address via the marketplace endpoint, which
+ * accepts any country the seller ships to (currency lives on the region; the
+ * customer's country does not have to be "in" it). See the backend route
+ * /store/carts/:id/address.
+ */
+export async function setCartAddresses(
+  cartId: string,
+  data: { shipping_address?: any; billing_address?: any; email?: any }
+) {
+  const headers = { ...(await getAuthHeaders()) }
+  return sdk.client.fetch(`/store/carts/${cartId}/address`, {
+    method: "POST",
+    body: data,
+    headers,
+  })
+}
+
 export async function setAddresses(currentState: unknown, formData: FormData) {
   try {
     if (!formData) {
       throw new Error("No form data found when setting addresses")
     }
-    const cartId = getCartId()
+    const cartId = await getCartId()
     if (!cartId) {
       throw new Error("No existing cart found when setting addresses")
     }
@@ -404,14 +423,23 @@ export async function setAddresses(currentState: unknown, formData: FormData) {
         province: formData.get("billing_address.province"),
         phone: formData.get("billing_address.phone"),
       }
-    await updateCart(data)
+    await setCartAddresses(cartId, data)
   } catch (e: any) {
     return e.message
   }
 
-  redirect(
-    `/${formData.get("shipping_address.country_code")}/checkout?step=delivery`
-  )
+  // Keep the shopper on the SAME storefront locale. The seller region is
+  // country-less (marketplace: currency on the region, customer country on
+  // the address), so the store only serves its default locale path —
+  // redirecting to the customer country (e.g. /bd) would 404. The chosen
+  // country is already saved on the shipping address.
+  let cc = "us"
+  try {
+    const ref = (await nextHeaders()).get("referer") || ""
+    const m = ref.match(/\/\/[^/]+\/([a-z]{2})(?:[/?]|$)/i)
+    if (m) cc = m[1].toLowerCase()
+  } catch {}
+  redirect(`/${cc}/checkout?step=delivery`)
 }
 
 /**

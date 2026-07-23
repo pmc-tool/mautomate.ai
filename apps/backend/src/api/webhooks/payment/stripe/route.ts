@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { notifyMerchant } from "../../../../modules/platform/notify"
 
 import { getLedger } from "../../../../modules/platform/credits/metering"
 import {
@@ -7,7 +8,10 @@ import {
 } from "../../../../modules/platform/billing/provider"
 import { EncryptedConfigService } from "../../../../modules/platform/secure-config"
 import { PLATFORM_MODULE } from "../../../../modules/platform"
-import { TIERS } from "../../../../modules/platform/pricing/price-book"
+import { TIERS, CREDIT_USD } from "../../../../modules/platform/pricing/price-book"
+import { accruePartnerCommission } from "../../../../modules/platform/partners/commission"
+import { grantMerchantReferralReward } from "../../../../modules/platform/partners/merchant-referral"
+import { fulfillMobileAppPublish } from "../../../../modules/platform/mobile-app/fulfill"
 
 /**
  * The one place money turns into credits.
@@ -116,12 +120,43 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             error: out.ok ? undefined : out.error,
           })
         }
+        // A paid done-for-you app-store publishing service. Verify the amount
+        // Stripe VERIFIED against the tier constant (never client metadata) and
+        // record the paid publish order for ops. Idempotent on the order + event.
+        if (event.purchase_kind === "mobile_app_publish" && event.purchase_ref) {
+          const out = await fulfillMobileAppPublish(req.scope, {
+            ref: event.purchase_ref,
+            amountPaidUsd: event.amount_paid_usd,
+            eventId: event.external_event_id,
+            tenantId: event.tenant_id,
+          })
+          return res.status(200).json({
+            received: true,
+            processed: out.ok,
+            kind: "mobile_app_publish",
+            order_id: out.order_id,
+            tier: out.tier,
+            error: out.ok ? undefined : out.error,
+          })
+        }
         // A subscription checkout carries a plan; a top-up carries credits.
         if (event.plan_key) {
           const { granted } = await applyPlan(event.tenant_id, event.plan_key, event.period_end, {
             customer: event.stripe_customer_id,
             subscription: event.stripe_subscription_id,
           })
+          await accruePartnerCommission(req.scope, {
+            tenantId: event.tenant_id,
+            source: "subscription",
+            sourceRef: idem,
+            baseCents: Math.round((planFor(event.plan_key)?.price_usd ?? 0) * 100),
+            meta: { plan: event.plan_key },
+          }).catch(() => undefined)
+          await grantMerchantReferralReward(req.scope, {
+            tenantId: event.tenant_id,
+            sourceRef: idem,
+          }).catch(() => undefined)
+          await notifyMerchant(req.scope, { tenantId: event.tenant_id, template: "subscription_activated", data: { plan: event.plan_key, includedCredits: granted, amountUsd: planFor(event.plan_key)?.price_usd, period: "mo" } }).catch(() => {})
           return res.status(200).json({
             received: true,
             processed: true,
@@ -131,17 +166,48 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           })
         }
         if (event.credits) {
-          await ledger.credit(event.tenant_id, event.credits, {
+          // SECURITY INVARIANT (top-up underpayment, P1): `event.credits` only
+          // FLAGS this as a top-up session; the credits actually GRANTED are
+          // derived from the amount Stripe VERIFIED was paid
+          // (event.amount_paid_usd, from session.amount_total), NEVER from the
+          // client-influenced metadata credits/amount_usd. So a session forged
+          // with metadata.credits=1,000,000 while paying $1 grants only 100
+          // credits. 1 credit = CREDIT_USD → credits = round(paid_usd / CREDIT_USD).
+          const paidUsd = Number(event.amount_paid_usd ?? 0)
+          const grantedCredits =
+            paidUsd > 0 ? Math.round(paidUsd / CREDIT_USD) : 0
+          if (grantedCredits <= 0) {
+            // No verified charge → grant nothing (fail-closed).
+            return res.status(200).json({
+              received: true,
+              processed: false,
+              kind: "topup",
+              reason: "no_verified_amount",
+            })
+          }
+          await ledger.credit(event.tenant_id, grantedCredits, {
             type: "topup",
             source: "topup", // PURCHASED — never expires
             idempotencyKey: idem,
-            meta: { description: `Stripe top-up ($${event.amount_usd ?? "?"})` },
+            meta: { description: `Stripe top-up ($${paidUsd})` },
           })
+          await accruePartnerCommission(req.scope, {
+            tenantId: event.tenant_id,
+            source: "topup",
+            sourceRef: idem,
+            baseCents: Math.round(paidUsd * 100),
+            meta: { credits: grantedCredits },
+          }).catch(() => undefined)
+          await grantMerchantReferralReward(req.scope, {
+            tenantId: event.tenant_id,
+            sourceRef: idem,
+          }).catch(() => undefined)
+          await notifyMerchant(req.scope, { tenantId: event.tenant_id, template: "topup_receipt", data: { amountUsd: paidUsd, creditsAdded: grantedCredits } }).catch(() => {})
           return res.status(200).json({
             received: true,
             processed: true,
             kind: "topup",
-            credits: event.credits,
+            credits: grantedCredits,
           })
         }
         break
@@ -153,6 +219,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           customer: event.stripe_customer_id,
           subscription: event.stripe_subscription_id,
         })
+        await accruePartnerCommission(req.scope, {
+          tenantId: event.tenant_id,
+          source: "renewal",
+          sourceRef: idem,
+          baseCents: Math.round((planFor(event.plan_key)?.price_usd ?? 0) * 100),
+          meta: { plan: event.plan_key },
+        }).catch(() => undefined)
+        await grantMerchantReferralReward(req.scope, {
+          tenantId: event.tenant_id,
+          sourceRef: idem,
+        }).catch(() => undefined)
+        await notifyMerchant(req.scope, { tenantId: event.tenant_id, template: "renewal_receipt", data: { plan: event.plan_key, amountUsd: planFor(event.plan_key)?.price_usd, includedCredits: granted } }).catch(() => {})
         return res.status(200).json({
           received: true,
           processed: true,
@@ -166,6 +244,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         // Don't cut them off mid-sentence — the lifecycle FSM handles the grace
         // period. We only mark the state.
         await platform.updateTenants({ id: event.tenant_id, status: "past_due" })
+        await notifyMerchant(req.scope, { tenantId: event.tenant_id, template: "payment_failed", data: { plan: event.plan_key } }).catch(() => {})
         return res.status(200).json({ received: true, processed: true, kind: "payment_failed" })
       }
 

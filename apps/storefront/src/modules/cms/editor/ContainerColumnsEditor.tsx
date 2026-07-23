@@ -188,11 +188,15 @@ export default function ContainerColumnsEditor({
   columns,
   onChange,
   onSelectWidget,
+  onSelectColumn,
 }: {
   columns: Column[]
   onChange: (next: Column[]) => void
   /** A widget row was clicked — select it for editing (panel + canvas). */
   onSelectWidget: (col: number, wi: number) => void
+  /** The "Column N" header was clicked — select the column itself (its
+   *  Style tab holds background / spacing / border). */
+  onSelectColumn?: (col: number) => void
 }) {
   // Which column's "+ Add widget" picker is open (null = none).
   const [pickerCol, setPickerCol] = useState<number | null>(null)
@@ -229,15 +233,57 @@ export default function ContainerColumnsEditor({
       <div style={{ ...eyebrow(), margin: "8px 0 4px" }}>
         Columns &amp; widgets
       </div>
+      {/* Where columns are ADDED and REMOVED.
+          Deliberately a signpost rather than a second control: the number of
+          columns is the container's `layout` field, and the editor reconciles
+          `columns` to it on every props change (growing appends empty columns,
+          shrinking merges the removed ones' widgets into the last kept column,
+          so nothing is ever silently deleted). A rival +/- here would write a
+          column count that the next field edit would quietly undo. */}
+      <div
+        style={{
+          ...type.label,
+          fontFamily: font,
+          color: grey[50],
+          margin: "0 0 8px",
+        }}
+      >
+        Add or remove columns with <strong style={{ color: grey[70] }}>Columns</strong> under
+        Layout — your widgets are kept.
+      </div>
       {cols.map((col, ci) => {
         const widgets = Array.isArray(col?.widgets) ? col.widgets : []
         return (
           <div key={ci} style={colBox}>
-            <div style={colHead}>Column {ci + 1}</div>
+            <div style={colHead}>
+              {onSelectColumn ? (
+                <button
+                  type="button"
+                  onClick={() => onSelectColumn(ci)}
+                  title="Select this column — style its background, spacing and border"
+                  style={{
+                    all: "unset",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                    textDecorationColor: "rgba(31,31,31,0.18)",
+                    textUnderlineOffset: 3,
+                  }}
+                >
+                  Column {ci + 1}
+                </button>
+              ) : (
+                <span>Column {ci + 1}</span>
+              )}
+              <span style={{ color: grey[40], fontWeight: 500 }}>
+                {" · "}
+                {widgets.length === 1 ? "1 widget" : `${widgets.length} widgets`}
+              </span>
+            </div>
             <div style={{ padding: "8px 12px 12px" }}>
               {widgets.length === 0 && (
                 <div style={{ ...type.label, fontFamily: font, color: grey[40], padding: "6px 0" }}>
-                  No widgets yet.
+                  No widgets yet — add one below, or use the + on the column
+                  itself on the page.
                 </div>
               )}
               {widgets.map((w, wi) => (

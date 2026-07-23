@@ -23,6 +23,13 @@ export const categoryShowcaseSchema: BlockSchema = {
       group: "Content",
     },
     {
+      name: "description",
+      type: "textarea",
+      label: "Description",
+      help: "Optional supporting line under the heading.",
+      group: "Content",
+    },
+    {
       name: "items",
       type: "list",
       label: "Tiles",

@@ -12,6 +12,7 @@ export type BillableAction =
   | "phone_number_month" // recurring number rental
   | "sms_segment"
   | "ai_text" // one field rewrite
+  | "ai_node_edit" // one selected-section AI edit (Tier 2 node patch)
   | "ai_page_edit" // an AI page edit (2-stage)
   | "ai_content" // long-form: blog/article/product copy
   | "ai_image"
@@ -40,6 +41,8 @@ export const PRICE_BOOK: Record<BillableAction, PriceRow> = {
   sms_segment: { action: "sms_segment", credits: 2, vendor_cost_usd: 0.011 },
   // Near-free to us, generous to them: makes the product feel unlimited.
   ai_text: { action: "ai_text", credits: 2, vendor_cost_usd: 0.0005 },
+  // Selection-scoped node edit (ARCH-AI §3.3): between ai_text and ai_page_edit.
+  ai_node_edit: { action: "ai_node_edit", credits: 3, vendor_cost_usd: 0.001 },
   ai_page_edit: { action: "ai_page_edit", credits: 5, vendor_cost_usd: 0.002 },
   ai_content: { action: "ai_content", credits: 10, vendor_cost_usd: 0.01 },
   // Images sell the platform — deliberately thin (3x).

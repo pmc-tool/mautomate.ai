@@ -100,6 +100,10 @@ export const categoryShowcaseBlock: BlockDefinition<CategoryShowcaseData> = {
       errors.push("category_showcase: title is required")
     }
 
+    if (data.description !== undefined && !isStr(data.description)) {
+      errors.push("category_showcase: description must be a string")
+    }
+
     if (!Array.isArray(data.items)) {
       errors.push("category_showcase: items must be an array")
       return ok(errors)

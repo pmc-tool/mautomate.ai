@@ -5,6 +5,7 @@ import { meterAction } from "../../../../../modules/platform/integration/meterin
 import { creditsFor } from "../../../../../modules/platform/pricing/price-book"
 import { resolveMerchant } from "../../../_helpers"
 import { adsStatusFor } from "../../_helpers"
+import { assertPublicHttpUrl } from "../../../../../lib/ssrf-guard"
 
 /**
  * POST /merchant/ads/ai/image — generate the ad image and store it durably.
@@ -40,6 +41,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         "Ad images are always built from one of your real product photos — pick the photo the ad should be built on."
       )
     }
+    // SECURITY INVARIANT (SSRF): this URL is fetched server-side (Gemini inline
+    // part), so it must resolve to a PUBLIC host — never loopback/metadata/
+    // private IPs. Validated by the shared ssrf-guard before any fetch.
+    await assertPublicHttpUrl(productImageUrl)
     const action = "ai_image"
 
     const metered = await meterAction(

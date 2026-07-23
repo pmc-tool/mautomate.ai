@@ -61,7 +61,7 @@ export async function buildDetail(req: MedusaRequest, ctx: any, id: string) {
 
   return {
     id: item.id,
-    title: item.title ?? variants[0]?.title ?? null,
+    title: variants[0]?.product_title ?? item.title ?? variants[0]?.title ?? null,
     sku: item.sku ?? null,
     thumbnail: null,
     requires_shipping: item.requires_shipping,

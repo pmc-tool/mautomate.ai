@@ -101,6 +101,18 @@ class Settings:
     llm_provider: str
     llm_temperature: float
 
+    # --- Groq (fast, cheap tool-caller; used for Pixi voice) ---
+    # Groq is OpenAI-wire-compatible (base_url below). Kimi K2 is not hosted
+    # on this account, so the default is the strongest available Groq
+    # tool-caller. Override with GROQ_MODEL. Novita stays the fallback brain.
+    groq_api_key: str
+    groq_model: str
+    groq_base_url: str
+    groq_max_tokens: int
+    # Which brain the Pixi voice playbook uses: "groq" (default) or
+    # "novita" to fall back to the previous behaviour without a code change.
+    jarvis_llm_provider: str
+
     # --- Naturalness / conversation dynamics ---
     # TTS voice character (ElevenLabs). Canonical conversational tuning:
     # stability 0.5, similarity 0.75. style > 0 adds expressiveness at a small
@@ -155,6 +167,53 @@ class Settings:
     log_level: str
     generate_summary: bool
 
+    # --- Per-call voice cost rates (super-admin AI Usage & Cost visibility) ---
+    # These price the non-LLM voice cost components so the traced per-call total
+    # reflects the WHOLE call, not just the brain. Defaults are 2026 list-price
+    # APPROXIMATIONS and should be verified against each vendor's current
+    # pricing; override per environment via the env vars below.
+    #
+    #   voice_stt_usd_per_min           Deepgram Nova streaming STT, per audio
+    #                                   minute (~$0.0043/min list, 2026).
+    #   voice_tts_aura_usd_per_1k_chars Deepgram Aura-2 TTS, per 1k characters
+    #                                   (~$0.030/1k, i.e. $30/1M chars).
+    #   voice_tts_elevenlabs_usd_per_1k_chars
+    #                                   ElevenLabs TTS (Ava path), per 1k chars
+    #                                   (~$0.10/1k on a typical paid tier;
+    #                                   varies a lot by plan — verify).
+    #   voice_daily_usd_per_participant_min
+    #                                   Daily transport, per participant-minute
+    #                                   (~$0.004); the web path assumes 2
+    #                                   participants (bot + user).
+    #   Piper (self-hosted) is hardcoded $0 in the pricing logic — no env.
+    voice_stt_usd_per_min: float
+    voice_tts_aura_usd_per_1k_chars: float
+    voice_tts_elevenlabs_usd_per_1k_chars: float
+    voice_daily_usd_per_participant_min: float
+
+    # --- LLM (brain) token pricing, with prompt-cache discount ---------------
+    # Used to price the per-turn LLM cost for the JARVIS voice path (Novita /
+    # Kimi) EXPLICITLY, so the super-admin AI Usage & Cost page reflects
+    # Novita's automatic prompt-cache discount instead of billing every input
+    # token at the full rate. Defaults are the 2026 Novita "moonshotai/kimi-k2"
+    # list prices (per 1M tokens); override per environment.
+    #
+    #   voice_llm_input_usd_per_1m    Uncached input tokens (~$0.57/1M).
+    #   voice_llm_output_usd_per_1m   Output tokens (~$2.30/1M).
+    #   voice_llm_cached_usd_per_1m   Cache-HIT input tokens (~$0.16/1M) — the
+    #                                 stable system+tools prefix Novita caches.
+    #   voice_llm_cached_prefix_tokens
+    #                                 Approximation size of that stable prefix
+    #                                 (tokens). When pipecat does not surface a
+    #                                 real cached-token count (the OpenAI-wire
+    #                                 path does not), turns after the first are
+    #                                 assumed to hit the cache for this many
+    #                                 tokens. Verified ~6912 on a real call.
+    voice_llm_input_usd_per_1m: float
+    voice_llm_output_usd_per_1m: float
+    voice_llm_cached_usd_per_1m: float
+    voice_llm_cached_prefix_tokens: int
+
     @staticmethod
     def load() -> "Settings":
         missing: List[str] = []
@@ -202,6 +261,20 @@ class Settings:
             ).rstrip("/"),
             llm_provider=(_get("VOICE_LLM_PROVIDER", "auto") or "auto").lower(),
             llm_temperature=_get_float("VOICE_LLM_TEMPERATURE", 0.7),
+            groq_api_key=_get("GROQ_API_KEY", "") or "",
+            # Kimi K2 is NOT on this Groq account; gpt-oss-120b is the
+            # strongest hosted tool-caller. Override via GROQ_MODEL.
+            groq_model=_get("GROQ_MODEL", "openai/gpt-oss-120b")
+            or "openai/gpt-oss-120b",
+            groq_base_url=(
+                _get("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+                or "https://api.groq.com/openai/v1"
+            ).rstrip("/"),
+            # Voice replies are short; cap output so it never over-generates.
+            groq_max_tokens=_get_int("VOICE_GROQ_MAX_TOKENS", 180),
+            jarvis_llm_provider=(
+                _get("VOICE_JARVIS_LLM_PROVIDER", "groq") or "groq"
+            ).lower(),
             elevenlabs_api_key=elevenlabs_api_key,
             # Ultimate fallback voice when a playbook ships a non-ElevenLabs
             # placeholder voice_id (e.g. "bn-female-warm"). See bot.resolve_voice_id.
@@ -239,6 +312,28 @@ class Settings:
             log_level=(_get("VOICE_AGENT_LOG_LEVEL", "INFO") or "INFO").upper(),
             generate_summary=(_get("VOICE_AGENT_GENERATE_SUMMARY", "true") or "true").lower()
             == "true",
+            voice_stt_usd_per_min=_get_float("VOICE_STT_USD_PER_MIN", 0.0043),
+            voice_tts_aura_usd_per_1k_chars=_get_float(
+                "VOICE_TTS_AURA_USD_PER_1K_CHARS", 0.030
+            ),
+            voice_tts_elevenlabs_usd_per_1k_chars=_get_float(
+                "VOICE_TTS_ELEVENLABS_USD_PER_1K_CHARS", 0.10
+            ),
+            voice_daily_usd_per_participant_min=_get_float(
+                "VOICE_DAILY_USD_PER_PARTICIPANT_MIN", 0.004
+            ),
+            voice_llm_input_usd_per_1m=_get_float(
+                "VOICE_LLM_INPUT_USD_PER_1M", 0.57
+            ),
+            voice_llm_output_usd_per_1m=_get_float(
+                "VOICE_LLM_OUTPUT_USD_PER_1M", 2.30
+            ),
+            voice_llm_cached_usd_per_1m=_get_float(
+                "VOICE_LLM_CACHED_USD_PER_1M", 0.16
+            ),
+            voice_llm_cached_prefix_tokens=_get_int(
+                "VOICE_LLM_CACHED_PREFIX_TOKENS", 6912
+            ),
         )
 
         if missing:

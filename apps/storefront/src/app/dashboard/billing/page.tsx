@@ -429,7 +429,7 @@ export default function BillingPage() {
             description="Upgrade or downgrade your subscription."
           >
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {ov.plans.map((p) => {
+              {ov.plans.filter((p) => p.key !== "free_trial").map((p) => {
                 const isCurrent = p.key === ov.current_plan?.key
                 return (
                   <div

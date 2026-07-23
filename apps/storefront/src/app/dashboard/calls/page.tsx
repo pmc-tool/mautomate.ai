@@ -3,15 +3,17 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
-  ChatBubbleLeftRight,
-  Bolt,
-  DocumentText,
-  BookOpen,
-  ChartBar,
-  Robot,
-  Calendar,
-  Clock,
   ArrowUpRightOnBox,
+  Bolt,
+  BookOpen,
+  Calendar,
+  ChartBar,
+  ChatBubbleLeftRight,
+  Clock,
+  DocumentText,
+  Phone,
+  Robot,
+  Sparkles,
 } from "@medusajs/icons"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
@@ -19,13 +21,47 @@ import {
   type CallCenterDashboard,
 } from "@lib/merchant-admin/api"
 import { PageHeader } from "@components/merchant-admin/page-header"
-import { KpiCard } from "@components/merchant-admin/kpi-card"
 import { StatusBadge } from "@components/merchant-admin/status-badge"
 import { cn } from "@lib/util/cn"
 
-function formatCost(amount = 0) {
-  return `$${(Number(amount) || 0).toFixed(2)}`
-}
+const QUICK_LINKS = [
+  {
+    href: "/dashboard/calls/campaigns",
+    icon: Bolt,
+    title: "Campaigns",
+    description: "View outbound campaigns and their status.",
+  },
+  {
+    href: "/dashboard/calls/calls",
+    icon: DocumentText,
+    title: "Calls",
+    description: "Browse call history and outcomes.",
+  },
+  {
+    href: "/dashboard/calls/playbooks",
+    icon: BookOpen,
+    title: "Playbooks",
+    description: "Conversation scripts and versions.",
+  },
+  {
+    href: "/dashboard/calls/analytics",
+    icon: ChartBar,
+    title: "Analytics",
+    description: "Connect rate, containment, and credit usage.",
+  },
+  {
+    href: "/dashboard/calls/agents",
+    icon: Robot,
+    title: "Agents",
+    description: "Create and manage AI voice agents.",
+  },
+  {
+    href: "/dashboard/calls/numbers",
+    icon: Phone,
+    title: "Phone numbers",
+    description: "Buy a number and attach it to an agent.",
+  },
+]
 
 export default function CallCenterOverviewPage() {
   const { token } = useMerchantAuth()
@@ -50,11 +86,35 @@ export default function CallCenterOverviewPage() {
     (dashboard?.calls_today.by_status?.completed ?? 0) +
     (dashboard?.calls_today.by_status?.in_progress ?? 0)
 
+  const creditsToday = Number(
+    (dashboard as any)?.credits_today ?? dashboard?.total_cost ?? 0
+  )
+
+  const statusEntries = dashboard
+    ? Object.entries(dashboard.calls_today.by_status)
+    : []
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Call Center"
         description="Voice campaigns, calls, and analytics for your store."
+        action={
+          <div className="flex gap-2">
+            <Link
+              href="/dashboard/calls/analytics"
+              className="inline-flex items-center justify-center gap-1.5 rounded-base border border-grey-30 bg-white px-3 py-2 text-sm font-medium text-grey-70 transition-colors hover:bg-grey-10"
+            >
+              <ChartBar className="h-4 w-4" /> Analytics
+            </Link>
+            <Link
+              href="/dashboard/calls/campaigns"
+              className="inline-flex items-center justify-center gap-1.5 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-grey-80"
+            >
+              <Bolt className="h-4 w-4" /> Campaigns
+            </Link>
+          </div>
+        }
       />
 
       {error && (
@@ -63,101 +123,119 @@ export default function CallCenterOverviewPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <KpiCard
-          label="Today's calls"
-          value={loading ? "—" : dashboard?.calls_today.total ?? 0}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile
+          label="Calls today"
+          value={dashboard?.calls_today.total ?? 0}
           icon={ChatBubbleLeftRight}
-          tone="brand"
+          chip="bg-sky-50 text-sky-600"
+          loading={loading}
         />
-        <KpiCard
+        <StatTile
           label="Connected today"
-          value={loading ? "—" : connectedToday}
-          icon={ChatBubbleLeftRight}
-          tone="green"
+          value={connectedToday}
+          icon={Phone}
+          chip="bg-emerald-50 text-emerald-600"
+          loading={loading}
         />
-        <KpiCard
-          label="Talk time (min)"
-          value={loading ? "—" : dashboard?.total_minutes ?? 0}
-          icon={Clock}
-        />
-        <KpiCard
-          label="Credits used today"
-          value={
-            loading
-              ? "—"
-              : `${Number(dashboard?.credits_today ?? dashboard?.total_cost ?? 0).toLocaleString()} cr`
-          }
-          icon={ChartBar}
-          tone="grey"
-        />
-        <KpiCard
-          label="Scheduled tasks"
-          value={loading ? "—" : dashboard?.tasks_scheduled ?? 0}
-          icon={Calendar}
-        />
-        <KpiCard
+        <StatTile
           label="Running campaigns"
-          value={loading ? "—" : dashboard?.campaigns_running ?? 0}
+          value={dashboard?.campaigns_running ?? 0}
           icon={Bolt}
-          tone="green"
+          chip="bg-violet-50 text-violet-600"
+          loading={loading}
+        />
+        <StatTile
+          label="Credits spent today"
+          value={`${creditsToday.toLocaleString()} credits`}
+          icon={Sparkles}
+          chip="bg-amber-50 text-amber-600"
+          loading={loading}
         />
       </div>
 
-      <div>
-        <h3 className="mb-3 font-semibold text-grey-90">Call status today</h3>
-        <div className="flex flex-wrap gap-2">
-          {loading || !dashboard ? (
-            <p className="text-sm text-grey-50">Loading…</p>
-          ) : Object.keys(dashboard.calls_today.by_status).length === 0 ? (
-            <p className="text-sm text-grey-50">No calls yet today.</p>
+      <section className="rounded-large border border-grey-20 bg-white p-5 shadow-borders-base">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-grey-90">Call status today</h3>
+          <div className="flex items-center gap-4 text-xs text-grey-50">
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-grey-40" />
+              {loading ? "—" : dashboard?.total_minutes ?? 0} min talk time
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Calendar className="h-4 w-4 text-grey-40" />
+              {loading ? "—" : dashboard?.tasks_scheduled ?? 0} scheduled tasks
+            </span>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-9 w-28 animate-pulse rounded-base bg-grey-10"
+              />
+            ))
+          ) : statusEntries.length === 0 ? (
+            <p className="text-sm text-grey-50">
+              No calls yet today. They will show up here as your agents pick up.
+            </p>
           ) : (
-            Object.entries(dashboard.calls_today.by_status).map(([status, count]) => (
+            statusEntries.map(([status, count]) => (
               <div
                 key={status}
                 className="inline-flex items-center gap-2 rounded-base border border-grey-20 bg-white px-3 py-2 text-sm shadow-borders-base"
               >
                 <StatusBadge status={status} />
-                <span className="font-medium text-grey-90">{count}</span>
+                <span className="font-medium tabular-nums text-grey-90">{count}</span>
               </div>
             ))
           )}
         </div>
-      </div>
+      </section>
 
       <div>
-        <h3 className="mb-3 font-semibold text-grey-90">Quick links</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <QuickLinkCard
-            href="/dashboard/calls/campaigns"
-            icon={Bolt}
-            title="Campaigns"
-            description="View outbound campaigns and their status."
-          />
-          <QuickLinkCard
-            href="/dashboard/calls/calls"
-            icon={DocumentText}
-            title="Calls"
-            description="Browse call history and outcomes."
-          />
-          <QuickLinkCard
-            href="/dashboard/calls/playbooks"
-            icon={BookOpen}
-            title="Playbooks"
-            description="Conversation scripts and versions."
-          />
-          <QuickLinkCard
-            href="/dashboard/calls/analytics"
-            icon={ChartBar}
-            title="Analytics"
-            description="Connect rate, containment, and cost."
-          />
-          <QuickLinkCard
-            href="/dashboard/calls/agents"
-            icon={Robot}
-            title="Agents"
-            description="Create and manage AI voice agents."
-          />
+        <h3 className="mb-3 text-sm font-semibold text-grey-90">Quick links</h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {QUICK_LINKS.map((link) => (
+            <QuickLinkCard key={link.href} {...link} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatTile({
+  label,
+  value,
+  icon: Icon,
+  chip,
+  loading,
+}: {
+  label: string
+  value: React.ReactNode
+  icon: React.ComponentType<{ className?: string }>
+  chip: string
+  loading?: boolean
+}) {
+  return (
+    <div className="rounded-large border border-grey-20 bg-white p-5 shadow-borders-base">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="truncate text-[11px] font-medium uppercase tracking-wide text-grey-50">
+            {label}
+          </p>
+          {loading ? (
+            <div className="mt-2 h-6 w-20 animate-pulse rounded-base bg-grey-10" />
+          ) : (
+            <p className="mt-1 truncate text-2xl font-semibold tracking-tight text-grey-90">
+              {value}
+            </p>
+          )}
+        </div>
+        <div className={cn("shrink-0 rounded-base p-2", chip)}>
+          <Icon className="h-5 w-5" />
         </div>
       </div>
     </div>
@@ -178,20 +256,16 @@ function QuickLinkCard({
   return (
     <Link
       href={href}
-      className={cn(
-        "group flex flex-col justify-between rounded-large border border-grey-20 bg-white p-5 shadow-borders-base transition-colors hover:border-grey-30 hover:bg-grey-5"
-      )}
+      className="group flex flex-col rounded-large border border-grey-20 bg-white p-5 shadow-borders-base transition-all hover:-translate-y-0.5 hover:border-grey-40"
     >
-      <div>
-        <div className="mb-3 flex items-center gap-2 text-grey-90">
+      <div className="flex items-start justify-between">
+        <span className="rounded-base bg-grey-10 p-2 text-grey-60 transition-colors group-hover:bg-grey-90 group-hover:text-white">
           <Icon className="h-5 w-5" />
-          <h4 className="font-semibold">{title}</h4>
-        </div>
-        <p className="text-sm text-grey-50">{description}</p>
+        </span>
+        <ArrowUpRightOnBox className="h-4 w-4 text-grey-30 transition-colors group-hover:text-grey-60" />
       </div>
-      <div className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-grey-70 group-hover:text-grey-90">
-        Open <ArrowUpRightOnBox className="h-4 w-4" />
-      </div>
+      <h4 className="mt-4 text-sm font-semibold text-grey-90">{title}</h4>
+      <p className="mt-1 text-sm text-grey-50">{description}</p>
     </Link>
   )
 }

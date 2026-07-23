@@ -1,0 +1,76 @@
+name: mautomate_shopper
+description: "mAutomate Shopper — one server-driven storefront app that renders any store from its CMS blocks."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  # state
+  flutter_riverpod: ^2.6.1
+  # networking
+  dio: ^5.7.0
+  # routing
+  go_router: ^14.6.2
+  # models
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+  # ui / design
+  phosphor_flutter: ^2.1.0
+  # media
+  cached_network_image: ^3.4.1
+  # rich_text HTML rendering (light: depends only on html + csslib)
+  flutter_widget_from_html_core: ^0.15.2
+  # utils
+  intl: ^0.20.2
+  collection: ^1.19.0
+  # persistence (cart id) + secure session token (Wave 2b)
+  shared_preferences: ^2.3.2
+  flutter_secure_storage: ^9.2.4
+  # external links (reused from merchant app)
+  url_launcher: ^6.3.2
+  # push notifications (match merchant app versions). Ships INERT: the app runs
+  # fully without a Firebase config — see PUSH_SETUP.md / lib/core/notifications.
+  firebase_core: ^4.12.1
+  firebase_messaging: ^16.4.3
+  # foreground notification display + tap routing
+  flutter_local_notifications: ^19.4.2
+  # OS deep links (Android App Links, iOS Universal Links, custom schemes)
+  app_links: ^6.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.13
+  freezed: ^2.5.7
+  json_serializable: ^6.9.0
+  # white-label factory: per-store launcher icon generation
+  flutter_launcher_icons: ^0.14.1
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+
+# Base / default launcher icon (mAutomate). A plain build uses this.
+# The white-label factory (scripts/build_store.sh) writes a per-store
+# flutter_launcher_icons_<slug>.yaml and regenerates icons per build.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  remove_alpha_ios: true

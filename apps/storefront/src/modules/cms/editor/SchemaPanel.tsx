@@ -15,10 +15,25 @@
 
 import React, { useEffect, useRef, useState } from "react"
 import type { BlockSchema, Device, FieldDef } from "@modules/cms/schema/types"
+// 3C (ARCH-CANVAS P7): per-device visibility routing. The Advanced tab keeps
+// its three familiar hide toggles, but reads resolve DUAL-SHAPE (legacy
+// hideOn* trio OR the spec advanced.hide bag) and every write normalizes the
+// bag to the spec shape via writeHide — edit-time only, published pages
+// untouched until the merchant actually edits visibility.
+import {
+  HIDE_FIELD_DEVICE,
+  isHiddenOnDevice,
+  writeHide,
+} from "@modules/cms/schema/types"
 import { useCatalog } from "@modules/cms/editor/CatalogContext"
 import MediaPicker from "@modules/cms/editor/MediaPicker"
+import VideoField from "@modules/cms/editor/VideoField"
 import { UNIVERSAL_STYLE } from "@modules/cms/schema/universal/style"
 import { UNIVERSAL_ADVANCED } from "@modules/cms/schema/universal/advanced"
+import {
+  nodeContractFor,
+  type NodeContractKind,
+} from "@modules/cms/schema/universal/node-contracts"
 import ResponsiveFieldWrapper from "@modules/cms/editor/ResponsiveFieldWrapper"
 import {
   DimensionsControl,
@@ -30,8 +45,13 @@ import {
   ChooseControl,
   CodeControl,
   ColorControl,
+  // 3E — control vocabulary (link picker, icon picker, hover state tabs).
+  LinkControl,
+  IconPickerControl,
+  StateTabs,
+  HOVERABLE_STYLE_KEYS,
 } from "@modules/cms/editor/style-controls"
-import type { Tokens } from "@modules/cms/editor/style-controls"
+import type { Tokens, StyleState } from "@modules/cms/editor/style-controls"
 import { IconButton, UiIcon } from "@modules/cms/editor/palette-icons"
 import { AiFieldButton } from "@modules/cms/editor/AiFieldButton"
 import {
@@ -405,6 +425,21 @@ function Control({
   onChange: (v: unknown) => void
 }) {
   switch (field.type) {
+    case "datetime":
+      return (
+        <input
+          type="datetime-local"
+          style={input}
+          value={(() => {
+            const iso = (value as string) ?? ""
+            const d = new Date(iso)
+            if (isNaN(d.getTime())) return ""
+            const pad = (n: number) => String(n).padStart(2, "0")
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+          })()}
+          onChange={(e) => onChange(e.target.value ? new Date(e.target.value).toISOString() : "")}
+        />
+      )
     case "richText":
       return <RichTextControl value={(value as string) ?? ""} onChange={onChange} />
     case "textarea":
@@ -550,7 +585,16 @@ function Control({
       return <ChooseControl field={field} value={value} onChange={onChange} />
     case "code":
       return <CodeControl field={field} value={value} onChange={onChange} />
+    case "video":
+      return <VideoField value={(value as string) ?? ""} onChange={onChange} />
+    // 3E — link picker. "url" is a type ALIAS (ARCH-UX U4 P1 §1): every
+    // existing href/url field stores the same plain strings, so aliasing it
+    // here upgrades them all to the picker with zero migration.
+    case "link":
     case "url":
+      return <LinkControl field={field} value={value} onChange={onChange} />
+    case "icon":
+      return <IconPickerControl field={field} value={value} onChange={onChange} />
     case "text":
     default:
       return <input style={input} value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />
@@ -651,9 +695,21 @@ function FieldList({
   fields,
   props,
   onChange,
+  inheritBases,
+  basePath = "",
 }: {
   fields: FieldDef[]
   props: Record<string, unknown>
+  /**
+   * U7 (explicit null-inherit brand tokens): map of dot-path → the value the
+   * theme would supply when the field is unset ("colors.primary" → the active
+   * theme's primary). A field with an entry here renders an Inherited /
+   * Overridden chip and a "Reset to theme default" affordance that writes
+   * `null` (= inherit). Absent → fields behave exactly as before.
+   */
+  inheritBases?: Record<string, string>
+  /** Dot-path prefix of this list within the region ("colors." etc.). */
+  basePath?: string
   onChange: (next: Record<string, unknown>) => void
 }) {
   // Partition into groups (preserve order; ungrouped first under "").
@@ -671,13 +727,15 @@ function FieldList({
   const renderField = (f: FieldDef) => {
     if (f.type === "object") {
       return (
-        <div key={f.name}>
+        <div key={f.name} data-fk={f.name} data-fkl={(f.label || "").toLowerCase()}>
           <label style={label}>{f.label}</label>
           <div style={groupBox}>
             <FieldList
               fields={f.fields ?? []}
               props={(props[f.name] as Record<string, unknown>) ?? {}}
               onChange={(next) => set(f.name, next)}
+              inheritBases={inheritBases}
+              basePath={`${basePath}${f.name}.`}
             />
           </div>
         </div>
@@ -685,9 +743,70 @@ function FieldList({
     }
     if (f.type === "list") {
       return (
-        <div key={f.name}>
+        <div key={f.name} data-fk={f.name} data-fkl={(f.label || "").toLowerCase()}>
           <label style={label}>{f.label}</label>
           <ListField field={f} value={(props[f.name] as unknown[]) ?? []} onChange={(v) => set(f.name, v)} />
+        </div>
+      )
+    }
+    // U7 — brand-token fields (theme colors/fonts): explicit null = inherit
+    // the theme. The chip states the truth the stored model now carries:
+    // `null` → "Inherited" (control displays the theme's own value), any
+    // string → "Overridden" + a Reset-to-theme-default affordance that
+    // writes null. Only paths listed in `inheritBases` opt in.
+    const inheritBase = inheritBases?.[`${basePath}${f.name}`]
+    if (inheritBase !== undefined) {
+      const raw = props[f.name]
+      const overridden = raw != null && raw !== ""
+      return (
+        <div key={f.name} data-fk={f.name} data-fkl={(f.label || "").toLowerCase()}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <label style={{ ...label, marginBottom: 0 }}>{f.label}</label>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span
+                style={{
+                  ...type.micro,
+                  fontFamily: font,
+                  padding: "1px 6px",
+                  borderRadius: radius.sm,
+                  border: `1px solid ${overridden ? accent.tintStrong : grey[30]}`,
+                  background: overridden ? accent.tint : grey[10],
+                  color: overridden ? accent.base : grey[50],
+                }}
+              >
+                {overridden ? "Overridden" : "Inherited"}
+              </span>
+              {overridden && (
+                <button
+                  type="button"
+                  title="Reset to theme default"
+                  aria-label={`Reset ${f.label} to theme default`}
+                  onClick={() => set(f.name, null)}
+                  style={{
+                    ...type.micro,
+                    fontFamily: font,
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    color: grey[50],
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+            </span>
+          </div>
+          <div style={{ marginTop: 6, opacity: overridden ? 1 : 0.75 }}>
+            <Control
+              field={f}
+              value={overridden ? raw : inheritBase}
+              props={props}
+              onChange={(v) => set(f.name, v)}
+            />
+          </div>
+          {f.help ? <div style={help}>{f.help}</div> : null}
         </div>
       )
     }
@@ -695,7 +814,7 @@ function FieldList({
     // rewrite/shorten/translate, or a custom instruction, for THIS field only.
     const aiable = f.type === "text" || f.type === "textarea" || f.type === "richText"
     return (
-      <div key={f.name}>
+      <div key={f.name} data-fk={f.name} data-fkl={(f.label || "").toLowerCase()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <label style={{ ...label, marginBottom: 0 }}>{f.label}</label>
           {aiable && (
@@ -949,6 +1068,16 @@ function StyleFieldList({
     bucket.fields.push(f)
   }
 
+  // 3E — hover state (ARCH-UX U4). The four HOVERABLE_STYLE_KEYS fields
+  // route through a Normal/Hover toggle; hover values live in a `hover`
+  // sub-bag the engine serializes to `:hover` rules (buildHoverCss). The
+  // Advanced tab has no hoverable field names, so it never shows the tabs.
+  const [state, setState] = useState<StyleState>("normal")
+  const hoverBag = (bag.hover ?? {}) as Record<string, unknown>
+  const firstHoverGroup = groups.findIndex((g) =>
+    g.fields.some((f) => HOVERABLE_STYLE_KEYS.includes(f.name))
+  )
+
   const setKey = (name: string, next: unknown) => {
     if (isEmptyValue(next)) {
       // Remove the key entirely — keep the bag a tiny diff.
@@ -960,10 +1089,48 @@ function StyleFieldList({
     }
   }
 
+  // Diff-only, like setKey: empty values delete their hover key, and the
+  // `hover` sub-bag itself is dropped when its last key clears.
+  const setHoverKey = (name: string, next: unknown) => {
+    const nextHover = { ...hoverBag }
+    if (isEmptyValue(next)) {
+      delete nextHover[name]
+    } else {
+      nextHover[name] = next
+    }
+    if (Object.keys(nextHover).length === 0) {
+      const rest = { ...bag }
+      delete rest.hover
+      onChange(rest)
+    } else {
+      onChange({ ...bag, hover: nextHover })
+    }
+  }
+
   const renderField = (f: FieldDef) => {
-    const has = Object.prototype.hasOwnProperty.call(bag, f.name)
+    // Under the Hover tab, a hoverable field reads/writes the hover sub-bag;
+    // non-hoverable fields render exactly as today regardless of state.
+    const hoverMode =
+      state === "hover" && HOVERABLE_STYLE_KEYS.includes(f.name)
+    // 3C: the per-device visibility toggles. Each legacy hide FieldDef names
+    // its device; reads are dual-shape (legacy trio OR advanced.hide) and
+    // writes normalize the whole bag to the spec shape (writeHide).
+    const hideDevice = HIDE_FIELD_DEVICE[f.name]
+    const activeBag = hoverMode ? hoverBag : bag
+    const has = hideDevice
+      ? isHiddenOnDevice(bag, hideDevice)
+      : Object.prototype.hasOwnProperty.call(activeBag, f.name)
+    const reset = () => {
+      if (hideDevice) {
+        onChange(writeHide(bag, hideDevice, false))
+      } else if (hoverMode) {
+        setHoverKey(f.name, undefined)
+      } else {
+        setKey(f.name, undefined)
+      }
+    }
     return (
-      <div key={f.name}>
+      <div key={f.name} data-fk={f.name} data-fkl={(f.label || "").toLowerCase()}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <label style={{ ...label, marginBottom: 0 }}>{f.label}</label>
           {has ? (
@@ -971,7 +1138,7 @@ function StyleFieldList({
               type="button"
               style={resetBtn}
               title={`Reset ${f.label}`}
-              onClick={() => setKey(f.name, undefined)}
+              onClick={reset}
             >
               <UiIcon name="reset" size={12} />
               Reset
@@ -979,22 +1146,54 @@ function StyleFieldList({
           ) : null}
         </div>
         <div style={{ marginTop: 6 }}>
-          <ResponsiveFieldWrapper
-            field={f}
-            value={bag[f.name]}
-            device={device}
-            onChange={(next) => setKey(f.name, next)}
-          >
-            {(deviceValue, setDeviceValue) => (
-              <StyleControl
-                field={f}
-                value={deviceValue}
-                bag={bag}
-                onChange={setDeviceValue}
-                tokens={tokens}
-              />
-            )}
-          </ResponsiveFieldWrapper>
+          {hideDevice ? (
+            // 3C: hide toggle — value resolves through the dual-shape read so
+            // legacy-authored bags show their true state; the write emits the
+            // spec `hide` shape and strips the legacy keys (edit-time
+            // normalization). On the canvas the node ghosts (dim + badge)
+            // rather than vanishing; the storefront emits a real media-query
+            // display:none.
+            <StyleControl
+              field={f}
+              value={isHiddenOnDevice(bag, hideDevice)}
+              bag={bag}
+              onChange={(next) =>
+                onChange(writeHide(bag, hideDevice, next === true))
+              }
+              tokens={tokens}
+            />
+          ) : hoverMode ? (
+            // Hover emission is device-agnostic in v1 — no responsive wrapper
+            // (f.responsive stripped so the control sees a plain leaf).
+            <StyleControl
+              field={{ ...f, responsive: undefined }}
+              value={hoverBag[f.name]}
+              bag={hoverBag}
+              onChange={(next) => setHoverKey(f.name, next)}
+              tokens={tokens}
+            />
+          ) : (
+            // 3C: ALL responsive routing lives in ResponsiveFieldWrapper,
+            // which funnels every edit through writeResponsive /
+            // clearResponsiveOverride (schema/types.ts) — the single
+            // device-write path. No control ever builds a {base,...} shape.
+            <ResponsiveFieldWrapper
+              field={f}
+              bag={bag}
+              device={device}
+              onBagChange={onChange}
+            >
+              {(deviceValue, setDeviceValue) => (
+                <StyleControl
+                  field={f}
+                  value={deviceValue}
+                  bag={bag}
+                  onChange={setDeviceValue}
+                  tokens={tokens}
+                />
+              )}
+            </ResponsiveFieldWrapper>
+          )}
         </div>
         {f.help ? <div style={help}>{f.help}</div> : null}
       </div>
@@ -1003,15 +1202,31 @@ function StyleFieldList({
 
   return (
     <>
-      {groups.map((g, gi) =>
-        g.name ? (
-          <Accordion key={g.name} title={g.name} defaultOpen={gi === 0}>
-            {g.fields.map(renderField)}
-          </Accordion>
+      {groups.map((g, gi) => {
+        // The state toggle sits once, above the first hoverable group
+        // (Background in the universal set).
+        const stateTabs =
+          gi === firstHoverGroup ? (
+            <StateTabs
+              state={state}
+              onChange={setState}
+              hoverActive={Object.keys(hoverBag).length > 0}
+            />
+          ) : null
+        return g.name ? (
+          <React.Fragment key={g.name}>
+            {stateTabs}
+            <Accordion title={g.name} defaultOpen={gi === 0}>
+              {g.fields.map(renderField)}
+            </Accordion>
+          </React.Fragment>
         ) : (
-          <React.Fragment key="_ungrouped">{g.fields.map(renderField)}</React.Fragment>
+          <React.Fragment key="_ungrouped">
+            {stateTabs}
+            {g.fields.map(renderField)}
+          </React.Fragment>
         )
-      )}
+      })}
     </>
   )
 }
@@ -1097,14 +1312,26 @@ export default function SchemaPanel({
   contentFields,
   contentExtra,
   blockLabel,
+  crumbs,
   elementLabel,
   elementKey,
   onBackToSection,
+  styleFields,
+  advancedFields,
+  notice,
+  nodeKind,
+  inheritBases,
 }: {
   /** Content schema. Optional in element mode (there is no Content tab). */
   schema?: BlockSchema
   props?: Record<string, unknown>
   onChange?: (next: Record<string, unknown>) => void
+  /**
+   * U7 — inheritable brand-token fields: dot-path → the theme's own value for
+   * that token ("colors.primary" → active-theme primary). Listed fields get
+   * the Inherited/Overridden chip + Reset-to-theme-default (writes null).
+   */
+  inheritBases?: Record<string, string>
   /** Namespaced `block.style` diff bag (only user-set keys). */
   styleBag?: Record<string, unknown>
   /** Namespaced `block.advanced` diff bag (only user-set keys). */
@@ -1141,14 +1368,50 @@ export default function SchemaPanel({
   contentExtra?: React.ReactNode
   /** Breadcrumb: the parent block's label (e.g. "Hero Slider"). */
   blockLabel?: string
+  /** Clickable breadcrumb trail (each crumb selects its node); when present
+   *  it replaces the plain `blockLabel` string in the trail render. */
+  crumbs?: { label: string; onClick?: () => void }[]
   /** Breadcrumb: the selected element's label (e.g. "Heading"). */
   elementLabel?: string
   /** The selected element's key — its own fields are hoisted to the top. */
   elementKey?: string
   /** Return to editing the whole section (clears the element selection). */
   onBackToSection?: () => void
+  /**
+   * Field list for the Style tab. Defaults to UNIVERSAL_STYLE; a node type
+   * with a restricted contract (2E: columns — COLUMN_STYLE_FIELDS from
+   * schema/universal/column.ts) passes its own subset. The bag shape and
+   * serialization are unchanged — only which controls are OFFERED differs.
+   */
+  styleFields?: FieldDef[]
+  /** Field list for the Advanced tab. Defaults to UNIVERSAL_ADVANCED; columns
+   *  pass COLUMN_ADVANCED_FIELDS (visibility, identity, custom CSS only). */
+  advancedFields?: FieldDef[]
+  /**
+   * One-line contextual note rendered above the tabs (2E: the facade-column
+   * routing note — "Styling applies to the whole section"). Plain content;
+   * absent → nothing renders.
+   */
+  notice?: React.ReactNode
+  /**
+   * The selected node's kind (3D — ARCH-UX §1.2 node contracts). When set,
+   * the Style/Advanced field sets resolve through NODE_CONTRACTS
+   * (schema/universal/node-contracts.ts) — e.g. "element" offers the
+   * visibility+customCss Advanced subset, "chrome" identity+customCss.
+   * Explicit `styleFields` / `advancedFields` (the 2E column mount) always
+   * win over the kind lookup; absent both, the full universal sets apply,
+   * exactly as before — every existing mount is untouched.
+   */
+  nodeKind?: NodeContractKind
 }) {
   const [tab, setTab] = useState<PanelTab>("content")
+
+  // Field-set resolution order: explicit prop > nodeKind contract > universal.
+  const contract = nodeKind ? nodeContractFor(nodeKind) : undefined
+  const resolvedStyleFields =
+    styleFields ?? contract?.styleFields ?? UNIVERSAL_STYLE
+  const resolvedAdvancedFields =
+    advancedFields ?? contract?.advancedFields ?? UNIVERSAL_ADVANCED
 
   const contentFieldList = schema?.fields ?? contentFields
   const tabs: { key: PanelTab; label: string }[] = []
@@ -1174,6 +1437,7 @@ export default function SchemaPanel({
           fields={contentFieldList!}
           props={props ?? {}}
           onChange={onChange!}
+          inheritBases={inheritBases}
         />
         {contentExtra}
       </>
@@ -1236,12 +1500,71 @@ export default function SchemaPanel({
             Back to {blockLabel ?? "section"}
           </button>
           <div style={{ ...type.title, fontFamily: font, color: grey[90] }}>
-            <span style={{ color: grey[40], fontWeight: 500 }}>
-              {blockLabel ?? "Section"}
-            </span>
-            <span style={{ color: grey[30], margin: "0 6px" }}>›</span>
+            {crumbs && crumbs.length ? (
+              crumbs.map((c, i) => (
+                <span key={i}>
+                  {c.onClick ? (
+                    <button
+                      type="button"
+                      onClick={c.onClick}
+                      title={`Select ${c.label}`}
+                      style={{
+                        ...type.title,
+                        fontFamily: font,
+                        color: grey[40],
+                        fontWeight: 500,
+                        background: "none",
+                        border: 0,
+                        padding: 0,
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                        textDecorationColor: grey[20],
+                        textUnderlineOffset: 3,
+                      }}
+                    >
+                      {c.label}
+                    </button>
+                  ) : (
+                    <span style={{ color: grey[40], fontWeight: 500 }}>
+                      {c.label}
+                    </span>
+                  )}
+                  <span style={{ color: grey[30], margin: "0 6px" }}>›</span>
+                </span>
+              ))
+            ) : (
+              <span>
+                <span style={{ color: grey[40], fontWeight: 500 }}>
+                  {blockLabel ?? "Section"}
+                </span>
+                <span style={{ color: grey[30], margin: "0 6px" }}>›</span>
+              </span>
+            )}
             {elementLabel ?? "Element"}
           </div>
+        </div>
+      ) : null}
+
+      {notice ? (
+        <div
+          style={{
+            ...type.label,
+            fontFamily: font,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 6,
+            color: grey[60],
+            background: grey[5],
+            border: hairline,
+            borderRadius: radius.md,
+            padding: "8px 10px",
+            marginBottom: 10,
+          }}
+        >
+          <span style={{ display: "inline-flex", color: grey[40], flexShrink: 0, marginTop: 1 }}>
+            <UiIcon name="alert" size={13} />
+          </span>
+          <span>{notice}</span>
         </div>
       ) : null}
 
@@ -1253,6 +1576,7 @@ export default function SchemaPanel({
             fields={orderedContentFields}
             props={props ?? {}}
             onChange={onChange}
+            inheritBases={inheritBases}
           />
           {contentExtra}
         </BlockTypeCtx.Provider>
@@ -1260,7 +1584,7 @@ export default function SchemaPanel({
 
       {activeTab === "style" && onStyleChange ? (
         <StyleFieldList
-          fields={UNIVERSAL_STYLE}
+          fields={resolvedStyleFields}
           bag={styleBag ?? {}}
           onChange={onStyleChange}
           device={device}
@@ -1270,7 +1594,7 @@ export default function SchemaPanel({
 
       {activeTab === "advanced" && onAdvancedChange ? (
         <StyleFieldList
-          fields={UNIVERSAL_ADVANCED}
+          fields={resolvedAdvancedFields}
           bag={advancedBag ?? {}}
           onChange={onAdvancedChange}
           device={device}

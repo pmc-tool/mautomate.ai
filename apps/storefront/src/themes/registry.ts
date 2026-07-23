@@ -8,31 +8,22 @@
 /* ------------------------------------------------------------------ */
 
 import type { ThemeManifest } from "./contract"
-import { leartsTheme } from "./learts"
-import { auroraTheme } from "./aurora"
-import { cignetTheme } from "./cignet"
-import { shofyTheme } from "./shofy"
-import { ekkaTheme } from "./ekka"
-import { helendoTheme } from "./helendo"
-import { bazaroTheme } from "./bazaro"
-import { exzoTheme } from "./exzo"
-import { rokonTheme } from "./rokon"
+import { baseTheme } from "./base"
 
-/** Every theme that ships with the storefront. */
+/** Every theme that ships with the storefront.
+ *
+ * All merchant-facing compiled themes (aurora/cignet/shofy/ekka/helendo/
+ * bazaro/exzo/rokon) were ported to UPLOADED Liquid themes (handles
+ * `<name>-liquid`) and their React code deleted on 2026-07-18. Only `base`
+ * remains: the shared React foundation that renders the REACT_ONLY
+ * interactive pages (account/checkout/order/payment/wishlist) for every
+ * store. It is not merchant-selectable as a storefront look. */
 export const THEMES: Record<string, ThemeManifest> = {
-  [leartsTheme.id]: leartsTheme,
-  [auroraTheme.id]: auroraTheme,
-  [cignetTheme.id]: cignetTheme,
-  [shofyTheme.id]: shofyTheme,
-  [ekkaTheme.id]: ekkaTheme,
-  [helendoTheme.id]: helendoTheme,
-  [bazaroTheme.id]: bazaroTheme,
-  [exzoTheme.id]: exzoTheme,
-  [rokonTheme.id]: rokonTheme,
+  [baseTheme.id]: baseTheme,
 }
 
 /** The theme used when no `active_theme` setting exists or it is unknown. */
-export const DEFAULT_THEME_ID = leartsTheme.id
+export const DEFAULT_THEME_ID = baseTheme.id
 
 /** Resolve a theme by id, falling back to the default for unknown ids. */
 export function getThemeById(id?: string | null): ThemeManifest {

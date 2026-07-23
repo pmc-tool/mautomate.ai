@@ -1,0 +1,14 @@
+{
+  "name": "@dtc/cms-contract",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Single CMS schema contract: the FieldDef catalog surface + backend publish-validation annotations + the validator/digest generator. NOT yet npm-linked (root workspaces are apps/** and npm install is prohibited on this deployment — node_modules carries hand patches); consumed via the generator's emitted artifacts (backend) and byte-untouched direct source (storefront). See src/index.ts header for the full resolution rationale.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "generate": "../../node_modules/.bin/esbuild src/generate.ts --bundle --platform=node --format=cjs --outfile=/tmp/cms-contract-gen.cjs --log-level=warning && node /tmp/cms-contract-gen.cjs",
+    "generate:check": "../../node_modules/.bin/esbuild src/generate.ts --bundle --platform=node --format=cjs --outfile=/tmp/cms-contract-gen.cjs --log-level=warning && node /tmp/cms-contract-gen.cjs --check",
+    "probe": "../../node_modules/.bin/esbuild src/shadow-probe.ts --bundle --platform=node --format=cjs --outfile=/tmp/cms-probe.cjs --log-level=warning && node /tmp/cms-probe.cjs",
+    "typecheck": "../../node_modules/.bin/tsc --noEmit -p tsconfig.json"
+  }
+}

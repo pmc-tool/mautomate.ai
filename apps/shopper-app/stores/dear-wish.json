@@ -1,0 +1,14 @@
+{
+  "slug": "dear-wish",
+  "appName": "Dear Wish",
+  "androidApplicationId": "ai.mautomate.shopper.dearwish",
+  "iosBundleId": "ai.mautomate.shopper.dearwish",
+  "accentColor": "#72a499",
+  "iconPath": "stores/icons/dear-wish.png",
+  "dartDefines": {
+    "API_BASE_URL": "https://api.mautomate.ai",
+    "STORE_PUBLISHABLE_KEY": "pk_b09e95657743e7083c0db2426540c75330e61ba6bcb8d45c30d32ce762ec634d",
+    "TENANT_ID": "ten_01KX1CTX0VVCGX7760K7WGJPRH",
+    "CMS_BASE": "https://dearwish.shop"
+  }
+}

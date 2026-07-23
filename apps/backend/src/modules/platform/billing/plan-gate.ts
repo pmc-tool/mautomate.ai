@@ -60,6 +60,41 @@ export async function checkPlanGate(
   }
 }
 
+/** Trial video cap — SVD-XT clips are the priciest vendor action we run. */
+export async function checkVideoQuota(
+  container: MedusaContainer,
+  tenantId: string
+): Promise<GateResult> {
+  let plan = "free_trial"
+  try {
+    const svc: any = container.resolve(PLATFORM_MODULE)
+    const t = await svc.retrieveTenant(tenantId).catch(() => null)
+    if (t?.package) plan = t.package
+  } catch {
+    /* trial */
+  }
+  const cap = (PLAN_GATES[plan] ?? PLAN_GATES.free_trial).videos
+  if (cap === null) return { allowed: true }
+
+  try {
+    const svc: any = container.resolve(PLATFORM_MODULE)
+    const used = await svc.listUsageEvents(
+      { tenant_id: tenantId, action: ["ai_video"] },
+      { take: cap + 1 }
+    )
+    if ((used?.length ?? 0) >= cap) {
+      return {
+        allowed: false,
+        reason: `Your trial includes ${cap} AI videos and you've used them all. Upgrade to keep generating.`,
+        upgrade_to: "starter",
+      }
+    }
+  } catch {
+    /* if we can't count, don't block a paying action */
+  }
+  return { allowed: true }
+}
+
 /** Trial image cap — protects us from a trial burning $30 of Gemini. */
 export async function checkImageQuota(
   container: MedusaContainer,

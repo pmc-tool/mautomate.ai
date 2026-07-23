@@ -379,3 +379,77 @@ export const updateCustomerAddress = async (
       return { success: false, error: err.toString() }
     })
 }
+
+/* ------------------------------------------------------------------ *
+ * Password recovery (customer persona)
+ *
+ * Both calls go through sdk.client.fetch, which injects the tenant publishable
+ * key (x-publishable-api-key) exactly like every other storefront store call —
+ * required so the backend resolves WHICH store the customer belongs to.
+ * ------------------------------------------------------------------ */
+
+export type PasswordResetState =
+  | { state: "idle" }
+  | { state: "sent"; email: string }
+  | { state: "success" }
+  | { state: "error"; error: string }
+  | null
+
+// Request a reset email. The backend always returns 201 and never reveals
+// whether an account exists (no enumeration), so we always land on the generic
+// "sent" confirmation — even if the underlying call errors, we do not leak.
+export async function requestPasswordReset(
+  _prev: PasswordResetState,
+  formData: FormData
+): Promise<PasswordResetState> {
+  const email = ((formData.get("email") as string) || "").trim()
+  if (!email) {
+    return { state: "error", error: "Please enter your email address." }
+  }
+  try {
+    await sdk.auth.resetPassword("customer", "emailpass", { identifier: email })
+  } catch {
+    // Swallow: never reveal existence, and a 201 body can still parse-fail.
+  }
+  return { state: "sent", email }
+}
+
+// Confirm a new password with the single-use token from the reset link. The
+// token is a Bearer credential, NOT a session; a 4xx means expired/used/bad.
+export async function updateCustomerPassword(
+  _prev: PasswordResetState,
+  formData: FormData
+): Promise<PasswordResetState> {
+  const token = ((formData.get("token") as string) || "").trim()
+  const password = (formData.get("password") as string) || ""
+  const confirm = (formData.get("confirm") as string) || ""
+  if (!token) {
+    return {
+      state: "error",
+      error: "This reset link is missing its token. Request a new link.",
+    }
+  }
+  if (password.length < 8) {
+    return {
+      state: "error",
+      error: "Your new password must be at least 8 characters.",
+    }
+  }
+  if (password !== confirm) {
+    return { state: "error", error: "The two passwords do not match." }
+  }
+  try {
+    await sdk.auth.updateProvider(
+      "customer",
+      "emailpass",
+      { password },
+      token
+    )
+  } catch {
+    return {
+      state: "error",
+      error: "This reset link is invalid or has expired. Request a new one.",
+    }
+  }
+  return { state: "success" }
+}

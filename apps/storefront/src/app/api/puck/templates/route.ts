@@ -10,7 +10,16 @@ async function be(req: NextRequest) {
 export async function GET(req: NextRequest) {
   if (!(await isValidEditorRequest(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   const { backend, headers } = await be(req)
-  const r = await fetch(`${backend}/cms/templates`, { headers, cache: "no-store" }).catch(() => null)
+  // 4C: forward the list filters (?scope=, ?widget_type=) so presets can be
+  // listed without pulling the whole template store.
+  const url = new URL(req.url)
+  const qs = new URLSearchParams()
+  for (const k of ["scope", "widget_type"]) {
+    const v = url.searchParams.get(k)
+    if (v) qs.set(k, v)
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : ""
+  const r = await fetch(`${backend}/cms/templates${suffix}`, { headers, cache: "no-store" }).catch(() => null)
   return NextResponse.json(r ? await r.json().catch(() => ({})) : {}, { status: r?.status || 502 })
 }
 export async function POST(req: NextRequest) {

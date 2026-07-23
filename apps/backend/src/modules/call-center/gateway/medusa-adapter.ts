@@ -1166,15 +1166,33 @@ export class MedusaCommerceGateway implements CommerceGateway {
    * product API uses.
    */
   private async tenantProductIds(scId: string): Promise<string[]> {
-    const { data: links } = await this.query.graph({
-      entity: "product_sales_channel",
-      fields: ["product_id"],
-      filters: { sales_channel_id: scId } as any,
-      pagination: { take: 1000 } as any,
-    })
-    return (links ?? [])
-      .map((l: any) => l.product_id)
-      .filter((id: any): id is string => Boolean(id))
+    // SECURITY / CORRECTNESS INVARIANT: page to exhaustion (bounded by MAX) so a
+    // tenant with >1000 products is NEVER silently truncated — a truncated set
+    // makes phone-order product lookups miss the tail of the catalogue. Mirrors
+    // the marketing gateway's paginated tenantProductIds (the copies diverged
+    // and only the marketing side had been fixed).
+    const PAGE = 1000
+    const MAX = 20000
+    const ids: string[] = []
+    for (let skip = 0; skip < MAX; skip += PAGE) {
+      const { data: links } = await this.query.graph({
+        entity: "product_sales_channel",
+        fields: ["product_id"],
+        filters: { sales_channel_id: scId } as any,
+        pagination: { take: PAGE, skip } as any,
+      })
+      const rows = links ?? []
+      for (const link of rows) {
+        const id = (link as any)?.product_id
+        if (typeof id === "string" && id.length > 0) {
+          ids.push(id)
+        }
+      }
+      if (rows.length < PAGE) {
+        break
+      }
+    }
+    return ids
   }
 
   /**

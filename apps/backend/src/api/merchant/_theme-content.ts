@@ -1,0 +1,217 @@
+import { CMS_MODULE } from "../../modules/cms"
+import { PLATFORM_MODULE } from "../../modules/platform"
+import { emitCmsPublished } from "../../modules/cms/publish-helper"
+
+/**
+ * Theme-switch content handling for the merchant storefront.
+ *
+ * The storefront renders the tenant's LIVE home snapshot; when there is none it
+ * falls back to the active theme's own `defaultSections` demo. So switching
+ * "fresh" is simply: demote the live home snapshot (it stays in history, fully
+ * restorable) — the new theme then renders its native layout instead of the old
+ * theme's blocks (which is what broke the design). "Restore" re-promotes the
+ * most recent demoted version. Products/orders/customers are never touched — only
+ * the storefront's home design.
+ */
+
+const HOME_SLUG = "home"
+const LOCALE = "en"
+
+/** Demote the live home snapshot(s) so the active theme's demo home renders.
+ *  Returns how many were demoted (0 = nothing was published, already on demo). */
+export async function demoteLiveHome(scope: any, tenantId: string): Promise<number> {
+  const service: any = scope.resolve(CMS_MODULE)
+  const live = await service
+    .listCmsSnapshots({
+      tenant_id: tenantId,
+      entity_type: "page",
+      slug: HOME_SLUG,
+      is_live: true,
+    })
+    .catch(() => [])
+  for (const h of live ?? []) {
+    await service.updateCmsSnapshots({ id: h.id, is_live: false })
+  }
+  if (live?.length) {
+    await emitCmsPublished(scope, {
+      entity_type: "page",
+      slug: HOME_SLUG,
+      locale: null,
+      tenant_id: tenantId,
+    }).catch(() => {})
+  }
+  return live?.length ?? 0
+}
+
+/** Delete any autosaved home draft(s) for the tenant (all locales) so the visual
+ *  editor next opens from the live snapshot / theme default rather than a stale
+ *  draft. The editor loads draft-first, so without this a reset or theme switch
+ *  is not reflected in the editor. */
+export async function clearHomeDrafts(scope: any, tenantId: string): Promise<number> {
+  const service: any = scope.resolve(CMS_MODULE)
+  const drafts = await service
+    .listCmsPageDrafts({ tenant_id: tenantId, slug: HOME_SLUG })
+    .catch(() => [])
+  for (const d of drafts ?? []) {
+    await service.deleteCmsPageDrafts(d.id).catch(() => {})
+  }
+  return drafts?.length ?? 0
+}
+
+/** Is there a demoted home snapshot to roll back to? */
+export async function hasRestorableHome(scope: any, tenantId: string): Promise<boolean> {
+  const service: any = scope.resolve(CMS_MODULE)
+  const all = await service
+    .listCmsSnapshots({
+      tenant_id: tenantId,
+      entity_type: "page",
+      slug: HOME_SLUG,
+      locale: LOCALE,
+    })
+    .catch(() => [])
+  return (all ?? []).some((s: any) => !s.is_live)
+}
+
+/** Re-promote the most recent demoted home snapshot (roll back the last switch/
+ *  reset). Returns true if something was restored. */
+export async function restorePreviousHome(scope: any, tenantId: string): Promise<boolean> {
+  const service: any = scope.resolve(CMS_MODULE)
+  const all = (await service
+    .listCmsSnapshots({
+      tenant_id: tenantId,
+      entity_type: "page",
+      slug: HOME_SLUG,
+      locale: LOCALE,
+    })
+    .catch(() => [])) as any[]
+  if (!all?.length) return false
+
+  const notLive = all
+    .filter((s) => !s.is_live)
+    .sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+  if (!notLive.length) return false
+
+  const target = notLive[0]
+  for (const s of all.filter((s) => s.is_live)) {
+    await service.updateCmsSnapshots({ id: s.id, is_live: false })
+  }
+  await service.updateCmsSnapshots({ id: target.id, is_live: true })
+  await emitCmsPublished(scope, {
+    entity_type: "page",
+    slug: HOME_SLUG,
+    locale: null,
+    tenant_id: tenantId,
+  }).catch(() => {})
+  return true
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Storefront CHROME reset (logo / header / footer / theme colours)     */
+/*                                                                     */
+/* "Reset to theme default" resets not only the home LAYOUT (above) but  */
+/* also the storefront chrome, so a merchant's custom logo, header menu, */
+/* footer and theme customisations revert to the theme's clean default.  */
+/* Reversible: the current chrome is backed up under a private settings   */
+/* key so "Restore previous design" brings it back. That backup key is    */
+/* NOT one of SETTING_KEYS, so the storefront never renders it.           */
+/* ------------------------------------------------------------------ */
+
+const CHROME_KEYS = ["header", "footer", "theme", "topbar"] as const
+
+/** The theme's clean default chrome. No custom logo (the store NAME shows),
+ *  a standard nav, and no colour/font overrides. */
+const DEFAULT_MENU = [
+  { label: "Home", href: "/" },
+  { label: "Shop", href: "/store" },
+  { label: "Blog", href: "/blog" },
+  { label: "Contact", href: "/contact" },
+]
+
+// NOTE: updateCmsSettings DEEP-MERGES the JSON, so fields must be explicitly
+// EMPTIED to clear them (omitting a field keeps the old value). `logo: ""`
+// overrides the merge and, at read time, resolves to no logo -> the store NAME
+// shows in the header instead of the merchant's old custom image.
+const DEFAULT_CHROME: Record<string, any> = {
+  header: {
+    en: { logo: "", logo_alt: "", menu: DEFAULT_MENU },
+    bn: { logo: "", logo_alt: "" },
+  },
+  footer: {
+    en: { bottom_logo: "" },
+    bn: {},
+  },
+  theme: { en: { logo: "" }, bn: { logo: "" } },
+  topbar: { en: {} },
+}
+
+async function getSetting(service: any, tenantId: string, key: string) {
+  const rows = await service
+    .listCmsSettings({ key, tenant_id: tenantId })
+    .catch(() => [])
+  return rows?.[0] ?? null
+}
+
+async function putSetting(service: any, tenantId: string, key: string, data: any) {
+  const existing = await getSetting(service, tenantId, key)
+  if (existing) await service.updateCmsSettings({ id: existing.id, data })
+  else await service.createCmsSettings({ key, data, tenant_id: tenantId })
+}
+
+/** Back up the current chrome (into tenant.meta), then reset it to the theme
+ *  default. The `cms_setting.key` column has a CHECK constraint on known keys,
+ *  so the backup can't live there — it lives on the tenant record instead. */
+export async function resetStoreChrome(scope: any, tenantId: string): Promise<void> {
+  const service: any = scope.resolve(CMS_MODULE)
+  const platform: any = scope.resolve(PLATFORM_MODULE)
+
+  const backup: Record<string, any> = {}
+  for (const key of CHROME_KEYS) {
+    const row = await getSetting(service, tenantId, key)
+    backup[key] = row?.data ?? null
+  }
+  const tenant = await platform.retrieveTenant(tenantId).catch(() => null)
+  const meta = { ...((tenant?.meta ?? {}) as Record<string, any>), design_backup: backup }
+  await platform.updateTenants({ id: tenantId, meta })
+
+  for (const key of CHROME_KEYS) {
+    await putSetting(service, tenantId, key, DEFAULT_CHROME[key])
+    await emitCmsPublished(scope, {
+      entity_type: "global",
+      slug: key,
+      locale: null,
+      tenant_id: tenantId,
+    }).catch(() => {})
+  }
+}
+
+/** Is there a chrome backup to roll back to? */
+export async function hasRestorableChrome(scope: any, tenantId: string): Promise<boolean> {
+  const platform: any = scope.resolve(PLATFORM_MODULE)
+  const tenant = await platform.retrieveTenant(tenantId).catch(() => null)
+  return !!(tenant?.meta as any)?.design_backup
+}
+
+/** Re-apply the backed-up chrome (undo a reset's chrome changes) + clear it. */
+export async function restoreStoreChrome(scope: any, tenantId: string): Promise<boolean> {
+  const service: any = scope.resolve(CMS_MODULE)
+  const platform: any = scope.resolve(PLATFORM_MODULE)
+  const tenant = await platform.retrieveTenant(tenantId).catch(() => null)
+  const meta = (tenant?.meta ?? {}) as Record<string, any>
+  const backup = meta.design_backup as Record<string, any> | undefined
+  if (!backup) return false
+  for (const key of CHROME_KEYS) {
+    if (backup[key] == null) continue
+    await putSetting(service, tenantId, key, backup[key])
+    await emitCmsPublished(scope, {
+      entity_type: "global",
+      slug: key,
+      locale: null,
+      tenant_id: tenantId,
+    }).catch(() => {})
+  }
+  const nextMeta = { ...meta }
+  delete nextMeta.design_backup
+  await platform.updateTenants({ id: tenantId, meta: nextMeta })
+  return true
+}

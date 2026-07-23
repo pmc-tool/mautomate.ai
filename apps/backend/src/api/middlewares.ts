@@ -11,6 +11,7 @@ import { Modules } from "@medusajs/framework/utils"
 import { CMS_MODULE } from "../modules/cms"
 import { PLATFORM_MODULE } from "../modules/platform"
 import { withTenant, getCurrentTenantId } from "../lib/tenant-context"
+import { consumeRateLimit, clientIp } from "../lib/rate-limit"
 import { cmsTenantId } from "../modules/cms/tenant-scope"
 import type CmsModuleService from "../modules/cms/service"
 import {
@@ -212,14 +213,21 @@ function requireTelephonySecret(
   res: MedusaResponse,
   next: MedusaNextFunction
 ) {
-  const provided = req.headers["x-telephony-secret"]
+  // Carriers (Twilio/Vonage) cannot send custom headers on webhooks, so the
+  // secret is ALSO accepted as a `?ts=` query param baked into the webhook
+  // URLs configured at the carrier. Same timing-safe compare either way; the
+  // per-provider signature check in-handler still applies on top.
+  const headerSecret = req.headers["x-telephony-secret"]
+  const querySecret = (req.query as Record<string, unknown> | undefined)?.ts
+  const provided =
+    typeof headerSecret === "string" && headerSecret
+      ? headerSecret
+      : typeof querySecret === "string"
+      ? querySecret
+      : ""
   const expected = process.env.TELEPHONY_WEBHOOK_SECRET
 
-  if (
-    !expected ||
-    typeof provided !== "string" ||
-    !callCenterSafeEqual(provided, expected)
-  ) {
+  if (!expected || !provided || !callCenterSafeEqual(provided, expected)) {
     res.status(401).json({ message: "Unauthorized" })
     return
   }
@@ -591,12 +599,130 @@ async function scopeCustomerMeToTenant(
   next()
 }
 
+/**
+ * Auth brute-force limiter — SECURITY INVARIANT: every credential-checking auth
+ * endpoint (emailpass login for all personas, password-reset request, and the
+ * merchant MFA verify) MUST be rate-limited per client IP and per account. A
+ * capable fixed-window limiter already existed but was wired ONLY to the
+ * marketing-chat routes.
+ *
+ * Two independent fixed-window budgets — BOTH must pass:
+ *   - per IP: bounds credential stuffing / password spraying from one source.
+ *   - per identifier (email / reset identifier / MFA token, hashed so no PII or
+ *     bearer secret ever lands in a limiter key): bounds targeted brute force of
+ *     ONE account (incl. 6-digit TOTP / finite backup codes on MFA-verify).
+ *
+ * Returns 429 + a GENERIC message + Retry-After — it never reveals whether the
+ * account exists. Backed by the shared Redis limiter (cross-instance) with an
+ * in-process fallback, exactly like marketing-chat.
+ */
+const AUTH_RL_WINDOW_SECONDS = 60
+const AUTH_RL_PER_IP = 20
+const AUTH_RL_PER_IDENTIFIER = 6
+
+function authRateLimitIdentifier(req: MedusaRequest): string | null {
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const raw =
+    (typeof body.email === "string" && body.email) ||
+    (typeof body.identifier === "string" && body.identifier) ||
+    (typeof body.token === "string" && body.token) ||
+    ""
+  if (!raw) return null
+  // Hash so a real email / bearer token never becomes a limiter key.
+  return crypto
+    .createHash("sha256")
+    .update(String(raw).toLowerCase().trim())
+    .digest("hex")
+    .slice(0, 32)
+}
+
+async function rateLimitAuth(
+  req: MedusaRequest,
+  res: MedusaResponse,
+  next: MedusaNextFunction
+) {
+  const ip = clientIp(req.headers as any, (req as any).ip)
+  const ipLimit = await consumeRateLimit(
+    `auth:ip:${ip}`,
+    AUTH_RL_PER_IP,
+    AUTH_RL_WINDOW_SECONDS
+  )
+  let identifierLimit: Awaited<ReturnType<typeof consumeRateLimit>> | null = null
+  const identifier = authRateLimitIdentifier(req)
+  if (identifier) {
+    identifierLimit = await consumeRateLimit(
+      `auth:id:${identifier}`,
+      AUTH_RL_PER_IDENTIFIER,
+      AUTH_RL_WINDOW_SECONDS
+    )
+  }
+  if (!ipLimit.allowed || (identifierLimit && !identifierLimit.allowed)) {
+    const retryAfter = Math.max(ipLimit.retryAfter, identifierLimit?.retryAfter ?? 0)
+    res.setHeader("Retry-After", String(retryAfter))
+    // Generic message — do NOT reveal whether the account exists.
+    res.status(429).json({
+      message: "Too many attempts. Please wait a moment and try again.",
+    })
+    return
+  }
+  next()
+}
+
 export default defineMiddlewares({
   routes: [
     {
       // Global tenant context resolver — must run before any tenant-scoped service.
       matcher: "/(.*)",
       middlewares: [setTenantContext],
+    },
+    {
+      // SECURITY: brute-force limit the emailpass LOGIN for every persona.
+      matcher: "/auth/merchant/emailpass",
+      method: ["POST"],
+      middlewares: [rateLimitAuth],
+    },
+    {
+      matcher: "/auth/customer/emailpass",
+      method: ["POST"],
+      middlewares: [rateLimitAuth],
+    },
+    {
+      matcher: "/auth/user/emailpass",
+      method: ["POST"],
+      middlewares: [rateLimitAuth],
+    },
+    {
+      // SECURITY: brute-force limit the password-reset REQUEST endpoints.
+      matcher: "/auth/merchant/emailpass/reset-password",
+      method: ["POST"],
+      middlewares: [rateLimitAuth],
+    },
+    {
+      matcher: "/auth/customer/emailpass/reset-password",
+      method: ["POST"],
+      middlewares: [rateLimitAuth],
+    },
+    {
+      matcher: "/auth/user/emailpass/reset-password",
+      method: ["POST"],
+      middlewares: [rateLimitAuth],
+    },
+    {
+      // SECURITY: brute-force limit merchant MFA verify (TOTP / backup code).
+      matcher: "/auth/merchant/mfa/verify",
+      method: ["POST"],
+      middlewares: [rateLimitAuth],
+    },
+    {
+      // SECURITY: /metrics exposes platform-wide financial/business totals — gate
+      // it behind the super-admin allowlist (was unauthenticated). Scrapers must
+      // present an authenticated platform super-admin bearer token.
+      matcher: "/metrics",
+      method: ["GET"],
+      middlewares: [
+        authenticate("user", ["bearer", "session"]),
+        requirePlatformSuperAdmin,
+      ],
     },
     {
       // Per-store customer isolation: namespace the emailpass auth identifier
@@ -682,6 +808,13 @@ export default defineMiddlewares({
       middlewares: [authenticate("merchant", ["bearer", "session"]), requireMerchantMfa],
     },
     {
+      // Partner program panel — authenticate the "partner" actor. Every
+      // /partner/* handler additionally scopes to the signed-in partner.
+      matcher: "/partner/*",
+      method: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      middlewares: [authenticate("partner", ["bearer", "session"])],
+    },
+    {
       // Fail-closed super-admin guard for the control plane (all methods).
       matcher: "/admin/platform/*",
       middlewares: [requirePlatformSuperAdmin],
@@ -712,6 +845,18 @@ export default defineMiddlewares({
       // Parse multipart bodies for merchant marketing media uploads.
       method: ["POST"],
       matcher: "/merchant/marketing/media",
+      middlewares: [cmsMediaUpload.single("file")],
+    },
+    {
+      // Parse multipart bodies for merchant blog image uploads.
+      method: ["POST"],
+      matcher: "/merchant/blog/media",
+      middlewares: [cmsMediaUpload.single("file")],
+    },
+    {
+      // Parse multipart bodies for the setup-wizard logo upload.
+      method: ["POST"],
+      matcher: "/merchant/setup/logo",
       middlewares: [cmsMediaUpload.single("file")],
     },
 

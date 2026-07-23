@@ -15,6 +15,7 @@ import CallCenterSetting from "./models/setting"
 import CallCenterKnowledge from "./models/call-center-knowledge"
 import CallCenterKnowledgeChunk from "./models/call-center-knowledge-chunk"
 import CallCenterPhoneNumber from "./models/call-center-phone-number"
+import CallCenterTransfer from "./models/call-center-transfer"
 
 /**
  * Call-center module service.
@@ -63,6 +64,7 @@ class CallCenterModuleService extends MedusaService({
   KnowledgeEntry: CallCenterKnowledge,
   KnowledgeChunk: CallCenterKnowledgeChunk,
   PhoneNumber: CallCenterPhoneNumber,
+  Transfer: CallCenterTransfer,
 }) {}
 
 export default CallCenterModuleService

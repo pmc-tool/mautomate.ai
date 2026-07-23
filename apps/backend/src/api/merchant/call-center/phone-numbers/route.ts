@@ -2,6 +2,8 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { CALL_CENTER_MODULE } from "../../../../modules/call-center"
 import { resolveMerchant } from "../../_helpers"
 import { checkPlanGate } from "../../../../modules/platform/billing/plan-gate"
+import { numberProviderStatus } from "../../../../modules/call-center/telephony-providers"
+import { creditsFor } from "../../../../modules/platform/pricing/price-book"
 
 /**
  * /merchant/call-center/phone-numbers
@@ -26,7 +28,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       { tenant_id },
       { take: 200, order: { created_at: "DESC" } }
     )
-    res.json({ phone_numbers: numbers ?? [] })
+    res.json({
+      phone_numbers: numbers ?? [],
+      providers: numberProviderStatus(),
+      monthly_credits: creditsFor("phone_number_month", 1),
+    })
   } catch (e: any) {
     res.status(500).json({ message: e?.message ?? "Failed to list numbers" })
   }
@@ -83,12 +89,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       }
     }
 
+    // BYO registration: the merchant owns this DID at their own carrier
+    // account, so provider_number_id stays null (we never release it).
+    const providerName = ["twilio", "vonage"].includes(
+      String(body.provider ?? "").toLowerCase()
+    )
+      ? String(body.provider).toLowerCase()
+      : "twilio"
+
     const created = await cc.createPhoneNumbers({
       tenant_id,
       e164,
       agent_id,
       label,
-      provider: "twilio",
+      provider: providerName,
       active: true,
     })
     res.status(201).json({ phone_number: created })

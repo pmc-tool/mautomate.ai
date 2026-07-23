@@ -1,5 +1,22 @@
 import { Liquid, type Template } from "liquidjs"
 
+import { renderContainerHtml } from "@modules/cms/render/container-html"
+import { renderSliderHtml } from "@modules/cms/render/slider-html"
+import { placementForTheme } from "@modules/cms/slider/defaults"
+import {
+  collapseFlushContainer,
+  containerScopeOf,
+  harvestTabProducts,
+  makeWidgetRenderer,
+  planSection,
+  wrapSectionHtml,
+} from "@modules/cms/render/document"
+
+/* Re-exported for existing importers (the truth harness, older callers):
+   the collapse rule now lives in the document composer, the ONE place both
+   render paths consume it from. */
+export { collapseFlushContainer }
+
 /* ------------------------------------------------------------------ */
 /* The theme engine — a sandboxed Liquid runtime.                       */
 /*                                                                     */
@@ -177,13 +194,85 @@ export function createEngine(
     },
     async render(scope: any, emitter: any) {
       const section = await this.liquid.evalValue(this.value, scope)
-      const type = section?.type
-      if (!type) return
-      const src = files[`sections/${type}.liquid`]
-      if (!src) return // unknown block type — silently skip
-      const tpl = this.liquid.parse(src, `sections/${type}.liquid`)
-      const html = await this.liquid.render(tpl, { ...scope.getAll(), section })
-      emitter.write(html)
+
+      // ONE decision, made by the document composer for BOTH render paths:
+      // skip (no type), flat (ordinary themed section, or a facade collapsed
+      // by THE COLLAPSE RULE — see planSection/collapseFlushContainer), or
+      // the platform-rendered container path. The editor canvas consumes the
+      // SAME planSection, so the two can never disagree about a section.
+      const plan = planSection(section, files)
+      if (plan.kind === "skip") return
+
+      let html: string
+      if (plan.kind === "slider") {
+        // 5A — a LAYERED hero_slider (ARCH-SLIDER S1) is rendered by the
+        // PLATFORM, exactly like the container block: no uploaded theme
+        // knows the layer vocabulary. planSection routes here ONLY when a
+        // slide carries a `layers` array, so every fields-shaped hero
+        // still renders through the theme's own sections/hero_slider.liquid
+        // below, byte-identical. Platform markup uses data-ffs-* markers
+        // exclusively — a theme's own [data-hero] JS can never bind it.
+        html = renderSliderHtml(plan.settings, {
+          scope: containerScopeOf(section),
+          // 5C: the active theme's slider_placement hint shapes RENDER-TIME
+          // upgrades of leftover fields slides in a mixed slider.
+          placement: placementForTheme(ctx.themeId),
+        })
+      } else if (plan.kind === "container") {
+        // The composer's container/columns block is rendered by the PLATFORM,
+        // never by the theme. Its data is COMPOSED (columns → widgets, each a
+        // {widget_type, ...}) rather than fixed, and no uploaded theme knows
+        // that vocabulary: every theme's own sections/container.liquid guessed
+        // at field names that do not exist, so heading/image/button/spacer/
+        // divider/video/icon rendered as NOTHING and no data-col / data-w
+        // markers were emitted (which also broke editor drag-drop). Rendering
+        // it here fixes every theme at once, including future uploads.
+        //
+        // A container column may now hold a COMMERCE widget (hero_slider,
+        // testimonials, product_tabs, …) — Elementor's structure. Its markup is
+        // still the THEME's: the shared makeWidgetRenderer renders
+        // `sections/<type>.liquid` for that widget, so a widget and a full-width
+        // section of the same type look the same and both follow the merchant's
+        // theme. Rendering is SYNCHRONOUS (parseAndRenderSync) — the container is
+        // built as a string, not streamed — and a template that genuinely needs
+        // async work throws, which we swallow so the widget renders nothing
+        // rather than taking down the page. Every commerce section in the shipped
+        // theme packages is sync; only a hand-rolled async partial would degrade.
+        const all = scope.getAll()
+        const liquid = this.liquid
+        html = renderContainerHtml(plan.settings, {
+          scope: containerScopeOf(section),
+          renderSection: makeWidgetRenderer({
+            files,
+            tabProducts: harvestTabProducts(all),
+            widgetId: () => "container-widget",
+            // The live path has always fed the harvest unconditionally —
+            // preserved byte-for-byte (see the note on harvestTabProducts).
+            injectEmptyTabProducts: true,
+            render: (src, sectionCtx) => {
+              try {
+                return liquid.parseAndRenderSync(src, {
+                  ...all,
+                  section: sectionCtx,
+                })
+              } catch {
+                return ""
+              }
+            },
+          }),
+        })
+      } else {
+        if (!plan.src) return // unknown block type — silently skip
+        const tpl = this.liquid.parse(plan.src, `sections/${plan.type}.liquid`)
+        html = await this.liquid.render(tpl, {
+          ...scope.getAll(),
+          section: plan.section,
+        })
+      }
+      // The styled-section wrap (scope class + scoped <style>) is emitted by
+      // the shared composer — see wrapSectionHtml for the sanitization and
+      // byte-identity notes. Un-styled sections pass through untouched.
+      emitter.write(wrapSectionHtml(section, html))
     },
   })
 

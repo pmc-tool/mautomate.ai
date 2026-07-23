@@ -1,3 +1,4 @@
+import { PaddleGateway } from "./paddle"
 /**
  * Payment-gateway provider contract (plan §06). Two gateways, routed by the
  * merchant's billing country: Stripe (USD/global) and SSLCommerz (Bangladesh,
@@ -50,6 +51,13 @@ export type WebhookEvent = SubscriptionEvent & PurchaseEvent & {
   tenant_id?: string
   credits?: number
   amount_usd?: number
+  /**
+   * The amount the gateway VERIFIED was actually charged (major units, from
+   * Stripe `amount_total`). Unlike `amount_usd`/`credits` (echoed from
+   * client-set checkout metadata), this is authoritative and is what the credit
+   * grant must be derived from. See the top-up underpayment fix (P1).
+   */
+  amount_paid_usd?: number
 }
 
 export interface PaymentGateway {
@@ -345,6 +353,13 @@ export class StripeGateway implements PaymentGateway {
         tenant_id: metadata.tenant_id,
         credits: metadata.credits ? Number(metadata.credits) : undefined,
         amount_usd: metadata.amount_usd ? Number(metadata.amount_usd) : undefined,
+        // Authoritative charged amount (Stripe-verified), NOT from metadata.
+        // The credit grant is computed from this so forged metadata can't
+        // inflate the top-up.
+        amount_paid_usd:
+          typeof session.amount_total === "number"
+            ? session.amount_total / 100
+            : undefined,
         plan_key: metadata.plan_key,
         purchase_kind: metadata.purchase_kind,
         purchase_ref: metadata.purchase_ref,
@@ -396,10 +411,13 @@ export class SslcommerzGateway implements PaymentGateway {
 }
 
 /** Pick the gateway for a billing country (SSLCommerz for BD, else Stripe). */
-export const gatewayForCountry = (country?: string, cfg?: EncryptedConfigService): PaymentGateway =>
-  new SslcommerzGateway(cfg).serves(country)
+export const gatewayForCountry = (country?: string, cfg?: EncryptedConfigService): PaymentGateway => {
+  const paddle = new PaddleGateway(cfg)
+  if (paddle.isConfigured()) return paddle
+  return new SslcommerzGateway(cfg).serves(country)
     ? new SslcommerzGateway(cfg)
     : new StripeGateway(cfg)
+}
 
 export const allGateways = (cfg?: EncryptedConfigService): PaymentGateway[] => [
   new StripeGateway(cfg),

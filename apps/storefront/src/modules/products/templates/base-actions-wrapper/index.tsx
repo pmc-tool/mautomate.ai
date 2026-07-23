@@ -1,0 +1,30 @@
+import { listProducts } from "@lib/data/products"
+import { HttpTypes } from "@medusajs/types"
+import BaseProductActions from "@modules/products/components/base-product-actions"
+
+/**
+ * Fetches real-time pricing + categories/tags for the product and renders the
+ * Learts-styled product summary + actions.
+ */
+export default async function BaseActionsWrapper({
+  id,
+  region,
+}: {
+  id: string
+  region: HttpTypes.StoreRegion
+}) {
+  const product = await listProducts({
+    queryParams: {
+      id: [id],
+      fields:
+        "*variants.calculated_price,+variants.inventory_quantity,*variants.options,*options,*options.values,*categories,+tags,*images,images.variants.id,variants.thumbnail,description,title,handle",
+    } as any,
+    regionId: region.id,
+  }).then(({ response }) => response.products[0])
+
+  if (!product) {
+    return null
+  }
+
+  return <BaseProductActions product={product} region={region} />
+}

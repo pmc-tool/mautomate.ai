@@ -6,7 +6,7 @@ import { HttpTypes } from "@medusajs/types"
 
 import { useWishlist } from "@lib/context/wishlist-context"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import LeartsProductCard from "@modules/home/components/learts/product-card"
+import BaseProductCard from "@modules/home/components/base/product-card"
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
@@ -132,7 +132,7 @@ const WishlistTemplate = ({ regionId }: { regionId?: string }) => {
         ) : (
           <div className="products row row-cols-xl-4 row-cols-lg-3 row-cols-md-3 row-cols-sm-2 row-cols-1">
             {visibleProducts.map((p) => (
-              <LeartsProductCard key={p.id} product={p} />
+              <BaseProductCard key={p.id} product={p} />
             ))}
           </div>
         )}

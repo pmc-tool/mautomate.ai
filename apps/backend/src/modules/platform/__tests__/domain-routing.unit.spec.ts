@@ -11,10 +11,23 @@ describe("isApexDomain", () => {
   })
 })
 
+const afterAllRestore: Array<() => void> = []
+afterAll(() => afterAllRestore.forEach((f) => f()))
+
 describe("CloudflareSaaSClient — not configured", () => {
   it("reports not-configured and no-throws", async () => {
+    // jest may load the real .env — force the unconfigured state
+    const saved = {
+      token: process.env.CLOUDFLARE_API_TOKEN,
+      zone: process.env.CLOUDFLARE_SAAS_ZONE_ID,
+    }
+    delete process.env.CLOUDFLARE_API_TOKEN
+    delete process.env.CLOUDFLARE_SAAS_ZONE_ID
+    afterAllRestore.push(() => {
+      if (saved.token) process.env.CLOUDFLARE_API_TOKEN = saved.token
+      if (saved.zone) process.env.CLOUDFLARE_SAAS_ZONE_ID = saved.zone
+    })
     const c = new CloudflareSaaSClient()
-    // env not set in unit test → not configured
     expect(c.isConfigured()).toBe(false)
     const r = await c.createCustomHostname("acme.com")
     expect(r.ok).toBe(false)
@@ -44,10 +57,61 @@ function fakeContainer() {
   return { container: { resolve: () => svc } as any, svc }
 }
 
-function fakeCF(configured: boolean): any {
+function fakeCF(configured: boolean, zoneFlow = true): any {
   return {
+    calls: [] as string[],
     isConfigured: () => configured,
+    zoneFlowAvailable: () => zoneFlow,
     fallbackOrigin: () => "origin.mautomate.ai",
+    tunnelTarget: () => "tunnel-id.cfargotunnel.com",
+    async createZone(name: string) {
+      return {
+        ok: true,
+        data: {
+          id: "zone_123",
+          name,
+          status: "pending",
+          name_servers: ["alexia.ns.cloudflare.com", "cameron.ns.cloudflare.com"],
+        },
+      }
+    },
+    async getZone() {
+      return {
+        ok: true,
+        data: {
+          id: "zone_123",
+          name: "acme.com",
+          status: "active",
+          name_servers: ["alexia.ns.cloudflare.com", "cameron.ns.cloudflare.com"],
+        },
+      }
+    },
+    async deleteZone() {
+      return { ok: true }
+    },
+    async scanZoneRecords() {
+      return { ok: true }
+    },
+    async listDnsRecords() {
+      return {
+        ok: true,
+        data: [
+          // an imported parked A record at apex that must be replaced
+          { id: "rec_a", type: "A", name: "acme.com", content: "192.0.2.1", proxied: false },
+          { id: "rec_mx", type: "MX", name: "acme.com", content: "mail.acme.com", proxied: false },
+        ],
+      }
+    },
+    deleted: [] as string[],
+    async deleteDnsRecord(_zone: string, id: string) {
+      this.deleted.push(id)
+      return { ok: true }
+    },
+    created: [] as any[],
+    async createDnsRecord(_zone: string, rec: any) {
+      this.created.push(rec)
+      return { ok: true, data: { id: "rec_new", ...rec, proxied: true } }
+    },
     async createCustomHostname(hostname: string) {
       return {
         ok: true,
@@ -81,7 +145,7 @@ function fakeCF(configured: boolean): any {
 }
 
 describe("DomainRoutingService", () => {
-  it("subdomain instructions are a single CNAME to origin", () => {
+  it("fallback instructions are a single CNAME to origin", () => {
     const { container } = fakeContainer()
     const s = new DomainRoutingService(container, fakeCF(false))
     const ins = s.instructionsFor("shop.acme.com")
@@ -92,23 +156,34 @@ describe("DomainRoutingService", () => {
     })
   })
 
-  it("apex instructions warn about CNAME-flattening + Delegated DCV", () => {
-    const { container } = fakeContainer()
-    const s = new DomainRoutingService(container, fakeCF(false))
-    const ins = s.instructionsFor("acme.com")
-    expect(ins[0].kind).toBe("note")
-    expect(ins[0].value).toMatch(/Delegated DCV/)
-  })
-
-  it("connectCustomDomain creates a CF hostname + pending row + DCV records", async () => {
+  it("apex connect creates a zone, replaces address records, returns NS instructions", async () => {
     const { container, svc } = fakeContainer()
-    const s = new DomainRoutingService(container, fakeCF(true))
+    const cf = fakeCF(true)
+    const s = new DomainRoutingService(container, cf)
     const res = await s.connectCustomDomain("ten_a", "ACME.com.")
     expect(res.ok).toBe(true)
     expect(svc.rows[0].domain).toBe("acme.com") // normalized
-    expect(svc.rows[0].cf_hostname_id).toBe("cf_123")
+    expect(svc.rows[0].cf_hostname_id).toBeNull()
+    expect(svc.rows[0].verification.zone_id).toBe("zone_123")
     expect(svc.rows[0].verification_status).toBe("pending")
-    expect(res.instructions.some((i) => i.kind === "txt")).toBe(true)
+    // the customer's ONLY instruction is the nameserver pair
+    expect(res.instructions.map((i) => i.kind)).toEqual(["ns", "ns"])
+    expect(res.instructions[0].value).toBe("alexia.ns.cloudflare.com")
+    // the imported A record was replaced; MX was preserved
+    expect(cf.deleted).toEqual(["rec_a"])
+    // apex + wildcard now point at the tunnel
+    expect(cf.created.map((r: any) => r.name)).toEqual(["acme.com", "*.acme.com"])
+  })
+
+  it("subdomain connect uses a custom hostname with a single CNAME instruction", async () => {
+    const { container, svc } = fakeContainer()
+    const s = new DomainRoutingService(container, fakeCF(true))
+    const res = await s.connectCustomDomain("ten_a", "shop.acme.com")
+    expect(res.ok).toBe(true)
+    expect(svc.rows[0].cf_hostname_id).toBe("cf_123")
+    expect(res.instructions).toEqual([
+      { kind: "cname", name: "shop.acme.com", value: "origin.mautomate.ai" },
+    ])
   })
 
   it("connectCustomDomain still records a pending row when CF is off", async () => {
@@ -119,10 +194,18 @@ describe("DomainRoutingService", () => {
     expect(svc.rows[0].cf_hostname_id).toBeNull()
   })
 
-  it("syncCustomHostname promotes to verified when CF reports active", async () => {
+  it("sync promotes an NS-mode domain to verified once its zone activates", async () => {
     const { container, svc } = fakeContainer()
     const s = new DomainRoutingService(container, fakeCF(true))
     await s.connectCustomDomain("ten_a", "acme.com")
+    const out = await s.syncCustomHostname(svc.rows[0].id)
+    expect(out).toEqual({ ssl_status: "active", verification_status: "verified" })
+  })
+
+  it("sync promotes a CNAME-mode domain when CF reports active", async () => {
+    const { container, svc } = fakeContainer()
+    const s = new DomainRoutingService(container, fakeCF(true))
+    await s.connectCustomDomain("ten_a", "shop.acme.com")
     const out = await s.syncCustomHostname(svc.rows[0].id)
     expect(out).toEqual({ ssl_status: "active", verification_status: "verified" })
   })

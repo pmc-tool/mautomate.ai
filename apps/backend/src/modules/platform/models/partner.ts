@@ -9,5 +9,6 @@ const Partner = model.define("partner", {
   commission_pct: model.number().default(20),
   status: model.enum(["active", "inactive"]).default("active"),
   referral_code: model.text().nullable(),
+  payout_method: model.text().nullable(),
 }).indexes([{ name: "IDX_partner_status", on: ["status"], unique: false, where: "deleted_at IS NULL" }])
 export default Partner

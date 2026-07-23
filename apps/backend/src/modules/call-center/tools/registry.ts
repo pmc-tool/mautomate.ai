@@ -856,19 +856,46 @@ const transferToHuman: Tool = {
   write: true,
   handler: async (ctx) => {
     const res = await commit(
-      "mark the call as needs-human and transfer to a human agent",
+      "mark the call as needs-human and ring the store team",
       async () => {
         const call = await findCall(ctx)
-        if (call) {
-          await ctx.cc.updateCalls({
-            id: call.id,
-            disposition: "transfer_to_human",
-          })
+        if (!call) {
+          return { transferred: false }
         }
-        return { transferred: true }
+        await ctx.cc.updateCalls({
+          id: call.id,
+          disposition: "transfer_to_human",
+        })
+        // Ring the merchant: a transfer request the dashboard polls and can
+        // ANSWER (for web calls the human joins the caller's Daily room).
+        try {
+          // Web calls have no dialed number; their provider_call_id IS the
+          // Daily room name (the answer route resolves the room URL live).
+          const channel = call.to_number ? "phone" : "web"
+          const [transfer] = await ctx.cc.createTransfers([
+            {
+              tenant_id: ctx.tenantId,
+              call_id: call.id,
+              status: "ringing",
+              channel,
+              room_url: null,
+              room_name: channel === "web" ? call.provider_call_id ?? null : null,
+              caller_number: call.from_number ?? call.to_number ?? null,
+            },
+          ])
+          return { transferred: true, transfer_id: transfer.id, channel }
+        } catch {
+          return { transferred: true }
+        }
       }
     )
-    return { ...res, action: "transfer" }
+    // Hold-and-ring when a request row exists; the legacy hard hand-off
+    // (end the AI leg) only when it doesn't (shadow mode / creation failure).
+    const tid =
+      (res as any)?.transfer_id ?? (res as any)?.result?.transfer_id
+    return tid
+      ? { ...res, action: "transfer_hold" }
+      : { ...res, action: "transfer" }
   },
 }
 

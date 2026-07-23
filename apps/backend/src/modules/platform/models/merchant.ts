@@ -22,6 +22,7 @@ const Merchant = model
     mfa_enabled: model.boolean().default(false),
     mfa_secret_encrypted: model.text().nullable(),
     mfa_backup_codes_hash: model.text().nullable(),
+    referral_code: model.text().nullable(),
   })
   .indexes([
     { name: "IDX_merchant_email_unique", on: ["email"], unique: true, where: "deleted_at IS NULL" },

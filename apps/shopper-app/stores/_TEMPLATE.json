@@ -1,0 +1,37 @@
+{
+  "$comment": "Per-store white-label build config. Copy this file to stores/<slug>.json and fill in the real values. The factory (scripts/build_store.sh <slug>) reads it and stamps a branded binary. Slug = the file name without .json; use kebab-case (e.g. dear-wish).",
+
+  "slug": "example-store",
+  "$comment_slug": "Human/CI identifier for this store build. Must match the file name. kebab-case.",
+
+  "appName": "Example Store",
+  "$comment_appName": "REQUIRED. The app's display name — shown under the launcher icon (Android label) and on the iOS home screen (CFBundleDisplayName). This is the merchant's brand name.",
+
+  "androidApplicationId": "ai.mautomate.shopper.examplestore",
+  "$comment_androidApplicationId": "REQUIRED. The Android applicationId (Play Store package name). Must be globally unique, reverse-DNS, lowercase, no dashes. Convention: ai.mautomate.shopper.<storeslug-no-dashes>. NEVER change it once the app is published — Play treats a changed id as a different app.",
+
+  "iosBundleId": "ai.mautomate.shopper.examplestore",
+  "$comment_iosBundleId": "REQUIRED for iOS. The iOS bundle identifier (App Store). Reverse-DNS, no dashes/underscores. Usually identical to androidApplicationId. NEVER change once published.",
+
+  "accentColor": "#72a499",
+  "$comment_accentColor": "OPTIONAL. Hex color used ONLY for the first-paint splash/brand background before the live design payload loads. Runtime theme colors come from the store's CMS design payload, so this is a cosmetic default. Defaults to the mAutomate ember if omitted.",
+
+  "iconPath": "stores/icons/example-store.png",
+  "$comment_iconPath": "OPTIONAL but strongly recommended. Path (relative to apps/shopper-app) to the store's launcher icon: a square PNG, 1024x1024, no transparency for iOS. If omitted, the default mAutomate icon is used. The merchant provides this asset.",
+
+  "dartDefines": {
+    "API_BASE_URL": "https://api.mautomate.ai",
+    "$comment_API_BASE_URL": "REQUIRED. Backend origin serving the Medusa store API (/store/products, /store/carts, /store/cms/...). Production is https://api.mautomate.ai; the same pooled backend serves every store.",
+
+    "STORE_PUBLISHABLE_KEY": "pk_replace_me",
+    "$comment_STORE_PUBLISHABLE_KEY": "REQUIRED. The store's Medusa publishable API key (pk_...). This single value scopes BOTH CMS tenancy and the catalog sales channel to this one store. It is the primary per-store binding. Get it from tenant.publishable_key.",
+
+    "TENANT_ID": "ten_replace_me",
+    "$comment_TENANT_ID": "OPTIONAL/informational. Owning tenant id, sent as x-tenant-id. The backend derives tenant from the publishable key, so this is a fallback/telemetry aid.",
+
+    "CMS_BASE": "https://examplestore.shop",
+    "$comment_CMS_BASE": "REQUIRED. Origin used to resolve root-relative CMS asset URLs (e.g. /learts/assets/images/...). Set to the store's public storefront domain so images load from the right host. Falls back to API_BASE_URL in the app if empty."
+  },
+
+  "$comment_notes": "region_id / currency are NOT baked in — the app fetches them live from GET /tenant-config using the publishable key. Colors are runtime-dynamic from the CMS design payload. Only appName, icon, applicationId/bundleId, and the dartDefines above are baked at build time."
+}

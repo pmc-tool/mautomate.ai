@@ -167,6 +167,84 @@ type MetaRow = {
   raw: unknown
 }
 
+/**
+ * A Medusa-style tag/chip editor for option values. Stores its value as a
+ * comma-joined string (so existing option-form state stays unchanged) but lets
+ * the merchant type a value + Enter (or comma) to add a chip, and click x to
+ * remove one — instead of hand-editing a comma-separated string.
+ */
+function ChipInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+}) {
+  const [draft, setDraft] = useState("")
+  const chips = value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const commit = (raw: string) => {
+    const parts = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (!parts.length) return
+    const next = [...chips]
+    for (const p of parts) {
+      if (!next.some((c) => c.toLowerCase() === p.toLowerCase())) next.push(p)
+    }
+    onChange(next.join(", "))
+    setDraft("")
+  }
+  const remove = (chip: string) =>
+    onChange(chips.filter((c) => c !== chip).join(", "))
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 rounded-base border border-grey-30 bg-white px-2 py-1.5 transition-colors focus-within:border-grey-90 focus-within:ring-1 focus-within:ring-grey-90">
+      {chips.map((chip) => (
+        <span
+          key={chip}
+          className="inline-flex items-center gap-1 rounded-base bg-grey-10 px-2 py-0.5 text-sm text-grey-90"
+        >
+          {chip}
+          <button
+            type="button"
+            onClick={() => remove(chip)}
+            className="text-grey-40 transition-colors hover:text-grey-90"
+            aria-label={`Remove ${chip}`}
+          >
+            <XMark className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+      <input
+        className="min-w-[90px] flex-1 border-0 bg-transparent p-0.5 text-sm text-grey-90 placeholder:text-grey-40 focus:outline-none focus:ring-0"
+        value={draft}
+        onChange={(e) => {
+          const v = e.target.value
+          if (v.includes(",")) commit(v)
+          else setDraft(v)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault()
+            commit(draft)
+          } else if (e.key === "Backspace" && !draft && chips.length) {
+            remove(chips[chips.length - 1])
+          }
+        }}
+        onBlur={() => {
+          if (draft.trim()) commit(draft)
+        }}
+        placeholder={chips.length ? "" : placeholder || "Type a value, press Enter"}
+      />
+    </div>
+  )
+}
+
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -196,6 +274,17 @@ export default function ProductDetailPage() {
     description: "",
     discountable: true,
   })
+  // #10: keep the handle in sync with the title while it is still the auto-slug
+  // (so renaming updates the URL); a custom handle is left untouched.
+  const slugify = (value: string): string =>
+    value
+      .toLowerCase()
+      .trim()
+      .replace(/[\s_]+/g, "-")
+      .replace(/[^\p{Ll}\p{Lo}\p{Lm}\p{N}-]/gu, "")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "")
+  const [genHandleEdited, setGenHandleEdited] = useState(false)
 
   // Media edit modal
   const [mediaOpen, setMediaOpen] = useState(false)
@@ -351,6 +440,9 @@ export default function ProductDetailPage() {
       description: p.description || "",
       discountable: p.discountable ?? true,
     })
+    // A handle equal to the slug of the title is "auto" -> follows renames; a
+    // custom handle (differs from the slug) is treated as locked.
+    setGenHandleEdited(!!p.handle && p.handle !== slugify(p.title || ""))
     setGeneralOpen(true)
   }
 
@@ -646,10 +738,10 @@ export default function ProductDetailPage() {
     return opts.every((opt) => !!variantForm.options[opt.title])
   }, [product, variantForm.options])
 
-  const variantCanSave =
-    (product?.options || []).length > 0
-      ? variantOptionsComplete
-      : !!variantForm.title.trim()
+  const productHasOptions = (product?.options || []).length > 0
+  // #5: a product with no options can only have its single default variant, so
+  // block variant creation until an option exists (instead of failing with 400).
+  const variantCanSave = productHasOptions ? variantOptionsComplete : false
 
   async function saveVariant(e: React.FormEvent) {
     e.preventDefault()
@@ -1405,7 +1497,13 @@ export default function ProductDetailPage() {
             <Input
               id="gen-title"
               value={genForm.title}
-              onChange={(e) => setGenForm((p) => ({ ...p, title: e.target.value }))}
+              onChange={(e) =>
+                setGenForm((p) => ({
+                  ...p,
+                  title: e.target.value,
+                  handle: genHandleEdited ? p.handle : slugify(e.target.value),
+                }))
+              }
               placeholder="Winter jacket"
               required
             />
@@ -1424,7 +1522,10 @@ export default function ProductDetailPage() {
               <input
                 id="gen-handle"
                 value={genForm.handle}
-                onChange={(e) => setGenForm((p) => ({ ...p, handle: e.target.value }))}
+                onChange={(e) => {
+                  setGenHandleEdited(true)
+                  setGenForm((p) => ({ ...p, handle: e.target.value }))
+                }}
                 placeholder="winter-jacket"
                 required
                 className="w-full rounded-base border-0 bg-transparent px-2 py-2 text-sm text-grey-90 placeholder:text-grey-40 focus:outline-none"
@@ -1623,19 +1724,19 @@ export default function ProductDetailPage() {
                         />
                       </FormField>
                       <FormField
-                        label="Variations (comma-separated)"
+                        label="Values"
                         htmlFor={`opt-values-${opt.id}`}
+                        hint="Type a value and press Enter to add it."
                       >
-                        <Input
-                          id={`opt-values-${opt.id}`}
+                        <ChipInput
                           value={form.values}
-                          onChange={(e) =>
+                          onChange={(v) =>
                             setOptionForms((prev) => ({
                               ...prev,
-                              [opt.id]: { ...form, values: e.target.value },
+                              [opt.id]: { ...form, values: v },
                             }))
                           }
-                          placeholder="Red, Blue, Green"
+                          placeholder="e.g. Small"
                         />
                       </FormField>
                     </div>
@@ -1677,12 +1778,15 @@ export default function ProductDetailPage() {
                   placeholder="Color"
                 />
               </FormField>
-              <FormField label="Variations (comma-separated)" htmlFor="new-opt-values">
-                <Input
-                  id="new-opt-values"
+              <FormField
+                label="Values"
+                htmlFor="new-opt-values"
+                hint="Type a value and press Enter to add it."
+              >
+                <ChipInput
                   value={newOption.values}
-                  onChange={(e) => setNewOption((p) => ({ ...p, values: e.target.value }))}
-                  placeholder="Red, Blue, Green"
+                  onChange={(v) => setNewOption((p) => ({ ...p, values: v }))}
+                  placeholder="e.g. Small"
                 />
               </FormField>
             </div>
@@ -1751,6 +1855,13 @@ export default function ProductDetailPage() {
             </FormField>
           </div>
 
+          {(product.options || []).length === 0 && (
+            <div className="rounded-base border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+              Add a product option first (e.g. Size or Color). Variants are
+              combinations of option values — create an option in the Options
+              section below, then add variants here.
+            </div>
+          )}
           {(product.options || []).length > 0 && (
             <div>
               <p className="mb-1.5 text-sm font-medium text-grey-70">Options</p>

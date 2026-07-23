@@ -5,6 +5,7 @@ import {
   fetchOverview,
   getRecentOrders,
   OverviewStats,
+  OverviewRange,
   Order,
   ApiError,
 } from "./api"
@@ -16,7 +17,7 @@ export type OverviewData = {
   error: string | null
 }
 
-export function useOverview(token: string | null): OverviewData {
+export function useOverview(token: string | null, range?: OverviewRange): OverviewData {
   const [data, setData] = useState<{
     stats: OverviewStats
     recentOrders: Order[]
@@ -24,24 +25,39 @@ export function useOverview(token: string | null): OverviewData {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Depend on the primitive range fields so a fresh range object each render
+  // does not trigger an infinite refetch loop.
+  const from = range?.from
+  const to = range?.to
+  const label = range?.label
+
   useEffect(() => {
     if (!token) {
       setLoading(false)
       return
     }
 
+    let active = true
     setLoading(true)
     setError(null)
 
-    fetchOverview(token)
+    fetchOverview(token, { from, to, label })
       .then((result) => {
+        if (!active) return
         setData({ stats: result.stats, recentOrders: result.recentOrders })
       })
       .catch((err) => {
+        if (!active) return
         setError(err instanceof Error ? err.message : "Failed to load overview")
       })
-      .finally(() => setLoading(false))
-  }, [token])
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [token, from, to, label])
 
   return {
     stats: data?.stats ?? {
@@ -51,6 +67,7 @@ export function useOverview(token: string | null): OverviewData {
       customers: 0,
       creditBalance: 0,
       currencyCode: "USD",
+      series: [],
     },
     recentOrders: data?.recentOrders ?? [],
     loading,

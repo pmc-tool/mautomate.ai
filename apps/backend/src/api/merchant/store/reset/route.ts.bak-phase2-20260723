@@ -1,0 +1,39 @@
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { z } from "zod"
+import { resolveMerchant } from "../../_helpers"
+import { demoteLiveHome, resetStoreChrome } from "../../_theme-content"
+
+/**
+ * POST /merchant/store/reset { scope }
+ *
+ * Reset storefront design back to the active theme's clean default layout. The
+ * current home design is demoted (kept in history — "Restore previous design"
+ * brings it back), then the theme's own demo home renders.
+ *
+ * Deliberately storefront-only: products, orders and customers are NOT touched.
+ * (Scope is an enum so more scopes can be added later behind explicit
+ * confirmation, but only "storefront" is supported today.)
+ */
+const Schema = z.object({
+  scope: z.enum(["storefront"]).default("storefront"),
+})
+
+export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  const ctx = await resolveMerchant(req)
+  if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  const parsed = Schema.safeParse(req.body ?? {})
+  if (!parsed.success) {
+    return res.status(400).json({ message: "invalid scope" })
+  }
+
+  try {
+    const demoted = await demoteLiveHome(req.scope, ctx.tenant.id)
+    // Also reset the storefront chrome (logo, header, footer, theme colours)
+    // to the theme default — reversible via Restore.
+    await resetStoreChrome(req.scope, ctx.tenant.id)
+    res.json({ ok: true, scope: parsed.data.scope, reset: true })
+  } catch (err: any) {
+    res.status(400).json({ message: err?.message || "could not reset the storefront" })
+  }
+}

@@ -9,6 +9,14 @@ import { retrieveCart } from "@lib/data/cart"
 import { retrieveCustomer } from "@lib/data/customer"
 import { getCmsSettings } from "@lib/data/cms"
 import { renderUploadedTheme, loadThemeBundle } from "@modules/theme-runtime/loader"
+import { isValidEditorKeyForRequest } from "@lib/util/secret"
+import { resolveEditorTenant } from "@lib/util/editor-tenant"
+import { fromPuckContent } from "../../../puck/convert"
+import {
+  buildDocumentHeadCss,
+  collectProductTabBags,
+} from "@modules/cms/render/document"
+import { legacyThemeColor } from "@modules/cms/render/theme-vars"
 import {
   baseContext,
   homeContext,
@@ -77,11 +85,18 @@ async function resolveProductTabs(
       available: true,
     }
   }
+  // Collect every product_tabs settings bag on the page — top-level sections
+  // AND product_tabs used as a WIDGET inside a container column (including one
+  // level of inner_section). The walk is the document composer's (shared with
+  // the section-composition seam); the FETCHING stays here — the route owns
+  // the data layer, the composer owns the walk.
+  const tabBags = collectProductTabBags(sections)
+
   await Promise.all(
-    sections
-      .filter((sec: any) => sec?.type === "product_tabs" && Array.isArray(sec?.settings?.tabs))
+    tabBags
+      .filter((bag: any) => Array.isArray(bag?.tabs))
       .flatMap((sec: any) =>
-        sec.settings.tabs.map(async (tab: any) => {
+        sec.tabs.map(async (tab: any) => {
           const limit = Math.min(Number(tab?.limit) || 8, 12)
           try {
             const { response } = await listProducts({
@@ -108,6 +123,57 @@ export async function GET(
   const { path } = await params
   const pathStr = (path ?? []).join("/")
   const { template, countryCode, handle, kind } = classify(pathStr)
+
+  /* ---- Draft preview (Phase 4D — ARCH-UX §5.5 publish confidence) ----
+   * ?preview_draft=<editor key>: render the visual editor's DRAFT buffer
+   * for CMS-page templates through this SAME production path — the only
+   * honest answer to "will it look like this?", because it IS the
+   * production renderer. DEFAULT CLOSED: without the param, nothing about
+   * this route changes. The gate is the tenant-bound, expiring EDITOR
+   * token (the post-leak-fix model): it must verify AND be bound to the
+   * tenant that owns THIS host, so a merchant's preview link can never
+   * open another store's draft, and an expired link stops working. */
+  const previewDraftKey =
+    req.nextUrl.searchParams.get("preview_draft") || ""
+  let draftSections: unknown[] | null = null
+  if (previewDraftKey && (template === "index" || template === "page")) {
+    if (!(await isValidEditorKeyForRequest(previewDraftKey, req))) {
+      return new NextResponse(
+        "Draft preview link is invalid or has expired — reopen Preview from the editor.",
+        { status: 401 }
+      )
+    }
+    const draftSlug = template === "page" ? (handle ?? "") : "home"
+    const rawLang = req.nextUrl.searchParams.get("lang") || ""
+    const draftLang = rawLang === "bn" ? "bn" : "en"
+    try {
+      const { backend, pubKey } = await resolveEditorTenant(req)
+      const dr = await fetch(
+        `${backend}/cms/visual-autosave?slug=${encodeURIComponent(draftSlug)}&lang=${draftLang}`,
+        {
+          headers: {
+            "x-cms-secret": process.env.CMS_REVALIDATE_SECRET || "",
+            "x-tenant-pak": pubKey,
+          },
+          cache: "no-store",
+        }
+      )
+      if (dr.ok) {
+        const b = await dr.json()
+        if (b?.draft?.data && Array.isArray(b.draft.data.content)) {
+          // Puck draft {content:[{type,props}]} -> editor sections
+          // {block_type, ...settings} — the exact shape homeContext already
+          // consumes (it reads s.block_type ?? s.type), so everything
+          // downstream (style engine, product resolution, Liquid render)
+          // is the untouched production path.
+          draftSections = fromPuckContent(b.draft.data)
+        }
+      }
+    } catch {
+      // No reachable draft buffer: fall through to the published page —
+      // with no unsaved draft, the draft IS the published state.
+    }
+  }
 
   const h = await nextHeaders()
   // The theme to render: a preview override (merchant previewing before apply)
@@ -161,17 +227,25 @@ export async function GET(
   try {
     if (template === "index" || template === "page") {
       const slug = template === "page" ? (handle ?? "") : "home"
-      const cmsPage = await getCmsPage(slug).catch(() => null)
+      // Draft preview (validated above) replaces ONLY the section source —
+      // an authorized preview of a not-yet-published page renders instead
+      // of 404ing, which is the point of previewing before first publish.
+      const cmsPage =
+        draftSections !== null ? null : await getCmsPage(slug).catch(() => null)
       if (
+        draftSections === null &&
         template === "page" &&
         (!cmsPage || !Array.isArray(cmsPage.sections) || cmsPage.sections.length === 0)
       ) {
         // Unknown slug / unpublished page — 404 like the React catch-all did.
         return new NextResponse("Not found", { status: 404 })
       }
-      const sections = cmsPage?.sections?.length
-        ? cmsPage.sections
-        : (bundle.manifest?.defaultSections ?? [])
+      const sections =
+        draftSections !== null
+          ? draftSections
+          : cmsPage?.sections?.length
+            ? cmsPage.sections
+            : (bundle.manifest?.defaultSections ?? [])
       data = homeContext(base, sections)
       ;(data as any).categories = categories
       await resolveProductTabs(data, countryCode)
@@ -254,12 +328,43 @@ export async function GET(
     // A data fetch failing must not 500 a whole storefront — render what we have.
   }
 
+  // PWA head: the store's accent drives the browser-chrome theme color; the
+  // manifest/icons/SW are served per-tenant from the origin root. Prefer the
+  // tenant's brand accent (forwarded header), then the CMS primary, then neutral.
+  // U7 dual-read: null token (explicit-inherit shape) maps back to the exact
+  // bytes the legacy sentinel wire carried — output unchanged for all tenants.
+  /* Live-chat widget. The bubble used to mount in the React root layout
+     (chat-widget-mount), but Liquid pages own the whole document now and never
+     pass through it — so every all-Liquid store silently lost its chatbot even
+     though the bot exists and is bound to the web widget. Re-add it here, the
+     SAME data-driven way: the middleware forwards the tenant's ACTIVE chatbot
+     public key as x-tenant-chatbot (empty when there is no bot), and the
+     backend's own /marketing-chat/widget.js loader renders nothing on a 404.
+     No key -> no tag, so a store without a bot (or another tenant) shows
+     nothing. */
+  const chatbotEmbed = buildChatbotEmbed(h.get("x-tenant-chatbot"))
+
+  const pwaThemeColor =
+    h.get("x-tenant-accent") ||
+    legacyThemeColor((settings as any)?.theme, "primary") ||
+    "#111111"
+
   const html = await renderUploadedTheme({
     handle: bundle.handle,
     version: bundle.version,
     template,
     data,
-    contentForHeader: buildHead(shopName),
+    contentForHeader:
+      buildHead(
+        shopName,
+        pwaThemeColor,
+        // Brand-token head CSS comes from the document composer — the ONE
+        // token-emission seam shared with the editor canvas and previews.
+        buildDocumentHeadCss(
+          (settings as any)?.theme,
+          (bundle.manifest as any)?.tokens ?? null
+        )
+      ) + chatbotEmbed,
     currency: h.get("x-tenant-currency") || (settings as any)?.currency_code || "USD",
     locale: "en",
   })
@@ -299,16 +404,66 @@ export async function GET(
 
   return new NextResponse(out, {
     status: 200,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      // The storefront is per-tenant and rendered fresh on every request
+      // (theme, CMS home, prices all change live). Tell the browser NOT to cache
+      // the HTML document, so a theme switch / design reset / content edit is
+      // seen immediately on the next visit instead of a stale cached page.
+      // (Static assets — /learts/assets, Next chunks — keep their own long cache
+      // headers; only this HTML document is no-store.)
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    },
   })
 }
 
-/** The platform's own head content — SEO + charset the theme can't opt out of. */
-function buildHead(shopName: string): string {
+/** The platform's own head content — SEO + charset the theme can't opt out of.
+ * Also carries the PWA install tags (per-tenant manifest, theme color, apple
+ * touch icon) and the service-worker registration, so Liquid-rendered stores
+ * (which own the whole HTML document, bypassing the React root layout) are just
+ * as installable as the React pages. */
+/** The public backend origin the BROWSER talks to (same var the React chat
+ *  widget uses). The loader also infers its own origin from its src, so this
+ *  only needs to be a reachable public backend. */
+const PUBLIC_BACKEND_URL = (
+  process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+).replace(/\/$/, "")
+
+/** One deferred <script> tag for the tenant's active chatbot, or "" when the
+ *  forwarded key is absent/empty. The key is a public, per-bot identifier
+ *  (safe to embed); it is attribute-escaped defensively. */
+function buildChatbotEmbed(chatbotKey: string | null): string {
+  const key = (chatbotKey ?? "").trim()
+  if (!key || !/^[A-Za-z0-9_-]{8,128}$/.test(key)) return ""
+  return (
+    `<script src="${PUBLIC_BACKEND_URL}/marketing-chat/widget.js"` +
+    ` data-public-key="${key}" defer></script>`
+  )
+}
+
+function buildHead(
+  shopName: string,
+  themeColor: string,
+  themeVars: string
+): string {
+  const color = /^#[0-9a-fA-F]{3,8}$/.test(themeColor) ? themeColor : "#111111"
   return [
     `<meta charset="utf-8">`,
+    // Brand design tokens (--ff-*). The style engine compiles a "link to global
+    // token" style value to var(--ff-<id>), so without these every tokenized
+    // style silently drops on a Liquid store — which is now every store, since
+    // Liquid pages own the whole document and never pass through the React root
+    // layout that used to emit them.
+    themeVars ? `<style>${themeVars.replace(/<\s*\/\s*style/gi, "")}</style>` : "",
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
     `<title>${escapeHtml(shopName)}</title>`,
+    `<link rel="manifest" href="/manifest.webmanifest">`,
+    `<meta name="theme-color" content="${color}">`,
+    `<link rel="apple-touch-icon" href="/pwa-icon?size=180">`,
+    `<meta name="mobile-web-app-capable" content="yes">`,
+    `<meta name="apple-mobile-web-app-capable" content="yes">`,
+    `<meta name="apple-mobile-web-app-status-bar-style" content="default">`,
+    `<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})}</script>`,
   ].join("")
 }
 

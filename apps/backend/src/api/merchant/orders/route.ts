@@ -20,8 +20,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (status) filters.status = status
   if (from || to) {
     filters.created_at = {}
-    if (from) filters.created_at.gte = new Date(from).toISOString()
-    if (to) filters.created_at.lte = new Date(to).toISOString()
+    if (from) filters.created_at.$gte = new Date(from).toISOString()
+    if (to) filters.created_at.$lte = new Date(to).toISOString()
   }
 
   const { data } = await query.graph({

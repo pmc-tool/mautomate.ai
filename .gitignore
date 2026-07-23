@@ -8,3 +8,17 @@ dist/
 *.bak*
 .claude-sync/
 infrastructure/redis/**/dump.rdb
+
+# --- runtime data / heavy artifacts (never in git) ---
+apps/voice-agent/.venv/
+.venv/
+infrastructure/redis/
+infrastructure/postgres-replica/
+apps/backend/static/
+*.tsbuildinfo
+.dart_tool/
+apps/merchant-app/build/
+apps/shopper-app/build/
+apps/*/android/.gradle/
+out/
+.medusa/

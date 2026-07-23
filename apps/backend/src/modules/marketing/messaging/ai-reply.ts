@@ -405,7 +405,7 @@ export const suggestReply = async (
       return { suggestion: "", needs_ai: true }
     }
 
-    const provider = getAiTextProvider()
+    const provider = getAiTextProvider(input.tenantId)
     if (!provider) {
       return { suggestion: "", needs_ai: true }
     }
@@ -660,7 +660,7 @@ export const generateAutoReply = async (
       return { action: "handoff", reason: "ai_unavailable", units: 0 }
     }
 
-    const provider = getAiTextProvider()
+    const provider = getAiTextProvider(input.tenantId)
     if (!provider) {
       return { action: "handoff", reason: "ai_unavailable", units: 0 }
     }
@@ -808,7 +808,7 @@ export const generateTestReply = async (
     topK?: number
   }
 ): Promise<TestReplyResult> => {
-  const provider = getAiTextProvider()
+  const provider = getAiTextProvider(input.tenantId)
   if (!provider) {
     return { reply: "", used_knowledge: 0, needs_ai: true }
   }

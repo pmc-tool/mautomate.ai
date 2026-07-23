@@ -718,7 +718,7 @@ export default function CategoryDetailPage() {
         size="sm"
       >
         <form onSubmit={saveEdit} className="space-y-4">
-          <FormField label="Title" htmlFor="cat-name">
+          <FormField label="Title" htmlFor="cat-name" required>
             <Input
               id="cat-name"
               value={form.name}

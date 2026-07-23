@@ -124,7 +124,7 @@ export default function CreateCategoryPage() {
         )}
         <SectionCard title="Details" description="Basic category information.">
           <div className="space-y-4">
-            <FormField label="Title" htmlFor="name">
+            <FormField label="Title" htmlFor="name" required>
               <Input
                 id="name"
                 value={name}

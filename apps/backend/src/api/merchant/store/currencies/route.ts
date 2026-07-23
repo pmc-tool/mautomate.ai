@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { resolveMerchant } from "../../_helpers"
+import { ensureStorePricesInCurrency } from "../../_pricing"
 
 const DEFAULT_CURRENCY = "usd"
 const normCurrency = (c: unknown): string => String(c ?? "").trim().toLowerCase()
@@ -169,6 +170,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       supported_currencies: currencies,
     },
   })
+
+  // Products store prices PER currency; without one in the new default the
+  // storefront shows no amount. Fill the gap (copying the amount from the old
+  // price) so the store stays functional after a currency switch.
+  await ensureStorePricesInCurrency(
+    req.scope,
+    meta.sales_channel_id,
+    defaultCurrency,
+    normCurrency(meta.currency_code)
+  ).catch(() => {})
 
   const ordered = Array.from(new Set([defaultCurrency, ...currencies]))
   res.json({ currencies: ordered, default_currency: defaultCurrency })

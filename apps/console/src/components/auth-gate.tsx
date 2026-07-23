@@ -18,7 +18,7 @@ function AuthCard({
       <div className="w-full max-w-md rounded-large bg-white p-6 sm:p-8 shadow-lg transition-all">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-base bg-grey-90 text-white">
-            <span className="text-sm font-bold">B2D</span>
+            <span className="text-sm font-bold">mA</span>
           </div>
           <div>
             <h1 className="text-xl font-semibold text-grey-90">{title}</h1>

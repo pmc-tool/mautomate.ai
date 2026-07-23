@@ -7,7 +7,7 @@ import { EmptyState } from "@components/merchant-admin/empty-state"
 import { ActionMenu } from "@components/merchant-admin/action-menu"
 import { Domain, verifyDomain, disconnectDomain } from "@lib/merchant-admin/api"
 import { cn } from "@lib/util/cn"
-import { Callout, btnSecondary } from "./ui"
+import { Callout, CopyField, DnsInstructionsCard, btnSecondary } from "./ui"
 import { ManageDomainModal } from "./manage-domain-modal"
 
 export function YourDomains({
@@ -26,6 +26,7 @@ export function YourDomains({
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [manage, setManage] = useState<Domain | null>(null)
+  const [showSetup, setShowSetup] = useState<string | null>(null)
 
   const free = domains.find((d) => d.type === "free")
   const custom = domains.filter((d) => d.type === "custom")
@@ -92,8 +93,12 @@ export function YourDomains({
               <tbody className="divide-y divide-grey-10">
                 {rows.map((d) => {
                   const isFree = d.type === "free"
+                  const nsInstructions = (d.instructions ?? []).filter(
+                    (r) => r.kind === "ns"
+                  )
                   return (
-                    <tr key={d.id}>
+                    <React.Fragment key={d.id}>
+                    <tr>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-grey-90">{d.domain}</span>
@@ -133,6 +138,22 @@ export function YourDomains({
                                     icon: ArrowPath,
                                     onClick: () => handleVerify(d),
                                   },
+                                  ...(d.verification_status !== "verified" &&
+                                  (d.instructions?.length ?? 0) > 0
+                                    ? [
+                                        {
+                                          label:
+                                            showSetup === d.id
+                                              ? "Hide setup instructions"
+                                              : "Setup instructions",
+                                          icon: Globe,
+                                          onClick: () =>
+                                            setShowSetup(
+                                              showSetup === d.id ? null : d.id
+                                            ),
+                                        },
+                                      ]
+                                    : []),
                                   {
                                     label: "Disconnect",
                                     icon: Trash,
@@ -146,6 +167,35 @@ export function YourDomains({
                         </div>
                       </td>
                     </tr>
+                    {showSetup === d.id && (
+                      <tr>
+                        <td colSpan={5} className="bg-grey-5 px-4 py-4">
+                          {nsInstructions.length > 0 ? (
+                            <div className="max-w-xl space-y-2">
+                              <p className="text-sm text-grey-70">
+                                At your domain registrar, replace the
+                                nameservers with these two, then use Check
+                                status:
+                              </p>
+                              {nsInstructions.map((r) => (
+                                <CopyField
+                                  key={r.value}
+                                  label={r.name}
+                                  value={r.value}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="max-w-2xl">
+                              <DnsInstructionsCard
+                                instructions={d.instructions ?? []}
+                              />
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   )
                 })}
               </tbody>

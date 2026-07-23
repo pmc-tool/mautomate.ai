@@ -180,7 +180,7 @@ export const suggestKeywords = async (
   const { tenantId, seedTerm } = input
   const count = Math.min(Math.max(Number(input.count) || 10, 1), 30)
 
-  const provider = getAiTextProvider()
+  const provider = getAiTextProvider(tenantId)
   if (!provider) {
     return { needs_ai: true, keywords: [] }
   }
@@ -335,7 +335,7 @@ export const generateBrief = async (
   const term = typeof keyword.term === "string" ? keyword.term : ""
   const projectId = seoProjectId ?? keyword.seo_project_id ?? null
 
-  const provider = getAiTextProvider()
+  const provider = getAiTextProvider(tenantId)
   let outline = minimalOutline(term)
   let needsAi = false
 
@@ -551,7 +551,7 @@ export const generateArticle = async (
     }
   }
 
-  const provider = getAiTextProvider()
+  const provider = getAiTextProvider(tenantId)
 
   let title =
     typeof outline.title === "string" && outline.title.trim().length > 0

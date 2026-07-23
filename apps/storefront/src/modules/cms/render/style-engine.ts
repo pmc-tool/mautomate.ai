@@ -22,7 +22,11 @@
 /* ------------------------------------------------------------------ */
 
 import type { Device } from "../schema/types"
-import { resolveResponsive } from "../schema/types"
+// 3C (ARCH-CANVAS P7): isHiddenOnDevice is the DUAL-SHAPE visibility read —
+// it accepts the legacy `hideOn<Device>` trio AND the spec `advanced.hide`
+// bag ({desktop?,tablet?,mobile?}) for one release, so published pages keep
+// rendering while edit-time normalization migrates bags to the new shape.
+import { isHiddenOnDevice, resolveResponsive } from "../schema/types"
 
 /** The namespaced style bag (`block.style`). Keys are diff-only. */
 export type StyleBag = Record<string, unknown>
@@ -42,6 +46,17 @@ export type ElementStyles = Record<string, ElementStyleEntry>
 /** A single CSS declaration as a `[property, value]` pair. */
 type Decl = [string, string]
 
+/**
+ * 3C (ARCH-CANVAS P7): serialization options accepted by every public
+ * builder. `hide` (default true) controls whether the per-device visibility
+ * rules (`display:none` inside the matching media query) are emitted.
+ * Production callers never pass this — published output is byte-identical.
+ * The EDITOR canvas passes `{ hide: false }` so device-hidden nodes stay in
+ * the layout to be ghosted (40% opacity + an eye-off badge) instead of
+ * disappearing, per Elementor's pattern — hidden things must stay findable.
+ */
+export type StyleEngineOpts = { hide?: boolean }
+
 /* ------------------------------------------------------------------ */
 /* Small, defensive value helpers                                       */
 /* ------------------------------------------------------------------ */
@@ -56,6 +71,28 @@ function asRecord(v: unknown): Record<string, unknown> | undefined {
 /** A raw numeric string like "12", "-3.5" (no unit / keyword). */
 function isNumericString(s: string): boolean {
   return /^-?\d*\.?\d+$/.test(s.trim())
+}
+
+/**
+ * Reduce a bag to an allowed key set (3D — restricted node contracts).
+ * Returns undefined for a missing bag so `hasStyle` semantics are unchanged.
+ * Used by the CHROME filters below; buildColumnCss (2E) keeps its own inline
+ * copy of this logic — shipped and byte-verified, deliberately undisturbed.
+ */
+function filterBagKeys(
+  bag: Record<string, unknown> | undefined,
+  allowed: ReadonlySet<string>
+): Record<string, unknown> | undefined {
+  if (!bag) {
+    return undefined
+  }
+  const out: Record<string, unknown> = {}
+  for (const k of Object.keys(bag)) {
+    if (allowed.has(k)) {
+      out[k] = bag[k]
+    }
+  }
+  return out
 }
 
 /* ------------------------------------------------------------------ */
@@ -260,10 +297,20 @@ function backgroundDecls(v: unknown): Decl[] {
   if (bgColor) {
     out.push(["background-color", bgColor])
   }
-  if (typeof rec.gradient === "string" && rec.gradient.trim()) {
-    out.push(["background-image", rec.gradient.trim()])
-  } else if (typeof rec.image === "string" && rec.image.trim()) {
-    out.push(["background-image", `url(${rec.image.trim()})`])
+  // Gradient and image LAYER (gradient first, so it reads as an overlay on the
+  // photo) — the standard "darken a hero photo so text stays legible" pattern.
+  // Either alone behaves exactly as before.
+  const gradient =
+    typeof rec.gradient === "string" && rec.gradient.trim() ? rec.gradient.trim() : ""
+  const image =
+    typeof rec.image === "string" && rec.image.trim() ? rec.image.trim() : ""
+  if (gradient || image) {
+    const layers: string[] = []
+    if (gradient) layers.push(gradient)
+    if (image) layers.push(`url(${image})`)
+    out.push(["background-image", layers.join(", ")])
+  }
+  if (image) {
     out.push(["background-size", typeof rec.size === "string" && rec.size ? rec.size : "cover"])
     out.push([
       "background-position",
@@ -680,7 +727,14 @@ function textSubset(decls: Decl[]): Decl[] {
 function buildScopedRules(
   sel: string,
   style: StyleBag | undefined,
-  advanced: AdvancedBag | undefined
+  advanced: AdvancedBag | undefined,
+  /**
+   * 3C: emit the per-device `display:none` visibility rules (default true —
+   * production always emits them). The EDITOR canvas passes false so hidden
+   * nodes can be GHOSTED (dimmed + badged) instead of vanishing — a removed
+   * node can't be found to un-hide (Elementor's behavior, ARCH-CANVAS P7).
+   */
+  emitHide = true
 ): string {
   const s = asRecord(style)
   const a = asRecord(advanced) ?? {}
@@ -706,13 +760,16 @@ function buildScopedRules(
   }
 
   // Hide-on-desktop lives in its own min-width query so tablet/mobile stay shown.
-  if (a.hideOnDesktop === true) {
+  // 3C: visibility reads go through the dual-shape helper (legacy trio OR the
+  // spec `hide` bag) — emission points, order and bytes are unchanged for
+  // legacy-authored bags.
+  if (emitHide && isHiddenOnDevice(a, "desktop")) {
     css += `@media (min-width:1025px){${sel}{display:none}}`
   }
 
   // Tablet: diff vs desktop base, plus hide-on-tablet.
   const tabletParts = diffDecls(tabletDecls, baseDecls)
-  if (a.hideOnTablet === true) {
+  if (emitHide && isHiddenOnDevice(a, "tablet")) {
     tabletParts.push(["display", "none"])
   }
   const tabletTextParts = diffDecls(tabletText, baseText)
@@ -729,7 +786,7 @@ function buildScopedRules(
 
   // Mobile: diff vs tablet (tablet's max-width query already covers mobile widths).
   const mobileParts = diffDecls(mobileDecls, tabletDecls)
-  if (a.hideOnMobile === true) {
+  if (emitHide && isHiddenOnDevice(a, "mobile")) {
     mobileParts.push(["display", "none"])
   }
   const mobileTextParts = diffDecls(mobileText, tabletText)
@@ -762,6 +819,13 @@ function buildScopedRules(
   // Raw custom CSS escape hatch, scoped to this selector.
   css += customCssScoped(a.customCss, sel)
 
+  /* ---- 3E (ARCH-UX U4 P1): hover-state rules from `style.hover` ----
+     Single wiring line; the serializer lives in the clearly-marked 3E
+     block at the END of this file. Emits "" for every bag with no
+     meaningful `hover` sub-bag, so existing stored data (which never
+     carries the key) stays byte-identical. */
+  css += buildHoverCss(sel, s)
+
   return css
 }
 
@@ -775,7 +839,19 @@ function buildScopedRules(
  */
 function buildElementCssForBase(
   base: string,
-  elementStyles?: ElementStyles | null
+  elementStyles?: ElementStyles | null,
+  /**
+   * Optional per-entry ADVANCED key filter (3D). When set, each element's
+   * advanced bag is reduced to these keys before serialization — the chrome
+   * path passes CHROME_ELEMENT_ADVANCED_KEYS (U3: chrome leaves are
+   * "Visibility only"). SECTION elements pass nothing and keep serializing
+   * in full: real published bags carry excluded keys (a live snapshot has
+   * hoverAnimation/entranceAnimation on an element) and filtering them
+   * would break a published page — see schema/universal/element.ts.
+   */
+  advancedAllowed?: ReadonlySet<string>,
+  /** 3C: forwarded to buildScopedRules (see StyleEngineOpts.hide). */
+  opts?: StyleEngineOpts
 ): string {
   const rec = asRecord(elementStyles)
   if (!rec) {
@@ -788,7 +864,9 @@ function buildElementCssForBase(
       continue
     }
     const style = asRecord(e.style)
-    const advanced = asRecord(e.advanced)
+    const advanced = advancedAllowed
+      ? filterBagKeys(asRecord(e.advanced), advancedAllowed)
+      : asRecord(e.advanced)
     if (!hasStyle(style, advanced)) {
       continue
     }
@@ -796,7 +874,12 @@ function buildElementCssForBase(
     if (!safeKey) {
       continue
     }
-    css += buildScopedRules(`${base} [data-el="${safeKey}"]`, style, advanced)
+    css += buildScopedRules(
+      `${base} [data-el="${safeKey}"]`,
+      style,
+      advanced,
+      opts?.hide !== false
+    )
   }
   return css
 }
@@ -810,9 +893,15 @@ function buildElementCssForBase(
  */
 export function buildElementCss(
   id: string | number,
-  elementStyles?: ElementStyles | null
+  elementStyles?: ElementStyles | null,
+  opts?: StyleEngineOpts
 ): string {
-  return buildElementCssForBase(`.cms-sec-${sanitizeId(id)}`, elementStyles)
+  return buildElementCssForBase(
+    `.cms-sec-${sanitizeId(id)}`,
+    elementStyles,
+    undefined,
+    opts
+  )
 }
 
 /**
@@ -829,14 +918,20 @@ export function buildSectionCss(
   id: string | number,
   style?: StyleBag | null,
   advanced?: AdvancedBag | null,
-  elementStyles?: ElementStyles | null
+  elementStyles?: ElementStyles | null,
+  opts?: StyleEngineOpts
 ): string {
   const sel = `.cms-sec-${sanitizeId(id)}`
   let css = ""
   if (hasStyle(style, advanced)) {
-    css += buildScopedRules(sel, style ?? undefined, advanced ?? undefined)
+    css += buildScopedRules(
+      sel,
+      style ?? undefined,
+      advanced ?? undefined,
+      opts?.hide !== false
+    )
   }
-  css += buildElementCss(id, elementStyles)
+  css += buildElementCss(id, elementStyles, opts)
   return css
 }
 
@@ -861,9 +956,10 @@ export function buildWidgetCss(
   col: number,
   wi: number,
   style?: StyleBag | null,
-  advanced?: AdvancedBag | null
+  advanced?: AdvancedBag | null,
+  opts?: StyleEngineOpts
 ): string {
-  return buildWidgetCssPath(sectionScope, [col, wi], style, advanced)
+  return buildWidgetCssPath(sectionScope, [col, wi], style, advanced, opts)
 }
 
 /**
@@ -881,7 +977,8 @@ export function buildWidgetCssPath(
   sectionScope: string,
   path: number[],
   style?: StyleBag | null,
-  advanced?: AdvancedBag | null
+  advanced?: AdvancedBag | null,
+  opts?: StyleEngineOpts
 ): string {
   if (!hasStyle(style, advanced)) {
     return ""
@@ -898,7 +995,123 @@ export function buildWidgetCssPath(
     return ""
   }
   const sel = `[data-scope="${scope}"] [data-w="w-${path.join("-")}"]`
-  return buildScopedRules(sel, style ?? undefined, advanced ?? undefined)
+  return buildScopedRules(
+    sel,
+    style ?? undefined,
+    advanced ?? undefined,
+    opts?.hide !== false
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Columns (2E — ARCH-UX U3 "columns finally get style bags")           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Advanced keys a COLUMN is allowed to emit: visibility, identity, custom
+ * CSS. The Position and Motion groups are deliberately refused — columns
+ * positioning breaks the container contract (ARCH-UX §1.2's subset rule),
+ * and unlike the FORM-side restriction (schema/universal/column.ts, which
+ * merely doesn't offer the fields) this filter makes the restriction real
+ * for template-, AI- and import-authored bags too. Kept as a literal here
+ * (rather than importing the schema module) so the render engine stays free
+ * of editor-schema imports; schema/universal/column.ts mirrors this list and
+ * says so.
+ */
+const COLUMN_ADVANCED_KEYS = new Set([
+  "hideOnDesktop",
+  "hideOnTablet",
+  "hideOnMobile",
+  // 3C: the spec visibility shape (advanced.hide = {desktop?,tablet?,mobile?})
+  // — same capability as the legacy trio above, so it passes the same filter.
+  "hide",
+  "anchorId",
+  "cssClasses",
+  "customCss",
+])
+
+/** `verticalAlign` (column Layout) → the flex-item `align-self` value. */
+const COLUMN_ALIGN_SELF: Record<string, string> = {
+  top: "flex-start",
+  center: "center",
+  bottom: "flex-end",
+  stretch: "stretch",
+}
+
+/**
+ * Build the scoped CSS for ONE column of a container section, from the
+ * column's own `style` / `advanced` bags (`columns[i].style`, diff-only, the
+ * same UNIVERSAL_STYLE vocabulary as every other node).
+ *
+ * Selector convention follows buildWidgetCssPath exactly: an un-styled
+ * container wrapper is `display:contents` and carries no class, so the rule
+ * anchors on the Container root's `data-scope` and the column's own
+ * `data-col` marker:
+ *
+ *   [data-scope="sec-<i>"] [data-col="<colPath.join("-")>"]
+ *
+ * `colPath` is the ODD-length column address from ARCH-CANVAS §4.1's NodeRef
+ * (`{ t:"column", col:number[] }`): `[0]` is top-level column 0 (DOM marker
+ * data-col="0"), `[0,1,2]` is column 2 INSIDE the inner-section widget at
+ * column 0 / index 1 (DOM marker data-col="0-1-2") — the exact strings
+ * container-html already stamps, so the selector can never miss.
+ *
+ * Serialization feeds through the SAME buildScopedRules as sections /
+ * elements / widgets / chrome (responsive diffs, token refs, custom CSS), so
+ * column CSS can never drift from the rest of the engine. Column-specific
+ * mapping: the style key `verticalAlign` (not a section vocabulary key —
+ * ignored by the shared serializer) emits an `align-self` rule; the advanced
+ * bag is filtered to the column subset (see COLUMN_ADVANCED_KEYS).
+ *
+ * Returns "" for empty/meaningless bags or unusable inputs — a column with
+ * no bags emits NOTHING, keeping published output byte-identical. Never
+ * throws.
+ */
+export function buildColumnCss(
+  sectionScope: string,
+  colPath: number[],
+  style?: StyleBag | null,
+  advanced?: AdvancedBag | null,
+  opts?: StyleEngineOpts
+): string {
+  const scope = sanitizeElementKey(sectionScope)
+  if (
+    !scope ||
+    !Array.isArray(colPath) ||
+    colPath.length < 1 ||
+    colPath.length % 2 !== 1 ||
+    !colPath.every((n) => Number.isInteger(n) && n >= 0)
+  ) {
+    return ""
+  }
+  // Enforce the column Advanced subset at the engine (not just the form).
+  const a = asRecord(advanced)
+  const allowedAdvanced: AdvancedBag = {}
+  if (a) {
+    for (const k of Object.keys(a)) {
+      if (COLUMN_ADVANCED_KEYS.has(k)) {
+        allowedAdvanced[k] = a[k]
+      }
+    }
+  }
+  if (!hasStyle(style, allowedAdvanced)) {
+    return ""
+  }
+  const sel = `[data-scope="${scope}"] [data-col="${colPath.join("-")}"]`
+  let css = buildScopedRules(
+    sel,
+    style ?? undefined,
+    allowedAdvanced,
+    opts?.hide !== false
+  )
+  // Column-specific Layout control: verticalAlign → align-self on the flex
+  // item. Non-responsive in v1 (plain choose value); unknown values skipped.
+  const s = asRecord(style)
+  const va = typeof s?.verticalAlign === "string" ? COLUMN_ALIGN_SELF[s.verticalAlign] : undefined
+  if (va) {
+    css += `${sel}{align-self:${va}}`
+  }
+  return css
 }
 
 /* ------------------------------------------------------------------ */
@@ -914,11 +1127,47 @@ export function buildWidgetCssPath(
 export type ChromeRegion = "topbar" | "header" | "footer"
 
 /**
+ * Advanced keys a chrome REGION is allowed to emit (3D — ARCH-UX §1.2:
+ * chrome Advanced is "identity + custom CSS only"). Chrome ships to every
+ * page of a live store, so position/sticky/motion/per-device-hide on a bar
+ * is the highest-blast-radius footgun in the product; like the column
+ * filter above (2E), enforcing here makes the restriction real for
+ * template-, AI- and import-authored bags, not just the form. Kept as a
+ * literal so the render engine stays free of editor-schema imports;
+ * schema/universal/chrome.ts (CHROME_ADVANCED_ALLOWED) mirrors this list
+ * and says so. SAFE against live data: the 2026-07-19 scan of all 51
+ * chrome cms_setting rows found zero advanced keys outside this set.
+ */
+const CHROME_ADVANCED_KEYS = new Set(["anchorId", "cssClasses", "customCss"])
+
+/**
+ * Advanced keys a chrome ELEMENT (data-el leaf inside a bar) is allowed to
+ * emit: per-device visibility ONLY (ARCH-UX §1.2 "Chrome leaf" row).
+ * Mirrored by schema/universal/chrome.ts CHROME_ELEMENT_ADVANCED_ALLOWED.
+ */
+const CHROME_ELEMENT_ADVANCED_KEYS = new Set([
+  "hideOnDesktop",
+  "hideOnTablet",
+  "hideOnMobile",
+  // 3C: the spec visibility shape — chrome leaves are "visibility only", and
+  // the new shape carries exactly that capability. The chrome REGION set
+  // (CHROME_ADVANCED_KEYS above) deliberately excludes BOTH shapes: hiding a
+  // whole bar per device stays refused no matter how the bag was authored.
+  "hide",
+])
+
+/**
  * Does this chrome region carry any real style? Identical semantics to
  * `hasStyle` (section) — true when the region `style` / `advanced` bag holds a
  * meaningful value OR any `elementStyles` entry does. Kept as a distinct export
  * so chrome callers read clearly; delegates to `hasStyle` so the two can never
  * diverge.
+ *
+ * NOTE (3D): this pre-gate is deliberately UNFILTERED — a bag holding only
+ * refused advanced keys reads as "has style" here, but `buildChromeCss` then
+ * emits "" and both callers (`chrome-styles`, the editor canvas) already
+ * treat an empty string as nothing-to-inject. Filtering here too would buy
+ * nothing and create a second copy of the allowed sets to drift.
  */
 export function chromeHasStyle(
   style?: StyleBag | null,
@@ -936,20 +1185,156 @@ export function chromeHasStyle(
  * `buildElementCssForBase` helpers as sections, so serialization is byte-for-byte
  * identical. Returns "" when the region has no style and no element overrides, so
  * an un-styled chrome stays visually unchanged. Never throws.
+ *
+ * RESTRICTED ADVANCED (3D, engine-enforced like 2E's column filter): the
+ * region advanced bag is reduced to CHROME_ADVANCED_KEYS (identity + custom
+ * CSS) and every element entry's advanced bag to
+ * CHROME_ELEMENT_ADVANCED_KEYS (visibility) BEFORE serialization, so
+ * position/sticky/motion/hide on a bar cannot reach published CSS no matter
+ * how the bag was authored. STYLE bags are unrestricted (full universal
+ * vocabulary, per the U3 table).
  */
 export function buildChromeCss(
   region: ChromeRegion | string,
   style?: StyleBag | null,
   advanced?: AdvancedBag | null,
-  elementStyles?: ElementStyles | null
+  elementStyles?: ElementStyles | null,
+  opts?: StyleEngineOpts
 ): string {
   const sel = `.cms-chrome-${sanitizeId(region)}`
+  const allowedAdvanced = filterBagKeys(
+    asRecord(advanced),
+    CHROME_ADVANCED_KEYS
+  )
   let css = ""
-  if (hasStyle(style, advanced)) {
-    css += buildScopedRules(sel, style ?? undefined, advanced ?? undefined)
+  if (hasStyle(style, allowedAdvanced)) {
+    css += buildScopedRules(
+      sel,
+      style ?? undefined,
+      allowedAdvanced,
+      opts?.hide !== false
+    )
   }
-  css += buildElementCssForBase(sel, elementStyles)
+  css += buildElementCssForBase(
+    sel,
+    elementStyles,
+    CHROME_ELEMENT_ADVANCED_KEYS,
+    opts
+  )
   return css
 }
 
 export default buildSectionCss
+
+/* ================================================================== */
+/* 3E — HOVER STATES (ARCH-UX U4 P1) — seat 3E owns this block          */
+/*                                                                     */
+/* Storage: a `hover` sub-bag INSIDE the style bag, diff-only like       */
+/* everything else:                                                     */
+/*                                                                     */
+/*   style.hover = {                                                    */
+/*     background?: <same shape as style.background>,                   */
+/*     color?:      <same shape as style.color (raw string | {ref})>,   */
+/*     border?:     <same shape as style.border>,                       */
+/*     boxShadow?:  <same shape as style.boxShadow>,                    */
+/*   }                                                                  */
+/*                                                                     */
+/* Exactly the four groups ARCH-UX U4 names — anything else in the       */
+/* sub-bag is ignored by the whitelist below, so template/AI/import-     */
+/* authored bags cannot smuggle arbitrary properties into a :hover rule. */
+/* Values reuse the SAME mappers as the normal state (backgroundDecls,   */
+/* borderDecls, boxShadowDecls, resolveTokenRef), so hover serialization  */
+/* can never drift from normal serialization. Non-responsive in v1:      */
+/* hover is a pointer affordance, and per-device hover is noise.         */
+/*                                                                     */
+/* Emission, per selector (only when the sub-bag holds a meaningful      */
+/* value — otherwise "" and published output is byte-identical):         */
+/*   1. `sel:hover{...}` — the hover declarations.                       */
+/*   2. When a hover text color is set, the same boosted descendant      */
+/*      rule the normal state uses (see INHERITED_TEXT_PROPS), with      */
+/*      `:hover` on the scope — themes style text nodes directly, and    */
+/*      a hover color that silently loses the cascade is the exact bug   */
+/*      boostSel() exists to prevent.                                    */
+/*   3. A transition so the state change eases instead of snapping —     */
+/*      wrapped in `@media (prefers-reduced-motion: no-preference)`      */
+/*      following the ENTRANCE_CSS pattern: reduced-motion users get     */
+/*      the hover STATE instantly, never the animation. The property     */
+/*      list includes `transform` so an also-present hoverAnimation      */
+/*      (Motion group) keeps easing when this rule wins the cascade.     */
+/*                                                                     */
+/* NOTE ON WIRING: buildScopedRules calls buildHoverCss once, right      */
+/* before its return (the single 3E line marked there). Every node kind  */
+/* — section, element, widget, column, chrome — funnels through          */
+/* buildScopedRules, so hover works uniformly with no per-kind code.     */
+/* hasStyle() already counts a hover-only bag as "has style" (it         */
+/* recurses into nested objects), so a section styled ONLY on hover      */
+/* still gets its `.cms-sec-<id>` box instead of display:contents.       */
+/* ================================================================== */
+
+/** The only style keys a hover sub-bag may emit (ARCH-UX U4 P1). */
+const HOVER_STYLE_KEYS = ["background", "color", "border", "boxShadow"] as const
+
+/** Hover transition: fast ease, one declaration, shared by every rule. */
+const HOVER_TRANSITION =
+  "background-color 160ms ease,color 160ms ease,border-color 160ms ease," +
+  "box-shadow 160ms ease,transform 160ms ease"
+
+/**
+ * Extract the meaningful, whitelisted part of a style bag's `hover` sub-bag.
+ * Returns undefined when there is nothing to emit. Never throws.
+ */
+function hoverBagOf(
+  style: StyleBag | undefined
+): Record<string, unknown> | undefined {
+  const s = asRecord(style)
+  const h = asRecord(s?.hover)
+  if (!h) {
+    return undefined
+  }
+  const out: Record<string, unknown> = {}
+  for (const k of HOVER_STYLE_KEYS) {
+    if (isMeaningful(h[k])) {
+      out[k] = h[k]
+    }
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
+/** Hover sub-bag → declarations, through the SAME mappers as normal state. */
+function hoverDecls(h: Record<string, unknown>): Decl[] {
+  const out: Decl[] = []
+  out.push(...backgroundDecls(h.background))
+  const color = resolveTokenRef(h.color, "color")
+  if (color) {
+    out.push(["color", color])
+  }
+  out.push(...borderDecls(h.border))
+  out.push(...boxShadowDecls(h.boxShadow))
+  return out
+}
+
+/**
+ * Build the `:hover` rules for one selector from its style bag. Exported for
+ * tests; production callers never call it directly — buildScopedRules does.
+ * Returns "" whenever the bag carries no meaningful `hover` sub-bag, keeping
+ * every already-published page byte-identical. Never throws.
+ */
+export function buildHoverCss(sel: string, style?: StyleBag | null): string {
+  const h = hoverBagOf(style ?? undefined)
+  if (!h) {
+    return ""
+  }
+  const decls = hoverDecls(h)
+  if (!decls.length) {
+    return ""
+  }
+  let css = `${sel}:hover{${declsToBody(decls)}}`
+  // Inherited-text boost for the hover color (mirrors the normal-state rule).
+  const text = textSubset(decls)
+  if (text.length) {
+    css += `${boostSel(sel)}:hover ${TEXT_DESCENDANTS}{${declsToBody(text)}}`
+  }
+  // Ease the state change — but only for users who accept motion.
+  css += `@media (prefers-reduced-motion:no-preference){${sel}{transition:${HOVER_TRANSITION}}}`
+  return css
+}

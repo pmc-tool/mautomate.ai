@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeftMini, Plus, Robot, ChevronRight, Sparkles } from "@medusajs/icons"
+import {
+  ArrowLeftMini,
+  Plus,
+  Robot,
+  ChevronRight,
+  Sparkles,
+  Phone,
+} from "@medusajs/icons"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
   listCallAgents,
@@ -267,6 +274,19 @@ const BLANK_DEFINITION: CallAgentDefinition = {
   voice: { voice_id: "alloy", language: "en" },
 }
 
+// Presentation helper: initials for the agent avatar circle.
+function agentInitials(name: string): string {
+  return (
+    name
+      .split(/\s+/)
+      .map((w) => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "AI"
+  )
+}
+
 export default function CallAgentsPage() {
   const { token } = useMerchantAuth()
   const router = useRouter()
@@ -349,16 +369,19 @@ export default function CallAgentsPage() {
         Back to call center
       </button>
 
-      <div className="flex items-start justify-between gap-4">
-        <PageHeader title="Call Agents" description="AI voice agents and their conversation playbooks." />
-        <button
-          onClick={() => setShowForm((s) => !s)}
-          className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80"
-        >
-          <Plus className="h-4 w-4" />
-          {showForm ? "Cancel" : "Create agent"}
-        </button>
-      </div>
+      <PageHeader
+        title="Call Agents"
+        description="Create and train AI voice agents that answer and place calls for your store."
+        action={
+          <button
+            onClick={() => setShowForm((s) => !s)}
+            className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-grey-80"
+          >
+            <Plus className="h-4 w-4" />
+            {showForm ? "Cancel" : "New agent"}
+          </button>
+        }
+      />
 
       {error && (
         <div className="rounded-base border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -367,89 +390,139 @@ export default function CallAgentsPage() {
       )}
 
       {showForm && (
-        <form onSubmit={handleCreate} className="rounded-large border border-grey-20 bg-white p-5 shadow-borders-base">
-          <div className="mb-5">
-            <label className="mb-2 block text-sm font-medium text-grey-70">Start from a template</label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <button
-                type="button"
-                onClick={() => setTemplateId("blank")}
-                className={
-                  "flex flex-col items-start gap-1 rounded-base border p-3 text-left transition-colors " +
-                  (templateId === "blank"
-                    ? "border-grey-90 bg-grey-5 ring-1 ring-grey-90"
-                    : "border-grey-20 hover:bg-grey-5")
-                }
-              >
-                <span className="flex items-center gap-1.5 text-sm font-medium text-grey-90">
-                  <Robot className="h-4 w-4" />
-                  Blank agent
-                </span>
-                <span className="text-xs text-grey-50">
-                  Start from scratch and train every step yourself.
-                </span>
-              </button>
-              {AGENT_TEMPLATES.map((tpl) => {
-                const active = templateId === tpl.id
-                return (
-                  <button
-                    key={tpl.id}
-                    type="button"
-                    onClick={() => selectTemplate(tpl.id)}
-                    className={
-                      "flex flex-col items-start gap-1 rounded-base border p-3 text-left transition-colors " +
-                      (active
-                        ? "border-grey-90 bg-grey-5 ring-1 ring-grey-90"
-                        : "border-grey-20 hover:bg-grey-5")
-                    }
-                  >
-                    <span className="flex items-center gap-1.5 text-sm font-medium text-grey-90">
-                      <Sparkles className="h-4 w-4" />
-                      {tpl.name}
+        <form
+          onSubmit={handleCreate}
+          className="overflow-hidden rounded-large border border-grey-20 bg-white shadow-borders-base"
+        >
+          <div className="border-b border-grey-10 px-6 py-4">
+            <h2 className="text-base font-semibold text-grey-90">Create a new agent</h2>
+            <p className="mt-0.5 text-sm text-grey-50">
+              Start from a proven playbook or build one from scratch — you can change everything later in the training studio.
+            </p>
+          </div>
+
+          <div className="space-y-6 p-6">
+            <div>
+              <span className="mb-3 block text-sm font-medium text-grey-70">Template</span>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => setTemplateId("blank")}
+                  className={
+                    "flex flex-col items-start gap-3 rounded-large border p-4 text-left transition-all " +
+                    (templateId === "blank"
+                      ? "border-grey-90 bg-grey-5 ring-1 ring-grey-90"
+                      : "border-grey-20 hover:border-grey-40 hover:shadow-sm")
+                  }
+                >
+                  <span className="flex w-full items-center justify-between">
+                    <span
+                      className={
+                        "flex h-9 w-9 items-center justify-center rounded-base " +
+                        (templateId === "blank"
+                          ? "bg-grey-90 text-white"
+                          : "bg-grey-10 text-grey-60")
+                      }
+                    >
+                      <Robot className="h-5 w-5" />
                     </span>
-                    <span className="text-xs text-grey-50">{tpl.description}</span>
-                  </button>
-                )
-              })}
+                    <span className="rounded-full bg-grey-10 px-2 py-0.5 text-[11px] font-medium text-grey-60">
+                      Build your own
+                    </span>
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-grey-90">Blank agent</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-grey-50">
+                      Start from scratch and train every step yourself.
+                    </span>
+                  </span>
+                </button>
+                {AGENT_TEMPLATES.map((tpl) => {
+                  const active = templateId === tpl.id
+                  const toolCount = tpl.definition.tools?.length ?? 0
+                  return (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => selectTemplate(tpl.id)}
+                      className={
+                        "flex flex-col items-start gap-3 rounded-large border p-4 text-left transition-all " +
+                        (active
+                          ? "border-grey-90 bg-grey-5 ring-1 ring-grey-90"
+                          : "border-grey-20 hover:border-grey-40 hover:shadow-sm")
+                      }
+                    >
+                      <span className="flex w-full items-center justify-between">
+                        <span
+                          className={
+                            "flex h-9 w-9 items-center justify-center rounded-base " +
+                            (active ? "bg-grey-90 text-white" : "bg-grey-10 text-grey-60")
+                          }
+                        >
+                          <Sparkles className="h-5 w-5" />
+                        </span>
+                        <span className="rounded-full bg-grey-10 px-2 py-0.5 text-[11px] font-medium text-grey-60">
+                          {toolCount} {toolCount === 1 ? "tool" : "tools"}
+                        </span>
+                      </span>
+                      <span>
+                        <span className="block text-sm font-semibold text-grey-90">{tpl.name}</span>
+                        <span className="mt-0.5 block text-xs leading-relaxed text-grey-50">
+                          {tpl.description}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-grey-70">Name</label>
+                <input
+                  required
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full rounded-base border border-grey-20 px-3 py-2 text-sm text-grey-90 transition-colors focus:border-grey-90 focus:outline-none"
+                  placeholder="e.g. Order confirmation agent"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-grey-70">Use case</label>
+                <input
+                  value={form.use_case}
+                  onChange={(e) => setForm((f) => ({ ...f, use_case: e.target.value }))}
+                  className="w-full rounded-base border border-grey-20 px-3 py-2 text-sm text-grey-90 transition-colors focus:border-grey-90 focus:outline-none"
+                  placeholder="e.g. cod_confirmation"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-grey-70">Status</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as any }))}
+                  className="w-full rounded-base border border-grey-20 bg-white px-3 py-2 text-sm text-grey-90 transition-colors focus:border-grey-90 focus:outline-none"
+                >
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                </select>
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-grey-70">Name</label>
-              <input
-                required
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full rounded-base border border-grey-20 px-3 py-2 text-sm text-grey-90 focus:border-grey-90 focus:outline-none"
-                placeholder="e.g. Order confirmation agent"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-grey-70">Use case</label>
-              <input
-                value={form.use_case}
-                onChange={(e) => setForm((f) => ({ ...f, use_case: e.target.value }))}
-                className="w-full rounded-base border border-grey-20 px-3 py-2 text-sm text-grey-90 focus:border-grey-90 focus:outline-none"
-                placeholder="e.g. cod_confirmation"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-grey-70">Status</label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as any }))}
-                className="w-full rounded-base border border-grey-20 bg-white px-3 py-2 text-sm text-grey-90 focus:border-grey-90 focus:outline-none"
-              >
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-              </select>
-            </div>
-          </div>
-          <div className="mt-4 flex justify-end">
+
+          <div className="flex items-center justify-end gap-2 border-t border-grey-10 bg-grey-5 px-6 py-4">
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="rounded-base border border-grey-20 bg-white px-4 py-2 text-sm font-medium text-grey-70 transition-colors hover:bg-grey-5 hover:text-grey-90"
+            >
+              Cancel
+            </button>
             <button
               type="submit"
               disabled={creating || !form.name.trim()}
-              className="rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {creating ? "Creating..." : "Create & train"}
             </button>
@@ -457,50 +530,66 @@ export default function CallAgentsPage() {
         </form>
       )}
 
-      <div className="rounded-large border border-grey-20 bg-white shadow-borders-base">
-        {loading ? (
-          <div className="p-8 text-center text-sm text-grey-50">Loading agents…</div>
-        ) : agents.length === 0 ? (
-          <div className="p-6">
-            <EmptyState
-              icon={Robot}
-              title="No agents yet"
-              description="Create AI voice agents to run outbound and inbound call playbooks."
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-44 animate-pulse rounded-large border border-grey-20 bg-grey-5"
             />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-grey-5 text-grey-50">
-                <tr>
-                  <th className="px-5 py-3 text-left font-medium">Name</th>
-                  <th className="px-5 py-3 text-left font-medium">Use case</th>
-                  <th className="px-5 py-3 text-left font-medium">Status</th>
-                  <th className="px-5 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-grey-10">
-                {agents.map((agent) => (
-                  <tr
-                    key={agent.id}
-                    onClick={() => router.push(`/dashboard/calls/agents/${agent.id}`)}
-                    className="cursor-pointer hover:bg-grey-5"
-                  >
-                    <td className="px-5 py-3 font-medium text-grey-90">{agent.name}</td>
-                    <td className="px-5 py-3 text-grey-60">{agent.use_case}</td>
-                    <td className="px-5 py-3">
-                      <StatusBadge status={agent.status} />
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <ChevronRight className="ml-auto h-4 w-4 text-grey-40" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      ) : agents.length === 0 ? (
+        <EmptyState
+          icon={Robot}
+          title="No agents yet"
+          description="Create AI voice agents to run outbound and inbound call playbooks."
+          action={
+            !showForm ? (
+              <button
+                onClick={() => setShowForm(true)}
+                className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-grey-80"
+              >
+                <Plus className="h-4 w-4" />
+                New agent
+              </button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {agents.map((agent) => (
+            <button
+              key={agent.id}
+              onClick={() => router.push(`/dashboard/calls/agents/${agent.id}`)}
+              className="group flex flex-col rounded-large border border-grey-20 bg-white p-5 text-left shadow-borders-base transition-all hover:-translate-y-0.5 hover:border-grey-40 hover:shadow-md"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-grey-90 text-sm font-semibold text-white">
+                  {agentInitials(agent.name)}
+                </span>
+                <StatusBadge status={agent.status} />
+              </div>
+              <div className="mt-4 min-w-0">
+                <h3 className="truncate text-base font-semibold text-grey-90">{agent.name}</h3>
+                <span className="mt-2 inline-flex max-w-full items-center truncate rounded-full bg-grey-10 px-2 py-0.5 text-[11px] font-medium text-grey-60">
+                  {agent.use_case || "general"}
+                </span>
+              </div>
+              <div className="mt-5 flex items-center justify-between border-t border-grey-10 pt-3 text-xs">
+                <span className="inline-flex items-center gap-1.5 text-grey-50">
+                  <Phone className="h-3.5 w-3.5" />
+                  Talk to it in the studio
+                </span>
+                <span className="inline-flex items-center gap-0.5 font-medium text-grey-40 transition-colors group-hover:text-grey-90">
+                  Open
+                  <ChevronRight className="h-4 w-4" />
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

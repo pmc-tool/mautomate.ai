@@ -31,10 +31,10 @@ export const dealOfDaySchema: BlockSchema = {
     },
     {
       name: "countdown_to",
-      type: "text",
+      type: "datetime",
       label: "Countdown to",
       required: true,
-      help: "End date/time (ISO)",
+      help: "Pick the end date and time",
       group: "Behavior",
     },
     {

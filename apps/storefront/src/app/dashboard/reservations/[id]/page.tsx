@@ -1,5 +1,7 @@
 "use client"
 
+const HIDDEN_META = (k: string) => k === "tenant_id" || k === "is_sample" || k.startsWith("_")
+
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -402,7 +404,6 @@ function ReservationDetailContent() {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [showJson, setShowJson] = useState(false)
 
   const [message, setMessage] = useState<{
     type: "success" | "error"
@@ -747,10 +748,12 @@ function ReservationDetailContent() {
 
           {/* Metadata */}
           {reservation.metadata &&
-            Object.keys(reservation.metadata).length > 0 && (
+            Object.entries(reservation.metadata).filter(([k]) => !HIDDEN_META(k)).length > 0 && (
               <Card title="Metadata">
                 <dl className="divide-y divide-grey-10">
-                  {Object.entries(reservation.metadata).map(([k, v]) => (
+                  {Object.entries(reservation.metadata)
+                    .filter(([k]) => !HIDDEN_META(k))
+                    .map(([k, v]) => (
                     <div
                       key={k}
                       className="flex justify-between gap-4 py-2 text-sm"
@@ -765,22 +768,7 @@ function ReservationDetailContent() {
               </Card>
             )}
 
-          {/* JSON */}
-          <Card bodyClassName="p-0">
-            <button
-              type="button"
-              onClick={() => setShowJson((s) => !s)}
-              className="flex w-full items-center justify-between px-5 py-4 text-sm font-medium text-grey-70 hover:text-grey-90"
-            >
-              Raw reservation data (JSON)
-              <span className="text-grey-40">{showJson ? "Hide" : "Show"}</span>
-            </button>
-            {showJson && (
-              <pre className="max-h-96 overflow-auto border-t border-grey-10 bg-grey-10 px-5 py-4 text-xs text-grey-70">
-                {JSON.stringify(reservation, null, 2)}
-              </pre>
-            )}
-          </Card>
+
         </div>
 
         {/* Sidebar: inventory item card */}

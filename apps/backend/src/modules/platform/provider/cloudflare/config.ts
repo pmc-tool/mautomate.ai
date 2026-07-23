@@ -1,9 +1,13 @@
 /**
- * Cloudflare for SaaS config (env-gated).
+ * Cloudflare config (env-gated).
  *
- *   CLOUDFLARE_API_TOKEN     scoped token with SSL:Custom Hostnames edit
+ *   CLOUDFLARE_API_TOKEN     scoped token: Zone Write + DNS Write + SSL and
+ *                            Certificates Write on all zones in the account
+ *                            (zone create requires the account-level resource)
  *   CLOUDFLARE_SAAS_ZONE_ID  the zone that owns the fallback origin (mautomate.ai)
- *   PLATFORM_FALLBACK_ORIGIN the CNAME target customers point at
+ *   CLOUDFLARE_ACCOUNT_ID    the account customer zones are created under
+ *   PLATFORM_TUNNEL_TARGET   the cfargotunnel.com hostname customer zones CNAME to
+ *   PLATFORM_FALLBACK_ORIGIN the CNAME target customers point a SUBDOMAIN at
  *   PLATFORM_ROOT_DOMAIN     wildcard root for free subdomains
  *
  * When the token/zone are unset, the client reports not-configured and the
@@ -13,6 +17,8 @@
 export type CloudflareConfig = {
   apiToken: string
   zoneId: string
+  accountId: string
+  tunnelTarget: string
   fallbackOrigin: string
   rootDomain: string
   maxHostnames: number
@@ -26,6 +32,13 @@ export const getCloudflareConfig = (): CloudflareConfig | null => {
   return {
     apiToken: process.env.CLOUDFLARE_API_TOKEN as string,
     zoneId: process.env.CLOUDFLARE_SAAS_ZONE_ID as string,
+    // Zone-per-customer-domain (the nameserver-change flow) needs the account
+    // id; empty string means "zone flow unavailable" and connect falls back to
+    // the custom-hostname (CNAME) flow.
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
+    tunnelTarget:
+      process.env.PLATFORM_TUNNEL_TARGET ??
+      "cd5f4ed0-f26c-4628-86c5-b051b154d3f6.cfargotunnel.com",
     fallbackOrigin:
       process.env.PLATFORM_FALLBACK_ORIGIN ?? "origin.mautomate.ai",
     rootDomain: process.env.PLATFORM_ROOT_DOMAIN ?? "mautomate.ai",

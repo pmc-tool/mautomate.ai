@@ -18,7 +18,7 @@ export function KpiCard({
 }) {
   const toneClasses = {
     grey: "bg-grey-10 text-grey-60",
-    brand: "bg-cyan-50 text-cyan-700",
+    brand: "bg-brand-50 text-brand-700",
     green: "bg-emerald-50 text-emerald-700",
   }
 

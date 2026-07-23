@@ -45,16 +45,31 @@ export const ensurePlatformEnv = async (container: any): Promise<void> => {
   if (hydrated) return
   try {
     const cfg = new EncryptedConfigService(container)
+    let loaded = 0
+    let failed = 0
     for (const key of MARKETING_SOCIAL_ENVS) {
-      if (process.env[key]) continue // a real env var wins
+      if (process.env[key]) {
+        loaded++ // a real env var wins, and counts as a successful resolution
+        continue
+      }
       try {
         const val = await cfg.getSecret(PLATFORM_SCOPE, key)
-        if (val) process.env[key] = val
+        if (val) {
+          process.env[key] = val
+          loaded++
+        }
       } catch {
-        /* KEK unset / decrypt error → skip this key */
+        failed++ // KEK unset / decrypt error for THIS key
       }
     }
-    hydrated = true
+    /* Only latch when the vault actually answered. The old code set
+       `hydrated` unconditionally, so ONE bad moment (KEK not yet mounted, DB
+       not ready during boot) poisoned the process for its whole life: every
+       later request skipped the vault, every provider reported unconfigured,
+       and the merchant saw "awaiting the operator adding this platform's app
+       credentials" even though the keys were sitting in the vault. Retry
+       instead — the read is cheap and only happens until it works. */
+    if (loaded > 0 || failed === 0) hydrated = true
   } catch {
     /* leave unhydrated; retry next call */
   }

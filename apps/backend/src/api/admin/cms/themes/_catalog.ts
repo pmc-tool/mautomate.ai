@@ -15,73 +15,18 @@ export type ThemeCatalogEntry = {
   preview: string
 }
 
-export const THEME_CATALOG: ThemeCatalogEntry[] = [
-  {
-    id: "learts",
-    name: "Learts",
-    description:
-      "The original Forever Finds design — a warm, handcrafted gift-shop look.",
-    preview: "/themes/learts/preview.png",
-  },
-  {
-    id: "aurora",
-    name: "Aurora",
-    description:
-      "A modern, minimalist editorial design — generous whitespace, clean type, monochrome palette.",
-    preview: "/themes/aurora/preview.png",
-  },
-  {
-    id: "cignet",
-    name: "Cignet",
-    description:
-      "Elegant jewellery-store design - deep green and ivory, Playfair Display serifs, editorial product layouts.",
-    preview: "/themes/cignet/preview.png",
-  },
-  {
-    id: "shofy",
-    name: "Shofy",
-    description:
-      "Bright multipurpose electronics-store design - vivid blue accents, Jost type, dense product grids.",
-    preview: "/themes/shofy/preview.png",
-  },
-  {
-    id: "ekka",
-    name: "Ekka",
-    description:
-      "Modern multipurpose ecommerce design - crisp white layout, Poppins type, blue accents, dense card-based product grids.",
-    preview: "/themes/ekka/preview.png",
-  },
-  {
-    id: "helendo",
-    name: "Helendo",
-    description:
-      "Minimalist furniture-store design - airy white layouts, black type with gold accents, editorial featured-product sections.",
-    preview: "/themes/helendo/preview.png",
-  },
-  {
-    id: "bazaro",
-    name: "Bazaro",
-    description:
-      "Refined fashion-store design - black on white with red accents, Satoshi type, airy editorial layouts.",
-    preview: "/themes/bazaro/preview.png",
-  },
-  {
-    id: "exzo",
-    name: "Exzo",
-    description:
-      "Energetic electronics-store design - lime green on white, bold uppercase Raleway headlines, pill buttons and full-height product heroes.",
-    preview: "/themes/exzo/preview.png",
-  },
-  {
-    id: "rokon",
-    name: "Rokon",
-    description:
-      "Bold product-led design - red accent on near-black ink, Rubik and Work Sans type, tech-store energy.",
-    preview: "/themes/rokon/preview.png",
-  },
-]
+/* EMPTY since 2026-07-18: every compiled React theme (aurora/cignet/shofy/
+   ekka/helendo/bazaro/exzo/rokon) was ported to an UPLOADED Liquid theme
+   (handle `<name>-liquid`) and its React code deleted. The merchant gallery
+   (/merchant/themes) and Jarvis list uploaded themes from the theme module;
+   this catalog remains only so a future compiled theme could be added. */
+export const THEME_CATALOG: ThemeCatalogEntry[] = []
 
-export const DEFAULT_THEME_ID = "learts"
+// The compiled React "learts" is RETIRED — its Liquid successor "learts-liquid"
+// (an uploaded theme) is the platform default. Old learts is no longer a
+// selectable compiled theme; it survives only as the internal React chrome
+// fallback for checkout/account, never as an active theme a merchant can pick.
+export const DEFAULT_THEME_ID = "learts-liquid"
 
 export const isKnownTheme = (id: string): boolean =>
   THEME_CATALOG.some((t) => t.id === id)

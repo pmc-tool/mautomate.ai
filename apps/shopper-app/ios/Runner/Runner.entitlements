@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- iOS Universal Links.
+	     Replace <store-domain> with the store's own domain (e.g. dearwish.shop)
+	     before an iOS release. The store must host
+	     https://<store-domain>/.well-known/apple-app-site-association (see
+	     DEEP_LINKS.md). This entitlement must also be enabled in Xcode:
+	     Runner target > Signing & Capabilities > Associated Domains, and the
+	     build setting CODE_SIGN_ENTITLEMENTS must point at this file. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:example.invalid</string>
+	</array>
+	<!-- Push notifications. Set to "production" for App Store / TestFlight
+	     builds. Requires an APNs key uploaded to the Firebase project. -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

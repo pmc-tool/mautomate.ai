@@ -33,6 +33,7 @@ import { withTenant } from "../../../lib/tenant-context"
 import { MARKETING_MODULE } from "../index"
 import { openCredentials } from "../publish/credentials"
 import { meterAction } from "../../platform/integration/metering-guard"
+import { notifyInboxNeedsYou } from "../../platform/push/push-notifier"
 import {
   detectHandoffKeyword,
   generateAutoReply,
@@ -352,6 +353,17 @@ const handoff = async (
       handoff_reason: reason,
     } as any)
     .catch(() => {})
+
+  // Additive, fail-closed push: nudge the merchant's phone that a human is now
+  // needed on this thread. Gated by PUSH_ENABLED (default off, cost-zero) and
+  // wrapped — a push must NEVER fail (or block) the handoff.
+  if (process.env.PUSH_ENABLED === "1") {
+    try {
+      await notifyInboxNeedsYou(container, tenantId)
+    } catch {
+      // swallow — a failed push must not affect the handoff.
+    }
+  }
 
   // The inbox needs to see WHY the bot stepped back.
   await persistOutbound(mk, tenantId, conversation, {

@@ -4,9 +4,38 @@ import { PLATFORM_MODULE } from "../../modules/platform"
 /**
  * GET /metrics
  *
- * Prometheus-compatible metrics endpoint. Intentionally unauthenticated so
- * Prometheus can scrape it; restrict access at the network / edge level.
+ * Prometheus-compatible metrics endpoint exposing platform-wide business +
+ * financial totals. SECURITY: this is gated behind the platform super-admin
+ * allowlist in api/middlewares.ts (authenticate("user") + requirePlatformSuperAdmin)
+ * — it was previously unauthenticated ("restrict at the edge"), which leaked
+ * customer counts / growth / credit totals to anyone who could reach it and let
+ * an anonymous caller trigger unbounded scans. Scrapers must present a platform
+ * super-admin bearer token.
  */
+
+/**
+ * SECURITY INVARIANT: bound every scan. The old handler loaded THREE lists with
+ * `take: 100000`, so a single hit could scan hundreds of thousands of rows (a
+ * cheap DoS lever). Each scan is now page-bounded to MAX_SCAN rows so one hit can
+ * never be weaponised into an unbounded table scan; `b2d_metrics_truncated` is
+ * surfaced when the cap is reached so the totals are read as lower bounds.
+ */
+const PAGE_SIZE = 1000
+const MAX_SCAN = 20000
+
+async function loadBounded(
+  list: (filters: any, config: any) => Promise<any[]>
+): Promise<{ rows: any[]; truncated: boolean }> {
+  const rows: any[] = []
+  for (let skip = 0; skip < MAX_SCAN; skip += PAGE_SIZE) {
+    const page = await list({}, { take: PAGE_SIZE, skip }).catch(() => [])
+    rows.push(...page)
+    if (page.length < PAGE_SIZE) {
+      return { rows, truncated: false }
+    }
+  }
+  return { rows, truncated: true }
+}
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const lines: string[] = []
   const now = Date.now()
@@ -32,11 +61,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   // Application business metrics
   try {
     const svc: any = req.scope.resolve(PLATFORM_MODULE)
-    const [tenants, wallets, txns] = await Promise.all([
-      svc.listTenants({}, { take: 100000 }).catch(() => []),
-      svc.listCreditWallets({}, { take: 100000 }).catch(() => []),
-      svc.listCreditTransactions({}, { take: 100000 }).catch(() => []),
+    const [tenantsRes, walletsRes, txnsRes] = await Promise.all([
+      loadBounded((f, c) => svc.listTenants(f, c)),
+      loadBounded((f, c) => svc.listCreditWallets(f, c)),
+      loadBounded((f, c) => svc.listCreditTransactions(f, c)),
     ])
+    const tenants = tenantsRes.rows
+    const wallets = walletsRes.rows
+    const txns = txnsRes.rows
+    const truncated =
+      tenantsRes.truncated || walletsRes.truncated || txnsRes.truncated
 
     const byStatus: Record<string, number> = {}
     for (const t of tenants) {
@@ -76,6 +110,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     lines.push("# HELP b2d_credits_spent_total Total credits committed/spent.")
     lines.push("# TYPE b2d_credits_spent_total counter")
     lines.push(`b2d_credits_spent_total ${spent}`)
+
+    lines.push(
+      "# HELP b2d_metrics_truncated 1 when a metrics scan hit its row cap (totals are lower bounds)."
+    )
+    lines.push("# TYPE b2d_metrics_truncated gauge")
+    lines.push(`b2d_metrics_truncated ${truncated ? 1 : 0}`)
   } catch (e: any) {
     lines.push(`# metrics collection error: ${escapeLabel(String(e?.message ?? e))}`)
   }

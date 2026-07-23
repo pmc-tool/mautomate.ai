@@ -1,5 +1,7 @@
 "use client"
 
+const HIDDEN_META = (k: string) => k === "tenant_id" || k === "is_sample" || k.startsWith("_")
+
 import React, { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
@@ -116,7 +118,6 @@ export default function InventoryItemDetailPage() {
     null
   )
   const [busy, setBusy] = useState<string | null>(null)
-  const [showJson, setShowJson] = useState(false)
 
   const [editOpen, setEditOpen] = useState(false)
   const [editForm, setEditForm] = useState<EditForm>({ title: "", sku: "", requires_shipping: true })
@@ -777,9 +778,12 @@ export default function InventoryItemDetailPage() {
               </button>
             }
           >
-            {item.metadata && Object.keys(item.metadata).length > 0 ? (
+            {item.metadata &&
+            Object.entries(item.metadata).filter(([k]) => !HIDDEN_META(k)).length > 0 ? (
               <dl className="divide-y divide-grey-10">
-                {Object.entries(item.metadata).map(([k, v]) => (
+                {Object.entries(item.metadata)
+                  .filter(([k]) => !HIDDEN_META(k))
+                  .map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-4 py-2 text-sm">
                     <dt className="text-grey-50">{k}</dt>
                     <dd className="max-w-[60%] truncate text-right font-medium text-grey-90">
@@ -795,21 +799,7 @@ export default function InventoryItemDetailPage() {
             )}
           </SectionCard>
 
-          <div className="overflow-hidden rounded-large border border-grey-20 bg-white shadow-borders-base">
-            <button
-              type="button"
-              onClick={() => setShowJson((s) => !s)}
-              className="flex w-full items-center justify-between px-5 py-4 text-sm font-medium text-grey-70 hover:text-grey-90"
-            >
-              JSON
-              <span className="text-grey-40">{showJson ? "Hide" : "Show"}</span>
-            </button>
-            {showJson && (
-              <pre className="max-h-96 overflow-auto border-t border-grey-10 bg-grey-10 px-5 py-4 text-xs text-grey-70">
-                {JSON.stringify(item, null, 2)}
-              </pre>
-            )}
-          </div>
+
         </div>
       </div>
 

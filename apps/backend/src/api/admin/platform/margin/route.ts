@@ -5,11 +5,21 @@ import { PLATFORM_MODULE } from "../../../../modules/platform"
 import { CREDIT_USD, PRICE_BOOK } from "../../../../modules/platform/pricing/price-book"
 
 /**
- * GET /admin/platform/margin — the P&L, computed from what actually happened.
+ * GET /admin/platform/margin — the P&L on ESTIMATED (price-book) vendor cost.
  *
- * Every billed action writes a usage row carrying BOTH what we charged (credits)
- * and what it cost us (vendor_cost_usd). So this is not a model or a forecast:
- * it is the real gross margin, per action, from real traffic.
+ * REVENUE here is real: every billed action writes a usage row with the credits
+ * we charged. COST, however, is NOT measured — `usage_event.vendor_cost_usd` is
+ * the STATIC blended constant from `price-book.ts` (e.g. voice = flat $0.03/min
+ * regardless of the real STT/TTS/LLM/Daily split), written at settle time. So
+ * this page is an ESTIMATE/forecast of margin at price-book rates, from real
+ * traffic volume — NOT the measured vendor bill.
+ *
+ * For the MEASURED cost (actual per-token / per-vendor spend from the self-hosted
+ * Langfuse) use GET /admin/platform/ai-usage. The two pages answer different
+ * questions and will not tie out exactly: this one is fast + always-available
+ * (price-book rates); ai-usage is the ground-truth vendor cost. The response
+ * carries `cost_basis: "price_book_estimate"` and a `disclaimer` so the UI can
+ * label it plainly and never present it as the measured bill.
  *
  * Query: ?days=30 (default), ?tenant_id= (drill into one merchant)
  */
@@ -91,6 +101,15 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   res.json({
     window_days: days,
     tenant_id: tenantId ?? null,
+
+    // COST BASIS — this page's cost is the price-book ESTIMATE, not the measured
+    // vendor bill. Surface it so the super-admin never confuses it with the
+    // Langfuse-backed /ai-usage page (the ground-truth vendor cost).
+    cost_basis: "price_book_estimate",
+    cost_is_estimate: true,
+    disclaimer:
+      "Estimated margin at price-book rates. Cost is a static blended per-unit constant, not the measured vendor bill. See AI Usage (Langfuse) for actual per-token/vendor cost.",
+    measured_cost_page: "/admin/platform/ai-usage",
 
     // Where the money comes from
     revenue: {

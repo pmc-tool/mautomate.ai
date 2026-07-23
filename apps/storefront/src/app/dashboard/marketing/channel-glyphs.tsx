@@ -8,6 +8,27 @@ import { cn } from "@lib/util/cn"
  * tints them.
  */
 
+/**
+ * Facebook's mark, drawn here rather than taken from @medusajs/icons.
+ * That icon paints itself with `fill="url(#a)"` — a gradient whose id is just
+ * "a". Several brand icons in that pack use the SAME id, and an SVG paint
+ * reference resolves against the WHOLE document, so on a page with more than
+ * one of them Facebook picked up a stranger's gradient and rendered as an
+ * empty tile. currentColor has no such failure mode: the chip tints it.
+ */
+export function FacebookGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M13.5 21v-8h2.7l.4-3h-3.1V8.2c0-.87.24-1.46 1.49-1.46h1.71V4.06A21.5 21.5 0 0 0 14.42 4c-2.26 0-3.8 1.38-3.8 3.9V10H8v3h2.62v8h2.88z" />
+    </svg>
+  )
+}
+
 export function InstagramGlyph({ className }: { className?: string }) {
   return (
     <svg

@@ -289,6 +289,132 @@ export const canvas = {
   hover: `1px solid ${accent.tintStrong}`,
   hoverStrong: `1px solid ${accent.base}`,
   selected: `2px solid ${accent.base}`,
-  dropLine: accent.base,
+  /* 6C: `dropLine` deleted with the 2px indicator it colored (3A moved
+     drops to the in-flow placeholder + dropFill outline). */
   dropFill: accent.soft,
 } as const
+
+/* ---------------- Overlay affordances: the ONE metric spec ----------------
+   Every floating control the canvas draws over the merchant's page — the
+   section toolbar, the widget chip, name badges, seam dots, add pills, the
+   font handle — comes from HERE. Before this block existed, same-rank
+   affordances shipped at five heights (22/24/26/28/30), three radius
+   treatments (md, pill, and one asymmetric "0 0 6px 0" corner that read as
+   a rendering bug) and three shadows. Each felt like a different product.
+
+   The semantic rule that ends the two-colour confusion:
+
+       INK MANIPULATES WHAT EXISTS. EMBER CREATES WHAT DOESN'T.
+
+   Toolbars, name badges, drag grips and the font handle act on things
+   already on the page — they are ink chips. Insertion affordances (seam
+   dots, add pills, "+ Add widget") bring new things into being — they are
+   ember pills. Two families, one metric system, and deliberately NO third
+   size anywhere: the old 22px "compact" pill is dead, section toolbars
+   come down from 30 and widget toolbars up from 26 to the one 28px rank
+   (they are the same rank; Elementor uses one handle style for both). */
+export const overlay = {
+  /** The manipulate family's surfaces: the dark chip over content. */
+  ink: { bg: ink.base, fg: ink.text, muted: ink.muted } as const,
+  /** The create family's surfaces: brand ember, white foreground. */
+  ember: {
+    bg: accent.base,
+    hover: accent.hover,
+    on: accent.on,
+  } as const,
+  /** Node toolbars — section, widget and column alike. ONE height, ONE
+      radius, ONE shadow; only which actions render may differ per node. */
+  toolbar: {
+    height: 28,
+    padding: "0 4px",
+    gap: 2,
+    radius: radius.md,
+    bg: ink.base,
+    shadow: shadow.chip,
+    /** The square controls inside a toolbar (buttons and drag grips). */
+    btn: { size: 22, radius: radius.sm, icon: 14 },
+  } as const,
+  /** Name/status badges (section label, element brush badge, "Hidden on
+      mobile"). Symmetric radius on purpose — see the block comment. */
+  badge: {
+    height: 20,
+    padding: "0 6px",
+    radius: radius.sm,
+    bg: ink.base,
+    color: ink.muted,
+    icon: 13,
+  } as const,
+  /** The labeled ember pill ("Add widget"). Rest = sm shadow; hover
+      commits to the hover ember + md shadow. Never a second size. */
+  pill: {
+    height: 24,
+    padding: "0 10px 0 8px",
+    gap: 5,
+    radius: radius.pill,
+    bg: accent.base,
+    hoverBg: accent.hover,
+    color: accent.on,
+    shadow: shadow.sm,
+    hoverShadow: shadow.md,
+    icon: 14,
+  } as const,
+  /** The circular "+" (seam dots and the dot-variant AddPill). */
+  dot: { size: 22, radius: radius.pill, icon: 14 } as const,
+  /** Floating panels the overlays open — widget picker, context menu,
+      the seam's structure popover. Light surface, the deep shadow. */
+  popover: { radius: radius.lg, shadow: shadow.lg, padding: 8, bg: grey[0] } as const,
+  /** How overlays arrive: a fast fade + 4px rise; expansion (popovers,
+      pickers growing content) takes the base duration. */
+  motion: {
+    show: motion.fast,
+    expand: motion.base,
+    ease,
+    enterTransform: "translateY(4px)",
+  } as const,
+} as const
+
+/* ---------------- Stacking: every layer has a NAME ----------------
+   The canvas used to stack its overlays with nine magic near-MAX_INT
+   literals (2147482000 … 2147483401) and the shell modules with a second,
+   uncoordinated set (5, 50, 10000, 10001, 10020, 100000). This scale is
+   the complete editor stacking order; NOTHING may ship a raw zIndex again.
+
+   Canvas layers keep the near-MAX_INT band because they live inside the
+   theme's iframe and must beat arbitrary theme CSS. Shell layers live in a
+   small human band because the shell owns its own stacking context. The
+   order encodes intent: content < outlines < seams < toolbars < pills <
+   drop indicators < menus < pickers — the thing you are actively using
+   always sits above the thing merely offered.
+
+   A scrim-and-panel pair (context menu, widget picker) puts the scrim at
+   the layer value and the panel one above it — use zAbove(). */
+export const zLayer = {
+  /** The merchant's page itself — everything else only annotates it. */
+  canvasContent: 0,
+  /** Selection / hover outline boxes (drawn by the overlay layer). */
+  canvasOutline: 2147481000,
+  /** Section seam bars + passive fixed badges ("Hidden on mobile"). */
+  canvasSeam: 2147482000,
+  /** Node toolbars and name badges — section, widget, column alike. */
+  canvasToolbar: 2147483000,
+  /** Point affordances that must clear a toolbar they graze: ember add
+      pills, the element badge, the font handle. */
+  canvasPill: 2147483100,
+  /** Drag-drop indicators: drop line, drop-column highlight, their labels. */
+  canvasIndicator: 2147483200,
+  /** The right-click context menu (scrim + panel via zAbove). */
+  canvasMenu: 2147483300,
+  /** The in-canvas widget picker — the topmost canvas surface. */
+  canvasPicker: 2147483400,
+  /** Shell: slide-over panels (AI panel, revisions, template library). */
+  shellPanel: 10000,
+  /** Shell: modal dialogs and the command palette. */
+  shellModal: 10010,
+  /** Shell: pickers that must open above a modal (media, video). */
+  shellPicker: 10020,
+  /** Shell: toasts — above everything the shell shows. */
+  shellToast: 10030,
+} as const
+
+/** The panel of a scrim-and-panel pair sits one step above its scrim. */
+export const zAbove = (z: number): number => z + 1

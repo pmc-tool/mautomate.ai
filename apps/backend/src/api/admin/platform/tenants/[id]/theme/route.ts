@@ -1,6 +1,18 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { PLATFORM_MODULE } from "../../../../../../modules/platform"
-import { isKnownTheme, THEME_CATALOG } from "../../../../cms/themes/_catalog"
+import { isKnownTheme } from "../../../../cms/themes/_catalog"
+import { THEME_MODULE } from "../../../../../../modules/theme"
+
+/** Is this handle a published uploaded (Liquid) theme? */
+async function isUploadedTheme(req: AuthenticatedMedusaRequest, handle: string) {
+  try {
+    const svc: any = req.scope.resolve(THEME_MODULE)
+    const rows = await svc.listThemes({ handle, status: "published" })
+    return (rows?.length ?? 0) > 0
+  } catch {
+    return false
+  }
+}
 
 /**
  * PUT /admin/platform/tenants/:id/theme  { active_theme }
@@ -20,11 +32,11 @@ export const PUT = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
     (req.body as { active_theme?: string })?.active_theme ?? ""
   ).trim()
   if (!active_theme) return res.status(400).json({ message: "active_theme required" })
-  if (!isKnownTheme(active_theme)) {
+  const known =
+    isKnownTheme(active_theme) || (await isUploadedTheme(req, active_theme))
+  if (!known) {
     return res.status(400).json({
-      message: `Unknown theme "${active_theme}". Choose one of: ${THEME_CATALOG.map(
-        (t) => t.id
-      ).join(", ")}`,
+      message: `Unknown theme "${active_theme}". Use a published theme handle (e.g. "learts-liquid").`,
     })
   }
 

@@ -60,7 +60,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const all = [...compiled, ...uploaded]
   const ids = all.map((t) => t.id)
   let active = ctx.tenant.meta?.active_theme
-  if (!active || !ids.includes(active)) active = compiled[0]?.id ?? ids[0]
+  if (!active || !ids.includes(active))
+    active = ids.includes("learts-liquid")
+      ? "learts-liquid"
+      : uploaded[0]?.id ?? compiled[0]?.id ?? ids[0]
 
   res.json({ themes: all, active_theme: active })
 }

@@ -11,10 +11,22 @@ import { AuthGate } from "./auth-gate"
  * /dashboard/inbox therefore renders edge to edge, and the main nav steps aside
  * for the rail — which is what buys the inbox a whole extra column of width.
  */
-const FULL_BLEED = ["/dashboard/inbox"]
+const FULL_BLEED = ["/dashboard/inbox", "/dashboard/assistant"]
 
 export function PageShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
+  const pathname = usePathname() || ""
+
+  // Recovery pages must render for SIGNED-OUT visitors: a locked-out merchant
+  // arrives here from an email link with no session. So the password-reset
+  // route bypasses the AuthGate (and the signed-in chrome) entirely and paints
+  // its own full-screen card. It is the only public route under /dashboard.
+  const isPublic =
+    pathname === "/dashboard/reset-password" ||
+    pathname.startsWith("/dashboard/reset-password/")
+  if (isPublic) {
+    return <div className="min-h-screen bg-grey-10">{children}</div>
+  }
+
   const fullBleed = FULL_BLEED.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`)
   )

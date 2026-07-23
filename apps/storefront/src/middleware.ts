@@ -130,12 +130,12 @@ async function getRegionMap(
 
   if (
     !entry.regionMap.keys().next().value ||
-    entry.updated < Date.now() - 3600 * 1000
+    entry.updated < Date.now() - 60 * 1000
   ) {
     const response = await fetch(`${backend}/store/regions`, {
       method: "GET",
       headers: { "x-publishable-api-key": publishableKey },
-      next: { revalidate: 3600, tags: [`regions-${tenantKey}`] },
+      next: { revalidate: 60, tags: [`regions-${tenantKey}`] },
       cache: "force-cache",
     })
 
@@ -252,25 +252,34 @@ function settingUpPage(name: string | null) {
  * Middleware to handle tenant resolution (multi-tenant), region selection and
  * onboarding status.
  */
-/* The themes compiled into this Next.js bundle. A tenant whose active_theme is
-   NOT one of these is on an UPLOADED (Liquid) theme, and its storefront pages
-   are rendered through the theme engine (/theme-render) instead of the React
-   tree. As each is ported to the upload format (and removed here), its stores
-   move to the engine automatically. */
-const COMPILED_THEMES = new Set([
-  "aurora", "cignet", "shofy", "ekka",
-  "helendo", "bazaro", "exzo", "rokon",
-])
+/* The themes compiled into this Next.js bundle. EMPTY since 2026-07-18: every
+   compiled React theme was ported to the upload format, so ALL storefront
+   pages of every store render through the theme engine (/theme-render). The
+   React tree still owns only the REACT_ONLY interactive pages. The set (and
+   its check below) is kept so a future compiled theme could be added again. */
+const COMPILED_THEMES = new Set<string>([])
 
-/* The platform default. A store with NO active_theme (a fresh store) or one
-   still pointing at the RETIRED compiled "learts" is served the new uploaded
-   Liquid Learts — the single global default. Old compiled Learts is gone: it is
-   never rendered, only its Liquid successor. */
+/* The platform default. A store with NO active_theme (a fresh store) is served
+   the uploaded Liquid Learts — the single global default. RETIRED compiled
+   theme ids map to their Liquid successors, so a stale tenant row pointing at
+   an old React theme renders the SAME look through the engine instead of
+   crashing back to the default. */
 const DEFAULT_THEME = "learts-liquid"
-const RETIRED_THEMES = new Set(["learts"])
+const RETIRED_THEMES = new Map<string, string>([
+  ["learts", "learts-liquid"],
+  ["aurora", "aurora-liquid"],
+  ["cignet", "cignet-liquid"],
+  ["shofy", "shofy-liquid"],
+  ["ekka", "ekka-liquid"],
+  ["helendo", "helendo-liquid"],
+  ["bazaro", "bazaro-liquid"],
+  ["exzo", "exzo-liquid"],
+  ["rokon", "rokon-liquid"],
+])
 function effectiveTheme(active?: string | null): string {
   const a = (active || "").trim()
-  return !a || RETIRED_THEMES.has(a) ? DEFAULT_THEME : a
+  if (!a) return DEFAULT_THEME
+  return RETIRED_THEMES.get(a) ?? a
 }
 
 /* Paths an uploaded theme OWNS. Checkout, account and order stay on the
@@ -287,7 +296,7 @@ function isThemeOwnedPath(pathname: string, country: string): boolean {
   // mutations, payment and orders and must not be re-rendered by a theme.
   const REACT_ONLY = new Set([
     "account", "checkout", "order", "payment",
-    "verify-account", "recover", "wishlist",
+    "verify-account", "recover", "wishlist", "reset-password",
   ])
   if (REACT_ONLY.has(first)) return false
   // A path whose first segment looks like a file (robots.txt, sitemap.xml, an
@@ -308,6 +317,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Public, standalone Pixi OS preview (demo/QA). No auth, no tenant, no
+  // region redirect — render it as-is on any host, exactly like the PWA/umami
+  // bypasses above.
+  if (request.nextUrl.pathname.startsWith("/jarvis-preview")) {
+    return NextResponse.next()
+  }
+
   // The visual editor (and its canvas iframe) is region-agnostic — it must NOT
   // be region-redirected. But it STILL needs the tenant context injected below
   // (x-tenant-theme / x-tenant-backend / x-tenant-name), otherwise the server
@@ -317,7 +333,9 @@ export async function middleware(request: NextRequest) {
   // the tenant + forward its headers exactly like a normal request, and only
   // skip the region-redirect step (see the `isEditor` early-return below).
   const isEditor = request.nextUrl.pathname.startsWith("/editor")
-  const isMerchantAdmin = request.nextUrl.pathname.startsWith("/dashboard")
+  const isMerchantAdmin =
+    request.nextUrl.pathname.startsWith("/dashboard") ||
+    request.nextUrl.pathname.startsWith("/partners")
 
   // Merchant admin is served on a dedicated host (e.g. merchant.mautomate.ai)
   // and handles its own authentication and tenant resolution. It does not need
@@ -356,6 +374,13 @@ export async function middleware(request: NextRequest) {
     forwardHeaders.set("x-tenant-theme", effectiveTheme(tenant.active_theme))
     forwardHeaders.set("x-tenant-name", tenant.name || "")
     forwardHeaders.set("x-tenant-status", tenant.status || "")
+    // The tenant's brand accent (tenant.meta.theme_accent) — used by the PWA
+    // manifest/icons/theme-color so an installed store carries its own color.
+    // Lives only in tenant-config, not the CMS `theme` settings, so forward it.
+    forwardHeaders.set(
+      "x-tenant-accent",
+      ((tenant as any).theme_accent as string) || ""
+    )
     // The countries this store can actually deliver to. The checkout address form
     // may only offer these — offering a country with no shipping option is what
     // dead-ends a shopper at "Continue to payment".
@@ -410,6 +435,27 @@ export async function middleware(request: NextRequest) {
   // THIS store's theme stylesheets), but the editor is region-agnostic — return
   // here so it's never redirected into a /:country path.
   if (isEditor) {
+    return finalize(NextResponse.next({ request: { headers: forwardHeaders } }))
+  }
+
+  // PWA endpoints (per-tenant web manifest, service worker, generated app
+  // icons) live at the ORIGIN ROOT so the manifest/SW scope covers the whole
+  // store. They still need tenant context (name/colors/logo) — carried by the
+  // forwardHeaders built above — but must NOT be region-redirected into a
+  // /:country path (a manifest at /us/manifest.webmanifest has the wrong scope
+  // and iOS/Chrome would reject the install). Serve them straight through with
+  // tenant headers injected, before any country routing runs.
+  // Render them at their own origin-root path (skip the /:country redirect) so
+  // the manifest/SW scope and the apple-touch-icon path stay at "/". The manifest
+  // and icon routes resolve the tenant from the Host themselves (see
+  // lib/data/pwa-brand) — middleware header forwarding does not reliably reach a
+  // same-origin route handler. The service worker is tenant-agnostic.
+  const pwaPath = request.nextUrl.pathname
+  if (
+    pwaPath === "/manifest.webmanifest" ||
+    pwaPath === "/sw.js" ||
+    pwaPath === "/pwa-icon"
+  ) {
     return finalize(NextResponse.next({ request: { headers: forwardHeaders } }))
   }
 

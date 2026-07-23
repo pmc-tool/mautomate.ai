@@ -1,17 +1,18 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { resolveMerchant } from "../_helpers"
 import { THEME_CATALOG } from "../../admin/cms/themes/_catalog"
+import { resolveBrandAccent } from "../../../modules/marketing/brand"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
   const { merchant, tenant, svc } = ctx
-  const ids = THEME_CATALOG.map((t) => t.id)
+  // All themes are uploaded (Liquid) now — the compiled catalog is empty, so
+  // pass the tenant's real active theme through (default: the platform theme).
   const allowed = Array.isArray(tenant.meta?.allowed_themes)
-    ? tenant.meta.allowed_themes.filter((i: string) => ids.includes(i))
-    : ids
-  let active = tenant.meta?.active_theme
-  if (!active || !ids.includes(active)) active = ids[0]
+    ? tenant.meta.allowed_themes
+    : THEME_CATALOG.map((t) => t.id)
+  const active = tenant.meta?.active_theme || "learts-liquid"
 
   // Subscription entitlements the UI needs (e.g. custom-domain gating).
   const plan = (
@@ -19,6 +20,15 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       .listPlatformPackages({ key: tenant.package }, { take: 1 })
       .catch(() => [])
   )[0]
+
+  // White-label branding for the merchant apps (additive): the uploaded
+  // logo (tenant.meta.logo_url) and the optional per-tenant brand accent.
+  // Both are fail-safe and degrade to null so unbranded stores are
+  // unaffected.
+  const logoUrl =
+    (tenant.meta?.logo_url as string | undefined) || null
+  const brandAccent =
+    (await resolveBrandAccent(req.scope, tenant.id).catch(() => "")) || null
 
   res.json({
     merchant: { id: merchant.id, email: merchant.email, name: merchant.name },
@@ -37,6 +47,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       },
       active_theme: active,
       allowed_themes: allowed,
+      logo_url: logoUrl,
+      brand_accent: brandAccent,
     },
   })
 }

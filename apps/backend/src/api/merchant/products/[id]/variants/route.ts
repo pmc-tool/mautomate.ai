@@ -137,8 +137,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     const variant = (result as any[])[0]
     return res.status(201).json({ variant })
   } catch (e: any) {
-    return res
-      .status(workflowErrorStatus(e))
-      .json({ message: e?.message || "failed to create variant" })
+    const raw = e?.message || "failed to create variant"
+    // The workflow rejects a variant whose option-value combination already
+    // exists. Give the merchant an actionable message instead of internals.
+    const friendly = /already exists/i.test(raw)
+      ? "A variant with these option values already exists. Every variant needs a unique combination of option values, so give this product an option with more than one value (for example sizes or colors) and pick a value that is not already used."
+      : raw
+    return res.status(workflowErrorStatus(e)).json({ message: friendly })
   }
 }

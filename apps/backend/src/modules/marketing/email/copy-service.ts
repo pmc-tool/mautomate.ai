@@ -182,7 +182,7 @@ export const generateEmailCopy = async (
   container: MedusaContainer,
   input: GenerateEmailCopyInput
 ): Promise<GenerateEmailCopyResult> => {
-  const provider = getAiTextProvider()
+  const provider = getAiTextProvider(input.tenantId)
   if (!provider) {
     return { ...EMPTY_NEEDS_AI }
   }

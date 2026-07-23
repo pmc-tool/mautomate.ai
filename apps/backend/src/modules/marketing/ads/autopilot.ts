@@ -112,7 +112,7 @@ const aggregate = async (
 }
 
 /** Month-to-date spend across the whole tenant. */
-const monthSpend = async (mk: any, tenantId: string): Promise<number> => {
+export const monthSpend = async (mk: any, tenantId: string): Promise<number> => {
   const now = new Date()
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
   const rows = await mk.listAdsInsights(

@@ -268,7 +268,7 @@ export const generateProductImages = async (
     input.subtext?.trim() || formatPrice(product.price, product.currency_code)
 
   // Resolve the AI provider up front so an unconfigured "ai" request fails fast.
-  const aiProvider = mode === "ai" ? getAiImageProvider() : null
+  const aiProvider = mode === "ai" ? getAiImageProvider(tenantId) : null
   if (mode === "ai" && !aiProvider) {
     throw new Error("AI image provider not configured")
   }

@@ -10,6 +10,23 @@
  * providers without reshaping the contract surface.
  */
 
+/** Token usage a provider MAY report for observability (best-effort, optional). */
+export type AiUsage = {
+  promptTokens?: number
+  completionTokens?: number
+  totalTokens?: number
+}
+
+/**
+ * @internal Observability side-channel. A provider MAY call this once per model
+ * completion to report the resolved model name and token usage. It NEVER affects
+ * generation and is safe to ignore; the tracing wrapper injects it.
+ */
+export type AiUsageReporter = (info: {
+  model?: string
+  usage?: AiUsage
+}) => void
+
 /** Options for a single text generation call. All optional. */
 export type AiTextGenerateOptions = {
   /** System prompt / grounding block prepended as the `system` role. */
@@ -20,6 +37,20 @@ export type AiTextGenerateOptions = {
   maxTokens?: number
   /** Sampling temperature (0 = deterministic). */
   temperature?: number
+  /**
+   * Per-call model override. When set, the provider uses THIS model instead of
+   * its configured default -- lets trivial short-text callers (inline "sparkle"
+   * rewrites) pick a cheaper/faster model without changing the global default.
+   * Providers that do not support per-call model selection ignore it.
+   */
+  model?: string
+  /**
+   * Observability tag grouping this call by subsystem (e.g. "jarvis", "seo").
+   * Purely cosmetic - providers ignore it; only the tracing wrapper reads it.
+   */
+  feature?: string
+  /** @internal see AiUsageReporter - injected by the tracing wrapper. */
+  onUsage?: AiUsageReporter
 }
 
 // ---------------------------------------------------------------------------
@@ -123,7 +154,8 @@ export type AiImageGenerateOptions = {
   /** How many images to produce. */
   count?: number
   /** Optional system / style grounding. */
-  system?: string
+  system?: string  /** Observability tag grouping this call by subsystem. Providers ignore it. */
+  feature?: string
 }
 
 /** The result of an image generation call. */
@@ -151,7 +183,8 @@ export type AiVideoGenerateOptions = {
   /** Aspect ratio hint, e.g. "9:16". */
   aspectRatio?: string
   /** Optional system / style grounding. */
-  system?: string
+  system?: string  /** Observability tag grouping this call by subsystem. Providers ignore it. */
+  feature?: string
 }
 
 /** The result of a video generation call. */

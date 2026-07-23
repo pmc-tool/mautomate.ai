@@ -84,9 +84,15 @@ export const GET = async (
     )[0] || null
 
   // Usage this billing cycle (calendar month) — aggregated per action from the
-  // credit ledger. `commit` rows are the metered spends (usage_event is not
-  // populated by the metering path, so the ledger is the source of truth).
-  // Units are derived from credits via the price book (e.g. call minutes).
+  // credit ledger. `commit` rows are the pre-paid metered spends; `clawback`
+  // rows are POST-PAID settlements (voice call minutes settle via clawback, not
+  // reserve/commit). BOTH must be counted or the page under-reports voice spend
+  // and disagrees with the /merchant/credits page (which counts clawback too).
+  // No double-count: voice never writes a commit, so its clawback is its only
+  // spend row. We require `t.action` — voice clawbacks now carry it, while a
+  // true payment-chargeback clawback carries none and is correctly excluded
+  // (it is a refund reversal, not this-cycle feature usage). Units are derived
+  // from credits via the price book (e.g. call minutes).
   const now = new Date()
   const cycleStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const txns = await ctx.svc
@@ -101,7 +107,7 @@ export const GET = async (
   > = {}
   let usedThisCycle = 0
   for (const t of txns as any[]) {
-    if (t.type !== "commit" || !t.action) continue
+    if ((t.type !== "commit" && t.type !== "clawback") || !t.action) continue
     const created = t.created_at ? new Date(t.created_at) : null
     if (created && created < cycleStart) continue
     const a = t.action

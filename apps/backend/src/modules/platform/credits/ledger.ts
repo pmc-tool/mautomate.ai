@@ -372,7 +372,15 @@ export class CreditLedgerService {
   async clawback(
     tenantId: string,
     amount: number,
-    opts: { idempotencyKey?: string } = {}
+    opts: {
+      idempotencyKey?: string
+      // Optional billed action this debit represents. Post-paid usage (voice
+      // minutes) passes it so the clawback tx is SELF-DESCRIBING and the billing
+      // reports can attribute + label it per feature. A true chargeback/rollback
+      // (a reversed payment) passes none — it is not feature usage.
+      action?: string
+      meta?: Record<string, unknown>
+    } = {}
   ): Promise<{ balance: number; suspend: boolean }> {
     await this.store.ensureWallet(tenantId)
     if (opts.idempotencyKey) {
@@ -392,6 +400,8 @@ export class CreditLedgerService {
       amount: -amount,
       balance_after: w.balance,
       idempotency_key: opts.idempotencyKey,
+      action: opts.action,
+      meta: opts.meta,
     })
     return { balance: w.balance, suspend: w.balance < 0 }
   }

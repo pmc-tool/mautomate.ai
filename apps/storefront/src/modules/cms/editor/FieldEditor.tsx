@@ -12,6 +12,7 @@ import React from "react"
 
 const IMAGE_KEY = /image|logo|avatar|cover|photo|thumb|icon|src|img/i
 const LONG_KEY = /body|description|content|html|text|excerpt|quote|message/i
+const DATE_KEY = /countdown|_at$|_date$|deadline|expir/i
 
 const labelStyle: React.CSSProperties = {
   display: "block",
@@ -55,6 +56,26 @@ function ValueEditor({
 }) {
   // String
   if (typeof value === "string") {
+    // A date/time field (countdown_to, *_at, *_date, ...) gets a real picker.
+    // The value stays an ISO string; the input shows/edits it in local time.
+    if (DATE_KEY.test(name)) {
+      const toLocal = (iso: string) => {
+        const d = new Date(iso)
+        if (isNaN(d.getTime())) return ""
+        const pad = (n: number) => String(n).padStart(2, "0")
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+      }
+      return (
+        <input
+          type="datetime-local"
+          style={inputStyle}
+          value={toLocal(value)}
+          onChange={(e) =>
+            onChange(e.target.value ? new Date(e.target.value).toISOString() : "")
+          }
+        />
+      )
+    }
     if (IMAGE_KEY.test(name)) {
       return (
         <div>

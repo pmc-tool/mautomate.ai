@@ -55,6 +55,8 @@ class AgentConfig:
         self.voice_id: Optional[str] = voice.get("voice_id")
         self.voice_language: str = voice.get("language") or self.locale
         self.guardrails: Dict[str, Any] = raw.get("guardrails") or {}
+        # Optional per-session LLM override (Pixi voice pins a cheap brain).
+        self.llm: Dict[str, Any] = raw.get("llm") or {}
         self.disposition_set: list = raw.get("disposition_set") or []
         self.dtmf_map: Dict[str, str] = raw.get("dtmf_map") or {}
 
@@ -131,6 +133,36 @@ class ControlPlaneClient:
                 extra={"call_id": call_id, "tool_name": tool_name, "error": str(exc)},
             )
             return {"error": "tool endpoint unreachable"}
+
+    async def transfer_status(self, transfer_id: str) -> str:
+        """Poll a human-transfer request's status ("" on any failure)."""
+        url = f"{self._base}/telephony/transfer-status"
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                resp = await client.get(
+                    url, headers=self._headers, params={"transfer_id": transfer_id}
+                )
+            if resp.status_code != 200:
+                return ""
+            return str(resp.json().get("status") or "")
+        except Exception:  # noqa: BLE001
+            return ""
+
+    async def transfer_update(self, transfer_id: str, status: str) -> None:
+        """Report a runtime-side terminal transfer state (missed/canceled)."""
+        url = f"{self._base}/telephony/transfer-status"
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                await client.post(
+                    url,
+                    headers=self._headers,
+                    json={"transfer_id": transfer_id, "status": status},
+                )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "transfer-update failed",
+                extra={"transfer_id": transfer_id, "error": str(exc)},
+            )
 
     async def call_ended(
         self,

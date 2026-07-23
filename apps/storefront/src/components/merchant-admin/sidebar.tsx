@@ -42,6 +42,7 @@ import {
   Swatch,
   CurrencyDollar,
   ChartPie,
+  Phone,
 } from "@medusajs/icons"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import { CreditsBadge } from "./credits-badge"
@@ -60,6 +61,7 @@ type NavItem =
 
 const navItems: NavItem[] = [
   { href: "/dashboard/overview", label: "Overview", icon: House },
+  { href: "/dashboard/assistant", label: "Assistant", icon: Sparkles },
   { href: "/dashboard/analytics", label: "Analytics", icon: ChartBar },
   {
     id: "orders",
@@ -169,8 +171,19 @@ const navItems: NavItem[] = [
     ],
   },
   { href: "/dashboard/domains", label: "Domains", icon: Globe },
+  { href: "/dashboard/mobile-app", label: "Mobile App", icon: Phone },
   { href: "/dashboard/design", label: "Design", icon: Palette },
+  {
+    id: "blog",
+    label: "Blog",
+    icon: BookOpen,
+    children: [
+      { href: "/dashboard/blog", label: "Posts", icon: DocumentText },
+      { href: "/dashboard/blog/categories", label: "Categories", icon: Tag },
+    ],
+  },
   { href: "/dashboard/billing", label: "Billing", icon: CurrencyDollar },
+  { href: "/dashboard/referrals", label: "Refer & earn", icon: GiftSolid },
   {
     id: "settings",
     label: "Settings",
@@ -362,7 +375,7 @@ export function Sidebar({
                         <Icon
                           className={cn(
                             "h-5 w-5 transition-colors",
-                            active ? "text-white" : "text-grey-40 group-hover:text-grey-90"
+                            active ? "text-brand-600" : "text-grey-40 group-hover:text-grey-90"
                           )}
                         />
                         {item.label}
@@ -421,7 +434,7 @@ export function Sidebar({
                   <Icon
                     className={cn(
                       "h-5 w-5 transition-colors",
-                      active ? "text-white" : "text-grey-40 group-hover:text-grey-90"
+                      active ? "text-brand-600" : "text-grey-40 group-hover:text-grey-90"
                     )}
                   />
                   {item.label}

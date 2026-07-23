@@ -135,7 +135,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const { data: variants } = await query.graph({
       entity: "product_variant",
       filters: { id: allVariantIds } as any,
-      fields: ["id", "title", "sku", "product.thumbnail"],
+      fields: ["id", "title", "sku", "product.title", "product.thumbnail"],
     })
     for (const v of variants || []) variantById.set((v as any).id, v)
   }
@@ -145,9 +145,18 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const variants = variantIds.map((vid) => variantById.get(vid)).filter(Boolean)
     const thumbnail =
       variants.map((v: any) => v?.product?.thumbnail).find((t: any) => !!t) || null
+    // Show the PRODUCT name (append the variant title only when it is a real
+    // variant, not the auto "Default"/"Default variant" placeholder).
+    const productTitle =
+      variants.map((v: any) => v?.product?.title).find((t: any) => !!t) || null
+    const variantTitle = variants[0]?.title ?? null
     return {
       id: it.id,
-      title: it.title ?? variants[0]?.title ?? null,
+      title: productTitle
+        ? variantTitle && !/^default/i.test(variantTitle)
+          ? `${productTitle} · ${variantTitle}`
+          : productTitle
+        : it.title ?? variantTitle ?? null,
       sku: it.sku ?? variants[0]?.sku ?? null,
       thumbnail,
       reserved_quantity: reservedByItem.get(it.id) || 0,

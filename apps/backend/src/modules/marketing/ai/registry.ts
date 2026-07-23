@@ -6,6 +6,7 @@ import type {
 } from "./ai-provider"
 import { OpenAiTextProvider } from "./openai-text"
 import { meterInstanceCall } from "../../platform/integration/instance-meter"
+import { tracedImage, tracedText, tracedVideo } from "./langfuse-trace"
 
 /**
  * ai/registry — the single place the content engine asks for a provider.
@@ -64,14 +65,34 @@ const meteredImage = (inner: AiImageProvider): AiImageProvider => ({
 })
 
 /**
+ * COST-ATTRIBUTION INVARIANT: the tenant a provider is TRACED under must be the
+ * merchant who triggered the call, not a boot-time constant. In pooled prod
+ * `process.env.TENANT_ID` is UNSET, so any trace stamped from it lands on the
+ * null "Platform" tenant and the super-admin per-merchant margin is wrong for
+ * every non-voice AI. Callers therefore pass the request's REAL resolved tenant
+ * (`ctx.tenant.id` / `input.tenantId`) which flows straight into the Langfuse
+ * trace metadata. The env var is only a single-tenant fallback for callers that
+ * genuinely have no request tenant (e.g. the Forever Finds admin surface).
+ */
+const resolveTraceTenant = (tenantId?: string): string | undefined =>
+  tenantId || process.env.TENANT_ID
+
+/**
  * Return the configured text provider, or null when none is configured (e.g.
  * OPENAI_API_KEY is unset). The content engine treats null as "AI unavailable"
  * and degrades gracefully rather than throwing.
+ *
+ * Pass the calling merchant's `tenantId` so the emitted Langfuse trace is
+ * attributed to them (see COST-ATTRIBUTION INVARIANT above).
  */
-export const getAiTextProvider = (): AiTextProvider | null => {
+export const getAiTextProvider = (
+  tenantId?: string
+): AiTextProvider | null => {
   const openai = new OpenAiTextProvider()
   if (openai.isConfigured()) {
-    return meteredText(openai)
+    return tracedText(meteredText(openai), {
+      tenantId: resolveTraceTenant(tenantId),
+    })
   }
   return null
 }
@@ -82,12 +103,18 @@ export const getAiTextProvider = (): AiTextProvider | null => {
  * depending on it at compile time; a missing module or unconfigured key both
  * yield null, and callers degrade to "AI image unavailable".
  */
-export const getAiImageProvider = (): AiImageProvider | null => {
+export const getAiImageProvider = (
+  tenantId?: string
+): AiImageProvider | null => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const mod = require("./openai-image")
     const provider = new mod.OpenAiImageProvider() as AiImageProvider
-    return provider.isConfigured() ? meteredImage(provider) : null
+    return provider.isConfigured()
+      ? tracedImage(meteredImage(provider), {
+          tenantId: resolveTraceTenant(tenantId),
+        })
+      : null
   } catch {
     return null
   }
@@ -106,12 +133,16 @@ export const getAiTtsProvider = (): AiTtsProvider | null => {
 }
 
 /** Return the configured video provider, or null (lazy, see above). */
-export const getAiVideoProvider = (): AiVideoProvider | null => {
+export const getAiVideoProvider = (
+  tenantId?: string
+): AiVideoProvider | null => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const mod = require("./gen-video")
     const provider = new mod.GenVideoProvider() as AiVideoProvider
-    return provider.isConfigured() ? provider : null
+    return provider.isConfigured()
+      ? tracedVideo(provider, { tenantId: resolveTraceTenant(tenantId) })
+      : null
   } catch {
     return null
   }

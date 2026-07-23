@@ -55,7 +55,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   // not one of the per-locale SETTING_KEYS. Default to "learts" when unset.
   const activeThemeRow = byKey.get("active_theme")
   ;(settings as any).active_theme =
-    (activeThemeRow?.data as { value?: string } | undefined)?.value ?? "learts"
+    (activeThemeRow?.data as { value?: string } | undefined)?.value ?? "learts-liquid"
 
   res.json({
     settings,

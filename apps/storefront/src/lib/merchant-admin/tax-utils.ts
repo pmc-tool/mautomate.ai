@@ -2,7 +2,7 @@
 // dashboard stays self-contained (Medusa admin uses react-country-flag +
 // country-states data; we ship a compact map + icon avatars instead).
 
-const COUNTRY_NAMES: Record<string, string> = {
+export const COUNTRY_NAMES: Record<string, string> = {
   af: "Afghanistan",
   al: "Albania",
   dz: "Algeria",

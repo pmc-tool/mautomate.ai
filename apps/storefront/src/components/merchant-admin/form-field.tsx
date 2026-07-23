@@ -2,27 +2,36 @@
 
 import React from "react"
 import { cn } from "@lib/util/cn"
+import { Hint } from "./hint"
 
 export function FormField({
   label,
   error,
   hint,
+  labelHint,
   htmlFor,
+  required,
   children,
 }: {
   label: string
   error?: string
   hint?: string
+  /** Optional "what's this?" tooltip shown next to the label. */
+  labelHint?: string
   htmlFor?: string
+  /** Marks the field as mandatory with a red asterisk. */
+  required?: boolean
   children: React.ReactNode
 }) {
   return (
     <div className="space-y-1.5">
       <label
         htmlFor={htmlFor}
-        className="block text-sm font-medium text-grey-70"
+        className="flex items-center gap-1.5 text-sm font-medium text-grey-70"
       >
         {label}
+        {required && <span className="text-red-600" aria-hidden="true">*</span>}
+        {labelHint && <Hint text={labelHint} />}
       </label>
       {children}
       {hint && <p className="text-xs text-grey-50">{hint}</p>}

@@ -103,6 +103,38 @@ export const heroSliderBlock: BlockDefinition<HeroSliderData> = {
         errors.push(`hero_slider: slides[${i}] must be an object`)
         return
       }
+      // ---- LAYERED slide (ARCH-SLIDER §1.1 — permissive union) ----
+      // A slide carrying a `layers` array is the slide-canvas shape
+      // authored by the visual editor's slider stage. Validated
+      // PERMISSIVELY on purpose (the same forward-compatibility stance
+      // as the container widget vocabulary): the storefront renderer is
+      // defensive per-layer, and new layer keys must never require a
+      // backend deploy. The legacy fields requirements (image/title/cta)
+      // do NOT apply to a layered slide.
+      if ("layers" in slide) {
+        if (!Array.isArray(slide.layers)) {
+          errors.push(`hero_slider: slides[${i}].layers must be an array`)
+          return
+        }
+        slide.layers.forEach((layer, j) => {
+          if (!isObj(layer)) {
+            errors.push(`hero_slider: slides[${i}].layers[${j}] must be an object`)
+            return
+          }
+          if (!isNonEmptyStr(layer.type)) {
+            errors.push(
+              `hero_slider: slides[${i}].layers[${j}].type is required`
+            )
+          }
+        })
+        if (
+          slide.background !== undefined &&
+          !isObj(slide.background)
+        ) {
+          errors.push(`hero_slider: slides[${i}].background must be an object`)
+        }
+        return
+      }
       if (!isNonEmptyStr(slide.image)) {
         errors.push(`hero_slider: slides[${i}].image is required (media URL)`)
       }

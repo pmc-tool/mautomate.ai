@@ -3,6 +3,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { MARKETING_MODULE } from "../../../../modules/marketing"
 import {
   getAutopilotSettings,
+  monthSpend,
   setAdsSetting,
 } from "../../../../modules/marketing/ads"
 import { resolveMerchant } from "../../_helpers"
@@ -33,7 +34,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const mk: any = req.scope.resolve(MARKETING_MODULE)
   try {
-    const [settings, rules, activity] = await Promise.all([
+    const [settings, rules, activity, month_spend] = await Promise.all([
       getAutopilotSettings(mk, ctx.tenant.id),
       mk.listAdsRules(
         { tenant_id: ctx.tenant.id },
@@ -43,9 +44,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         { tenant_id: ctx.tenant.id, actor: "autopilot" },
         { take: 30, order: { created_at: "DESC" } }
       ),
+      monthSpend(mk, ctx.tenant.id).catch(() => 0),
     ])
     res.json({
       settings,
+      month_spend,
       rules: (rules ?? []).map(ruleDto),
       activity: (activity ?? []).map((l: any) => ({
         id: l.id,

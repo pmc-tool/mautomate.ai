@@ -18,8 +18,6 @@ import {
   ShieldCheck,
   Clock,
 } from "@medusajs/icons"
-import { PageHeader } from "@components/merchant-admin/page-header"
-import { SectionCard } from "@components/merchant-admin/section-card"
 import { StatusBadge } from "@components/merchant-admin/status-badge"
 import { EmptyState } from "@components/merchant-admin/empty-state"
 import {
@@ -28,6 +26,7 @@ import {
   Textarea,
   Select,
 } from "@components/merchant-admin/form-field"
+import { FormToggle } from "@components/merchant-admin/form-toggle"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
   getCallAgent,
@@ -171,6 +170,44 @@ function splitCsv(text: string): string[] {
     .split(",")
     .map((l) => l.trim())
     .filter(Boolean)
+}
+
+// Presentation-only: a studio section — left rail (title + one-sentence
+// explainer) and right content. `plain` renders children without the card
+// wrapper (for lists of cards, timelines).
+function EditorSection({
+  title,
+  description,
+  action,
+  plain,
+  children,
+}: {
+  title: string
+  description?: string
+  action?: React.ReactNode
+  plain?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-4 py-8 first:pt-6 md:flex-row md:gap-8">
+      <div className="md:w-64 md:shrink-0">
+        <h2 className="text-sm font-semibold text-grey-90">{title}</h2>
+        {description && (
+          <p className="mt-1 text-sm leading-relaxed text-grey-50">{description}</p>
+        )}
+        {action && <div className="mt-3">{action}</div>}
+      </div>
+      <div className="min-w-0 flex-1">
+        {plain ? (
+          children
+        ) : (
+          <div className="rounded-large border border-grey-20 bg-white p-6 shadow-borders-base">
+            {children}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function EditCallAgentPage() {
@@ -610,7 +647,18 @@ export default function EditCallAgentPage() {
   )
 
   if (loading) {
-    return <div className="p-8 text-center text-sm text-grey-50">Loading agent…</div>
+    return (
+      <div className="space-y-6">
+        <div className="h-14 animate-pulse rounded-large border border-grey-20 bg-grey-5" />
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-4">
+            <div className="h-10 animate-pulse rounded-base bg-grey-5" />
+            <div className="h-72 animate-pulse rounded-large border border-grey-20 bg-grey-5" />
+          </div>
+          <div className="h-72 animate-pulse rounded-large border border-grey-20 bg-grey-5" />
+        </div>
+      </div>
+    )
   }
 
   if (!agent) {
@@ -631,50 +679,54 @@ export default function EditCallAgentPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <Link
-        href="/dashboard/calls/agents"
-        className="inline-flex items-center gap-1 text-sm text-grey-60 hover:text-grey-90"
-      >
-        <ArrowLeftMini className="h-4 w-4" />
-        Back to agents
-      </Link>
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <PageHeader title={agent.name} description="Train this AI voice agent's playbook." />
-          </div>
-          <div className="mt-1 flex items-center gap-2 text-xs text-grey-50">
+    <div className="space-y-5 pb-16">
+      {/* Sticky studio header */}
+      <div className="sticky top-0 z-30 rounded-large border border-grey-20 bg-white/95 shadow-borders-base backdrop-blur">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3 sm:px-5">
+          <Link
+            href="/dashboard/calls/agents"
+            className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-grey-50 transition-colors hover:text-grey-90"
+          >
+            <ArrowLeftMini className="h-4 w-4" />
+            Agents
+          </Link>
+          <span className="hidden h-4 w-px bg-grey-20 sm:block" />
+          <div className="flex min-w-0 items-center gap-2.5">
+            <h1 className="truncate text-base font-semibold text-grey-90">{agent.name}</h1>
             <StatusBadge status={agent.status} />
-            <span>Use case: {agent.use_case || "—"}</span>
-            {agent.version != null && <span>· Draft v{agent.version}</span>}
+          </div>
+          <div className="hidden items-center gap-2 text-xs text-grey-50 lg:flex">
+            <span className="rounded-full bg-grey-10 px-2 py-0.5 font-medium text-grey-60">
+              {agent.use_case || "general"}
+            </span>
+            {agent.version != null && <span>Draft v{agent.version}</span>}
             {liveVersion != null && <span>· Live v{liveVersion}</span>}
           </div>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <button
-            onClick={handleDelete}
-            className="inline-flex items-center gap-1.5 rounded-base border border-grey-20 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-          >
-            <Trash className="h-4 w-4" />
-            Delete
-          </button>
-          <button
-            onClick={handlePublish}
-            disabled={publishing}
-            className="inline-flex items-center gap-1.5 rounded-base border border-grey-20 px-3 py-2 text-sm font-medium text-grey-90 hover:bg-grey-5 disabled:opacity-50"
-          >
-            <RocketLaunch className="h-4 w-4" />
-            {publishing ? "Publishing…" : "Publish"}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving ? "Saving…" : "Save training"}
-          </button>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <button
+              onClick={handleDelete}
+              title="Delete agent"
+              className="inline-flex items-center gap-1.5 rounded-base border border-grey-20 px-2.5 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+            >
+              <Trash className="h-4 w-4" />
+              <span className="hidden sm:inline">Delete</span>
+            </button>
+            <button
+              onClick={handlePublish}
+              disabled={publishing}
+              className="inline-flex items-center gap-1.5 rounded-base border border-grey-20 px-3 py-2 text-sm font-medium text-grey-90 transition-colors hover:bg-grey-5 disabled:opacity-50"
+            >
+              <RocketLaunch className="h-4 w-4" />
+              {publishing ? "Publishing…" : "Publish"}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save training"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -689,493 +741,548 @@ export default function EditCallAgentPage() {
         </div>
       )}
 
-      <TestCallPanel
-        token={token}
-        agentId={agent.id}
-        disabled={!(agent.current_version_id || agent.version != null)}
-        disabledReason="Save the agent's training before starting a test call."
-      />
-
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-1 border-b border-grey-20">
-        {TABS.map((t) => {
-          const Icon = t.icon
-          const active = tab === t.id
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={
-                "inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors " +
-                (active
-                  ? "border-grey-90 text-grey-90"
-                  : "border-transparent text-grey-50 hover:text-grey-90")
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {t.label}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* General */}
-      {tab === "general" && (
-        <SectionCard title="General" description="Identity, opening line, and top-level objective.">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField label="Name">
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Order confirmation agent" />
-            </FormField>
-            <FormField label="Use case">
-              <Input value={useCase} onChange={(e) => setUseCase(e.target.value)} placeholder="e.g. cod_confirmation" />
-            </FormField>
-            <FormField label="Status">
-              <Select value={status} onChange={(e) => setStatus(e.target.value as "draft" | "published")}>
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-              </Select>
-            </FormField>
-          </div>
-          <div className="mt-4 space-y-4">
-            <FormField label="First message" hint="The first thing the agent says once connected. May contain merge tokens.">
-              <Textarea value={firstMessage} onChange={(e) => setFirstMessage(e.target.value)} placeholder="Hello, this is …" />
-            </FormField>
-            <FormField label="Objective" hint="What this agent is trying to accomplish overall.">
-              <Textarea value={objective} onChange={(e) => setObjective(e.target.value)} placeholder="Confirm the customer's cash-on-delivery order …" />
-            </FormField>
-            <FormField label="System prompt" hint="Base instructions that frame the agent's behaviour.">
-              <Textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} className="min-h-[140px]" placeholder="You are a polite, concise call-center agent …" />
-            </FormField>
-          </div>
-        </SectionCard>
-      )}
-
-      {/* Persona */}
-      {tab === "persona" && (
-        <SectionCard title="Persona" description="How the agent presents itself — name, tone, style, spoken language.">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField label="Persona name">
-              <Input value={personaName} onChange={(e) => setPersonaName(e.target.value)} placeholder="e.g. Ayesha" />
-            </FormField>
-            <FormField label="Language" hint="BCP-47 tag, e.g. en, bn.">
-              <Input value={personaLanguage} onChange={(e) => setPersonaLanguage(e.target.value)} placeholder="en" />
-            </FormField>
-            <FormField label="Tone">
-              <Input value={tone} onChange={(e) => setTone(e.target.value)} placeholder="e.g. warm, professional" />
-            </FormField>
-            <FormField label="Style">
-              <Input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="e.g. concise, friendly" />
-            </FormField>
-          </div>
-        </SectionCard>
-      )}
-
-      {/* Voice */}
-      {tab === "voice" && (
-        <SectionCard title="Voice" description="Text-to-speech voice used by the runtime.">
-          <div className="mb-4 rounded-base border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            Live voices require vendor API keys configured for your store. Until then these settings are saved but not spoken.
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <FormField label="Provider">
-              <Input value={voiceProvider} onChange={(e) => setVoiceProvider(e.target.value)} placeholder="e.g. elevenlabs, openai" />
-            </FormField>
-            <FormField label="Voice ID">
-              <Input value={voiceId} onChange={(e) => setVoiceId(e.target.value)} placeholder="e.g. alloy" />
-            </FormField>
-            <FormField label="Language" hint="BCP-47 tag, e.g. en, bn.">
-              <Input value={voiceLanguage} onChange={(e) => setVoiceLanguage(e.target.value)} placeholder="en" />
-            </FormField>
-          </div>
-        </SectionCard>
-      )}
-
-      {/* Tools */}
-      {tab === "tools" && (
-        <div className="space-y-6">
-        <SectionCard
-          title="Tool catalog"
-          description="Turn on the store actions this agent may use. Each one is wired to a real backend tool — no JSON required."
-        >
-          <div className="space-y-2">
-            {TOOL_CATALOG.map((c) => {
-              const on = isCatalogToolOn(c.name)
-              return (
-                <label
-                  key={c.name}
-                  className="flex cursor-pointer items-start gap-3 rounded-base border border-grey-20 p-3 hover:bg-grey-5"
-                >
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={() => toggleCatalogTool(c.name)}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-grey-30 text-grey-90 focus:ring-grey-90"
-                  />
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-grey-90">{c.label}</span>
-                      <code className="rounded bg-grey-10 px-1.5 py-0.5 font-mono text-[11px] text-grey-60">
-                        {c.name}
-                      </code>
-                    </span>
-                    <span className="mt-0.5 block text-xs text-grey-50">{c.description}</span>
-                  </span>
-                </label>
-              )
-            })}
-          </div>
-        </SectionCard>
-        <SectionCard
-          title="Advanced tools"
-          description="Model-callable tools. Parameters are a JSON-schema object."
-          action={
-            <button
-              onClick={addTool}
-              className="inline-flex items-center gap-1.5 rounded-base border border-grey-20 px-3 py-1.5 text-sm font-medium text-grey-90 hover:bg-grey-5"
-            >
-              <Plus className="h-4 w-4" />
-              Add tool
-            </button>
-          }
-        >
-          {tools.length === 0 ? (
-            <EmptyState
-              icon={Tools}
-              title="No tools"
-              description="Add tools the agent may call during the conversation."
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        {/* Test-call phone — above the studio on small screens, right rail on xl */}
+        <div className="min-w-0 xl:order-2">
+          <div className="xl:sticky xl:top-24">
+            <TestCallPanel
+              token={token}
+              agentId={agent.id}
+              agentName={agent.name}
+              disabled={!(agent.current_version_id || agent.version != null)}
+              disabledReason="Save the agent's training before starting a test call."
             />
-          ) : (
-            <div className="space-y-4">
-              {tools.map((t, i) => (
-                <div key={i} className="rounded-base border border-grey-20 p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="text-sm font-medium text-grey-70">Tool {i + 1}</span>
-                    <button
-                      onClick={() => removeTool(i)}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
-                    >
-                      <XMarkMini className="h-4 w-4" />
-                      Remove
-                    </button>
-                  </div>
+          </div>
+        </div>
+
+        {/* Training studio */}
+        <div className="min-w-0 max-w-4xl xl:order-1">
+          {/* Tabs */}
+          <div className="overflow-x-auto border-b border-grey-20">
+            <nav className="-mb-px flex min-w-max gap-1">
+              {TABS.map((t) => {
+                const Icon = t.icon
+                const active = tab === t.id
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setTab(t.id)}
+                    className={
+                      "inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition-colors " +
+                      (active
+                        ? "border-grey-90 font-medium text-grey-90"
+                        : "border-transparent text-grey-50 hover:text-grey-70")
+                    }
+                  >
+                    <Icon className="h-4 w-4" />
+                    {t.label}
+                  </button>
+                )
+              })}
+            </nav>
+          </div>
+
+          <div className="divide-y divide-grey-10">
+            {/* General */}
+            {tab === "general" && (
+              <>
+                <EditorSection
+                  title="Identity"
+                  description="What this agent is called and what kind of calls it handles."
+                >
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField label="Name">
-                      <Input value={t.name} onChange={(e) => updateTool(i, { name: e.target.value })} placeholder="e.g. lookup_order" />
+                      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Order confirmation agent" />
                     </FormField>
-                    <FormField label="Description">
-                      <Input value={t.description} onChange={(e) => updateTool(i, { description: e.target.value })} placeholder="What the tool does" />
+                    <FormField label="Use case">
+                      <Input value={useCase} onChange={(e) => setUseCase(e.target.value)} placeholder="e.g. cod_confirmation" />
+                    </FormField>
+                    <FormField label="Status">
+                      <Select value={status} onChange={(e) => setStatus(e.target.value as "draft" | "published")}>
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                      </Select>
                     </FormField>
                   </div>
-                  <div className="mt-4">
-                    <FormField label="Parameters (JSON schema)" hint='e.g. {"type":"object","properties":{}}'>
+                </EditorSection>
+                <EditorSection
+                  title="Instructions"
+                  description="The opening line, the goal of every call, and the base behaviour prompt."
+                >
+                  <div className="space-y-4">
+                    <FormField label="First message" hint="The first thing the agent says once connected. May contain merge tokens.">
+                      <Textarea value={firstMessage} onChange={(e) => setFirstMessage(e.target.value)} placeholder="Hello, this is …" />
+                    </FormField>
+                    <FormField label="Objective" hint="What this agent is trying to accomplish overall.">
+                      <Textarea value={objective} onChange={(e) => setObjective(e.target.value)} placeholder="Confirm the customer's cash-on-delivery order …" />
+                    </FormField>
+                    <FormField label="System prompt" hint="Base instructions that frame the agent's behaviour.">
+                      <Textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} className="min-h-[140px]" placeholder="You are a polite, concise call-center agent …" />
+                    </FormField>
+                  </div>
+                </EditorSection>
+              </>
+            )}
+
+            {/* Persona */}
+            {tab === "persona" && (
+              <EditorSection
+                title="Persona"
+                description="How the agent presents itself — name, tone, style, spoken language."
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField label="Persona name">
+                    <Input value={personaName} onChange={(e) => setPersonaName(e.target.value)} placeholder="e.g. Ayesha" />
+                  </FormField>
+                  <FormField label="Language" hint="BCP-47 tag, e.g. en, bn.">
+                    <Input value={personaLanguage} onChange={(e) => setPersonaLanguage(e.target.value)} placeholder="en" />
+                  </FormField>
+                  <FormField label="Tone">
+                    <Input value={tone} onChange={(e) => setTone(e.target.value)} placeholder="e.g. warm, professional" />
+                  </FormField>
+                  <FormField label="Style">
+                    <Input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="e.g. concise, friendly" />
+                  </FormField>
+                </div>
+              </EditorSection>
+            )}
+
+            {/* Voice */}
+            {tab === "voice" && (
+              <EditorSection
+                title="Voice"
+                description="Text-to-speech voice used by the runtime."
+              >
+                <div className="mb-4 rounded-base border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  Live voices require vendor API keys configured for your store. Until then these settings are saved but not spoken.
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <FormField label="Provider">
+                    <Input value={voiceProvider} onChange={(e) => setVoiceProvider(e.target.value)} placeholder="e.g. elevenlabs, openai" />
+                  </FormField>
+                  <FormField label="Voice ID">
+                    <Input value={voiceId} onChange={(e) => setVoiceId(e.target.value)} placeholder="e.g. alloy" />
+                  </FormField>
+                  <FormField label="Language" hint="BCP-47 tag, e.g. en, bn.">
+                    <Input value={voiceLanguage} onChange={(e) => setVoiceLanguage(e.target.value)} placeholder="en" />
+                  </FormField>
+                </div>
+              </EditorSection>
+            )}
+
+            {/* Tools */}
+            {tab === "tools" && (
+              <>
+                <EditorSection
+                  title="Tool catalog"
+                  description="Turn on the store actions this agent may use. Each one is wired to a real backend tool — no JSON required."
+                  plain
+                >
+                  <div className="divide-y divide-grey-10 rounded-large border border-grey-20 bg-white shadow-borders-base">
+                    {TOOL_CATALOG.map((c) => {
+                      const on = isCatalogToolOn(c.name)
+                      return (
+                        <div
+                          key={c.name}
+                          className="flex items-start justify-between gap-4 px-4 py-3.5"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-medium text-grey-90">{c.label}</span>
+                              <code className="rounded bg-grey-10 px-1.5 py-0.5 font-mono text-[11px] text-grey-60">
+                                {c.name}
+                              </code>
+                            </div>
+                            <p className="mt-0.5 text-xs text-grey-50">{c.description}</p>
+                          </div>
+                          <div className="shrink-0 pt-0.5">
+                            <FormToggle
+                              checked={on}
+                              onChange={() => toggleCatalogTool(c.name)}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </EditorSection>
+                <EditorSection
+                  title="Advanced tools"
+                  description="Model-callable tools. Parameters are a JSON-schema object."
+                  action={
+                    <button
+                      onClick={addTool}
+                      className="inline-flex items-center gap-1.5 rounded-base border border-grey-20 bg-white px-3 py-1.5 text-sm font-medium text-grey-90 transition-colors hover:bg-grey-5"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add tool
+                    </button>
+                  }
+                  plain
+                >
+                  {tools.length === 0 ? (
+                    <EmptyState
+                      icon={Tools}
+                      title="No tools"
+                      description="Add tools the agent may call during the conversation."
+                    />
+                  ) : (
+                    <div className="space-y-4">
+                      {tools.map((t, i) => (
+                        <div key={i} className="rounded-large border border-grey-20 bg-white p-5 shadow-borders-base">
+                          <div className="mb-4 flex items-center justify-between">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-grey-40">Tool {i + 1}</span>
+                            <button
+                              onClick={() => removeTool(i)}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
+                            >
+                              <XMarkMini className="h-4 w-4" />
+                              Remove
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <FormField label="Name">
+                              <Input value={t.name} onChange={(e) => updateTool(i, { name: e.target.value })} placeholder="e.g. lookup_order" />
+                            </FormField>
+                            <FormField label="Description">
+                              <Input value={t.description} onChange={(e) => updateTool(i, { description: e.target.value })} placeholder="What the tool does" />
+                            </FormField>
+                          </div>
+                          <div className="mt-4">
+                            <FormField label="Parameters (JSON schema)" hint='e.g. {"type":"object","properties":{}}'>
+                              <Textarea
+                                value={t.paramsText}
+                                onChange={(e) => updateTool(i, { paramsText: e.target.value })}
+                                className="min-h-[100px] font-mono text-xs"
+                              />
+                            </FormField>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </EditorSection>
+              </>
+            )}
+
+            {/* States */}
+            {tab === "states" && (
+              <EditorSection
+                title="Conversation states"
+                description="The state machine the agent follows. Each state has a goal, sample lines, allowed tools, and transitions."
+                action={
+                  <button
+                    onClick={addState}
+                    className="inline-flex items-center gap-1.5 rounded-base border border-grey-20 bg-white px-3 py-1.5 text-sm font-medium text-grey-90 transition-colors hover:bg-grey-5"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add state
+                  </button>
+                }
+                plain
+              >
+                {states.length === 0 ? (
+                  <EmptyState
+                    icon={Map}
+                    title="No states"
+                    description="Add conversation states to shape the flow of the call."
+                  />
+                ) : (
+                  <div className="space-y-4">
+                    {states.map((s, i) => (
+                      <div key={i} className="rounded-large border border-grey-20 bg-white p-5 shadow-borders-base">
+                        <div className="mb-4 flex items-center justify-between">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-grey-40">State {i + 1}</span>
+                          <button
+                            onClick={() => removeState(i)}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
+                          >
+                            <XMarkMini className="h-4 w-4" />
+                            Remove
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <FormField label="State id">
+                            <Input value={s.id} onChange={(e) => updateState(i, { id: e.target.value })} placeholder="e.g. greeting" />
+                          </FormField>
+                          <FormField label="Allowed tools" hint="Comma-separated tool names.">
+                            <Input value={s.allowedToolsText} onChange={(e) => updateState(i, { allowedToolsText: e.target.value })} placeholder="lookup_order, save_reschedule" />
+                          </FormField>
+                        </div>
+                        <div className="mt-4 space-y-4">
+                          <FormField label="Goal / prompt" hint="What the model tries to accomplish in this state.">
+                            <Textarea value={s.goal} onChange={(e) => updateState(i, { goal: e.target.value })} />
+                          </FormField>
+                          <FormField label="Sample lines" hint="One line per row. Anchors tone; not a verbatim script.">
+                            <Textarea value={s.sampleLinesText} onChange={(e) => updateState(i, { sampleLinesText: e.target.value })} />
+                          </FormField>
+                        </div>
+                        <div className="mt-4 rounded-base border border-grey-10 bg-grey-5 p-3">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-sm font-medium text-grey-70">Transitions</span>
+                            <button
+                              onClick={() => addTransition(i)}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-grey-70 hover:text-grey-90"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              Add transition
+                            </button>
+                          </div>
+                          {s.transitions.length === 0 ? (
+                            <p className="text-xs text-grey-50">No transitions. Add one to define an edge to another state.</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {s.transitions.map((tr, ti) => (
+                                <div key={ti} className="flex items-center gap-2">
+                                  <Input
+                                    value={tr.on}
+                                    onChange={(e) => updateTransition(i, ti, { on: e.target.value })}
+                                    placeholder="on (event) e.g. confirmed"
+                                  />
+                                  <span className="text-grey-40">→</span>
+                                  <Input
+                                    value={tr.to}
+                                    onChange={(e) => updateTransition(i, ti, { to: e.target.value })}
+                                    placeholder="to (state id) e.g. wrap_up"
+                                  />
+                                  <button
+                                    onClick={() => removeTransition(i, ti)}
+                                    className="shrink-0 rounded-base p-1.5 text-grey-50 hover:bg-grey-10 hover:text-red-600"
+                                  >
+                                    <XMarkMini className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </EditorSection>
+            )}
+
+            {/* Guardrails */}
+            {tab === "guardrails" && (
+              <EditorSection
+                title="Guardrails"
+                description="Safety limits and compliance settings the runtime enforces during a call."
+                plain
+              >
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="rounded-large border border-grey-20 bg-white p-5 shadow-borders-base">
+                      <FormField label="Max turns" hint="Hard cap on conversation turns before the call wraps up.">
+                        <Input
+                          type="number"
+                          min={1}
+                          value={maxTurns}
+                          onChange={(e) => setMaxTurns(Number(e.target.value))}
+                          placeholder="60"
+                        />
+                      </FormField>
+                    </div>
+                    <div className="rounded-large border border-grey-20 bg-white p-5 shadow-borders-base">
+                      <FormField label="Max clarifications" hint="How many times the agent may ask the caller to repeat before moving on.">
+                        <Input
+                          type="number"
+                          min={0}
+                          value={maxClarify}
+                          onChange={(e) => setMaxClarify(Number(e.target.value))}
+                          placeholder="2"
+                        />
+                      </FormField>
+                    </div>
+                  </div>
+                  <div className="rounded-large border border-grey-20 bg-white p-5 shadow-borders-base">
+                    <FormToggle
+                      checked={saveOfferOnce}
+                      onChange={(value) => setSaveOfferOnce(value)}
+                      label="Only make a save/retention offer once"
+                      description="Prevents the agent from repeatedly pushing a retention or save offer in the same call."
+                    />
+                  </div>
+                  <div className="rounded-large border border-grey-20 bg-white p-5 shadow-borders-base">
+                    <FormField
+                      label="Recording disclosure"
+                      hint="Spoken/legal notice that the call may be recorded. Left empty means no disclosure is played."
+                    >
                       <Textarea
-                        value={t.paramsText}
-                        onChange={(e) => updateTool(i, { paramsText: e.target.value })}
-                        className="min-h-[100px] font-mono text-xs"
+                        value={recordingDisclosure}
+                        onChange={(e) => setRecordingDisclosure(e.target.value)}
+                        placeholder="This call may be recorded for quality and training purposes."
                       />
                     </FormField>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-        </div>
-      )}
-
-      {/* States */}
-      {tab === "states" && (
-        <SectionCard
-          title="Conversation states"
-          description="The state machine the agent follows. Each state has a goal, sample lines, allowed tools, and transitions."
-          action={
-            <button
-              onClick={addState}
-              className="inline-flex items-center gap-1.5 rounded-base border border-grey-20 px-3 py-1.5 text-sm font-medium text-grey-90 hover:bg-grey-5"
-            >
-              <Plus className="h-4 w-4" />
-              Add state
-            </button>
-          }
-        >
-          {states.length === 0 ? (
-            <EmptyState
-              icon={Map}
-              title="No states"
-              description="Add conversation states to shape the flow of the call."
-            />
-          ) : (
-            <div className="space-y-4">
-              {states.map((s, i) => (
-                <div key={i} className="rounded-base border border-grey-20 p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="text-sm font-medium text-grey-70">State {i + 1}</span>
-                    <button
-                      onClick={() => removeState(i)}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
-                    >
-                      <XMarkMini className="h-4 w-4" />
-                      Remove
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <FormField label="State id">
-                      <Input value={s.id} onChange={(e) => updateState(i, { id: e.target.value })} placeholder="e.g. greeting" />
-                    </FormField>
-                    <FormField label="Allowed tools" hint="Comma-separated tool names.">
-                      <Input value={s.allowedToolsText} onChange={(e) => updateState(i, { allowedToolsText: e.target.value })} placeholder="lookup_order, save_reschedule" />
-                    </FormField>
-                  </div>
-                  <div className="mt-4 space-y-4">
-                    <FormField label="Goal / prompt" hint="What the model tries to accomplish in this state.">
-                      <Textarea value={s.goal} onChange={(e) => updateState(i, { goal: e.target.value })} />
-                    </FormField>
-                    <FormField label="Sample lines" hint="One line per row. Anchors tone; not a verbatim script.">
-                      <Textarea value={s.sampleLinesText} onChange={(e) => updateState(i, { sampleLinesText: e.target.value })} />
-                    </FormField>
-                  </div>
-                  <div className="mt-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-medium text-grey-70">Transitions</span>
-                      <button
-                        onClick={() => addTransition(i)}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-grey-70 hover:text-grey-90"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Add transition
-                      </button>
-                    </div>
-                    {s.transitions.length === 0 ? (
-                      <p className="text-xs text-grey-50">No transitions. Add one to define an edge to another state.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {s.transitions.map((tr, ti) => (
-                          <div key={ti} className="flex items-center gap-2">
-                            <Input
-                              value={tr.on}
-                              onChange={(e) => updateTransition(i, ti, { on: e.target.value })}
-                              placeholder="on (event) e.g. confirmed"
-                            />
-                            <span className="text-grey-40">→</span>
-                            <Input
-                              value={tr.to}
-                              onChange={(e) => updateTransition(i, ti, { to: e.target.value })}
-                              placeholder="to (state id) e.g. wrap_up"
-                            />
-                            <button
-                              onClick={() => removeTransition(i, ti)}
-                              className="shrink-0 rounded-base p-1.5 text-grey-50 hover:bg-grey-10 hover:text-red-600"
-                            >
-                              <XMarkMini className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      )}
-
-      {/* Guardrails */}
-      {tab === "guardrails" && (
-        <SectionCard
-          title="Guardrails"
-          description="Safety limits and compliance settings the runtime enforces during a call."
-        >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField label="Max turns" hint="Hard cap on conversation turns before the call wraps up.">
-              <Input
-                type="number"
-                min={1}
-                value={maxTurns}
-                onChange={(e) => setMaxTurns(Number(e.target.value))}
-                placeholder="60"
-              />
-            </FormField>
-            <FormField label="Max clarifications" hint="How many times the agent may ask the caller to repeat before moving on.">
-              <Input
-                type="number"
-                min={0}
-                value={maxClarify}
-                onChange={(e) => setMaxClarify(Number(e.target.value))}
-                placeholder="2"
-              />
-            </FormField>
-          </div>
-          <div className="mt-4 space-y-4">
-            <label className="flex cursor-pointer items-start gap-3 rounded-base border border-grey-20 p-3 hover:bg-grey-5">
-              <input
-                type="checkbox"
-                checked={saveOfferOnce}
-                onChange={(e) => setSaveOfferOnce(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-grey-30 text-grey-90 focus:ring-grey-90"
-              />
-              <span className="min-w-0">
-                <span className="block text-sm font-medium text-grey-90">Only make a save/retention offer once</span>
-                <span className="mt-0.5 block text-xs text-grey-50">
-                  Prevents the agent from repeatedly pushing a retention or save offer in the same call.
-                </span>
-              </span>
-            </label>
-            <FormField
-              label="Recording disclosure"
-              hint="Spoken/legal notice that the call may be recorded. Left empty means no disclosure is played."
-            >
-              <Textarea
-                value={recordingDisclosure}
-                onChange={(e) => setRecordingDisclosure(e.target.value)}
-                placeholder="This call may be recorded for quality and training purposes."
-              />
-            </FormField>
-          </div>
-        </SectionCard>
-      )}
-
-      {/* Knowledge Base */}
-      {tab === "knowledge" && (
-        <div className="space-y-6">
-          <SectionCard title="Add knowledge" description="Attach FAQs, text, or URLs the agent can draw on.">
-            <form onSubmit={handleAddKnowledge}>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormField label="Name">
-                  <Input value={kbName} onChange={(e) => setKbName(e.target.value)} placeholder="e.g. Return policy" required />
-                </FormField>
-                <FormField label="Source type">
-                  <Select value={kbType} onChange={(e) => setKbType(e.target.value as "faq" | "text" | "url")}>
-                    <option value="text">Text</option>
-                    <option value="faq">FAQ</option>
-                    <option value="url">URL</option>
-                  </Select>
-                </FormField>
-              </div>
-              <div className="mt-4">
-                {kbType === "url" ? (
-                  <FormField label="URL">
-                    <Input value={kbUrl} onChange={(e) => setKbUrl(e.target.value)} placeholder="https://…" />
-                  </FormField>
-                ) : (
-                  <FormField label="Content">
-                    <Textarea value={kbContent} onChange={(e) => setKbContent(e.target.value)} className="min-h-[100px]" placeholder="Paste the FAQ or reference text …" />
-                  </FormField>
-                )}
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={kbSaving || !kbName.trim()}
-                  className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" />
-                  {kbSaving ? "Adding…" : "Add entry"}
-                </button>
-              </div>
-            </form>
-          </SectionCard>
-
-          <SectionCard title="Knowledge entries" description="Reference material attached to this agent.">
-            {kbLoading ? (
-              <div className="p-6 text-center text-sm text-grey-50">Loading knowledge…</div>
-            ) : knowledge.length === 0 ? (
-              <EmptyState
-                icon={BookOpen}
-                title="No knowledge yet"
-                description="Add FAQs or reference text so the agent can answer accurately."
-              />
-            ) : (
-              <div className="divide-y divide-grey-10">
-                {knowledge.map((k) => (
-                  <div key={k.id} className="flex items-start justify-between gap-4 py-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-grey-90">{k.name}</span>
-                        <StatusBadge status={k.source_type} />
-                      </div>
-                      {k.url && <p className="mt-0.5 truncate text-xs text-sky-700">{k.url}</p>}
-                      {k.content && <p className="mt-0.5 line-clamp-2 text-xs text-grey-50">{k.content}</p>}
-                    </div>
-                    <button
-                      onClick={() => handleDeleteKnowledge(k.id)}
-                      className="shrink-0 rounded-base p-1.5 text-grey-50 hover:bg-grey-10 hover:text-red-600"
-                    >
-                      <Trash className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              </EditorSection>
             )}
-          </SectionCard>
-        </div>
-      )}
 
-      {/* Version history */}
-      {tab === "versions" && (
-        <SectionCard
-          title="Version history"
-          description="Every save and publish snapshots the agent. Restore loads a snapshot back into the editor — Save to make it the live version."
-        >
-          {versions.length === 0 ? (
-            <EmptyState
-              icon={Clock}
-              title="No versions yet"
-              description="Save or publish the agent to create its first version snapshot."
-            />
-          ) : (
-            <div className="divide-y divide-grey-10">
-              {[...versions]
-                .sort((a, b) => b.version - a.version)
-                .map((v) => {
-                  const isLive = v.published
-                  const isCurrent = liveVersion != null && v.version === liveVersion
-                  const hasDefinition = !!(v as any).definition
-                  return (
-                    <div
-                      key={v.id}
-                      className="flex items-center justify-between gap-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-grey-90">
-                            Version {v.version}
-                          </span>
-                          {isLive && <StatusBadge status="published" />}
-                          {isCurrent && (
-                            <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">
-                              Live
-                            </span>
-                          )}
-                        </div>
-                        {v.created_at && (
-                          <p className="mt-0.5 text-xs text-grey-50">
-                            {new Date(v.created_at).toLocaleString()}
-                          </p>
-                        )}
-                      </div>
-                      {!isCurrent && (
-                        <button
-                          onClick={() => handleRestoreVersion(v)}
-                          disabled={!hasDefinition}
-                          title={
-                            hasDefinition
-                              ? undefined
-                              : "This version's saved definition is not available in the browser."
-                          }
-                          className="inline-flex shrink-0 items-center gap-1.5 rounded-base border border-grey-20 px-3 py-1.5 text-sm font-medium text-grey-90 hover:bg-grey-5 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <ArrowLeftMini className="h-4 w-4" />
-                          Restore this version
-                        </button>
+            {/* Knowledge Base */}
+            {tab === "knowledge" && (
+              <>
+                <EditorSection
+                  title="Add knowledge"
+                  description="Attach FAQs, text, or URLs the agent can draw on."
+                >
+                  <form onSubmit={handleAddKnowledge}>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <FormField label="Name">
+                        <Input value={kbName} onChange={(e) => setKbName(e.target.value)} placeholder="e.g. Return policy" required />
+                      </FormField>
+                      <FormField label="Source type">
+                        <Select value={kbType} onChange={(e) => setKbType(e.target.value as "faq" | "text" | "url")}>
+                          <option value="text">Text</option>
+                          <option value="faq">FAQ</option>
+                          <option value="url">URL</option>
+                        </Select>
+                      </FormField>
+                    </div>
+                    <div className="mt-4">
+                      {kbType === "url" ? (
+                        <FormField label="URL">
+                          <Input value={kbUrl} onChange={(e) => setKbUrl(e.target.value)} placeholder="https://…" />
+                        </FormField>
+                      ) : (
+                        <FormField label="Content">
+                          <Textarea value={kbContent} onChange={(e) => setKbContent(e.target.value)} className="min-h-[100px]" placeholder="Paste the FAQ or reference text …" />
+                        </FormField>
                       )}
                     </div>
-                  )
-                })}
-            </div>
-          )}
-        </SectionCard>
-      )}
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={kbSaving || !kbName.trim()}
+                        className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Plus className="h-4 w-4" />
+                        {kbSaving ? "Adding…" : "Add entry"}
+                      </button>
+                    </div>
+                  </form>
+                </EditorSection>
+
+                <EditorSection
+                  title="Knowledge entries"
+                  description="Reference material attached to this agent."
+                  plain
+                >
+                  {kbLoading ? (
+                    <div className="rounded-large border border-grey-20 bg-white p-6 text-center text-sm text-grey-50 shadow-borders-base">
+                      Loading knowledge…
+                    </div>
+                  ) : knowledge.length === 0 ? (
+                    <EmptyState
+                      icon={BookOpen}
+                      title="No knowledge yet"
+                      description="Add FAQs or reference text so the agent can answer accurately."
+                    />
+                  ) : (
+                    <div className="divide-y divide-grey-10 rounded-large border border-grey-20 bg-white shadow-borders-base">
+                      {knowledge.map((k) => (
+                        <div key={k.id} className="flex items-start justify-between gap-4 px-4 py-3.5">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-grey-90">{k.name}</span>
+                              <StatusBadge status={k.source_type} />
+                            </div>
+                            {k.url && <p className="mt-0.5 truncate text-xs text-sky-700">{k.url}</p>}
+                            {k.content && <p className="mt-0.5 line-clamp-2 text-xs text-grey-50">{k.content}</p>}
+                          </div>
+                          <button
+                            onClick={() => handleDeleteKnowledge(k.id)}
+                            className="shrink-0 rounded-base p-1.5 text-grey-50 hover:bg-grey-10 hover:text-red-600"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </EditorSection>
+              </>
+            )}
+
+            {/* Version history */}
+            {tab === "versions" && (
+              <EditorSection
+                title="Version history"
+                description="Every save and publish snapshots the agent. Restore loads a snapshot back into the editor — Save to make it the live version."
+                plain
+              >
+                {versions.length === 0 ? (
+                  <EmptyState
+                    icon={Clock}
+                    title="No versions yet"
+                    description="Save or publish the agent to create its first version snapshot."
+                  />
+                ) : (
+                  <div className="relative pl-6">
+                    {/* Timeline spine */}
+                    <span className="absolute bottom-3 left-[7px] top-3 w-px bg-grey-20" />
+                    <div className="space-y-1">
+                      {[...versions]
+                        .sort((a, b) => b.version - a.version)
+                        .map((v) => {
+                          const isLive = v.published
+                          const isCurrent = liveVersion != null && v.version === liveVersion
+                          const hasDefinition = !!(v as any).definition
+                          return (
+                            <div
+                              key={v.id}
+                              className="relative flex items-center justify-between gap-4 rounded-base px-3 py-3 transition-colors hover:bg-grey-5"
+                            >
+                              <span
+                                className={
+                                  "absolute -left-6 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-white " +
+                                  (isCurrent ? "bg-emerald-500" : isLive ? "bg-grey-60" : "bg-grey-30")
+                                }
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-grey-90">
+                                    Version {v.version}
+                                  </span>
+                                  {isLive && <StatusBadge status="published" />}
+                                  {isCurrent && (
+                                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">
+                                      Live
+                                    </span>
+                                  )}
+                                </div>
+                                {v.created_at && (
+                                  <p className="mt-0.5 text-xs text-grey-50">
+                                    {new Date(v.created_at).toLocaleString()}
+                                  </p>
+                                )}
+                              </div>
+                              {!isCurrent && (
+                                <button
+                                  onClick={() => handleRestoreVersion(v)}
+                                  disabled={!hasDefinition}
+                                  title={
+                                    hasDefinition
+                                      ? undefined
+                                      : "This version's saved definition is not available in the browser."
+                                  }
+                                  className="inline-flex shrink-0 items-center gap-1.5 rounded-base border border-grey-20 bg-white px-3 py-1.5 text-sm font-medium text-grey-90 transition-colors hover:bg-grey-5 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <ArrowLeftMini className="h-4 w-4" />
+                                  Restore
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
+                    </div>
+                  </div>
+                )}
+              </EditorSection>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

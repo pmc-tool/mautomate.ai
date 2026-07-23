@@ -179,6 +179,7 @@ const KIND_LABEL: Record<DnsInstruction["kind"], string> = {
   cname: "CNAME",
   txt: "TXT",
   note: "NOTE",
+  ns: "NS",
 }
 
 /**

@@ -16,8 +16,14 @@ import PriceBookEntry from "./models/price-book-entry"
 import StorefrontTheme from "./models/storefront-theme"
 import SupportTicket from "./models/support-ticket"
 import Partner from "./models/partner"
+import PartnerReferral from "./models/partner-referral"
+import PartnerCommission from "./models/partner-commission"
+import PartnerPayout from "./models/partner-payout"
+import MerchantReferral from "./models/merchant-referral"
 import BlogPost from "./models/blog-post"
 import Merchant from "./models/merchant"
+import MerchantDevice from "./models/merchant-device"
+import MobileAppOrder from "./models/mobile-app-order"
 
 /**
  * Platform (control-plane) module service — generated CRUD for the mAutomate
@@ -43,8 +49,14 @@ class PlatformModuleService extends MedusaService({
   StorefrontTheme,
   SupportTicket,
   Partner,
+  PartnerReferral,
+  PartnerCommission,
+  PartnerPayout,
+  MerchantReferral,
   BlogPost,
   Merchant,
+  MerchantDevice,
+  MobileAppOrder,
 }) {}
 
 export default PlatformModuleService

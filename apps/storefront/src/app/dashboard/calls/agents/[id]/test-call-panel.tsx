@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState } from "react"
 import { Phone, XMarkMini } from "@medusajs/icons"
-import { SectionCard } from "@components/merchant-admin/section-card"
 import {
   startAgentTestCall,
   endAgentTestCall,
@@ -10,6 +9,19 @@ import {
 } from "@lib/merchant-admin/api"
 
 type CallState = "idle" | "connecting" | "live" | "ending" | "ended" | "error"
+
+// Presentation helper: initials for the agent avatar circle.
+function agentInitials(name?: string): string {
+  return (
+    (name || "")
+      .split(/\s+/)
+      .map((w) => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "AI"
+  )
+}
 
 /**
  * TestCallPanel — "Talk to your agent".
@@ -25,11 +37,14 @@ type CallState = "idle" | "connecting" | "live" | "ending" | "ended" | "error"
 export function TestCallPanel({
   token,
   agentId,
+  agentName,
   disabled,
   disabledReason,
 }: {
   token: string | null
   agentId: string
+  /** Presentation only — used for the avatar initials. */
+  agentName?: string
   disabled?: boolean
   disabledReason?: string
 }) {
@@ -255,96 +270,190 @@ export function TestCallPanel({
 
   const live = state === "live"
   const connecting = state === "connecting"
+  const canStart = state === "idle" || state === "ended" || state === "error"
+
+  const statusLine = live ? (
+    <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
+      <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+      Live — say hello
+    </span>
+  ) : connecting ? (
+    <span className="inline-flex items-center gap-2 text-sm font-medium text-amber-700">
+      <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+      Connecting…
+    </span>
+  ) : state === "ending" ? (
+    <span className="text-sm text-grey-60">Ending…</span>
+  ) : state === "ended" ? (
+    <span className="text-sm text-grey-50">Call ended.</span>
+  ) : agentReady && state === "idle" ? (
+    <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+      </span>
+      Agent standing by
+    </span>
+  ) : (
+    <span className="text-sm text-grey-50">
+      {disabled ? "Not ready yet" : "Ready when you are"}
+    </span>
+  )
 
   return (
-    <SectionCard
-      title="Talk to your agent"
-      description="Start a live voice call in your browser to hear and test this agent, exactly as your customers would."
-    >
+    <div className="overflow-hidden rounded-large border border-grey-20 bg-white shadow-borders-base">
+      {/* Local keyframes for the live "waveform" pulse. */}
+      <style>{`
+        @keyframes tcp-wave {
+          0%, 100% { transform: scaleY(0.3); }
+          50% { transform: scaleY(1); }
+        }
+      `}</style>
+
       {/* Hidden sink for the agent's remote audio. */}
       <audio ref={audioRef} className="hidden" />
 
-      {disabled && (
-        <p className="mb-3 rounded-base border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-          {disabledReason || "Save the agent before starting a test call."}
+      <div className="border-b border-grey-10 px-5 py-4">
+        <h2 className="text-sm font-semibold text-grey-90">Talk to your agent</h2>
+        <p className="mt-0.5 text-xs leading-relaxed text-grey-50">
+          A live browser call — hear and test this agent exactly as your customers would.
         </p>
-      )}
-
-      {error && (
-        <p className="mb-3 rounded-base border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </p>
-      )}
-
-      {live && !botDispatched && (
-        <p className="mb-3 rounded-base border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-          You are connected, but the AI agent did not join — the voice service
-          may be offline. You can still verify the connection.
-        </p>
-      )}
-
-      <div className="flex flex-wrap items-center gap-3">
-        {state === "idle" || state === "ended" || state === "error" ? (
-          <>
-            <button
-              onClick={start}
-              disabled={!token || disabled}
-              className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Phone className="h-4 w-4" />
-              {state === "ended" || state === "error" ? "Call again" : "Start test call"}
-            </button>
-            {agentReady && state === "idle" && (
-              <span className="inline-flex items-center gap-2 text-xs text-grey-50">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Agent standing by — answers instantly
-              </span>
-            )}
-          </>
-        ) : null}
-
-        {connecting && (
-          <span className="inline-flex items-center gap-2 text-sm text-grey-60">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
-            Connecting…
-          </span>
-        )}
-
-        {live && (
-          <>
-            <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-              Live
-            </span>
-            <button
-              onClick={toggleMute}
-              className="inline-flex items-center gap-1.5 rounded-base border border-grey-20 px-3 py-2 text-sm font-medium text-grey-90 hover:bg-grey-5"
-            >
-              {muted ? "Unmute" : "Mute"}
-            </button>
-            <button
-              onClick={end}
-              className="inline-flex items-center gap-1.5 rounded-base border border-grey-20 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-            >
-              <XMarkMini className="h-4 w-4" />
-              End
-            </button>
-          </>
-        )}
-
-        {state === "ending" && (
-          <span className="text-sm text-grey-60">Ending…</span>
-        )}
-        {state === "ended" && (
-          <span className="text-sm text-grey-50">Call ended.</span>
-        )}
       </div>
 
-      <p className="mt-3 text-xs text-grey-50">
-        This uses your microphone. Your browser will ask for permission the first
-        time.
-      </p>
-    </SectionCard>
+      <div className="flex flex-col items-center bg-grey-5 px-5 py-8">
+        {/* Avatar */}
+        <div className="relative">
+          {live && (
+            <span className="absolute -inset-2 animate-ping rounded-full bg-emerald-400 opacity-20" />
+          )}
+          <div
+            className={
+              "relative flex h-16 w-16 items-center justify-center rounded-full text-lg font-semibold text-white transition-colors " +
+              (live ? "bg-emerald-600" : "bg-grey-90")
+            }
+          >
+            {agentInitials(agentName)}
+          </div>
+        </div>
+
+        {/* Waveform while live, status line otherwise stacked below. */}
+        <div className="mt-4 flex h-6 items-center justify-center">
+          {live ? (
+            <div className="flex items-center gap-1">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <span
+                  key={i}
+                  className="w-1 rounded-full bg-emerald-500"
+                  style={{
+                    height: "20px",
+                    animation: "tcp-wave 1.1s ease-in-out infinite",
+                    animationDelay: `${i * 130}ms`,
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            statusLine
+          )}
+        </div>
+        {live && <div className="mt-2">{statusLine}</div>}
+
+        {/* Call controls */}
+        <div className="mt-6 flex items-end gap-6">
+          {canStart && (
+            <div className="flex flex-col items-center gap-1.5">
+              <button
+                onClick={start}
+                disabled={!token || disabled}
+                aria-label={state === "ended" || state === "error" ? "Call again" : "Start test call"}
+                className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md transition-all hover:bg-emerald-600 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Phone className="h-6 w-6" />
+              </button>
+              <span className="text-xs font-medium text-grey-60">
+                {state === "ended" || state === "error" ? "Call again" : "Talk"}
+              </span>
+            </div>
+          )}
+
+          {connecting && (
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-grey-20 text-grey-50">
+                <Phone className="h-6 w-6 animate-pulse" />
+              </div>
+              <span className="text-xs font-medium text-grey-50">Connecting</span>
+            </div>
+          )}
+
+          {live && (
+            <>
+              <div className="flex flex-col items-center gap-1.5">
+                <button
+                  onClick={toggleMute}
+                  aria-label={muted ? "Unmute microphone" : "Mute microphone"}
+                  className={
+                    "flex h-11 w-11 items-center justify-center rounded-full border text-xs font-semibold transition-colors " +
+                    (muted
+                      ? "border-amber-300 bg-amber-50 text-amber-700"
+                      : "border-grey-20 bg-white text-grey-70 hover:bg-grey-5")
+                  }
+                >
+                  {muted ? "Off" : "Mic"}
+                </button>
+                <span className="text-xs font-medium text-grey-60">
+                  {muted ? "Unmute" : "Mute"}
+                </span>
+              </div>
+              <div className="flex flex-col items-center gap-1.5">
+                <button
+                  onClick={end}
+                  aria-label="End call"
+                  className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-500 text-white shadow-md transition-all hover:bg-rose-600 hover:shadow-lg"
+                >
+                  <XMarkMini className="h-6 w-6" />
+                </button>
+                <span className="text-xs font-medium text-grey-60">End</span>
+              </div>
+            </>
+          )}
+
+          {state === "ending" && (
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-grey-20 text-grey-50">
+                <XMarkMini className="h-6 w-6" />
+              </div>
+              <span className="text-xs font-medium text-grey-50">Ending</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-3 px-5 py-4">
+        {disabled && (
+          <p className="rounded-base border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+            {disabledReason || "Save the agent before starting a test call."}
+          </p>
+        )}
+
+        {error && (
+          <p className="rounded-base border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+
+        {live && !botDispatched && (
+          <p className="rounded-base border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+            You are connected, but the AI agent did not join — the voice service
+            may be offline. You can still verify the connection.
+          </p>
+        )}
+
+        <p className="text-xs text-grey-50">
+          This uses your microphone. Your browser will ask for permission the first
+          time.
+        </p>
+      </div>
+    </div>
   )
 }
 

@@ -25,6 +25,8 @@ import {
   Eye,
   UserGroup,
   Sparkles,
+  Phone,
+  EnvelopeContent,
 } from "@medusajs/icons"
 import { useControlAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
@@ -44,12 +46,16 @@ const navSections: NavSection[] = [
   },
   {
     label: "Commerce Ops",
-    items: [{ href: "/control/stores/", label: "Stores", icon: BuildingStorefront }],
+    items: [
+      { href: "/control/stores/", label: "Stores", icon: BuildingStorefront },
+      { href: "/control/mobile-app/", label: "Mobile App Orders", icon: Phone },
+    ],
   },
   {
     label: "Money",
     items: [
       { href: "/control/margin/", label: "Margin & P&L", icon: ChartBar },
+      { href: "/control/ai-usage/", label: "AI Usage & Cost", icon: Sparkles },
       { href: "/control/billing/", label: "Billing & Finance", icon: CurrencyDollar },
       { href: "/control/credits/", label: "Credits & Economy", icon: CreditCard },
     ],
@@ -71,6 +77,7 @@ const navSections: NavSection[] = [
     label: "Content",
     items: [
       { href: "/control/blog/", label: "Marketing Site / Blog", icon: DocumentText },
+      { href: "/control/mail-automation/", label: "Mail Automation", icon: EnvelopeContent },
       { href: "/control/support/", label: "Support & Inbox", icon: ChatBubbleLeftRight },
     ],
   },

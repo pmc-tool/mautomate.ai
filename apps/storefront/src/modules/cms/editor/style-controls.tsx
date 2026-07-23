@@ -50,7 +50,8 @@ import {
   surface,
   type,
 } from "@modules/cms/editor/design"
-import type { FieldDef } from "@modules/cms/schema/types"
+import type { FieldDef, LinkValue } from "@modules/cms/schema/types"
+import { isLinkObject } from "@modules/cms/schema/types"
 
 /* ------------------------------------------------------------------ */
 /* MERCHANT DATA — not chrome.                                          */
@@ -1372,6 +1373,614 @@ export function ColorControl({
         onBlur={onFieldBlur}
         onChange={(e) => onChange(e.target.value)}
       />
+    </div>
+  )
+}
+
+/* ================================================================== */
+/* ================================================================== */
+/* 3E — CONTROL VOCABULARY (ARCH-UX U4 P1)                              */
+/*   LinkControl        — URL / page-picker hybrid + new-tab + nofollow */
+/*   IconPickerControl  — searchable picker over the FA5 set themes ship */
+/*   StateTabs          — Normal / Hover segmented for style groups      */
+/* Everything below is additive; nothing above this banner changed.      */
+/* ================================================================== */
+
+/* ------------------------------------------------------------------ */
+/* LinkControl — field type "link"                                      */
+/*                                                                     */
+/* Value: `LinkValue` (schema/types) — backward-compatible with every    */
+/* stored `href` string:                                                */
+/*   string in → string out (verbatim) while no extra is set;            */
+/*   the moment "new tab" or "nofollow" is on, the value becomes         */
+/*   { href, target?: "_blank", rel?: "nofollow" }; turning both off     */
+/*   collapses it back to the plain string.                              */
+/*                                                                     */
+/* Internal targets come from TWO sources:                              */
+/*   1. LinkPagesContext — the store's CMS pages ({slug,title}[]), the   */
+/*      same list the shell's page switcher loads from /api/puck/pages;  */
+/*      the shell mounts the provider (see INTEGRATION-3E.md).           */
+/*   2. STANDARD_ROUTES — the storefront routes every store has.         */
+/* Catalog product/collection deep links are deferred: /api/puck/catalog */
+/* returns ids without handles, so a product URL cannot be formed yet.    */
+/* ------------------------------------------------------------------ */
+
+/** One internal CMS page offered by the link picker. */
+export type LinkPage = { slug: string; title: string }
+
+/**
+ * The store's CMS pages for the link picker. The editor SHELL provides this
+ * (it already fetches /api/puck/pages for the page switcher); without a
+ * provider the picker still offers the standard storefront routes.
+ */
+export const LinkPagesContext = React.createContext<LinkPage[]>([])
+
+/**
+ * Function-component wrapper for the provider (3INT). The editor shell mounts
+ * THIS, not the raw `LinkPagesContext.Provider`: under the repo's dual
+ * @types/react resolution a raw Context.Provider fails the app router's JSX
+ * element type (TS2786), while a plain function component — the same shape as
+ * CatalogProvider, which the shell already mounts — checks clean.
+ */
+export function LinkPagesProvider({
+  pages,
+  children,
+}: {
+  pages: LinkPage[]
+  children?: React.ReactNode
+}) {
+  return (
+    <LinkPagesContext.Provider value={pages}>
+      {children}
+    </LinkPagesContext.Provider>
+  )
+}
+
+/** Storefront routes every store ships (base React + Liquid routes). */
+const STANDARD_ROUTES: { label: string; href: string }[] = [
+  { label: "Home", href: "/" },
+  { label: "Shop", href: "/store" },
+  { label: "Blog", href: "/blog" },
+  { label: "Contact", href: "/contact" },
+  { label: "Cart", href: "/cart" },
+  { label: "Account", href: "/account" },
+]
+
+const pickerHead: React.CSSProperties = {
+  ...type.micro,
+  fontFamily: font,
+  color: grey[50],
+  padding: "8px 8px 4px",
+}
+
+const pickerRow: React.CSSProperties = {
+  ...type.body,
+  fontFamily: font,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  width: "100%",
+  border: 0,
+  background: "none",
+  borderRadius: radius.sm,
+  padding: "6px 8px",
+  color: grey[80],
+  textAlign: "left",
+  cursor: "pointer",
+}
+
+const pickerRowHref: React.CSSProperties = {
+  ...type.label,
+  fontFamily: font,
+  color: grey[40],
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  maxWidth: 110,
+}
+
+const checkRow: React.CSSProperties = {
+  ...type.body,
+  fontFamily: font,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  cursor: "pointer",
+  color: grey[70],
+}
+
+export function LinkControl({
+  value,
+  onChange,
+}: {
+  field: FieldDef
+  value: any
+  onChange: (v: LinkValue | undefined) => void
+}) {
+  const pages = React.useContext(LinkPagesContext)
+  const [browse, setBrowse] = useState(false)
+  const [query, setQuery] = useState("")
+
+  const obj = isLinkObject(value) ? value : undefined
+  const href = typeof value === "string" ? value : obj?.href ?? ""
+  const newTab = obj?.target === "_blank"
+  const nofollow = /\bnofollow\b/.test(obj?.rel ?? "")
+
+  /** Single writer: collapses back to a plain string when no extra is set. */
+  const emit = (nextHref: string, nextNewTab: boolean, nextNofollow: boolean) => {
+    if (!nextNewTab && !nextNofollow) {
+      onChange(nextHref)
+      return
+    }
+    const next: LinkValue = { href: nextHref }
+    if (nextNewTab) {
+      next.target = "_blank"
+    }
+    if (nextNofollow) {
+      next.rel = "nofollow"
+    }
+    onChange(next)
+  }
+
+  const q = query.trim().toLowerCase()
+  const pageItems = pages
+    .map((p) => ({
+      label: p.title || p.slug,
+      href: p.slug === "home" ? "/" : `/${String(p.slug).replace(/^\/+/, "")}`,
+    }))
+    .filter((p) => !q || p.label.toLowerCase().includes(q) || p.href.includes(q))
+  const routeItems = STANDARD_ROUTES.filter(
+    (r) => !q || r.label.toLowerCase().includes(q) || r.href.includes(q)
+  )
+
+  const pick = (h: string) => {
+    emit(h, newTab, nofollow)
+    setBrowse(false)
+    setQuery("")
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          style={input}
+          value={href}
+          placeholder="https://… or /page"
+          onFocus={onFieldFocus}
+          onBlur={onFieldBlur}
+          onChange={(e) => emit(e.target.value, newTab, nofollow)}
+        />
+        <button
+          type="button"
+          title={browse ? "Close page list" : "Link to one of your pages"}
+          aria-label={browse ? "Close page list" : "Link to one of your pages"}
+          aria-expanded={browse}
+          onClick={() => setBrowse((b) => !b)}
+          style={{
+            ...iconButton("sm"),
+            flex: "0 0 auto",
+            borderColor: browse ? accent.base : grey[20],
+            color: browse ? accent.base : grey[50],
+            background: browse ? accent.tint : grey[0],
+          }}
+        >
+          <UiIcon name="search" size={13} />
+        </button>
+      </div>
+
+      {browse ? (
+        <div style={{ ...surface(), overflow: "hidden" }}>
+          <div style={{ padding: 8, borderBottom: hairline }}>
+            <input
+              style={{ ...input, ...type.label, height: 28 }}
+              value={query}
+              placeholder="Search pages…"
+              autoFocus
+              onFocus={onFieldFocus}
+              onBlur={onFieldBlur}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <div style={{ maxHeight: 216, overflowY: "auto", padding: 4 }}>
+            {pageItems.length > 0 && <div style={pickerHead}>Your pages</div>}
+            {pageItems.map((p) => (
+              <button
+                key={`p-${p.href}`}
+                type="button"
+                style={pickerRow}
+                onMouseEnter={(e) => (e.currentTarget.style.background = grey[10])}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                onClick={() => pick(p.href)}
+              >
+                <span>{p.label}</span>
+                <span style={pickerRowHref}>{p.href}</span>
+              </button>
+            ))}
+            {routeItems.length > 0 && <div style={pickerHead}>Store</div>}
+            {routeItems.map((r) => (
+              <button
+                key={`r-${r.href}`}
+                type="button"
+                style={pickerRow}
+                onMouseEnter={(e) => (e.currentTarget.style.background = grey[10])}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                onClick={() => pick(r.href)}
+              >
+                <span>{r.label}</span>
+                <span style={pickerRowHref}>{r.href}</span>
+              </button>
+            ))}
+            {!pageItems.length && !routeItems.length ? (
+              <div style={{ ...type.label, fontFamily: font, color: grey[40], padding: 10 }}>
+                No matching pages.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
+        <label style={checkRow}>
+          <input
+            type="checkbox"
+            style={{ accentColor: accent.base, cursor: "pointer" }}
+            checked={newTab}
+            onChange={(e) => emit(href, e.target.checked, nofollow)}
+          />
+          Open in new tab
+        </label>
+        <label style={checkRow} title="Adds rel=&quot;nofollow&quot; for search engines">
+          <input
+            type="checkbox"
+            style={{ accentColor: accent.base, cursor: "pointer" }}
+            checked={nofollow}
+            onChange={(e) => emit(href, newTab, e.target.checked)}
+          />
+          No-follow
+        </label>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* IconPickerControl — field type "icon"                                */
+/*                                                                     */
+/* Value: the icon's full Font Awesome 5 class string ("fas fa-star",   */
+/* "fab fa-instagram") — the exact string the icon widget renders as     */
+/* `<i class="…">` and every theme's FA5 stylesheet understands. A raw   */
+/* class input stays available, so legacy values ("fa-star") and exotic   */
+/* classes keep working and are never rewritten until the merchant picks. */
+/*                                                                     */
+/* NO NEW ICON LIBRARY (ARCH-UX U4 P1 §2): the set below is a curated    */
+/* slice of Font Awesome 5 Free 5.15.4 — the exact set the themes        */
+/* already ship (public/learts/assets/css/vendor/fontawesome.min.css,     */
+/* fonts under /learts/assets/fonts/fontAwesome/, shared by the Liquid    */
+/* themes). For in-panel previews the control lazily injects that SAME    */
+/* stylesheet into the editor document — zero new assets.                 */
+/* ------------------------------------------------------------------ */
+
+/** The theme-shipped FA5 stylesheet used for in-panel previews. */
+const FA_PREVIEW_CSS = "/learts/assets/css/vendor/fontawesome.min.css"
+const FA_PREVIEW_LINK_ID = "ff-fa5-preview"
+
+/** Inject the FA5 preview stylesheet once per editor document. */
+function ensureFaPreviewCss(): void {
+  if (typeof document === "undefined") {
+    return
+  }
+  if (document.getElementById(FA_PREVIEW_LINK_ID)) {
+    return
+  }
+  const link = document.createElement("link")
+  link.id = FA_PREVIEW_LINK_ID
+  link.rel = "stylesheet"
+  link.href = FA_PREVIEW_CSS
+  document.head.appendChild(link)
+}
+
+/** Curated FA5 Free SOLID icons (class = `fas fa-<name>`). */
+const FA5_SOLID =
+  (
+    "address-book address-card anchor archive arrow-down arrow-left arrow-right " +
+    "arrow-up at award baby balance-scale ban barcode bars bath bed beer bell " +
+    "bell-slash bicycle birthday-cake bolt bone book book-open bookmark box " +
+    "box-open boxes brain briefcase bug building bullhorn bullseye bus " +
+    "calculator calendar calendar-alt calendar-check camera camera-retro " +
+    "candy-cane capsules car caret-down caret-left caret-right caret-up carrot " +
+    "cart-arrow-down cart-plus cash-register chair chart-area chart-bar " +
+    "chart-line chart-pie check check-circle check-double check-square cheese " +
+    "chevron-down chevron-left chevron-right chevron-up child circle city " +
+    "clipboard clock cloud cloud-download-alt cloud-upload-alt cocktail code " +
+    "coffee cog cogs coins comment comment-alt comments compass compress cookie " +
+    "cookie-bite copy couch credit-card crop crown cube cubes cut database " +
+    "desktop dice dog dollar-sign dolly door-open dove download drum dumbbell " +
+    "edit egg envelope envelope-open eraser euro-sign exchange-alt exclamation " +
+    "exclamation-circle exclamation-triangle expand external-link-alt eye " +
+    "eye-slash feather female file file-alt film filter fingerprint fire " +
+    "first-aid fish flag flag-checkered flask folder folder-open frog frown " +
+    "futbol gamepad gas-pump gavel gem ghost gift gifts glass-cheers glasses " +
+    "globe graduation-cap guitar hamburger hammer hand-holding-heart " +
+    "hand-point-right hands-helping handshake hashtag headphones heart " +
+    "heart-broken heartbeat hiking history home horse hospital hotel hourglass " +
+    "ice-cream id-card image images inbox industry info info-circle key " +
+    "keyboard landmark laptop leaf lemon life-ring lightbulb link list " +
+    "list-alt location-arrow lock lock-open luggage-cart magic magnet male map " +
+    "map-marked-alt map-marker-alt map-pin medal medkit meh microphone minus " +
+    "minus-circle mobile-alt money-bill money-bill-wave moon motorcycle " +
+    "mountain mouse-pointer mug-hot music newspaper paint-brush paint-roller " +
+    "palette paper-plane paperclip paw pen pencil-alt pepper-hot percent phone " +
+    "phone-alt piggy-bank pizza-slice plane play plug plus plus-circle print " +
+    "puzzle-piece question question-circle quote-left quote-right receipt " +
+    "recycle redo reply ribbon road rocket ruler running search search-minus " +
+    "search-plus seedling share share-alt shield-alt ship shipping-fast " +
+    "shoe-prints shopping-bag shopping-basket shopping-cart shower sign-in-alt " +
+    "sign-out-alt sitemap sliders-h smile snowflake socks spa star " +
+    "star-half-alt stethoscope stop stopwatch store store-alt stream suitcase " +
+    "sun sync sync-alt tablet-alt tag tags taxi thermometer thumbs-down " +
+    "thumbs-up thumbtack ticket-alt times times-circle tint tools tooth " +
+    "tractor train tram trash trash-alt tree trophy truck truck-moving tshirt " +
+    "tv umbrella umbrella-beach undo university unlock upload user user-check " +
+    "user-circle user-friends user-plus users utensils video volume-up wallet " +
+    "warehouse water weight wifi wind wine-bottle wine-glass wrench"
+  ).split(" ")
+
+/** Curated FA5 Free BRAND icons (class = `fab fa-<name>`). */
+const FA5_BRANDS =
+  (
+    "amazon android app-store apple behance bitcoin cc-amex cc-mastercard " +
+    "cc-paypal cc-visa discord dribbble ebay etsy facebook facebook-f " +
+    "facebook-messenger figma github gitlab google google-play instagram " +
+    "linkedin linkedin-in medium paypal pinterest pinterest-p reddit shopify " +
+    "skype slack snapchat-ghost soundcloud spotify stripe telegram-plane " +
+    "tiktok tumblr twitch twitter vimeo whatsapp wordpress youtube"
+  ).split(" ")
+
+/** The searchable set: full class + searchable name. */
+const FA5_ICONS: { cls: string; name: string }[] = [
+  ...FA5_SOLID.map((n) => ({ cls: `fas fa-${n}`, name: n })),
+  ...FA5_BRANDS.map((n) => ({ cls: `fab fa-${n}`, name: n })),
+]
+
+const iconCell: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  border: hairline,
+  borderRadius: radius.sm,
+  background: grey[0],
+  color: grey[70],
+  fontSize: 15,
+  cursor: "pointer",
+  padding: 0,
+}
+
+export function IconPickerControl({
+  value,
+  onChange,
+}: {
+  field: FieldDef
+  value: any
+  onChange: (v: string) => void
+}) {
+  const cls = typeof value === "string" ? value : ""
+  const [browse, setBrowse] = useState(false)
+  const [query, setQuery] = useState("")
+
+  React.useEffect(() => {
+    ensureFaPreviewCss()
+  }, [])
+
+  const q = query.trim().toLowerCase()
+  const matches = (q
+    ? FA5_ICONS.filter((i) => i.name.includes(q))
+    : FA5_ICONS
+  ).slice(0, 120)
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span
+          aria-hidden
+          style={{
+            ...iconCell,
+            cursor: "default",
+            color: cls ? grey[80] : grey[30],
+            flex: "0 0 auto",
+          }}
+        >
+          {cls ? <i className={cls} /> : <UiIcon name="image" size={14} />}
+        </span>
+        <input
+          style={{ ...input, ...type.label, height: 28, flex: 1 }}
+          value={cls}
+          placeholder="fas fa-star"
+          onFocus={onFieldFocus}
+          onBlur={onFieldBlur}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <button
+          type="button"
+          title={browse ? "Close icon picker" : "Browse icons"}
+          aria-label={browse ? "Close icon picker" : "Browse icons"}
+          aria-expanded={browse}
+          onClick={() => setBrowse((b) => !b)}
+          style={{
+            ...iconButton("sm"),
+            flex: "0 0 auto",
+            borderColor: browse ? accent.base : grey[20],
+            color: browse ? accent.base : grey[50],
+            background: browse ? accent.tint : grey[0],
+          }}
+        >
+          <UiIcon name="search" size={13} />
+        </button>
+      </div>
+
+      {browse ? (
+        <div style={{ ...surface(), overflow: "hidden" }}>
+          <div style={{ padding: 8, borderBottom: hairline }}>
+            <input
+              style={{ ...input, ...type.label, height: 28 }}
+              value={query}
+              placeholder="Search icons… (star, cart, facebook)"
+              autoFocus
+              onFocus={onFieldFocus}
+              onBlur={onFieldBlur}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              maxHeight: 224,
+              overflowY: "auto",
+              padding: 8,
+            }}
+          >
+            {matches.map((i) => {
+              const active = i.cls === cls
+              return (
+                <button
+                  key={i.cls}
+                  type="button"
+                  title={i.name}
+                  aria-label={i.name}
+                  onClick={() => {
+                    onChange(i.cls)
+                    setBrowse(false)
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!active) e.currentTarget.style.background = grey[10]
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active) e.currentTarget.style.background = grey[0]
+                  }}
+                  style={{
+                    ...iconCell,
+                    borderColor: active ? accent.base : grey[20],
+                    color: active ? accent.base : grey[70],
+                    background: active ? accent.tint : grey[0],
+                  }}
+                >
+                  <i className={i.cls} aria-hidden="true" />
+                </button>
+              )
+            })}
+            {!matches.length ? (
+              <div style={{ ...type.label, fontFamily: font, color: grey[40], padding: 6 }}>
+                No icons match "{query}".
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* StateTabs — the Normal / Hover segmented above hoverable groups      */
+/*                                                                     */
+/* Pure presentational: SchemaPanel owns WHERE it mounts and how the     */
+/* hover sub-bag is routed (see INTEGRATION-3E.md). The hover tab        */
+/* carries an ember dot whenever the hover bag holds a value, so a       */
+/* configured hover state is visible without switching tabs.             */
+/* ------------------------------------------------------------------ */
+
+/** The style keys that support a hover state (must mirror the engine's
+ *  HOVER_STYLE_KEYS whitelist in render/style-engine.ts). */
+export const HOVERABLE_STYLE_KEYS: readonly string[] = [
+  "background",
+  "color",
+  "border",
+  "boxShadow",
+]
+
+export type StyleState = "normal" | "hover"
+
+export function StateTabs({
+  state,
+  onChange,
+  hoverActive,
+}: {
+  state: StyleState
+  onChange: (s: StyleState) => void
+  /** True when the hover sub-bag holds at least one value (shows the dot). */
+  hoverActive?: boolean
+}) {
+  const opts: { label: string; value: StyleState; dot?: boolean }[] = [
+    { label: "Normal", value: "normal" },
+    { label: "Hover", value: "hover", dot: hoverActive },
+  ]
+  return (
+    <div
+      role="tablist"
+      aria-label="Style state"
+      style={{
+        display: "flex",
+        gap: 2,
+        borderRadius: radius.md,
+        padding: 2,
+        background: grey[10],
+        marginBottom: 8,
+      }}
+    >
+      {opts.map((o) => {
+        const active = state === o.value
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(o.value)}
+            onMouseEnter={(e) => {
+              if (!active) e.currentTarget.style.background = grey[0]
+            }}
+            onMouseLeave={(e) => {
+              if (!active) e.currentTarget.style.background = "transparent"
+            }}
+            style={{
+              ...type.label,
+              fontFamily: font,
+              flex: "1 1 auto",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 5,
+              height: 26,
+              border: 0,
+              background: active ? grey[90] : "transparent",
+              color: active ? grey[0] : grey[60],
+              fontWeight: active ? 600 : 500,
+              borderRadius: radius.sm,
+              padding: "0 8px",
+              cursor: "pointer",
+              transition: `background ${motion.fast}, color ${motion.fast}`,
+            }}
+          >
+            {o.label}
+            {o.dot ? (
+              <span
+                aria-hidden
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: radius.pill,
+                  background: accent.base,
+                  flex: "0 0 auto",
+                }}
+              />
+            ) : null}
+          </button>
+        )
+      })}
     </div>
   )
 }

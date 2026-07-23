@@ -73,15 +73,49 @@ const ShippingAddress = ({
   }
 
   useEffect(() => {
-    // Ensure cart is not null and has a shipping_address before setting form data
+    // Cart already carries a shipping address (e.g. returning to this step): use it.
     if (cart && cart.shipping_address) {
-      setFormAddress(cart?.shipping_address, cart?.email)
+      setFormAddress(cart.shipping_address, cart.email)
+      return
     }
-
-    if (cart && !cart.email && customer?.email) {
-      setFormAddress(undefined, customer.email)
+    // Fresh checkout for a logged-in shopper: prefill their name + email (and
+    // default / first in-region saved address) so contact fields aren't blank for
+    // someone we already know. Any value the user already typed is preserved.
+    if (customer) {
+      const preferred =
+        customer.addresses?.find((a) => (a as any).is_default_shipping) ||
+        addressesInRegion?.[0] ||
+        customer.addresses?.[0]
+      setFormData((prev: Record<string, string>) => ({
+        ...prev,
+        "shipping_address.first_name":
+          prev["shipping_address.first_name"] ||
+          preferred?.first_name ||
+          customer.first_name ||
+          "",
+        "shipping_address.last_name":
+          prev["shipping_address.last_name"] ||
+          preferred?.last_name ||
+          customer.last_name ||
+          "",
+        "shipping_address.address_1":
+          prev["shipping_address.address_1"] || preferred?.address_1 || "",
+        "shipping_address.company":
+          prev["shipping_address.company"] || preferred?.company || "",
+        "shipping_address.postal_code":
+          prev["shipping_address.postal_code"] || preferred?.postal_code || "",
+        "shipping_address.city":
+          prev["shipping_address.city"] || preferred?.city || "",
+        "shipping_address.country_code":
+          prev["shipping_address.country_code"] || preferred?.country_code || "",
+        "shipping_address.province":
+          prev["shipping_address.province"] || preferred?.province || "",
+        "shipping_address.phone":
+          prev["shipping_address.phone"] || preferred?.phone || "",
+        email: prev.email || cart?.email || customer.email || "",
+      }))
     }
-  }, [cart]) // Add cart as a dependency
+  }, [cart, customer, addressesInRegion])
 
   const handleChange = (
     e: React.ChangeEvent<

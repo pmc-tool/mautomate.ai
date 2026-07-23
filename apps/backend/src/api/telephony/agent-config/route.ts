@@ -9,6 +9,11 @@ import {
 import { loadDbPlaybook } from "./_db-playbook"
 import type { MergeData } from "../../../modules/call-center/playbooks"
 import { CALL_CENTER_MODULE } from "../../../modules/call-center"
+import { PLATFORM_MODULE } from "../../../modules/platform"
+import {
+  JARVIS_VOICE_PLAYBOOK_ID,
+  buildJarvisVoiceConfig,
+} from "../../merchant/jarvis/_voice"
 
 /**
  * POST /telephony/agent-config  (UNPREFIXED — secret-gated by the
@@ -103,6 +108,74 @@ const interpolateFirstMessage = (
  *
  * NO-THROW: any failure returns "" and the call connects without memory.
  */
+/**
+ * The caller's display name, when we can know it: an explicit
+ * `metadata.customer_name` on the call row (web calls from a logged-in
+ * account set this) wins; otherwise the phone number is matched against the
+ * tenant's recent orders. First name only — natural over voice. Best-effort.
+ */
+const lookupCallerName = async (
+  scope: MedusaRequest["scope"],
+  tenantId: string,
+  callId: string | undefined
+): Promise<string | null> => {
+  if (!callId) return null
+  try {
+    const cc: any = scope.resolve(CALL_CENTER_MODULE)
+    const call = await cc.retrieveCall(callId).catch(() => null)
+    if (!call || call.tenant_id !== tenantId) return null
+    const metaName = (call as any)?.metadata?.customer_name
+    if (typeof metaName === "string" && metaName.trim()) {
+      return metaName.trim().split(/\s+/)[0]
+    }
+    const phone =
+      call.direction === "outbound" ? call.to_number : call.from_number
+    if (!phone) return null
+    const gateway = getCommerceGateway(scope)
+    const orders = await gateway.findOrders(tenantId, { phone })
+    const name = (orders ?? [])[0]?.shipping_address?.name
+    if (typeof name === "string" && name.trim()) {
+      return name.trim().split(/\s+/)[0]
+    }
+  } catch {
+    /* best-effort */
+  }
+  return null
+}
+
+/**
+ * Final greeting text. Supports {store_name}/{store} and
+ * {customer_name}/{name} placeholders; when the caller is known but the
+ * template has no name placeholder, the name is prefixed ("Hi Sarah! ...").
+ * The result is a FIXED string per (store, caller), which is what lets the
+ * voice runtime serve it from the recorded-audio cache instead of paying TTS
+ * on every call.
+ */
+const resolveGreeting = (
+  template: string,
+  storeName: string,
+  callerName: string | null
+): string => {
+  let t =
+    template && template.trim()
+      ? template
+      : "Thanks for calling {store_name}! How can I help you today?"
+  t = t.replace(/\{store_name\}|\{store\}/gi, storeName || "our store")
+  if (callerName) {
+    if (/\{customer_name\}|\{name\}/i.test(t)) {
+      t = t.replace(/\{customer_name\}|\{name\}/gi, callerName)
+    } else {
+      // Strip the template's own generic salutation so we never say
+      // "Hi Alex! Hi! Thanks for calling..."
+      t = t.replace(/^(hi|hello|hey|hi there|hello there)[!,.]?\s+/i, "")
+      t = `Hi ${callerName}! ` + t
+    }
+  } else {
+    t = t.replace(/\s*\{customer_name\}|\s*\{name\}/gi, "")
+  }
+  return t.replace(/\s{2,}/g, " ").trim()
+}
+
 const buildCallerContext = async (
   scope: MedusaRequest["scope"],
   tenantId: string,
@@ -229,6 +302,27 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     (body.tenant_id ?? "").trim() ||
     resolveTenantId("CALL_CENTER_DEFAULT_TENANT")
 
+  // Jarvis voice session: a reserved playbook id served by the Jarvis bridge
+  // (same brain/tools/tenant scoping as the dashboard chat), NOT a call-center
+  // Playbook. Isolated from Ava. tenant_id here is server-set by the start route
+  // (the caller cannot influence it); tool-execute re-anchors it from the call
+  // row too. Returns early with the compiled Jarvis agent config.
+  if (playbookId === JARVIS_VOICE_PLAYBOOK_ID) {
+    const jarvisConfig = await buildJarvisVoiceConfig(
+      req,
+      tenantId,
+      body.locale ?? null
+    )
+    if (!jarvisConfig) {
+      res
+        .status(404)
+        .json({ type: "not_found", message: "Jarvis voice: store not found." })
+      return
+    }
+    res.status(200).json(jarvisConfig)
+    return
+  }
+
   // Static in-code registry first (the two reference playbooks); then fall
   // back to a merchant-trained playbook stored in the DB for this tenant.
   let playbook = playbookId ? getPlaybook(playbookId) : null
@@ -269,6 +363,19 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     playbook.first_message,
     mergeData
   )
+  // Personalized, cacheable greeting: store name always; caller name when
+  // the number matches a customer or the session provided one.
+  let storeName = ""
+  try {
+    const platform: any = req.scope.resolve(PLATFORM_MODULE)
+    const tenant = await platform.retrieveTenant(tenantId)
+    storeName = tenant?.name ?? ""
+  } catch {
+    /* best-effort */
+  }
+  const callerName = await lookupCallerName(req.scope, tenantId, body.call_id)
+  const greeting = resolveGreeting(firstMessage, storeName, callerName)
+
   const callerContext = await buildCallerContext(
     req.scope,
     tenantId,
@@ -292,7 +399,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     playbook_id: playbook.id,
     version: playbook.version,
     locale: body.locale ?? playbook.persona.language,
-    first_message: firstMessage,
+    first_message: greeting,
+    store_name: storeName,
+    caller_name: callerName,
     system_prompt: systemPrompt,
     tools,
     voice: {

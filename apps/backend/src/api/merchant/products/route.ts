@@ -214,7 +214,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const ids = (links || []).map((l: any) => l.product_id).filter(Boolean)
   if (!ids.length) return res.json({ products: [], count: 0 })
 
-  const filters: any = { id: ids }
+  // Gift cards are products with is_giftcard=true; keep them out of the
+  // regular catalog list (they live in the Gift cards section).
+  const filters: any = { id: ids, is_giftcard: false }
   const q = firstParam(req.query.q)
   if (q) filters.q = q
   if (statuses.length) filters.status = statuses

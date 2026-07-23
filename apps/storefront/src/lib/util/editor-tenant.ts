@@ -34,7 +34,7 @@ export async function resolveEditorTenant(
     return {
       backend: DEFAULT_BACKEND,
       pubKey: DEFAULT_PUB,
-      activeTheme: "",
+      activeTheme: "learts-liquid",
       name: "",
       tenantId: "",
     }
@@ -45,7 +45,7 @@ export async function resolveEditorTenant(
     return {
       backend: DEFAULT_BACKEND,
       pubKey: DEFAULT_PUB,
-      activeTheme: "",
+      activeTheme: "learts-liquid",
       name: "",
       tenantId: "",
     }
@@ -61,7 +61,7 @@ export async function resolveEditorTenant(
         // The tenant's platform-level theme (tenant.meta.active_theme). Used by
         // the editor-load route to seed a blank page with the theme's default
         // sections — mirrors getActiveTheme's priority in themes/registry.
-        activeTheme: (d.active_theme || "").trim(),
+        activeTheme: (d.active_theme || "").trim() || "learts-liquid",
         // The tenant's store name — used by /api/puck/chrome to rebrand the
         // editor chrome (scrub Forever Finds copy/logo) exactly like the live
         // storefront's applyTenantBranding, so the editor is WYSIWYG.

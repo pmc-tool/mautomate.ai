@@ -4,25 +4,36 @@
 /* ResponsiveFieldWrapper — make ANY control device-aware               */
 /*                                                                     */
 /* Wraps a single control (render-prop) so its value can differ per      */
-/* device. It reads/writes ONLY the active device's slot of a            */
-/* `ResponsiveValue<T>` ({ base, tablet?, mobile? }):                    */
-/*   - editing "desktop"  writes `base`                                  */
-/*   - editing "tablet"/"mobile" creates/updates that device override    */
-/* Storage stays DIFF-ONLY: a plain (non-responsive) value is kept plain  */
-/* until an override is added, and clearing the last override collapses    */
-/* the shape back to a plain scalar.                                       */
-/*                                                                        */
-/* When the active device has NO override it shows the inherited          */
-/* (resolved) value GHOSTED with a hint naming the source device, plus a   */
-/* clear-override control whenever an override exists.                     */
-/*                                                                        */
-/* For fields where `field.responsive` is not true this is a pure          */
-/* passthrough — it edits the plain value and renders no device chrome.    */
+/* device. 3C (ARCH-CANVAS P7): the wrapper no longer computes shapes    */
+/* itself — every edit routes through `writeResponsive` and every        */
+/* override removal through `clearResponsiveOverride`                    */
+/* (schema/types.ts), THE single device-write path:                      */
+/*   - editing "desktop"  writes `base` (kept PLAIN until an override    */
+/*     exists — untouched fields never change shape)                     */
+/*   - editing "tablet"/"mobile" PROMOTES a plain value to               */
+/*     `{ base, tablet?, mobile? }` on the first override                */
+/*   - clearing the last override DEMOTES back to the plain value        */
+/* Storage stays DIFF-ONLY throughout (empty plain values delete the     */
+/* bag key), so promote → clear round-trips byte-identically.            */
+/*                                                                      */
+/* When the active device has NO override it shows the inherited         */
+/* (resolved) value GHOSTED with a hint naming the source device; when   */
+/* an override EXISTS the device pill carries the ember override dot     */
+/* (Elementor's per-device indicator) plus a "Reset <device>" control.   */
+/*                                                                      */
+/* For fields where `field.responsive` is not true this is a plain-value */
+/* passthrough (still routed through writeResponsive's desktop path so   */
+/* the diff-only delete-on-empty rule lives in exactly one place).       */
 /* ------------------------------------------------------------------ */
 
 import React from "react"
-import type { Device, FieldDef, ResponsiveValue } from "@modules/cms/schema/types"
-import { isResponsiveValue, resolveResponsive } from "@modules/cms/schema/types"
+import type { Device, FieldDef } from "@modules/cms/schema/types"
+import {
+  clearResponsiveOverride,
+  hasDeviceOverride,
+  resolveResponsive,
+  writeResponsive,
+} from "@modules/cms/schema/types"
 import { UiIcon } from "@modules/cms/editor/palette-icons"
 import {
   accent,
@@ -36,18 +47,17 @@ import {
 
 /* --------------------------- public API --------------------------- */
 export interface ResponsiveFieldWrapperProps {
-  /** The field being edited (only `responsive`/`label` are read here). */
+  /** The field being edited (`responsive`/`name`/`label` are read here). */
   field: FieldDef
-  /** Current stored value: a plain scalar OR a ResponsiveValue<T>. */
-  value: unknown
+  /** The WHOLE diff-only bag this field lives in (style or advanced). */
+  bag: Record<string, unknown>
   /** Which device the panel is currently editing. */
   device: Device
   /**
-   * Commit a change to the STORED value. Receives either a plain value
-   * (desktop edit with no other overrides / last override cleared) or a
-   * full ResponsiveValue when tablet/mobile overrides exist.
+   * Commit the NEXT bag. The wrapper derives it via writeResponsive /
+   * clearResponsiveOverride, so callers never see (or build) device shapes.
    */
-  onChange: (nextResponsiveOrPlain: unknown) => void
+  onBagChange: (nextBag: Record<string, unknown>) => void
   /**
    * Render-prop for the wrapped control.
    * @param deviceValue    the RESOLVED value for the active device (shows the
@@ -117,28 +127,13 @@ const DEVICE_ICON: Record<Device, string> = {
 }
 
 /* --------------------------- helpers ------------------------------ */
-/** The desktop / base value of a (possibly responsive) stored value. */
-function baseOf(value: unknown): unknown {
-  return isResponsiveValue(value) ? (value as ResponsiveValue<unknown>).base : value
-}
-
-/** Does the active device carry its own override? (desktop is always authoritative) */
-function hasOverride(value: unknown, device: Device): boolean {
-  if (device === "desktop") {
-    return true
-  }
-  return isResponsiveValue(value) && (value as ResponsiveValue<unknown>)[device] !== undefined
-}
-
 /** Which device does an un-overridden `device` inherit its value from? */
 function inheritsFrom(value: unknown, device: Device): Device | null {
   if (device === "tablet") {
     return "desktop"
   }
   if (device === "mobile") {
-    const hasTablet =
-      isResponsiveValue(value) && (value as ResponsiveValue<unknown>).tablet !== undefined
-    return hasTablet ? "tablet" : "desktop"
+    return hasDeviceOverride(value, "tablet") ? "tablet" : "desktop"
   }
   return null
 }
@@ -146,55 +141,46 @@ function inheritsFrom(value: unknown, device: Device): Device | null {
 /* --------------------------- component ---------------------------- */
 export default function ResponsiveFieldWrapper({
   field,
-  value,
+  bag,
   device,
-  onChange,
+  onBagChange,
   children,
 }: ResponsiveFieldWrapperProps) {
-  /* Passthrough for non-responsive fields — edit the plain value directly. */
+  const value = bag[field.name]
+
+  /* Passthrough for non-responsive fields — one plain value for every device,
+     written through writeResponsive's desktop path so the diff-only
+     delete-on-empty rule lives in exactly one place. */
   if (!field.responsive) {
-    return <>{children(value, onChange)}</>
+    return (
+      <>
+        {children(value, (v) =>
+          onBagChange(writeResponsive(bag, field.name, "desktop", v))
+        )}
+      </>
+    )
   }
 
-  const overridden = hasOverride(value, device)
+  // Desktop edits the base directly (authoritative, never an "override");
+  // hasDeviceOverride is false for desktop by definition.
+  const isOverride = hasDeviceOverride(value, device)
+  const overridden = device === "desktop" || isOverride
   const resolved = resolveResponsive(value as never, device)
 
-  /** Commit an edit for the active device slot. */
+  /** Commit an edit for the active device slot — THE single write path. */
   const setDeviceValue = (v: unknown) => {
-    if (device === "desktop") {
-      // Keep any tablet/mobile overrides; otherwise store a plain value.
-      if (isResponsiveValue(value)) {
-        onChange({ ...(value as ResponsiveValue<unknown>), base: v })
-      } else {
-        onChange(v)
-      }
-      return
-    }
-    // tablet / mobile — ensure a ResponsiveValue shape, then set this slot.
-    const rv: ResponsiveValue<unknown> = isResponsiveValue(value)
-      ? { ...(value as ResponsiveValue<unknown>) }
-      : { base: baseOf(value) }
-    rv[device] = v
-    onChange(rv)
+    onBagChange(writeResponsive(bag, field.name, device, v))
   }
 
-  /** Delete the active device override, collapsing to plain when it was the last. */
+  /** Delete the active device override, demoting to plain when it was the last. */
   const clearOverride = () => {
-    if (device === "desktop" || !isResponsiveValue(value)) {
-      return
-    }
-    const rv: ResponsiveValue<unknown> = { ...(value as ResponsiveValue<unknown>) }
-    delete rv[device]
-    if (rv.tablet === undefined && rv.mobile === undefined) {
-      onChange(rv.base)
-    } else {
-      onChange(rv)
-    }
+    onBagChange(clearResponsiveOverride(bag, field.name, device))
   }
 
   const source = inheritsFrom(value, device)
-  const showInherited = !overridden && device !== "desktop"
-  const isOverride = overridden && device !== "desktop"
+  // Un-overridden tablet/mobile shows the inherited value ghosted; !overridden
+  // already implies a non-desktop device (desktop is always authoritative).
+  const showInherited = !overridden
 
   return (
     <div>

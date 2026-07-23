@@ -5,6 +5,7 @@ import { meterAction } from "../../../../../modules/platform/integration/meterin
 import { creditsFor } from "../../../../../modules/platform/pricing/price-book"
 import { resolveMerchant } from "../../../_helpers"
 import { adsStatusFor } from "../../_helpers"
+import { assertPublicHttpUrl } from "../../../../../lib/ssrf-guard"
 
 /**
  * POST /merchant/ads/ai/video — animate the ad image into a ~4s video clip
@@ -29,6 +30,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         "Generate or pick the ad image first — the video animates it."
       )
     }
+    // SECURITY INVARIANT (SSRF): image_url is fetched on the server's behalf to
+    // animate it, so it must be a PUBLIC http/https host — reject loopback/
+    // metadata/private IPs.
+    await assertPublicHttpUrl(imageUrl)
 
     const metered = await meterAction(
       req.scope,

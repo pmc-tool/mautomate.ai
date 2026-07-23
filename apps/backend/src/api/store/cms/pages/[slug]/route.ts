@@ -8,6 +8,7 @@ import {
   isLocale,
   type Locale,
 } from "../../../../../modules/cms/types"
+import { interpolateTokens } from "../../../../../modules/cms/interpolate"
 
 /**
  * GET /store/cms/pages/:slug?locale=bn
@@ -34,6 +35,20 @@ async function findLiveSnapshot(
     { take: 1 }
   )
   return rows?.[0] ?? null
+}
+
+/** The tenant's display name, for {{store_name}} interpolation. Best-effort. */
+async function resolveStoreName(
+  req: MedusaRequest,
+  tenantId: string
+): Promise<string> {
+  try {
+    const svc: any = req.scope.resolve("platform")
+    const t = await svc.retrieveTenant(tenantId)
+    return String(t?.name ?? "").trim()
+  } catch {
+    return ""
+  }
 }
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -74,9 +89,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     )
   }
 
-  // The compiled payload IS the page body; echo the requested locale and report
-  // the locale actually served so the client can detect a fallback.
-  const data = (snapshot.data ?? {}) as Record<string, unknown>
+  // The compiled payload IS the page body. Interpolate {{store_name}} (and any
+  // future tokens) with the real store name so no page leaks a raw placeholder;
+  // then echo the requested locale and report the locale actually served.
+  const rawData = (snapshot.data ?? {}) as Record<string, unknown>
+  const storeName = await resolveStoreName(req, tenantId)
+  const data = storeName
+    ? (interpolateTokens(rawData, { store_name: storeName }) as Record<
+        string,
+        unknown
+      >)
+    : rawData
   const page = {
     ...data,
     slug,

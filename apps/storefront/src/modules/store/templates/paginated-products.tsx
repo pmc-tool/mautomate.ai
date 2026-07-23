@@ -1,7 +1,7 @@
 import { listProductsWithSort } from "@lib/data/products"
 import { getRegion } from "@lib/data/regions"
 import { OptionValueIds } from "@lib/util/product-option-filters"
-import LeartsProductCard from "@modules/home/components/learts/product-card"
+import BaseProductCard from "@modules/home/components/base/product-card"
 import { Pagination } from "@modules/store/components/pagination"
 import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
 
@@ -96,7 +96,7 @@ export default async function PaginatedProducts({
         data-testid="products-list"
       >
         {products.map((p) => (
-          <LeartsProductCard key={p.id} product={p} />
+          <BaseProductCard key={p.id} product={p} />
         ))}
       </div>
       {totalPages > 1 && (

@@ -4,7 +4,16 @@ import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
-import { listThemes, updateTheme, Theme, apiUrl } from "@lib/merchant-admin/api"
+import {
+  listThemes,
+  updateTheme,
+  getDesignRestorable,
+  restoreDesign,
+  resetStorefront,
+  Theme,
+  apiUrl,
+} from "@lib/merchant-admin/api"
+import { ThemeSwitchDialog } from "../../../components/merchant-admin/theme-switch-dialog"
 import { AuthGate } from "../../../components/merchant-admin/auth-gate"
 import { CheckCircleSolid, PencilSquare, Spinner, ExclamationCircle, CheckCircle, Photo, Eye } from "@medusajs/icons"
 
@@ -56,6 +65,10 @@ function DesignPageContent() {
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [pending, setPending] = useState<Theme | null>(null)
+  const [restorable, setRestorable] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  const [resetting, setResetting] = useState(false)
 
   const fetchThemes = async () => {
     if (!token) return
@@ -65,6 +78,9 @@ function DesignPageContent() {
       const data = await listThemes(token)
       setThemes(data.themes.map((t) => ({ ...t, active: t.id === data.active_theme })))
       setActiveTheme(data.active_theme)
+      getDesignRestorable(token)
+        .then((r) => setRestorable(r.restorable))
+        .catch(() => {})
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load themes")
     } finally {
@@ -92,21 +108,76 @@ function DesignPageContent() {
     )
   }
 
-  const activateTheme = async (themeId: string) => {
-    if (!token || themeId === activeTheme) return
-    setSaving(themeId)
+  const requestActivate = (theme: Theme) => {
+    if (!token || theme.id === activeTheme) return
+    setPending(theme)
+  }
+
+  const refreshRestorable = () => {
+    if (!token) return
+    getDesignRestorable(token)
+      .then((r) => setRestorable(r.restorable))
+      .catch(() => {})
+  }
+
+  const confirmSwitch = async (mode: "fresh" | "keep") => {
+    if (!token || !pending) return
+    const theme = pending
+    setSaving(theme.id)
     setMessage(null)
+    setError(null)
     try {
-      await updateTheme(token, { active_theme: themeId })
-      setActiveTheme(themeId)
-      setThemes((prev) =>
-        prev.map((t) => ({ ...t, active: t.id === themeId }))
+      await updateTheme(token, { active_theme: theme.id, mode })
+      setActiveTheme(theme.id)
+      setThemes((prev) => prev.map((t) => ({ ...t, active: t.id === theme.id })))
+      setPending(null)
+      setMessage(
+        mode === "fresh"
+          ? `${theme.name} installed with its default design. Your previous design was backed up.`
+          : `Switched to ${theme.name}.`
       )
-      setMessage("Theme activated successfully.")
+      refreshRestorable()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to activate theme")
     } finally {
       setSaving(null)
+    }
+  }
+
+  const doRestore = async () => {
+    if (!token) return
+    setRestoring(true)
+    setMessage(null)
+    setError(null)
+    try {
+      await restoreDesign(token)
+      setMessage("Your previous design has been restored.")
+      refreshRestorable()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not restore the previous design.")
+    } finally {
+      setRestoring(false)
+    }
+  }
+
+  const doReset = async () => {
+    if (!token) return
+    setResetting(true)
+    setMessage(null)
+    setError(null)
+    try {
+      await resetStorefront(token)
+      setMessage(
+        "Storefront design reset to the theme default. Reload your store to see it."
+      )
+      // Make the Restore action available immediately (don't wait on the async
+      // check) — a reset always leaves a demoted design to roll back to.
+      setRestorable(true)
+      refreshRestorable()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reset the storefront.")
+    } finally {
+      setResetting(false)
     }
   }
 
@@ -157,11 +228,54 @@ function DesignPageContent() {
         </div>
       )}
       {message && (
-        <div className="mb-6 flex items-start gap-3 rounded-large border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 shadow-sm">
-          <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{message}</span>
+        <div className="mb-6 flex items-center gap-3 rounded-large border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 shadow-sm">
+          <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 self-start" />
+          <span className="flex-1">{message}</span>
+          {restorable && (
+            <button
+              onClick={doRestore}
+              disabled={restoring}
+              className="shrink-0 rounded-base border border-green-300 bg-white px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-100 disabled:opacity-50"
+            >
+              {restoring ? "Restoring…" : "Restore previous design"}
+            </button>
+          )}
         </div>
       )}
+
+      <ThemeSwitchDialog
+        open={!!pending}
+        themeName={pending?.name || ""}
+        busy={!!saving}
+        onClose={() => setPending(null)}
+        onConfirm={confirmSwitch}
+      />
+
+      {/* Storefront design tools — reset / restore. Never touches products. */}
+      <div className="mb-8 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-large border border-grey-20 bg-grey-5 px-4 py-3">
+        <span className="text-sm font-medium text-grey-70">Storefront design</span>
+        <span className="text-xs text-grey-50">
+          Resetting or switching themes never affects your products or orders.
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          {restorable && (
+            <button
+              onClick={doRestore}
+              disabled={restoring}
+              className="rounded-base border border-grey-20 bg-white px-3 py-1.5 text-sm font-medium text-grey-70 transition hover:bg-grey-10 disabled:opacity-50"
+            >
+              {restoring ? "Restoring…" : "Restore previous design"}
+            </button>
+          )}
+          <button
+            onClick={doReset}
+            disabled={resetting}
+            className="rounded-base border border-grey-20 bg-white px-3 py-1.5 text-sm font-medium text-grey-70 transition hover:bg-grey-10 disabled:opacity-50"
+          >
+            {resetting ? "Resetting…" : "Reset to theme default"}
+          </button>
+        </div>
+      </div>
 
       {loading ? (
         <div className="space-y-8">
@@ -271,7 +385,7 @@ function DesignPageContent() {
                         Preview
                       </button>
                       <button
-                        onClick={() => activateTheme(theme.id)}
+                        onClick={() => requestActivate(theme)}
                         disabled={isActive || saving === theme.id}
                         className={classNames(
                           "flex-1 inline-flex items-center justify-center px-3 py-2 rounded-base text-sm font-medium transition-all",

@@ -23,6 +23,7 @@ import {
   generateAdCopy,
   generateAdImage,
   generateAdVideo,
+  getAdStrategy,
   listAdsAccounts,
   listAdsPages,
   listProducts,
@@ -232,6 +233,10 @@ export default function NewCampaignPage() {
   const [ageMin, setAgeMin] = useState(18)
   const [ageMax, setAgeMax] = useState(65)
   const [aiApplied, setAiApplied] = useState(false)
+  const [strategy, setStrategy] = useState<any>(null)
+  const [stratBusy, setStratBusy] = useState(false)
+  const [stratErr, setStratErr] = useState<string | null>(null)
+  const [answers, setAnswers] = useState<Record<string, string>>({})
   const [pageId, setPageId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
@@ -244,6 +249,31 @@ export default function NewCampaignPage() {
     setAgeMax(t.age_max)
     setAiApplied(true)
   }, [draft])
+
+  const runStrategy = useCallback(async () => {
+    if (!token || stratBusy) return
+    setStratBusy(true)
+    setStratErr(null)
+    try {
+      const res = await getAdStrategy(token, {
+        budget_usd: Number(budget) > 0 ? Number(budget) * 30 : undefined,
+        answers: Object.keys(answers).length ? answers : undefined,
+      })
+      const r = res.recommendation
+      setGoal(r.goal)
+      if (r.daily_budget > 0) setBudget(String(r.daily_budget))
+      if (r.countries && r.countries.length) setCountriesSel(r.countries)
+      setGenders(r.genders)
+      setAgeMin(r.age_min)
+      setAgeMax(r.age_max)
+      setAiApplied(true)
+      setStrategy(res)
+    } catch (e: any) {
+      setStratErr(e && e.message ? e.message : "The AI strategist couldn't build a plan.")
+    } finally {
+      setStratBusy(false)
+    }
+  }, [token, stratBusy, budget, answers])
 
   const platform = useMemo(
     () =>
@@ -934,6 +964,64 @@ export default function NewCampaignPage() {
       {/* ----------------------------------------------- STEP 5: settings */}
       {step === "settings" && (
         <div className="ads-rise space-y-6">
+            <div className="rounded-xl p-4" style={{ border: "1px solid #e5e7eb", background: "#fff" }}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "#F26522" }} />
+                  <div>
+                    <div className="text-sm font-semibold" style={{ color: "#111827" }}>Let AI set this up</div>
+                    <div className="text-xs" style={{ color: "#6b7280" }}>Analyzes your real orders &amp; catalog, then fills the goal, budget, countries &amp; audience below.</div>
+                  </div>
+                </div>
+                <button onClick={runStrategy} disabled={stratBusy} className="shrink-0 rounded-md px-3.5 py-2 text-xs font-semibold" style={{ background: "#F26522", color: "#fff", opacity: stratBusy ? 0.6 : 1 }}>
+                  {stratBusy ? "Analyzing your store\u2026" : strategy ? "Re-run AI" : "Let AI decide for me"}
+                </button>
+              </div>
+              {stratErr && <div className="mt-3 text-xs" style={{ color: "#c0392b" }}>{stratErr}</div>}
+              {strategy && (
+                <div className="mt-3 space-y-2" style={{ borderTop: "1px solid #eee", paddingTop: "12px" }}>
+                  <div className="text-xs" style={{ color: "#374151" }}>
+                    Based on <b>{strategy.evidence?.orders_analyzed ?? 0}</b> recent orders
+                    {strategy.evidence?.top_countries?.length ? <> \u00b7 top market <b>{strategy.evidence.top_countries[0].code}</b> ({strategy.evidence.top_countries[0].pct}%)</> : null}
+                    {" \u00b7 confidence "}<b>{strategy.confidence}</b>
+                  </div>
+                  {strategy.why && (
+                    <ul className="space-y-1 text-xs" style={{ color: "#4b5563" }}>
+                      {Object.entries(strategy.why).slice(0, 5).map(([k, v]: any) => (
+                        <li key={k}><span className="font-medium capitalize" style={{ color: "#1f2937" }}>{k}:</span> {String(v)}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {Array.isArray(strategy.questions) && strategy.questions.length > 0 && (
+                    <div className="rounded-lg p-3 text-xs" style={{ background: "#fef7e7", color: "#92610a" }}>
+                      <div className="mb-2 font-semibold">Answer a few and I\u2019ll sharpen the plan:</div>
+                      <div className="space-y-2">
+                        {strategy.questions.map((q: any, i: number) => (
+                          <div key={i}>
+                            <label className="mb-1 block" style={{ color: "#6b4e08" }}>{q.ask}</label>
+                            <input
+                              value={answers[q.field] ?? ""}
+                              onChange={(e) => setAnswers({ ...answers, [q.field]: e.target.value })}
+                              placeholder="Type your answer\u2026"
+                              className="w-full rounded-md px-2.5 py-1.5"
+                              style={{ border: "1px solid #e6d8a8", background: "#fff", color: "#111827" }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={runStrategy}
+                        disabled={stratBusy || !Object.values(answers).some((v) => v && v.trim())}
+                        className="mt-2.5 rounded-md px-3 py-1.5 font-semibold"
+                        style={{ background: "#92610a", color: "#fff", opacity: stratBusy || !Object.values(answers).some((v) => v && v.trim()) ? 0.6 : 1 }}
+                      >
+                        {stratBusy ? "Refining\u2026" : "Refine plan with my answers"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           <SectionCard
             title="Audience"
             description="Who sees the ad. The AI suggests a starting audience from your product — every control below is yours to change."

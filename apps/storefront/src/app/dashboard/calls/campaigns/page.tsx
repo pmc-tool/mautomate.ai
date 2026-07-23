@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Bolt } from "@medusajs/icons"
+import Link from "next/link"
+import { ArrowLeftMini, Bolt } from "@medusajs/icons"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
 import {
   listCallCenterCampaigns,
@@ -19,6 +20,23 @@ const campaignStatuses = [
   { value: "completed", label: "Completed" },
   { value: "canceled", label: "Canceled" },
 ]
+
+function formatWhen(iso?: string | null) {
+  if (!iso) return "—"
+  const d = new Date(iso)
+  const now = new Date()
+  const time = d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (d.toDateString() === now.toDateString()) return `Today, ${time}`
+  if (d.toDateString() === yesterday.toDateString()) return `Yesterday, ${time}`
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }
+  if (d.getFullYear() !== now.getFullYear()) opts.year = "numeric"
+  return `${d.toLocaleDateString(undefined, opts)}, ${time}`
+}
 
 export default function CampaignsPage() {
   const { token } = useMerchantAuth()
@@ -41,9 +59,16 @@ export default function CampaignsPage() {
 
   return (
     <div className="space-y-6">
+      <Link
+        href="/dashboard/calls"
+        className="inline-flex items-center gap-1.5 text-sm text-grey-50 transition-colors hover:text-grey-90"
+      >
+        <ArrowLeftMini className="h-4 w-4" /> Call Center
+      </Link>
+
       <PageHeader
         title="Campaigns"
-        description="Outbound call campaigns for your store."
+        description="Outbound calling campaigns — who they dial, how fast, and where they stand."
       />
 
       {error && (
@@ -54,19 +79,52 @@ export default function CampaignsPage() {
 
       <DataTable
         columns={[
-          { key: "name", header: "Name" },
+          {
+            key: "name",
+            header: "Name",
+            render: (row) => (
+              <span className="font-medium text-grey-90">{row.name || "—"}</span>
+            ),
+          },
           {
             key: "status",
             header: "Status",
             render: (row) => <StatusBadge status={row.status} />,
           },
-          { key: "playbook_id", header: "Playbook" },
-          { key: "concurrency", header: "Concurrency" },
-          { key: "from_number", header: "From number" },
+          {
+            key: "playbook_id",
+            header: "Playbook",
+            render: (row) =>
+              row.playbook_id ? (
+                <span className="font-mono text-xs text-grey-70">{row.playbook_id}</span>
+              ) : (
+                <span className="text-grey-40">—</span>
+              ),
+          },
+          {
+            key: "concurrency",
+            header: "Concurrency",
+            render: (row) => (
+              <span className="tabular-nums text-grey-70">{row.concurrency ?? "—"}</span>
+            ),
+          },
+          {
+            key: "from_number",
+            header: "From number",
+            render: (row) =>
+              row.from_number ? (
+                <span className="font-mono text-[13px] text-grey-90">{row.from_number}</span>
+              ) : (
+                <span className="text-grey-40">—</span>
+              ),
+          },
           {
             key: "created_at",
             header: "Created",
-            render: (row) => formatDate(row.created_at),
+            className: "whitespace-nowrap",
+            render: (row) => (
+              <span className="text-grey-70">{formatWhen(row.created_at)}</span>
+            ),
           },
         ]}
         rows={campaigns}
@@ -77,17 +135,16 @@ export default function CampaignsPage() {
         sortKeys={[{ key: "created_at", label: "Created" }]}
         emptyIcon={Bolt}
         emptyTitle="No campaigns yet"
-        emptyDescription="Your campaigns will appear here once they are created."
+        emptyDescription="Campaigns appear here once you launch one from an agent's studio."
+        emptyAction={
+          <Link
+            href="/dashboard/calls/agents"
+            className="inline-flex items-center rounded-base bg-grey-90 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-grey-80"
+          >
+            Create an agent
+          </Link>
+        }
       />
     </div>
   )
-}
-
-function formatDate(iso?: string) {
-  if (!iso) return "—"
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })
 }

@@ -53,13 +53,16 @@ NATURALNESS NOTES (why the knobs are set the way they are):
 from __future__ import annotations
 
 import asyncio
+import os
 import random
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import aiohttp
 
+import langfuse_tracing
 from config import Settings
 from control_plane import AgentConfig, ControlPlaneClient
 from logging_config import get_logger
@@ -106,6 +109,70 @@ SILENT_TOOLS = {
     "transfer",
     "transferToHuman",
 }
+
+
+# ---------------------------------------------------------------------------
+# Voice -> card bridge: sanitize + cap helpers (mirror the text SSE route.ts)
+# ---------------------------------------------------------------------------
+
+# Additive side-channel only. These bound what the browser receives so a large
+# or awkward tool payload can never bloat an app-message. Caps mirror the text
+# SSE route (apps/backend/.../jarvis/route.ts): args depth-1 primitives with
+# 500-char string truncation; data capped at ~32KB with array shrink to 10.
+_CARD_MAX_BYTES = 32 * 1024
+
+
+def _sanitize_card_args(args: Any) -> Dict[str, Any]:
+    """Depth-1, primitives only, long strings truncated. No secrets today."""
+    out: Dict[str, Any] = {}
+    if not isinstance(args, dict):
+        return out
+    for k, v in args.items():
+        key = str(k)
+        if v is None:
+            out[key] = None
+        elif isinstance(v, bool):  # bool before int (bool is an int subclass)
+            out[key] = v
+        elif isinstance(v, (int, float)):
+            out[key] = v
+        elif isinstance(v, str):
+            out[key] = (v[:500] + "\u2026") if len(v) > 500 else v
+        elif isinstance(v, (list, tuple)):
+            out[key] = "[%d items]" % len(v)
+        elif isinstance(v, dict):
+            out[key] = "[object]"
+        # functions/other dropped
+    return out
+
+
+def _cap_card_data(value: Any) -> Any:
+    """Bound a read result to ~32KB, shrinking arrays; always JSON-safe."""
+    import json
+
+    try:
+        blob = json.dumps(value, default=str)
+    except Exception:  # noqa: BLE001
+        return {"_unserializable": True}
+    if len(blob) <= _CARD_MAX_BYTES:
+        try:
+            return json.loads(blob)
+        except Exception:  # noqa: BLE001
+            return value
+    if isinstance(value, list):
+        return {"_truncated": True, "_count": len(value), "items": value[:10]}
+    if isinstance(value, dict):
+        shrunk: Dict[str, Any] = {}
+        for k, v in value.items():
+            shrunk[str(k)] = v[:10] if isinstance(v, list) else v
+        shrunk["_truncated"] = True
+        try:
+            reblob = json.dumps(shrunk, default=str)
+            if len(reblob) <= _CARD_MAX_BYTES:
+                return json.loads(reblob)
+        except Exception:  # noqa: BLE001
+            pass
+    return {"_truncated": True, "_note": "result too large to display"}
+
 
 TOOL_FILLERS: Dict[str, List[str]] = {
     "getOrder": [
@@ -192,6 +259,84 @@ LLM_FAILURE_SPEECH = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Pixi fixed-phrase pre-warm (Deepgram Aura-2 TTS cache)
+# ---------------------------------------------------------------------------
+
+# The Pixi greeting is now static (no per-call variables) → fully cacheable.
+JARVIS_STATIC_GREETING = "Hey boss, it is Pixi. How can I help you today?"
+
+# Deepgram Aura-2 voice Pixi speaks in (per-call config.voice_id overrides;
+# this is the default and what we pre-warm).
+JARVIS_TTS_VOICE = "aura-2-thalia-en"
+
+# Ultra-common short acknowledgments. The LLM normally produces these live, but
+# warming them in Aura-2 is cheap and makes them instant + free if they recur
+# verbatim. Warming-only — nothing forces the model to use these exact strings.
+JARVIS_COMMON_PHRASES = [
+    "One moment.",
+    "Let me pull that up.",
+    "Thanks!",
+    "You're welcome.",
+    "Sure thing.",
+]
+
+
+def _jarvis_fixed_phrases() -> List[str]:
+    """Every fixed phrase Pixi can speak through the cache — the greeting, all
+    tool fillers, the idle check-ins / goodbye, the LLM-failure line, and the
+    common acknowledgments. Deduped, order-preserved."""
+    phrases: List[str] = [JARVIS_STATIC_GREETING]
+    for group in TOOL_FILLERS.values():
+        phrases.extend(group)
+    phrases.extend(DEFAULT_FILLERS)
+    phrases.extend(IDLE_FIRST_CHECKINS)
+    phrases.extend(IDLE_SECOND_CHECKINS)
+    phrases.append(IDLE_GOODBYE)
+    phrases.append(LLM_FAILURE_SPEECH)
+    phrases.extend(JARVIS_COMMON_PHRASES)
+    seen: set = set()
+    out: List[str] = []
+    for p in phrases:
+        if p and p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+
+async def warm_jarvis_phrase_cache(settings) -> int:
+    """Pre-render the fixed Pixi phrases in Deepgram Aura-2 so even the FIRST
+    call is instant + free.
+
+    DEEPGRAM-ONLY: never touches Ava's ElevenLabs cache. Best-effort — returns
+    how many phrases are cached; any per-phrase error is swallowed so warmup can
+    never affect call handling.
+    """
+    try:
+        import tts_cache
+    except Exception:  # noqa: BLE001
+        return 0
+    api_key = getattr(settings, "deepgram_api_key", "") or ""
+    if not api_key:
+        return 0
+    warmed = 0
+    for phrase in _jarvis_fixed_phrases():
+        try:
+            data = await tts_cache.cached_pcm(
+                text=phrase,
+                voice_id=JARVIS_TTS_VOICE,
+                api_key=api_key,
+                model="",
+                provider="deepgram",
+                sample_rate=tts_cache.DEEPGRAM_SAMPLE_RATE,
+            )
+            if data:
+                warmed += 1
+        except Exception:  # noqa: BLE001
+            pass
+    return warmed
+
+
 class LLMFailureGuard:
     """
     Speak when the LLM cannot.
@@ -240,8 +385,11 @@ class LLMFailureGuard:
         )
 
         try:
-            await processor.push_frame(
-                TTSSpeakFrame(LLM_FAILURE_SPEECH), FrameDirection.DOWNSTREAM
+            # Cached on the Pixi (Deepgram) path so even the failure line is
+            # free; Ava (ElevenLabs) keeps the plain live TTSSpeakFrame exactly
+            # as before. push_frame defaults to DOWNSTREAM (toward the output).
+            await self._session._push_cached_or_speak(
+                processor, LLM_FAILURE_SPEECH, self._session._active_config
             )
         except Exception as exc:  # noqa: BLE001
             log.warning("could not speak the fallback", extra={"error": str(exc)})
@@ -331,7 +479,7 @@ def _llm_tuning_params(settings: Settings):
         return None
 
 
-async def _make_llm(settings: Settings, call_id: str):
+async def _make_llm(settings: Settings, call_id: str, config=None):
     """
     Build the LLM service for THIS call, on a provider that is actually working.
 
@@ -346,6 +494,66 @@ async def _make_llm(settings: Settings, call_id: str):
     if provider == "auto":
         provider = "openai" if await _openai_is_usable(settings) else "novita"
 
+    # Per-session override (Pixi voice pins the CHEAP Novita/Kimi brain for
+    # THIS call only). Ava's agent-config carries no `llm`, so she is entirely
+    # unaffected. Only honour a provider we actually hold a key for.
+    cfg_llm = getattr(config, "llm", None) or {}
+    cfg_provider = str(cfg_llm.get("provider") or "").strip().lower()
+    if cfg_provider == "novita" and settings.novita_api_key:
+        provider = "novita"
+    elif cfg_provider == "openai" and settings.openai_api_key:
+        provider = "openai"
+
+    # --- Groq for Pixi voice: fast + cheap tool-caller, prompt-cache-friendly.
+    # Chosen when the backend pins provider "groq" OR this is the Pixi playbook
+    # and Groq is enabled (default). Ava's playbooks are never "jarvis" and her
+    # config carries no llm.provider, so she is entirely untouched. On ANY build
+    # failure we fall through to the Novita/OpenAI path below so a live call
+    # never breaks.
+    is_jarvis = (
+        (getattr(config, "playbook_id", "") or "").strip().lower() == "jarvis"
+    )
+    want_groq = (cfg_provider == "groq") or (
+        is_jarvis and settings.jarvis_llm_provider == "groq"
+    )
+    if want_groq and settings.groq_api_key:
+        try:
+            try:
+                groq_params = OpenAILLMService.InputParams(
+                    temperature=settings.llm_temperature,
+                    max_tokens=settings.groq_max_tokens,
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "groq tuning params unavailable",
+                    extra={"error": str(exc)[:120]},
+                )
+                groq_params = None
+            groq_extra = {"params": groq_params} if groq_params is not None else {}
+            groq_llm = OpenAILLMService(
+                api_key=settings.groq_api_key,
+                model=settings.groq_model,
+                base_url=settings.groq_base_url,
+                **groq_extra,
+            )
+            groq_llm._lf_provider = "groq"
+            groq_llm._lf_model = settings.groq_model
+            log.info(
+                "jarvis llm = groq",
+                extra={
+                    "call_id": call_id,
+                    "provider": "groq",
+                    "model": settings.groq_model,
+                    "max_tokens": settings.groq_max_tokens,
+                },
+            )
+            return groq_llm
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "groq llm build failed; falling back to novita/openai",
+                extra={"call_id": call_id, "error": str(exc)[:200]},
+            )
+
     tuning = _llm_tuning_params(settings)
     extra: Dict[str, Any] = {"params": tuning} if tuning is not None else {}
 
@@ -358,12 +566,16 @@ async def _make_llm(settings: Settings, call_id: str):
                 "model": settings.novita_model,
             },
         )
-        return OpenAILLMService(
+        llm = OpenAILLMService(
             api_key=settings.novita_api_key,
             model=settings.novita_model,
             base_url=settings.novita_base_url,
             **extra,
         )
+        # Non-functional tags read only by the (guarded) Langfuse trace setup.
+        llm._lf_provider = "novita"
+        llm._lf_model = settings.novita_model
+        return llm
 
     log.info(
         "llm provider selected",
@@ -373,11 +585,15 @@ async def _make_llm(settings: Settings, call_id: str):
             "model": settings.openai_model,
         },
     )
-    return OpenAILLMService(
+    llm = OpenAILLMService(
         api_key=settings.openai_api_key,
         model=settings.openai_model,
         **extra,
     )
+    # Non-functional tags read only by the (guarded) Langfuse trace setup.
+    llm._lf_provider = "openai"
+    llm._lf_model = settings.openai_model
+    return llm
 
 
 @dataclass
@@ -427,6 +643,26 @@ def resolve_voice_id(config: AgentConfig, settings: Settings) -> str:
     return cfg
 
 
+# Process-lifetime aiohttp session shared by every Piper TTS instance.
+# pipecat PiperTTSService NEVER closes the session it is given (verified
+# across TTSService/AIService/FrameProcessor: none touch _session), so the
+# CALLER owns its lifetime. We keep ONE session for the whole voice-agent
+# process (uvicorn = one event loop) and never close it per-call. A per-call
+# session closed at call end raced with in-flight/goodbye TTS -> aiohttp
+# "Session is closed". aiohttp sessions are designed for concurrent reuse.
+_PIPER_HTTP_SESSION: Optional[aiohttp.ClientSession] = None
+
+
+def _get_piper_session() -> aiohttp.ClientSession:
+    """Lazily create (once) and return the shared Piper HTTP session.
+    Created inside the running uvicorn loop on first Pixi call; reused for
+    the life of the process. Recreated only if somehow found closed."""
+    global _PIPER_HTTP_SESSION
+    if _PIPER_HTTP_SESSION is None or _PIPER_HTTP_SESSION.closed:
+        _PIPER_HTTP_SESSION = aiohttp.ClientSession()
+    return _PIPER_HTTP_SESSION
+
+
 class BotSession:
     """One live call. Owns the pipeline task and the end-of-call reporting."""
 
@@ -457,6 +693,8 @@ class BotSession:
         # Spoken tool-filler pacing (never two fillers back to back).
         self._last_filler_at = 0.0
         self._last_filler_text = ""
+        # Human-transfer hold (ring-the-team) in progress.
+        self._transfer_holding = False
 
         # The moment a human actually connected (joined the room / answered).
         # Billing and the max-duration cap run from HERE, not from bot start —
@@ -465,6 +703,16 @@ class BotSession:
 
         # Whether this call runs on the speech-to-speech (Realtime) pilot.
         self._realtime_active = False
+
+        # Per-call Langfuse trace (super-admin LLM cost visibility). Always a
+        # CallTrace object; inert (no-op) when tracing is disabled. Fully
+        # guarded so it can never affect the call (Pixi or Ava).
+        self._call_trace: Optional[langfuse_tracing.CallTrace] = None
+        # The config in effect for this call and the transport family in use
+        # ("daily" / "vonage" / "twilio"). Captured for per-call cost pricing at
+        # finalization (STT/TTS/transport components on the Langfuse trace).
+        self._active_config: Optional[AgentConfig] = None
+        self._transport_kind: str = ""
 
     # -- public API -----------------------------------------------------------
 
@@ -707,6 +955,65 @@ class BotSession:
           - a markdown filter so a stray "**" or list bullet from the LLM is
             never read out loud.
         """
+        # FREE TTS (Pixi voice): self-hosted Piper via its HTTP server
+        # (pm2 b2d-piper on 127.0.0.1:5060). Taken ONLY when the agent-config
+        # voice.provider is "piper" (Pixi sessions). Ava plays back
+        # "elevenlabs"/empty and NEVER enters this branch. Any failure falls
+        # through to ElevenLabs below, so a call is never lost.
+        if (getattr(config, "voice_provider", "") or "").lower() == "piper":
+            try:
+                import os
+                from pipecat.services.piper.tts import PiperTTSService
+
+                base_url = os.environ.get("PIPER_BASE_URL", "http://127.0.0.1:5060")
+                # Shared, process-lifetime session (see _get_piper_session).
+                # PiperTTSService does not own/close it, so it survives the
+                # whole call incl. goodbye/fallback speech and every turn.
+                return PiperTTSService(
+                    base_url=base_url,
+                    aiohttp_session=_get_piper_session(),
+                    # en_US-lessac-medium is 22050 Hz; raw PCM is tagged at
+                    # this rate and the output transport resamples to the
+                    # call rate (Daily / Twilio 8k).
+                    sample_rate=22050,
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "piper TTS unavailable; using ElevenLabs",
+                    extra={"call_id": self.params.call_id, "error": str(exc)[:120]},
+                )
+
+        # CHEAP TTS (Pixi voice): Deepgram Aura-2 reuses the existing Deepgram
+        # key (no extra vendor) and is far cheaper than ElevenLabs. Taken ONLY
+        # when the agent-config voice.provider is "deepgram"; Ava's playbooks
+        # return "elevenlabs", so she keeps ElevenLabs. Any failure falls
+        # through to the ElevenLabs path below, so a call is never lost.
+        if (getattr(config, "voice_provider", "") or "").lower() == "deepgram":
+            try:
+                from pipecat.services.deepgram.tts import DeepgramTTSService
+                from pipecat.utils.text.markdown_text_filter import (
+                    MarkdownTextFilter as _DgMarkdownFilter,
+                )
+
+                aura_voice = (config.voice_id or "aura-2-thalia-en").strip()
+                dg_kwargs: Dict[str, Any] = dict(
+                    api_key=self.settings.deepgram_api_key,
+                    voice=aura_voice,
+                    text_filters=[_DgMarkdownFilter()],
+                )
+                if twilio:
+                    dg_kwargs["sample_rate"] = 8000
+                log.info(
+                    "jarvis tts = deepgram aura",
+                    extra={"call_id": self.params.call_id, "voice": aura_voice},
+                )
+                return DeepgramTTSService(**dg_kwargs)
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "deepgram TTS unavailable; using ElevenLabs",
+                    extra={"call_id": self.params.call_id, "error": str(exc)[:120]},
+                )
+
         from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
         from pipecat.utils.text.markdown_text_filter import MarkdownTextFilter
 
@@ -741,7 +1048,6 @@ class BotSession:
         if not self.settings.idle_enabled:
             return None
 
-        from pipecat.frames.frames import TTSSpeakFrame
         from pipecat.processors.user_idle_processor import UserIdleProcessor
 
         async def handle_idle(processor, retry_count: int) -> bool:
@@ -749,17 +1055,20 @@ class BotSession:
                 "caller idle",
                 extra={"call_id": self.params.call_id, "retry": retry_count},
             )
+            # Fixed idle lines are cached on the Pixi (Deepgram) path so they
+            # cost nothing; Ava (ElevenLabs) keeps a plain live TTSSpeakFrame.
+            cfg = self._active_config
             if retry_count == 1:
-                await processor.push_frame(
-                    TTSSpeakFrame(random.choice(IDLE_FIRST_CHECKINS))
+                await self._push_cached_or_speak(
+                    processor, random.choice(IDLE_FIRST_CHECKINS), cfg
                 )
                 return True
             if retry_count == 2:
-                await processor.push_frame(
-                    TTSSpeakFrame(random.choice(IDLE_SECOND_CHECKINS))
+                await self._push_cached_or_speak(
+                    processor, random.choice(IDLE_SECOND_CHECKINS), cfg
                 )
                 return True
-            await processor.push_frame(TTSSpeakFrame(IDLE_GOODBYE))
+            await self._push_cached_or_speak(processor, IDLE_GOODBYE, cfg)
             self._ended_reason = self._ended_reason or "user_idle_timeout"
             asyncio.create_task(self._end_pipeline(after_speech=True))
             return False
@@ -767,6 +1076,46 @@ class BotSession:
         return UserIdleProcessor(
             callback=handle_idle, timeout=self.settings.idle_timeout_secs
         )
+
+    def _begin_trace(self, config: AgentConfig, llm) -> list:
+        """Open the per-call Langfuse trace and return its pipecat observers.
+
+        Fully guarded: returns [] on any problem or when tracing is disabled,
+        so PipelineTask gets no extra observers and the call is unchanged. The
+        observer only reads metrics frames — it never alters the pipeline, so
+        both Pixi and Ava are behaviourally untouched.
+        """
+        try:
+            self._active_config = config
+            # Explicit, cache-aware LLM pricing is applied ONLY to the Novita
+            # (Kimi) brain that Pixi uses — Novita auto-caches the stable
+            # system+tools prefix, so pricing every input token at the full rate
+            # overstates cost. All other providers (OpenAI for the auto/Ava
+            # path, Groq gpt-oss whose caching is not observable) keep Langfuse's
+            # own model-based pricing unchanged. See langfuse_tracing.log_generation.
+            lf_provider = (getattr(llm, "_lf_provider", None) or "").lower()
+            llm_pricing = {
+                "apply": lf_provider == "novita",
+                "approximate_cache": lf_provider == "novita",
+                "input_per_1m": self.settings.voice_llm_input_usd_per_1m,
+                "output_per_1m": self.settings.voice_llm_output_usd_per_1m,
+                "cached_per_1m": self.settings.voice_llm_cached_usd_per_1m,
+                "prefix_tokens": self.settings.voice_llm_cached_prefix_tokens,
+            }
+            self._call_trace = langfuse_tracing.start_call_trace(
+                call_id=self.params.call_id,
+                tenant_id=self.params.tenant_id,
+                playbook_id=(getattr(config, "playbook_id", None)
+                             or self.params.playbook_id),
+                locale=getattr(config, "locale", None) or self.params.locale,
+                provider=getattr(llm, "_lf_provider", None),
+                model=getattr(llm, "_lf_model", None),
+                llm_pricing=llm_pricing,
+            )
+            return langfuse_tracing.make_observers(self._call_trace)
+        except Exception as exc:  # noqa: BLE001 - tracing must never break a call
+            log.debug("langfuse trace setup skipped", extra={"error": str(exc)[:160]})
+            return []
 
     def _pipeline_params(self):
         from pipecat.pipeline.task import PipelineParams
@@ -794,17 +1143,94 @@ class BotSession:
                 )
         return PipelineParams(**kwargs)
 
+    def _make_tool_gate(self, context, config):
+        # DISABLED by default after the spike: the naive stateless gate can drop
+        # tools mid-task ("tool_choice is none, but model called a tool"). Set
+        # VOICE_TOOL_GATE=1 to re-enable while building the state-aware version.
+        import os as _os
+        if _os.environ.get("VOICE_TOOL_GATE") != "1":
+            return None
+        """SPIKE: per-turn tool gate for the JARVIS playbook only. Sits between
+        the user context aggregator and the LLM; on each finished user turn it
+        attaches the tool set ONLY when the utterance looks operational, else
+        sends [] (zero tool tokens). Returns None for Ava / any non-jarvis
+        playbook (no behaviour change). Fully guarded: any failure just passes
+        the frame through unchanged."""
+        if (getattr(config, "playbook_id", "") or "") != "jarvis":
+            return None
+        try:
+            from pipecat.processors.frame_processor import FrameProcessor
+        except Exception:  # noqa: BLE001
+            return None
+
+        full_tools = list(config.tools or [])
+        OPS = (
+            "order", "product", "sale", "stock", "inventory", "restock",
+            "price", "refund", "cancel", "fulfil", "fulfill", "ship",
+            "deliver", "customer", "inbox", "message", "reply", "revenue",
+            "how many", "how much", "show me", "find", "search", "status",
+            "pending", "attention", "report", "sell", "credit", "delivery",
+        )
+        parent = self
+
+        class _ToolGate(FrameProcessor):
+            async def process_frame(self, frame, direction):
+                await super().process_frame(frame, direction)
+                try:
+                    if frame.__class__.__name__ in (
+                        "OpenAILLMContextFrame", "LLMContextFrame"
+                    ):
+                        ctx = getattr(frame, "context", None) or context
+                        last = ""
+                        for m in reversed(ctx.get_messages() or []):
+                            role = (
+                                m.get("role") if isinstance(m, dict)
+                                else getattr(m, "role", None)
+                            )
+                            if role == "user":
+                                c = (
+                                    m.get("content") if isinstance(m, dict)
+                                    else getattr(m, "content", "")
+                                )
+                                last = c if isinstance(c, str) else ""
+                                break
+                        text = (last or "").lower()
+                        needs = any(k in text for k in OPS)
+                        ctx.set_tools(full_tools if needs else [])
+                        log.info(
+                            "tool gate",
+                            extra={
+                                "call_id": parent.params.call_id,
+                                "needs_tools": needs,
+                                "tool_count": len(full_tools) if needs else 0,
+                                "utter": text[:60],
+                            },
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    log.warning(
+                        "tool gate error (passthrough)",
+                        extra={"error": str(exc)[:120]},
+                    )
+                await self.push_frame(frame, direction)
+
+        return _ToolGate()
+
     def _pipeline_processors(
-        self, transport, stt, context_aggregator, llm_guard, llm, tts, audiobuffer
+        self, transport, stt, context_aggregator, llm_guard, llm, tts,
+        audiobuffer, tool_gate=None
     ) -> list:
         """The shared processor chain for both transports."""
         chain: list = [transport.input(), stt]
         user_idle = self._make_user_idle()
         if user_idle is not None:
             chain.append(user_idle)
+        chain.append(context_aggregator.user())
+        # SPIKE: per-turn tool gate (jarvis web path only) — chooses THIS turn's
+        # tool subset just before the LLM. None on Ava / phone paths.
+        if tool_gate is not None:
+            chain.append(tool_gate)
         chain.extend(
             [
-                context_aggregator.user(),
                 # The guard sits directly BEFORE the LLM because an ErrorFrame
                 # travels UPSTREAM — a guard placed after the LLM would never
                 # see the failure it exists to catch.
@@ -833,6 +1259,7 @@ class BotSession:
 
         cid = self.params.call_id
         settings = self.settings
+        self._transport_kind = "daily"
 
         # 1. Mint a Daily meeting token for the (already-created) room.
         token = await self._mint_token(self.params.room_url)
@@ -841,6 +1268,7 @@ class BotSession:
         #    turn-taking (smart turn when available, tuned VAD otherwise).
         turn_analyzer = self._make_turn_analyzer(config)
         daily_params = DailyParams(
+            audio_out_mixer=self._make_mixer(),
             audio_in_enabled=True,
             audio_out_enabled=True,
             transcription_enabled=False,  # we run Deepgram STT in-pipeline
@@ -883,7 +1311,7 @@ class BotSession:
             )
         else:
             stt = self._make_stt(config)
-            llm = await _make_llm(settings, self.params.call_id)
+            llm = await _make_llm(settings, self.params.call_id, config)
 
             messages: List[Dict[str, Any]] = [
                 {"role": "system", "content": self._compose_system_prompt(config)},
@@ -906,14 +1334,18 @@ class BotSession:
             llm_guard = LLMFailureGuard(self)
             # The audio recorder sits right after transport.output() so it
             # captures BOTH voices exactly as heard (lossless PCM).
+            tool_gate = self._make_tool_gate(context, config)
             pipeline = Pipeline(
                 self._pipeline_processors(
                     transport, stt, context_aggregator, llm_guard, llm, tts,
-                    audiobuffer,
+                    audiobuffer, tool_gate,
                 )
             )
 
-        task = PipelineTask(pipeline, params=self._pipeline_params())
+        _lf_observers = self._begin_trace(config, llm)
+        task = PipelineTask(
+            pipeline, params=self._pipeline_params(), observers=_lf_observers
+        )
         self._task = task
         self._runner = PipelineRunner(handle_sigint=False)
 
@@ -932,6 +1364,133 @@ class BotSession:
             self._snapshot_transcript()
 
     # -- Twilio Media Streams (inbound phone) --------------------------------
+
+    async def run_vonage_stream(self, websocket) -> None:
+        """
+        Full inbound-phone lifecycle over a Vonage Voice websocket. Mirrors
+        `run_twilio_stream` but the media is raw 16kHz linear PCM handled by
+        VonageFrameSerializer (see vonage_serializer.py) — wideband, so the
+        normal linear STT/TTS path applies (no mu-law narrowband settings).
+        """
+        cid = self.params.call_id
+        config = None
+        try:
+            config = await self.control.fetch_agent_config(
+                playbook_id=self.params.playbook_id,
+                tenant_id=self.params.tenant_id,
+                locale=self.params.locale,
+                order_id=self.params.order_id,
+                call_id=cid,
+            )
+            log.info(
+                "agent-config pulled (vonage)",
+                extra={"call_id": cid, "playbook_id": config.playbook_id,
+                       "tool_count": len(config.tools)},
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.error("agent-config fetch failed (vonage); ending",
+                      extra={"call_id": cid, "error": str(exc)}, exc_info=True)
+            self._ended_reason = "config_fetch_failed"
+            await self._report_ended()
+            return
+
+        try:
+            await self._run_vonage_pipeline(websocket, config)
+        except asyncio.CancelledError:
+            self._ended_reason = self._ended_reason or "cancelled"
+            raise
+        except Exception as exc:  # noqa: BLE001
+            log.error("vonage pipeline crashed",
+                      extra={"call_id": cid, "error": str(exc)}, exc_info=True)
+            self._ended_reason = self._ended_reason or "pipeline_error"
+        finally:
+            await self._report_ended()
+
+    async def _run_vonage_pipeline(self, websocket, config) -> None:
+        from pipecat.pipeline.pipeline import Pipeline
+        from pipecat.pipeline.runner import PipelineRunner
+        from pipecat.pipeline.task import PipelineTask
+        from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
+        from pipecat.transports.network.fastapi_websocket import (
+            FastAPIWebsocketParams,
+            FastAPIWebsocketTransport,
+        )
+
+        from vonage_serializer import VonageFrameSerializer
+
+        self._transport_kind = "vonage"
+        cid = self.params.call_id
+        settings = self.settings
+
+        # Vonage websockets carry raw L16 at the rate we requested in the NCCO
+        # (16kHz). Keep phone-tuned VAD; no smart turn.
+        transport = FastAPIWebsocketTransport(
+            websocket=websocket,
+            params=FastAPIWebsocketParams(
+                audio_out_mixer=self._make_mixer(),
+                audio_in_enabled=True,
+                audio_out_enabled=True,
+                audio_in_sample_rate=16000,
+                audio_out_sample_rate=16000,
+                add_wav_header=False,
+                vad_analyzer=self._make_vad(False),
+                serializer=VonageFrameSerializer(call_uuid=cid),
+            ),
+        )
+
+        stt = self._make_stt(config)
+
+        llm = await _make_llm(settings, self.params.call_id, config)
+        messages = [
+            {"role": "system", "content": self._compose_system_prompt(config)}
+        ]
+        if config.first_message:
+            messages.append({"role": "assistant", "content": config.first_message})
+        context = OpenAILLMContext(messages, tools=config.tools or None)
+        self._context = context
+        context_aggregator = llm.create_context_aggregator(context)
+        self._register_tools(llm, config)
+
+        tts = self._make_tts(config)
+
+        audiobuffer = self._make_audio_recorder()
+        llm_guard = LLMFailureGuard(self)
+        pipeline = Pipeline(
+            self._pipeline_processors(
+                transport, stt, context_aggregator, llm_guard, llm, tts, audiobuffer
+            )
+        )
+        _lf_observers = self._begin_trace(config, llm)
+        task = PipelineTask(
+            pipeline, params=self._pipeline_params(), observers=_lf_observers
+        )
+        self._task = task
+        self._runner = PipelineRunner(handle_sigint=False)
+
+        from pipecat.frames.frames import TTSSpeakFrame
+
+        @transport.event_handler("on_client_connected")
+        async def _on_conn(_t, _client):  # noqa: ANN001
+            log.info("vonage client connected; greeting", extra={"call_id": cid})
+            self._mark_connected()
+            await self._start_recording()
+            if config.first_message:
+                await self._speak_cached_or_tts(config.first_message, config)
+
+        @transport.event_handler("on_client_disconnected")
+        async def _on_disc(_t, _client):  # noqa: ANN001
+            log.info("vonage client disconnected; ending", extra={"call_id": cid})
+            self._ended_reason = self._ended_reason or "caller_hung_up"
+            await self._end_pipeline()
+
+        watchdog = asyncio.create_task(self._watchdog())
+        log.info("vonage pipeline starting", extra={"call_id": cid})
+        try:
+            await self._runner.run(task)
+        finally:
+            watchdog.cancel()
+            self._ended.set()
+            self._snapshot_transcript()
 
     async def run_twilio_stream(self, websocket, stream_sid: str) -> None:
         """
@@ -985,6 +1544,7 @@ class BotSession:
             FastAPIWebsocketTransport,
         )
 
+        self._transport_kind = "twilio"
         cid = self.params.call_id
         settings = self.settings
 
@@ -1003,6 +1563,7 @@ class BotSession:
         transport = FastAPIWebsocketTransport(
             websocket=websocket,
             params=FastAPIWebsocketParams(
+                audio_out_mixer=self._make_mixer(),
                 audio_in_enabled=True,
                 audio_out_enabled=True,
                 # Twilio Media Streams are 8kHz mono mu-law both ways.
@@ -1016,7 +1577,7 @@ class BotSession:
 
         stt = self._make_stt(config, twilio=True)
 
-        llm = await _make_llm(settings, self.params.call_id)
+        llm = await _make_llm(settings, self.params.call_id, config)
         messages = [
             {"role": "system", "content": self._compose_system_prompt(config)}
         ]
@@ -1036,7 +1597,10 @@ class BotSession:
                 transport, stt, context_aggregator, llm_guard, llm, tts, audiobuffer
             )
         )
-        task = PipelineTask(pipeline, params=self._pipeline_params())
+        _lf_observers = self._begin_trace(config, llm)
+        task = PipelineTask(
+            pipeline, params=self._pipeline_params(), observers=_lf_observers
+        )
         self._task = task
         self._runner = PipelineRunner(handle_sigint=False)
 
@@ -1048,7 +1612,7 @@ class BotSession:
             self._mark_connected()
             await self._start_recording()
             if config.first_message:
-                await task.queue_frames([TTSSpeakFrame(config.first_message)])
+                await self._speak_cached_or_tts(config.first_message, config)
 
         @transport.event_handler("on_client_disconnected")
         async def _on_disc(_t, _client):  # noqa: ANN001
@@ -1089,7 +1653,7 @@ class BotSession:
                     [context_aggregator.user().get_context_frame()]
                 )
             elif config.first_message:
-                await task.queue_frames([TTSSpeakFrame(config.first_message)])
+                await self._speak_cached_or_tts(config.first_message, config)
 
         @transport.event_handler("on_participant_left")
         async def _on_left(_transport, participant, reason):  # noqa: ANN001
@@ -1109,7 +1673,202 @@ class BotSession:
 
     # -- tools ----------------------------------------------------------------
 
-    def _schedule_tool_filler(self, llm_processor, tool_name: str):
+    async def _cached_frames(self, text: str, config):
+        """Cached "recorded" audio frames for a fixed phrase, or None (live TTS).
+
+        Routes to the cache matching this call's TTS vendor so a cached phrase is
+        played back in the SAME voice as the rest of the call:
+          - "deepgram" (Pixi / Aura-2): rendered ONCE via Deepgram Speak at the
+            live pipeline's 24 kHz output rate, then served free from disk.
+          - "elevenlabs" (Ava): the original ElevenLabs cache, unchanged.
+        Any other provider (e.g. Piper) has no cache and falls back to live TTS.
+        """
+        provider = (getattr(config, "voice_provider", "") or "").lower()
+        try:
+            import tts_cache
+
+            if provider == "deepgram":
+                # Pixi: cache in the SAME Aura-2 voice, at the SAME sample rate
+                # the live DeepgramTTSService emits (PipelineParams default =
+                # 24 kHz on the web/Daily path). The output transport resamples
+                # to the call rate, so phone (8 kHz) stays correct too.
+                return await tts_cache.cached_audio_frames(
+                    text=text,
+                    voice_id=(config.voice_id or "aura-2-thalia-en").strip(),
+                    api_key=self.settings.deepgram_api_key,
+                    provider="deepgram",
+                    sample_rate=tts_cache.DEEPGRAM_SAMPLE_RATE,
+                )
+            if provider == "elevenlabs":
+                return await tts_cache.cached_audio_frames(
+                    text=text,
+                    voice_id=resolve_voice_id(config, self.settings),
+                    api_key=self.settings.elevenlabs_api_key,
+                    model=getattr(self.settings, "elevenlabs_model", "") or "eleven_flash_v2_5",
+                    provider="elevenlabs",
+                )
+            # No phrase cache for other providers (e.g. Piper) → live TTS.
+            return None
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "tts cache unavailable; falling back to live TTS",
+                extra={"call_id": self.params.call_id, "error": str(exc)[:120]},
+            )
+            return None
+
+    async def _push_cached_or_speak(self, processor, text: str, config) -> None:
+        """Push a fixed phrase to a specific processor — cached "recording"
+        first (zero TTS cost), live TTS as the fallback. Used for phrases spoken
+        from inside pipeline callbacks (idle check-ins, LLM-failure fallback)
+        that must push to their own processor rather than the task queue.
+
+        Deepgram (Pixi) prefers the cache; every other provider keeps the exact
+        prior behaviour (a plain TTSSpeakFrame) so Ava is untouched."""
+        from pipecat.frames.frames import TTSSpeakFrame
+
+        provider = (getattr(config, "voice_provider", "") or "").lower()
+        if provider == "deepgram" and text:
+            try:
+                frames = await self._cached_frames(text, config)
+            except Exception:  # noqa: BLE001
+                frames = None
+            if frames:
+                for f in frames:
+                    await processor.push_frame(f)
+                return
+        await processor.push_frame(TTSSpeakFrame(text))
+
+    async def _speak_cached_or_tts(self, text: str, config) -> None:
+        """Speak a fixed phrase — from the recording cache first (zero TTS
+        cost), live TTS as the fallback."""
+        if not text or not self._task:
+            return
+        frames = await self._cached_frames(text, config)
+        if frames:
+            await self._task.queue_frames(frames)
+            return
+        from pipecat.frames.frames import TTSSpeakFrame
+
+        await self._task.queue_frames([TTSSpeakFrame(text)])
+
+    async def _music(self, enable: bool) -> None:
+        """Toggle the synthesized background pad (best-effort, never fatal)."""
+        if not self._task:
+            return
+        try:
+            from pipecat.frames.frames import MixerEnableFrame
+
+            await self._task.queue_frames([MixerEnableFrame(enable)])
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _make_mixer(self):
+        """Output mixer for the subtle hold/lookup pad (VOICE_HOLD_MUSIC=0 disables)."""
+        if (os.getenv("VOICE_HOLD_MUSIC", "1") or "1") == "0":
+            return None
+        try:
+            from music_mixer import HoldMusicMixer
+
+            return HoldMusicMixer()
+        except Exception:  # noqa: BLE001
+            return None
+
+    async def _transfer_wait(self, transfer_id: str, config) -> None:
+        """
+        Hold-and-ring: the dashboard is ringing the store team. Keep the caller
+        reassured (recorded lines + soft pad), poll the control plane, and
+        either bow out when a human answers (they join this same call) or
+        apologize and resume when nobody picks up in time.
+        """
+        cid = self.params.call_id
+        hold_line = (
+            "Of course - please hold on for a moment while I connect you to one of our team members."
+        )
+        busy_line = (
+            "All of our customer service executives are busy right now. Thank you for your patience."
+        )
+        connected_line = "You're connected now - go ahead."
+        missed_line = (
+            "I'm so sorry - everyone is still busy at the moment. I can take a message and have "
+            "someone call you back, or keep helping you myself."
+        )
+        timeout = 60.0
+        try:
+            timeout = float(os.getenv("VOICE_TRANSFER_TIMEOUT_SECS", "60") or 60)
+        except ValueError:
+            pass
+
+        # Guardrail while holding: short, calm, no new actions until resolved.
+        try:
+            if self._context is not None:
+                self._context.add_message(
+                    {
+                        "role": "system",
+                        "content": (
+                            "A transfer to a human team member is IN PROGRESS. Until it completes: "
+                            "keep every reply to one short, calm sentence; do not call any tools "
+                            "except endCall; do not start new topics or actions; reassure the "
+                            "caller they are being connected."
+                        ),
+                    }
+                )
+        except Exception:  # noqa: BLE001
+            pass
+
+        try:
+            await self._speak_cached_or_tts(hold_line, config)
+            await self._music(True)
+            waited = 0.0
+            last_busy = 0.0
+            while waited < timeout:
+                await asyncio.sleep(3.0)
+                waited += 3.0
+                status = await self.control.transfer_status(transfer_id)
+                if status == "answered":
+                    await self._music(False)
+                    await self._speak_cached_or_tts(connected_line, config)
+                    self._disposition = "transfer_to_human"
+                    self._ended_reason = self._ended_reason or "handed_to_human"
+                    log.info(
+                        "transfer answered; bot bowing out",
+                        extra={"call_id": cid, "transfer_id": transfer_id},
+                    )
+                    await asyncio.sleep(2.0)
+                    asyncio.create_task(self._end_pipeline(after_speech=True))
+                    return
+                if status in ("declined", "missed", "canceled"):
+                    break
+                if waited - last_busy >= 15.0:
+                    last_busy = waited
+                    await self._speak_cached_or_tts(busy_line, config)
+            await self.control.transfer_update(transfer_id, "missed")
+            await self._music(False)
+            try:
+                if self._context is not None:
+                    self._context.add_message(
+                        {
+                            "role": "system",
+                            "content": (
+                                "The human transfer did NOT connect (nobody answered). Apologize "
+                                "once, offer to take a message or a callback number, and continue "
+                                "helping normally."
+                            ),
+                        }
+                    )
+            except Exception:  # noqa: BLE001
+                pass
+            await self._speak_cached_or_tts(missed_line, config)
+        except Exception as exc:  # noqa: BLE001
+            log.error(
+                "transfer wait failed",
+                extra={"call_id": cid, "error": str(exc)},
+                exc_info=True,
+            )
+            await self._music(False)
+        finally:
+            self._transfer_holding = False
+
+    def _schedule_tool_filler(self, llm_processor, tool_name: str, config=None):
         """
         Arm a spoken acknowledgment for a slow lookup — "one sec, let me pull
         that up" in the agent's own voice — but only if the tool hasn't already
@@ -1137,9 +1896,16 @@ class BotSession:
                     phrase = random.choice([c for c in choices if c != phrase])
                 self._last_filler_at = now
                 self._last_filler_text = phrase
-                from pipecat.frames.frames import TTSSpeakFrame
+                # Soft pad under the lookup — the "searching" feel.
+                await self._music(True)
+                frames = await self._cached_frames(phrase, config) if config else None
+                if frames:
+                    for f in frames:
+                        await llm_processor.push_frame(f)
+                else:
+                    from pipecat.frames.frames import TTSSpeakFrame
 
-                await llm_processor.push_frame(TTSSpeakFrame(phrase))
+                    await llm_processor.push_frame(TTSSpeakFrame(phrase))
             except asyncio.CancelledError:
                 pass  # tool answered fast — no filler needed
             except Exception as exc:  # noqa: BLE001
@@ -1149,6 +1915,29 @@ class BotSession:
                 )
 
         return asyncio.create_task(_speak_later())
+
+    async def _emit_card(self, llm_proc, payload: Dict[str, Any]) -> None:
+        """
+        Voice -> card side-channel. Push a Daily app-message to the browser so a
+        spoken tool call spawns the SAME OS card a typed one does. Uses the exact
+        mechanism _schedule_tool_filler uses (a frame pushed downstream from the
+        LLM processor to transport.output().send_message()). Daily-only, and
+        wrapped so a serialization/transport error can NEVER break the voice call.
+        """
+        if getattr(self, "_transport_kind", "") != "daily":
+            return
+        try:
+            from pipecat.transports.services.daily import (
+                DailyTransportMessageUrgentFrame,
+            )
+
+            await llm_proc.push_frame(
+                DailyTransportMessageUrgentFrame(
+                    message={"t": "jarvis_tool", **payload}
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 -- never fail the call
+            log.warning("card emit failed", extra={"error": str(exc)[:120]})
 
     def _register_tools(self, llm, config: AgentConfig) -> None:
         """
@@ -1170,7 +1959,21 @@ class BotSession:
 
             # Arm a spoken acknowledgment; it only fires if the tool is slow.
             llm_proc = getattr(params, "llm", None) or llm
-            filler_task = self._schedule_tool_filler(llm_proc, name or "")
+            filler_task = self._schedule_tool_filler(llm_proc, name or "", config)
+
+            # Voice -> card bridge (additive): tell the browser a tool STARTED so
+            # it spawns the card immediately. `corr` correlates this with the
+            # result emit below (pipecat may not expose a stable call id).
+            corr = getattr(params, "tool_call_id", None) or uuid.uuid4().hex
+            await self._emit_card(
+                llm_proc,
+                {
+                    "phase": "call",
+                    "id": corr,
+                    "name": name,
+                    "args": _sanitize_card_args(args),
+                },
+            )
 
             out = await self.control.tool_execute(
                 call_id=cid,
@@ -1180,6 +1983,39 @@ class BotSession:
             )
             if filler_task is not None and not filler_task.done():
                 filler_task.cancel()
+            # Lookup finished — fade the pad (unless the caller is on hold).
+            if not self._transfer_holding:
+                await self._music(False)
+
+            # Voice -> card bridge (additive): tell the browser the tool FINISHED.
+            # Reads carry the (capped) payload the card body renders; writes are
+            # propose-only, so the card stays pending until its confirm token
+            # arrives via the /voice/pending poll (correlated by pending_id).
+            _res = out.get("result") if isinstance(out, dict) else None
+            _is_write = isinstance(_res, dict) and "proposed" in _res
+            await self._emit_card(
+                llm_proc,
+                {
+                    "phase": "result",
+                    "id": corr,
+                    "name": name,
+                    "ok": not (isinstance(out, dict) and bool(out.get("error"))),
+                    "kind": "write" if _is_write else "read",
+                    "data": None if _is_write else _cap_card_data(_res),
+                    "proposed": bool(_res.get("proposed")) if _is_write else False,
+                    "tier": _res.get("tier") if isinstance(_res, dict) else None,
+                    "require_text": (
+                        _res.get("requires_typed_word")
+                        if isinstance(_res, dict)
+                        else None
+                    ),
+                    "summary": _res.get("summary") if isinstance(_res, dict) else None,
+                    "pending_id": (
+                        _res.get("pending_id") if isinstance(_res, dict) else None
+                    ),
+                    "error": out.get("error") if isinstance(out, dict) else None,
+                },
+            )
 
             # Capture the disposition the model recorded.
             if name == "setDisposition":
@@ -1196,6 +2032,19 @@ class BotSession:
             if action == "end_call":
                 self._ended_reason = self._ended_reason or "end_call_tool"
                 asyncio.create_task(self._end_pipeline(after_speech=True))
+            elif action == "transfer_hold":
+                # Ring-the-team: hold the caller (recorded lines + soft pad)
+                # while the dashboard rings; a human answering joins this same
+                # call. Never end the pipeline here.
+                tid = str(out.get("transfer_id") or "") if isinstance(out, dict) else ""
+                if tid and not self._transfer_holding:
+                    self._transfer_holding = True
+                    if not self._disposition:
+                        self._disposition = "transfer_to_human"
+                    asyncio.create_task(self._transfer_wait(tid, config))
+                elif not tid:
+                    self._ended_reason = self._ended_reason or "transfer_to_human"
+                    asyncio.create_task(self._end_pipeline(after_speech=True))
             elif action == "transfer":
                 self._ended_reason = self._ended_reason or "transfer_to_human"
                 if not self._disposition:
@@ -1525,3 +2374,34 @@ class BotSession:
             duration_seconds=duration,
             ended_reason=self._ended_reason,
         )
+
+        # Finalise + flush the Langfuse trace (guarded no-op when disabled).
+        # Attach the non-LLM voice cost components (STT / TTS / transport) so the
+        # super-admin AI Usage & Cost page reflects the WHOLE per-call cost, not
+        # just the brain. All pricing lives in langfuse_tracing.finalize_costs;
+        # this only assembles the inputs. Fully guarded — a metering failure must
+        # never affect the call (Pixi or Ava) or the call-ended report above.
+        try:
+            if self._call_trace is not None:
+                cfg = self._active_config
+                cost_ctx = {
+                    "duration_seconds": duration,
+                    "voice_provider": (
+                        getattr(cfg, "voice_provider", "") or ""
+                    ).lower(),
+                    "voice_transport": self._transport_kind,
+                    "realtime": bool(self._realtime_active),
+                    "rates": {
+                        "stt_per_min": self.settings.voice_stt_usd_per_min,
+                        "aura_per_1k": self.settings.voice_tts_aura_usd_per_1k_chars,
+                        "eleven_per_1k": (
+                            self.settings.voice_tts_elevenlabs_usd_per_1k_chars
+                        ),
+                        "daily_per_participant_min": (
+                            self.settings.voice_daily_usd_per_participant_min
+                        ),
+                    },
+                }
+                self._call_trace.end(self._ended_reason, cost_ctx=cost_ctx)
+        except Exception:  # noqa: BLE001 - never let tracing affect call teardown
+            pass

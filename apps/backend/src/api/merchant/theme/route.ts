@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { resolveMerchant } from "../_helpers"
 import { isKnownTheme } from "../../admin/cms/themes/_catalog"
 import { THEME_MODULE } from "../../../modules/theme"
+import { demoteLiveHome, resetStoreChrome, clearHomeDrafts } from "../_theme-content"
 
 /** Is this handle a published uploaded (Liquid) theme? */
 async function isUploadedTheme(req: MedusaRequest, handle: string): Promise<boolean> {
@@ -14,11 +15,27 @@ async function isUploadedTheme(req: MedusaRequest, handle: string): Promise<bool
   }
 }
 
-/** PUT /merchant/theme { active_theme } — activate a theme (compiled OR uploaded). */
+/**
+ * PUT /merchant/theme { active_theme, mode? }
+ *
+ * Activate a theme (compiled OR uploaded).
+ *
+ * `mode`:
+ *   - "fresh" (default): install the new theme with its OWN default design. The
+ *     current live home snapshot is demoted (kept in history, restorable) so the
+ *     storefront renders the new theme's native layout instead of the old
+ *     theme's blocks — which is what used to break the design on every switch.
+ *   - "keep": switch the theme but leave the current home content in place.
+ *
+ * Only the storefront home design is affected — products, orders and customers
+ * are never touched. Re-activating the SAME theme never resets anything.
+ */
 export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
-  const active_theme = String((req.body as { active_theme?: string })?.active_theme ?? "").trim()
+  const body = (req.body ?? {}) as { active_theme?: string; mode?: string }
+  const active_theme = String(body.active_theme ?? "").trim()
+  const mode = body.mode === "keep" ? "keep" : "fresh"
 
   const known =
     isKnownTheme(active_theme) || (await isUploadedTheme(req, active_theme))
@@ -26,8 +43,6 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(400).json({ message: "unknown theme" })
   }
 
-  // Entitlement applies only to the compiled catalog; uploaded public themes are
-  // available to every store.
   if (isKnownTheme(active_theme)) {
     const allowed: string[] | null = Array.isArray(ctx.tenant.meta?.allowed_themes)
       ? ctx.tenant.meta.allowed_themes
@@ -37,9 +52,34 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
+  const prevTheme = String(ctx.tenant.meta?.active_theme ?? "").trim()
+  const isSwitch = prevTheme !== active_theme
+
   await ctx.svc.updateTenants({
     id: ctx.tenant.id,
     meta: { ...(ctx.tenant.meta ?? {}), active_theme },
   })
-  res.json({ active_theme })
+
+  // Fresh install: reset the home to the new theme's demo (old design kept in
+  // history). Only on a REAL switch — re-activating the same theme is a no-op.
+  let reset = false
+  if (mode === "fresh" && isSwitch) {
+    try {
+      await demoteLiveHome(req.scope, ctx.tenant.id)
+      // Also reset the storefront CHROME (logo, header menu, footer, theme
+      // colours) to the new theme's clean default. Without this the new theme
+      // kept the PREVIOUS theme's branding on switch. The old chrome is backed
+      // up to tenant.meta.design_backup and the demoted home stays in history,
+      // so "Restore previous design" brings the whole previous design back.
+      await resetStoreChrome(req.scope, ctx.tenant.id)
+      // Clear any autosaved home draft so the editor opens from the new theme's
+      // default rather than the previous theme's customization (switch bug).
+      await clearHomeDrafts(req.scope, ctx.tenant.id)
+      reset = true
+    } catch {
+      reset = false
+    }
+  }
+
+  res.json({ active_theme, mode, reset })
 }

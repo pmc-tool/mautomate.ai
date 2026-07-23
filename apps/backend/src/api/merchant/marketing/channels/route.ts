@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MARKETING_MODULE } from "../../../../modules/marketing"
 import { getMessagingProvider } from "../../../../modules/marketing/messaging"
 import { resolveMerchant } from "../../_helpers"
+import { ensurePlatformEnv } from "../../../../modules/marketing/platform-credentials"
 
 /**
  * GET /merchant/marketing/channels — the tenant's messaging channel map.
@@ -98,6 +99,14 @@ const toAccountRef = (row: any) => ({
 })
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  // Hydrate operator-supplied platform APP keys (vault -> env) before the
+  // messaging providers report isConfigured(), so channel availability
+  // reflects the super-admin setup, not a cold process. Non-blocking.
+  try {
+    await ensurePlatformEnv(req.scope)
+  } catch {
+    /* non-blocking */
+  }
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
 

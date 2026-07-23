@@ -4,6 +4,7 @@ import { uploadFilesWorkflow } from "@medusajs/core-flows"
 import { getCommerceGateway } from "../gateway"
 import { getAiTextProvider } from "../ai/registry"
 import { animateImage, type Orientation } from "../ai/video-generator"
+import { assertPublicHttpUrl, isAllowedImageContentType } from "../../../lib/ssrf-guard"
 
 /**
  * AI ad generation — copy, image, and video for the campaign wizard, built on
@@ -160,7 +161,7 @@ export const generateAdCopy = async (
     storeName: string
   }
 ): Promise<AdCopyDraft> => {
-  const provider = getAiTextProvider()
+  const provider = getAiTextProvider(tenantId)
   if (!provider) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
@@ -271,9 +272,18 @@ const toInlinePart = async (url: string): Promise<any> => {
     if (!m) throw new Error("bad image data")
     return { inline_data: { mime_type: m[1], data: m[2] } }
   }
+  // SECURITY INVARIANT (SSRF): re-validate at the actual fetch site so a DNS
+  // rebind between the route-level check and here still cannot reach a private/
+  // loopback/metadata address; reject non-image content; and never echo the
+  // upstream status (it would be a blind internal-port oracle).
+  await assertPublicHttpUrl(url)
   const r = await fetch(url)
-  if (!r.ok) throw new Error(`could not fetch the product photo (${r.status})`)
-  const mime = r.headers.get("content-type")?.split(";")[0] || "image/png"
+  if (!r.ok) throw new Error("could not fetch the product photo")
+  const contentType = r.headers.get("content-type")
+  if (!isAllowedImageContentType(contentType)) {
+    throw new Error("the linked file is not an image")
+  }
+  const mime = contentType?.split(";")[0] || "image/png"
   return {
     inline_data: {
       mime_type: mime,

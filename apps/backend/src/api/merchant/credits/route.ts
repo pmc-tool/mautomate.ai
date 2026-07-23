@@ -4,6 +4,7 @@ import { resolveMerchant } from "../_helpers"
 import { getLedger } from "../../../modules/platform/credits/metering"
 import { allGateways, gatewayForCountry } from "../../../modules/platform/billing/provider"
 import { EncryptedConfigService } from "../../../modules/platform/secure-config"
+import { CREDIT_USD } from "../../../modules/platform/pricing/price-book"
 
 /**
  * GET /merchant/credits
@@ -108,7 +109,13 @@ export const POST = async (req: AuthenticatedMedusaRequest, res: MedusaResponse)
 
   const body = (req.body ?? {}) as any
   const credits = Math.max(1, Math.min(1000000, Math.floor(Number(body.credits) || 0)))
-  const amountUsd = Math.max(1, Math.min(10000, Number(body.amount_usd) || Math.ceil(credits / 100)))
+  // SECURITY INVARIANT (top-up underpayment, P1): the dollar charge is ALWAYS
+  // derived server-side from the credit quantity at the fixed rate
+  // (1 credit = CREDIT_USD = $0.01 → 100 credits per USD). Any client-supplied
+  // `amount_usd` is IGNORED so a buyer can never pay $1 for 1,000,000 credits.
+  // The webhook independently re-derives the grant from the amount Stripe
+  // actually charged, so credits and money can never drift apart.
+  const amountUsd = Math.round(credits * CREDIT_USD * 100) / 100
 
   if (!credits) return res.status(400).json({ message: "credits required" })
 

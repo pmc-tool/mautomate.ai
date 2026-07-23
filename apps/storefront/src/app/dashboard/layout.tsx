@@ -1,11 +1,27 @@
 import { Metadata } from "next"
 import { MerchantAuthProvider } from "@lib/merchant-admin/auth"
 import { PageShell } from "@components/merchant-admin/page-shell"
+import { JarvisPanel } from "@components/merchant-admin/jarvis-panel"
+import { IncomingCallWatcher } from "@components/merchant-admin/incoming-call"
+import { JarvisLauncher } from "@components/merchant-admin/jarvis-stage/jarvis-launcher"
+import { JarvisOSMount } from "@components/merchant-admin/jarvis-stage/os/jarvis-os-mount"
 
 export const metadata: Metadata = {
   title: "Merchant Admin",
   description: "mAutomate merchant administration",
 }
+
+// The merchant dashboard is authed and per-tenant: every page reads request
+// context (cookies/tenant). Force dynamic rendering so Next never tries to
+// statically prerender these routes at build time (which crashes with a
+// workUnitAsyncStorage invariant when shared components touch request state).
+export const dynamic = "force-dynamic"
+
+// Pixi Core OS is the default text/orchestration surface opened by the
+// launcher's `jarvis:open` event. Set NEXT_PUBLIC_JARVIS_OS="0" to fall back to
+// the legacy JarvisPanel. Either way the immersive voice JarvisStage (opened by
+// `jarvis:voice` from the launcher) is unchanged.
+const JARVIS_OS_ON = process.env.NEXT_PUBLIC_JARVIS_OS !== "0"
 
 /**
  * Studio surface rules, applied once to the whole dashboard.
@@ -48,6 +64,9 @@ export default function MerchantAdminLayout({
       <div className="ff-studio">
         <style dangerouslySetInnerHTML={{ __html: SURFACE_CSS }} />
         <PageShell>{children}</PageShell>
+        <IncomingCallWatcher />
+        {JARVIS_OS_ON ? <JarvisOSMount /> : <JarvisPanel />}
+        <JarvisLauncher />
       </div>
     </MerchantAuthProvider>
   )

@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
+import { headers } from "next/headers"
 import ChunkGuard from "@modules/common/components/ChunkGuard"
 import "../styles/globals.css"
 import { getActiveTheme } from "@themes/registry"
-import { buildThemeVars } from "@modules/cms/render/theme-vars"
+import { buildThemeVars, legacyThemeColor } from "@modules/cms/render/theme-vars"
 import { getCmsSettings } from "@lib/data/cms"
 import { getAnalyticsWebsiteId } from "@lib/data/analytics"
 import { getMetaPixelId } from "@lib/data/ads"
@@ -51,6 +52,19 @@ export default async function RootLayout({
   // non-numeric can ever be interpolated into the inline script below.
   const pixelId = metaPixelId?.replace(/[^0-9]/g, "") || null
 
+  // PWA (Add to Home Screen): the browser-chrome theme color is the store's own
+  // accent (falls back to a neutral so it is never empty). The manifest + icons
+  // are served per-tenant from the origin root (see app/manifest.webmanifest +
+  // app/pwa-icon) so an installed store carries THIS shop's name/color/icon.
+  const tenantAccent = await headers()
+    .then((h) => h.get("x-tenant-accent"))
+    .catch(() => null)
+  // U7 dual-read: a store on the explicit null-inherit token shape stores
+  // `primary: null` for "inherit" — legacyThemeColor maps that back to the
+  // exact bytes the sentinel wire carried, so this line's output is unchanged.
+  const pwaThemeColor =
+    tenantAccent || legacyThemeColor(settings?.theme, "primary") || "#111111"
+
   return (
     <html lang="en">
       <head>
@@ -79,6 +93,24 @@ export default async function RootLayout({
         {activeTheme?.favicon && (
           <link rel="icon" href={activeTheme.favicon} type="image/webp" />
         )}
+        {/* PWA: per-tenant manifest + installability meta. The manifest, icons
+            and service worker are all served from the origin root and resolve
+            the current tenant's branding server-side (see middleware bypass). */}
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <meta name="theme-color" content={pwaThemeColor} />
+        <link rel="apple-touch-icon" href="/pwa-icon?size=180" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta
+          name="apple-mobile-web-app-status-bar-style"
+          content="default"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})}",
+          }}
+        />
         {activeTheme?.stylesheets?.map((href) => (
           <link key={href} rel="stylesheet" href={href} />
         ))}

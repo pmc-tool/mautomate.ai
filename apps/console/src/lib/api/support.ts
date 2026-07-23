@@ -14,6 +14,11 @@ export type SupportTicket = {
   status: SupportTicketStatus
 }
 
+export type SupportTicketDetail = SupportTicket & {
+  created_at: string
+  updated_at: string
+}
+
 export type SupportTicketsResponse = {
   tickets: SupportTicket[]
   open: number
@@ -35,6 +40,16 @@ export async function listTickets(
 ): Promise<SupportTicketsResponse> {
   const query = status ? `?status=${encodeURIComponent(status)}` : ""
   return request<SupportTicketsResponse>(`/admin/platform/support${query}`, { token })
+}
+
+export async function getTicket(
+  token: string,
+  id: string
+): Promise<{ ticket: SupportTicketDetail }> {
+  return request<{ ticket: SupportTicketDetail }>(
+    `/admin/platform/support/${encodeURIComponent(id)}`,
+    { token }
+  )
 }
 
 export async function updateTicketStatus(

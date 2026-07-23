@@ -57,6 +57,7 @@ export {
 } from "./launch"
 export {
   getAutopilotSettings,
+  monthSpend,
   runAutopilotForTenant,
   setSetting as setAdsSetting,
 } from "./autopilot"

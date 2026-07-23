@@ -15,12 +15,19 @@ export const convertToLocale = ({
   maximumFractionDigits,
   locale = "en-US",
 }: ConvertToLocaleParams) => {
-  return currency_code && !isEmpty(currency_code)
-    ? new Intl.NumberFormat(locale, {
-        style: "currency",
-        currency: currency_code,
-        minimumFractionDigits,
-        maximumFractionDigits,
-      }).format(amount)
-    : amount.toString()
+  if (!currency_code || isEmpty(currency_code)) {
+    return amount?.toString() ?? ""
+  }
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currency_code,
+      minimumFractionDigits,
+      maximumFractionDigits,
+    }).format(amount)
+  } catch {
+    // Invalid currency code (or other Intl error): never crash the page over
+    // formatting a price — fall back to a plain amount + code.
+    return `${amount ?? ""} ${currency_code}`.trim()
+  }
 }

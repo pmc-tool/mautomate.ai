@@ -130,6 +130,24 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const { name, handle, description, parent_id, status, visibility } = parsed.data
 
+  // SECURITY INVARIANT: a client-supplied parent_id must belong to THIS tenant.
+  // Otherwise a merchant could graft their category under another store's
+  // category node (it surfaces on the victim's admin tree + public storefront
+  // nav) and read the foreign parent's name/handle back. Mirrors the ownership
+  // check the [id] update/reorder routes already enforce via loadOwnedCategory.
+  if (parent_id) {
+    const pquery = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: parentRows } = await pquery.graph({
+      entity: "product_category",
+      filters: { id: parent_id } as any,
+      fields: ["id", "metadata"],
+    })
+    const parent = (parentRows || [])[0]
+    if (!parent || parent.metadata?.tenant_id !== ctx.tenant.id) {
+      return res.status(400).json({ message: "parent category not found" })
+    }
+  }
+
   const productModule: any = req.scope.resolve(Modules.PRODUCT)
   const [category] = await productModule.createProductCategories([
     {

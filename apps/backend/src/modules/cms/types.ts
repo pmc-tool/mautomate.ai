@@ -142,15 +142,23 @@ export interface FooterSettings {
 }
 
 export interface ThemeSettings {
+  /**
+   * Brand tokens (U7 — explicit null-inherit): `null` = inherit the active
+   * theme's manifest token; a string is a merchant override. Tenants still on
+   * the legacy shape store the concrete FF-default strings (sentinels), which
+   * the storefront's dual-reader treats as inherit. The resolver deep-merges
+   * DEFAULT_SETTINGS under the stored slice, so absent keys surface as the
+   * legacy defaults while stored `null`s survive to the wire.
+   */
   colors: {
-    primary: string
-    dark: string
-    border: string
-    text: string
-    heading: string
-    bg: string
+    primary: string | null
+    dark: string | null
+    border: string | null
+    text: string | null
+    heading: string | null
+    bg: string | null
   }
-  fonts: { body: string; heading: string }
+  fonts: { body: string | null; heading: string | null }
   logo: string
 }
 

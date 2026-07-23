@@ -12,6 +12,7 @@ import {
   HowItWorks,
   StepList,
   DnsInstructionsCard,
+  CopyField,
   btnPrimary,
   btnSecondary,
 } from "./ui"
@@ -117,9 +118,9 @@ export function ConnectTab({
     <div className="space-y-6">
       <HowItWorks
         steps={[
-          "Enter a domain you already own (e.g. shop.yourbrand.com).",
-          "Add the DNS records we give you at your domain provider.",
-          "Click Verify — once DNS propagates, your store goes live on it.",
+          "Enter a domain you already own (e.g. yourbrand.com).",
+          "Change your domain's nameservers to the two we give you (or add one CNAME for a subdomain).",
+          "Click Verify — once the change propagates, your store goes live with HTTPS automatically.",
         ]}
       />
 
@@ -144,7 +145,7 @@ export function ConnectTab({
           {domain && (
             <p className="text-xs text-grey-50">
               {apex
-                ? "This looks like a root (apex) domain — we'll include ALIAS/CNAME-flattening guidance."
+                ? "One simple step: you'll change your domain's nameservers at your registrar — we handle everything else, including HTTPS."
                 : "This looks like a subdomain — a single CNAME record is all you'll need."}
             </p>
           )}
@@ -155,59 +156,82 @@ export function ConnectTab({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="font-medium text-grey-90">{result.domain}</p>
-              <p className="text-sm text-grey-50">Add the records below, then verify.</p>
+              <p className="text-sm text-grey-50">Follow the steps below, then verify.</p>
             </div>
             <button onClick={reset} className={btnSecondary}>
               Connect another
             </button>
           </div>
 
-          {!result.instructions.some((r) => r.kind === "txt") && (
+          {result.instructions.length === 0 && (
             <Callout tone="warning" title="Live domain connection is being set up">
-              These are general instructions, not your final records. The exact
-              DNS values for{" "}
-              <span className="font-medium">{result.domain}</span> — including
-              the TXT records that issue your SSL certificate — appear here once
-              we finish provisioning your custom domain. Verify stays pending
-              until then, and your store keeps working on its mautomate.ai
-              address in the meantime.
+              Your exact instructions for{" "}
+              <span className="font-medium">{result.domain}</span> appear here
+              once we finish provisioning your custom domain. Verify stays
+              pending until then, and your store keeps working on its
+              mautomate.ai address in the meantime.
             </Callout>
           )}
 
-          <div className="rounded-large border border-grey-20 bg-white p-5">
-            <h3 className="mb-4 text-sm font-semibold text-grey-90">
-              Set these records at your DNS provider
-            </h3>
-            <StepList
-              steps={[
-                "Log into your DNS provider (where you bought the domain — e.g. GoDaddy, Namecheap, Cloudflare).",
-                isApex(result.domain) ? (
+          {result.instructions.some((r) => r.kind === "ns") ? (
+            <div className="rounded-large border border-grey-20 bg-white p-5">
+              <h3 className="mb-4 text-sm font-semibold text-grey-90">
+                Change your domain&apos;s nameservers — that&apos;s the only step
+              </h3>
+              <StepList
+                steps={[
+                  "Log in where you bought the domain (e.g. Namecheap, GoDaddy, Hostinger).",
                   <>
-                    Because this is a root domain, add the routing record using your
-                    provider&apos;s <span className="font-medium">ALIAS</span> or{" "}
-                    <span className="font-medium">CNAME flattening</span> feature (see the
-                    note below). If it isn&apos;t supported, point <code className="rounded bg-grey-10 px-1">www</code> and add an apex → www redirect.
-                  </>
-                ) : (
-                  <>Add the <span className="font-medium">CNAME</span> record shown below.</>
-                ),
-                "Add the TXT record(s) below — these verify ownership and issue your SSL certificate.",
-                "Come back and click Verify. DNS changes can take up to 30 minutes to propagate.",
-              ]}
-            />
-
-            <div className="mt-5">
-              <DnsInstructionsCard instructions={result.instructions} />
+                    Open the domain&apos;s settings and find{" "}
+                    <span className="font-medium">Nameservers</span> (sometimes
+                    under &quot;DNS&quot;). Choose{" "}
+                    <span className="font-medium">Custom nameservers</span>.
+                  </>,
+                  "Replace the existing nameservers with the two below, then save.",
+                  "Come back and click Verify. This usually takes minutes, but can take up to 24 hours to propagate.",
+                ]}
+              />
+              <div className="mt-5 space-y-2">
+                {result.instructions
+                  .filter((r) => r.kind === "ns")
+                  .map((r) => (
+                    <CopyField key={r.value} label={r.name} value={r.value} />
+                  ))}
+              </div>
+              <p className="mt-4 text-xs text-grey-50">
+                Your email and any other services on this domain keep working —
+                we imported your existing DNS records automatically. HTTPS is
+                issued for you; there is nothing else to configure.
+              </p>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-large border border-grey-20 bg-white p-5">
+              <h3 className="mb-4 text-sm font-semibold text-grey-90">
+                Add this record at your DNS provider
+              </h3>
+              <StepList
+                steps={[
+                  "Log into your DNS provider (where you bought the domain — e.g. GoDaddy, Namecheap, Cloudflare).",
+                  <>Add the <span className="font-medium">CNAME</span> record shown below.</>,
+                  "Come back and click Verify. DNS changes can take up to 30 minutes to propagate.",
+                ]}
+              />
+
+              <div className="mt-5">
+                <DnsInstructionsCard instructions={result.instructions} />
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               {verifyState ? (
                 verifyState.pending ? (
                   <Callout tone="warning" title="Still waiting on DNS">
-                    We can&apos;t see the records yet (SSL: {verifyState.ssl}, ownership:{" "}
-                    {verifyState.verification}). Give it a few minutes and try again.
+                    We can&apos;t see the change yet (SSL: {verifyState.ssl}, ownership:{" "}
+                    {verifyState.verification}). Nameserver changes usually land
+                    within minutes but can take up to 24 hours — check back and
+                    try again.
                   </Callout>
                 ) : (
                   <Callout tone="success" title="Verified">

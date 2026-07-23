@@ -37,6 +37,7 @@ import {
   ingestInbound,
 } from "../../../modules/marketing/messaging"
 import type { WebhookContext } from "../../../modules/marketing/messaging"
+import { ensurePlatformEnv } from "../../../modules/marketing/platform-credentials"
 
 /** Resolve the exact signed bytes: prefer `req.rawBody`, else re-serialize. */
 const resolveRawBody = (req: MedusaRequest): string => {
@@ -64,6 +65,7 @@ const buildContext = (req: MedusaRequest): WebhookContext => ({
  * otherwise 403.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  await ensurePlatformEnv(req.scope).catch(() => {})
   const provider = getMessagingProvider(req.params.channel)
   if (!provider) {
     res.status(403).send("")
@@ -85,6 +87,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  * even if parsing/ingest throws (logged) — providers must be acked.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+  await ensurePlatformEnv(req.scope).catch(() => {})
   const provider = getMessagingProvider(req.params.channel)
   if (!provider) {
     res.status(404).send("")

@@ -7,7 +7,6 @@ import {
   CheckCircleSolid,
   ChartPie,
   ExclamationCircle,
-  Facebook,
   Spinner,
   Trash,
 } from "@medusajs/icons"
@@ -46,6 +45,15 @@ type StaticPlatform = {
   color: string
   comingSoon?: boolean
 }
+
+/** Facebook's mark drawn locally, like the Google and TikTok glyphs beside it.
+ *  @medusajs/icons' Facebook paints with `fill="url(#a)"`, and that id collides
+ *  with other brand icons on the same page, so it rendered as an empty tile. */
+const FacebookGlyph = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M13.5 21v-8h2.7l.4-3h-3.1V8.2c0-.87.24-1.46 1.49-1.46h1.71V4.06A21.5 21.5 0 0 0 14.42 4c-2.26 0-3.8 1.38-3.8 3.9V10H8v3h2.62v8h2.88z" />
+  </svg>
+)
 
 const GoogleGlyph = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} aria-hidden fill="currentColor">
@@ -90,7 +98,7 @@ const PLATFORM_META: Record<
     label: "Meta ads",
     description:
       "Run Facebook and Instagram campaigns for this store — accounts, campaigns, and results appear in your Advertising overview.",
-    icon: Facebook,
+    icon: FacebookGlyph,
     color: "#1877F2",
   },
   mock: {
@@ -377,7 +385,7 @@ export default function AdvertisingConnectPage() {
               >
                 <div className="flex items-center gap-3">
                   <span
-                    className="flex h-9 w-9 items-center justify-center rounded-md text-white"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white"
                     style={{ background: p.color }}
                   >
                     <Icon className="h-5 w-5" />

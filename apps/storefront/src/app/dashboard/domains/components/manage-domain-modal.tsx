@@ -66,7 +66,16 @@ export function ManageDomainModal({
 
   return (
     <Modal open={open} onClose={onClose} title={`Manage ${name}`} size="lg">
-      {registrarConfigured !== true ? (
+      {domain && domain.registrar_managed !== true ? (
+        <Callout tone="info" title="This domain is registered at your own provider">
+          You connected {name} from the registrar where you bought it (e.g.
+          Namecheap or GoDaddy), so renewals, WHOIS privacy and transfers stay
+          managed there. We host its DNS and your existing records (like email)
+          were imported automatically — if you ever need a DNS record added or
+          changed, contact support and we&apos;ll do it for you. Nothing is
+          required to keep your store running on it.
+        </Callout>
+      ) : registrarConfigured !== true ? (
         <Callout tone="warning" title="Domain management isn't available yet">
           Renew, DNS, nameservers, privacy, transfer lock and transfer-out become
           available once our team connects the registrar (ResellerClub) for your

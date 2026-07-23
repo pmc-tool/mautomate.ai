@@ -387,13 +387,13 @@ export default function AiImageStudio({
   }
 
   return (
-    <div style={{ display: "flex", height: "min(600px, 72vh)", minHeight: 420, fontFamily: font }}>
+    <div style={{ display: "flex", height: "100%", minHeight: 420, fontFamily: font }}>
       <style>{`@keyframes ffai-shimmer { 0% { background-position: -400px 0 } 100% { background-position: 400px 0 } }`}</style>
 
       {/* ------------------------------ Left rail ------------------------------ */}
       <div
         style={{
-          width: 292,
+          width: 320,
           flex: "0 0 auto",
           borderRight: hairline,
           overflowY: "auto",
@@ -401,7 +401,7 @@ export default function AiImageStudio({
         }}
       >
         <div style={sectionTitle}>What are you making?</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginBottom: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 8 }}>
           {KINDS.map((x) => {
             const on = kind === x.k
             const dims = kindAspect(x)
@@ -440,6 +440,7 @@ export default function AiImageStudio({
                   style={{
                     ...type.micro,
                     fontFamily: font,
+                    whiteSpace: "nowrap",
                     color: on ? accent.base : grey[60],
                   }}
                 >

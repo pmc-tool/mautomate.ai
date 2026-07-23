@@ -93,6 +93,7 @@ export const ELEMENT_REGISTRY: Record<string, ElementDef[]> = {
   ],
   category_showcase: [
     { key: "title", label: "Title" },
+    { key: "description", label: "Description" },
     { key: "tile", label: "Category Tile" },
     { key: "image", label: "Tile Image" },
     { key: "label", label: "Tile Label" },

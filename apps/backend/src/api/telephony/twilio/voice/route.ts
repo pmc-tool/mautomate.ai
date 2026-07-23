@@ -1,6 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { CALL_CENTER_MODULE } from "../../../../modules/call-center"
 import { defaultTenantId, validateTwilioSignature } from "../_twilio"
+import { streamAuthToken } from "../../_stream-auth"
 
 /**
  * POST /telephony/twilio/voice  (UNPREFIXED webhook — escapes /admin + /store auth)
@@ -135,6 +136,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     ["tenant_id", tenantId],
     ["playbook_id", playbookId ?? ""],
     ["call_id", callSid],
+    // HMAC of the CallSid — the voice-agent verifies this before trusting the
+    // tenant/playbook parameters (a stranger who finds the public WS host
+    // can't open sessions with forged identities).
+    ["auth", streamAuthToken(callSid)],
   ]
     .map(
       ([n, v]) =>

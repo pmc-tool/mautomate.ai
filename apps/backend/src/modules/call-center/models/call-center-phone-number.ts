@@ -21,7 +21,13 @@ const CallCenterPhoneNumber = model
     e164: model.text(),
     // The agent (call_center_playbook id) that answers this number.
     agent_id: model.text().nullable(),
-    provider: model.enum(["twilio"]).default("twilio"),
+    provider: model.enum(["twilio", "vonage"]).default("twilio"),
+    // Carrier-side id for numbers bought THROUGH the platform (Twilio
+    // IncomingPhoneNumber SID / Vonage msisdn). Null for BYO numbers that were
+    // registered manually — those are never released at the carrier.
+    provider_number_id: model.text().nullable(),
+    // ISO country the DID was bought in (Vonage buy/cancel require it).
+    country: model.text().nullable(),
     // Operator label, e.g. "Sydney support line".
     label: model.text().nullable(),
     // Inactive numbers reject inbound (fail-closed) without being deleted.

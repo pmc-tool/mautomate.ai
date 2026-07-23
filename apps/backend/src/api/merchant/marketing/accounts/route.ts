@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MARKETING_MODULE } from "../../../../modules/marketing"
 import { listPublishProviders } from "../../../../modules/marketing/publish"
 import { resolveMerchant } from "../../_helpers"
+import { ensurePlatformEnv } from "../../../../modules/marketing/platform-credentials"
 
 /**
  * Serialize a marketing_social_account row into the shape the merchant Connect
@@ -28,6 +29,15 @@ const toAccountDto = (row: any) => ({
  * Response: { accounts, providers }
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  // Load the platform social APP keys the super-admin saved (encrypted
+  // vault -> process.env) BEFORE computing provider.isConfigured(), so the
+  // Connect panel reflects the operator setup instead of a cold process
+  // (matches accounts/connect + the ads routes). Non-blocking.
+  try {
+    await ensurePlatformEnv(req.scope)
+  } catch {
+    /* non-blocking */
+  }
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
 

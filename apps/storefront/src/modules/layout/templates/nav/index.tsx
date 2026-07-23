@@ -2,7 +2,7 @@ import { retrieveCart } from "@lib/data/cart"
 import { listCategories } from "@lib/data/categories"
 import { getCmsSettings, resolveActiveCmsLocale } from "@lib/data/cms"
 import { getActiveTheme } from "@themes/registry"
-import LeartsHeader from "@modules/layout/components/learts-header"
+import BaseHeader from "@modules/layout/components/base-header"
 
 export default async function Nav() {
   const [cart, categories, settings, locale, activeTheme] = await Promise.all([
@@ -18,7 +18,7 @@ export default async function Nav() {
 
   // The active theme MAY provide bespoke chrome; otherwise fall back to the
   // Learts header. Both accept the same props.
-  const Header = activeTheme.Header ?? LeartsHeader
+  const Header = activeTheme.Header ?? BaseHeader
 
   return (
     <div

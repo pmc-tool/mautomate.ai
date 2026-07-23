@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { EncryptedConfigService } from "../../../../../modules/platform/secure-config"
+import { invalidatePlatformEnv } from "../../../../../modules/marketing/platform-credentials"
 import { PLATFORM_SCOPE, byEnv, testProvider } from "../_providers"
 
 /**
@@ -26,6 +27,11 @@ export const POST = async (req: AuthenticatedMedusaRequest, res: MedusaResponse)
   const value = String(body.value ?? "").trim()
   if (!value) return res.status(400).json({ message: "value required" })
   await cfg.setSecret(PLATFORM_SCOPE, env, value)
+  /* The marketing providers read these from process.env, hydrated ONCE per
+     process. Without this the key sits in the vault while every merchant is
+     still told the platform has no app credentials — until someone restarts
+     the backend. Drop the cache so the next request re-reads the vault. */
+  invalidatePlatformEnv()
   res.json({ env, configured: true, source: "vault" })
 }
 
@@ -35,5 +41,9 @@ export const DELETE = async (req: AuthenticatedMedusaRequest, res: MedusaRespons
   if (!byEnv(env)) return res.status(404).json({ message: "unknown provider" })
   const cfg = new EncryptedConfigService(req.scope)
   await cfg.deleteKey(PLATFORM_SCOPE, env)
+  /* Same for removal: the deleted key must stop being served from the
+     process-level cache. (The already-hydrated value stays in process.env
+     until restart — deletion is rare and fail-safe in that direction.) */
+  invalidatePlatformEnv()
   res.json({ env, configured: !!process.env[env] })
 }

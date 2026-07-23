@@ -3,7 +3,6 @@
 import Link from "next/link"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
-  Facebook,
   Linkedin,
   Telegram,
   X,
@@ -39,7 +38,11 @@ import { EmptyState } from "@components/merchant-admin/empty-state"
 import { Modal } from "@components/merchant-admin/modal"
 import { FormField, Input, Select } from "@components/merchant-admin/form-field"
 import { cn } from "@lib/util/cn"
-import { InstagramGlyph, WhatsAppGlyph } from "../channel-glyphs"
+import {
+  FacebookGlyph,
+  InstagramGlyph,
+  WhatsAppGlyph,
+} from "../channel-glyphs"
 
 /**
  * What a connected account is FOR. An account can serve one or both:
@@ -69,7 +72,7 @@ const PLATFORMS: PlatformMeta[] = [
     platform: "facebook",
     label: "Facebook",
     description: "Publish to a Facebook Page and answer its Messenger threads.",
-    icon: Facebook,
+    icon: FacebookGlyph,
     color: "#1877F2",
     capabilities: ["publishing", "messaging"],
     channel: "messenger",
@@ -161,7 +164,11 @@ function BrandChip({
   return (
     <div
       className={cn(
-        "flex items-center justify-center rounded-large",
+        /* shrink-0: the chip lives in a flex row next to the title and the
+           description. Without it flexbox steals width from the chip when the
+           text is long — the tile kept its height and lost its width, so cards
+           like WhatsApp rendered an OVAL instead of a square. */
+        "flex shrink-0 items-center justify-center rounded-large",
         className
       )}
       style={style}
