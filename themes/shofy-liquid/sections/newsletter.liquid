@@ -1,6 +1,6 @@
 {%- assign s = section.settings -%}
 {%- if s.title != blank -%}
-<section class="sf-section sf-subscribe">
+<section class="sf-section sf-subscribe{% if section.in_column %} sf-in-column{% endif %}">
   <div class="sf-subscribe-shapes" aria-hidden="true">
     <img class="sf-subscribe-shape-1" src="/shofy/img/subscribe/subscribe-shape-1.png" alt="">
     <img class="sf-subscribe-shape-2" src="/shofy/img/subscribe/subscribe-shape-2.png" alt="">
@@ -11,13 +11,13 @@
   <div class="sf-container">
     <div class="sf-subscribe-inner">
       <div class="sf-subscribe-content">
-        {%- if s.subtitle != blank -%}<span class="sf-subscribe-sub">{{ s.subtitle }}</span>{%- endif -%}
-        <h2 class="sf-subscribe-title">{{ s.title }}</h2>
+        {%- if s.subtitle != blank -%}<span class="sf-subscribe-sub" data-el="text">{{ s.subtitle }}</span>{%- endif -%}
+        <h2 class="sf-subscribe-title" data-el="heading">{{ s.title }}</h2>
         {%- if s.provider_note != blank -%}<p class="sf-subscribe-note">{{ s.provider_note }}</p>{%- endif -%}
       </div>
-      <form class="sf-subscribe-form" data-newsletter>
-        <input type="email" placeholder="{{ s.placeholder | default: 'Enter Your Email' }}" aria-label="Email address" required>
-        <button type="submit">{{ s.button | default: 'Subscribe' }}</button>
+      <form class="sf-subscribe-form" data-newsletter data-el="form">
+        <input type="email" placeholder="{{ s.placeholder | default: 'Enter Your Email' }}" aria-label="Email address" data-el="input" required>
+        <button type="submit" data-el="button">{{ s.button | default: 'Subscribe' }}</button>
       </form>
     </div>
   </div>

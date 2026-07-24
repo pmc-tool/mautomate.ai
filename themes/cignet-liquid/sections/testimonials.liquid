@@ -5,14 +5,14 @@
   <div class="cg-container">
     <div class="cg-shead cg-shead-center">
       <span class="cg-eyebrow cg-eyebrow-light">Testimonials</span>
-      <h2 class="cg-title cg-title-light">{{ s.title | default: 'What our customers say' }}</h2>
+      <h2 class="cg-title cg-title-light" data-el="title">{{ s.title | default: 'What our customers say' }}</h2>
     </div>
     <div class="cg-testi-grid">
       {%- for item in items -%}
-      <figure class="cg-testi-card">
+      <figure class="cg-testi-card" data-el-item="items:{{ forloop.index0 }}" data-el="item">
         <div class="cg-testi-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
-        {%- if item.quote != blank -%}<blockquote class="cg-testi-quote">{{ item.quote }}</blockquote>{%- endif -%}
-        <figcaption class="cg-testi-author">
+        {%- if item.quote != blank -%}<blockquote class="cg-testi-quote" data-el="quote">{{ item.quote }}</blockquote>{%- endif -%}
+        <figcaption class="cg-testi-author" data-el="author">
           {%- if item.avatar != blank -%}<img src="{{ item.avatar }}" alt="{{ item.author }}">{%- endif -%}
           <span class="cg-testi-meta"><span class="cg-testi-name">{{ item.author }}</span>{% if item.role != blank %}<span class="cg-testi-role">{{ item.role }}</span>{% endif %}</span>
         </figcaption>

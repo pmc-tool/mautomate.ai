@@ -1,17 +1,17 @@
 {%- assign s = section.settings -%}
-<section class="rk-section rk-promo">
+<section class="rk-section rk-promo{% if section.in_column %} rk-in-column{% endif %}">
   <div class="rk-container">
     {%- if s.intro -%}
-    <div class="rk-shead rk-shead-center rk-promo-intro">
+    <div class="rk-shead rk-shead-center rk-promo-intro" data-el="intro">
       <h2 class="rk-title" data-el="title">{{ s.intro.title }}</h2>
-      {%- if s.intro.body != blank -%}<p class="rk-lead">{{ s.intro.body }}</p>{%- endif -%}
+      {%- if s.intro.body != blank -%}<p class="rk-lead" data-el="body">{{ s.intro.body }}</p>{%- endif -%}
       {%- if s.intro.href != blank -%}<div class="rk-promo-intro-cta"><a class="rk-btn" data-el="button" href="{{ s.intro.href }}">{{ s.intro.link_label | default: 'Shop Now' }}</a></div>{%- endif -%}
     </div>
     {%- endif -%}
 
     <div class="rk-promo-grid">
       {%- if s.sale -%}
-      <a class="rk-promo-tile" href="{{ s.sale.href | default: '/store' }}"{% if s.sale.image != blank %} style="background-image:url('{{ s.sale.image }}')"{% endif %}>
+      <a class="rk-promo-tile" data-el="sale" href="{{ s.sale.href | default: '/store' }}"{% if s.sale.image != blank %} style="background-image:url('{{ s.sale.image }}')"{% endif %}>
         <div class="rk-promo-tile-body">
           {%- if s.sale.special_title != blank -%}<p class="rk-promo-tile-sub">{{ s.sale.special_title }}</p>{%- endif -%}
           <h3 class="rk-promo-tile-title">{{ s.sale.title }}</h3>
@@ -21,7 +21,7 @@
       {%- endif -%}
 
       {%- for cat in s.categories -%}{%- unless cat.wide -%}
-      <a class="rk-promo-tile" data-el-item="categories:{{ forloop.index0 }}" href="{{ cat.href | default: '/store' }}"{% if cat.image != blank %} style="background-image:url('{{ cat.image }}')"{% endif %}>
+      <a class="rk-promo-tile" data-el-item="categories:{{ forloop.index0 }}" data-el="item" href="{{ cat.href | default: '/store' }}"{% if cat.image != blank %} style="background-image:url('{{ cat.image }}')"{% endif %}>
         <div class="rk-promo-tile-body">
           {%- if cat.count_label != blank -%}<p class="rk-promo-tile-sub">{{ cat.count_label }}</p>{%- endif -%}
           <h3 class="rk-promo-tile-title">{{ cat.title }}</h3>
@@ -31,7 +31,7 @@
       {%- endunless -%}{%- endfor -%}
 
       {%- if s.instagram -%}
-      <a class="rk-promo-tile" href="{{ s.instagram.href | default: '#' }}"{% if s.instagram.image != blank %} style="background-image:url('{{ s.instagram.image }}')"{% endif %}>
+      <a class="rk-promo-tile" data-el="instagram" href="{{ s.instagram.href | default: '#' }}"{% if s.instagram.image != blank %} style="background-image:url('{{ s.instagram.image }}')"{% endif %}>
         <div class="rk-promo-tile-body">
           <i class="fab fa-instagram rk-promo-tile-ic"></i>
           {%- if s.instagram.sub_title != blank -%}<p class="rk-promo-tile-sub">{{ s.instagram.sub_title }}</p>{%- endif -%}
@@ -41,7 +41,7 @@
       {%- endif -%}
 
       {%- for cat in s.categories -%}{%- if cat.wide -%}
-      <a class="rk-promo-tile rk-promo-tile-wide" data-el-item="categories:{{ forloop.index0 }}" href="{{ cat.href | default: '/store' }}"{% if cat.image != blank %} style="background-image:url('{{ cat.image }}')"{% endif %}>
+      <a class="rk-promo-tile rk-promo-tile-wide" data-el-item="categories:{{ forloop.index0 }}" data-el="item" href="{{ cat.href | default: '/store' }}"{% if cat.image != blank %} style="background-image:url('{{ cat.image }}')"{% endif %}>
         <div class="rk-promo-tile-body">
           {%- if cat.count_label != blank -%}<p class="rk-promo-tile-sub">{{ cat.count_label }}</p>{%- endif -%}
           <h3 class="rk-promo-tile-title">{{ cat.title }}</h3>

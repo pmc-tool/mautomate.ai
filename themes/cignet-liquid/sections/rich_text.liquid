@@ -2,6 +2,6 @@
 {%- assign width = s.width | default: 'normal' -%}
 <section class="cg-section cg-richtext cg-richtext-{{ width }}">
   <div class="cg-container">
-    <div class="cg-richtext-inner">{%- if s.html != blank -%}{% render 'resolve-tokens', text: s.html, shop: shop %}{%- endif -%}</div>
+    <div class="cg-richtext-inner" data-el="content">{%- if s.html != blank -%}{% render 'resolve-tokens', text: s.html, shop: shop %}{%- endif -%}</div>
   </div>
 </section>

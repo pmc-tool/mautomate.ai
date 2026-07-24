@@ -5,12 +5,12 @@
 <section class="hl-section hl-imgtext{% if s.image_side == 'right' %} hl-imgtext-right{% endif %}">
   <div class="hl-container">
     <div class="hl-imgtext-grid">
-      <div class="hl-imgtext-media">{% if s.image %}<img src="{{ s.image }}" alt="{{ s.title }}">{% endif %}</div>
+      <div class="hl-imgtext-media" data-el="image">{% if s.image %}<img src="{{ s.image }}" alt="{{ s.title }}">{% endif %}</div>
       <div class="hl-imgtext-body">
         {%- if s.eyebrow != blank -%}<span class="hl-eyebrow">{{ s.eyebrow }}</span>{%- endif -%}
-        {%- if s.title != blank -%}<h2 class="hl-title">{%- assign lines = s.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h2>{%- endif -%}
-        {%- if s.body != blank -%}<p class="hl-imgtext-copy">{{ s.body }}</p>{%- endif -%}
-        {%- if s.cta.href != blank -%}<a class="hl-btn hl-btn-outline" href="{{ s.cta.href }}">{{ s.cta.label | default: 'Learn more' }} <i class="fas fa-arrow-right"></i></a>{%- endif -%}
+        {%- if s.title != blank -%}<h2 class="hl-title" data-el="heading">{%- assign lines = s.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h2>{%- endif -%}
+        {%- if s.body != blank -%}<p class="hl-imgtext-copy" data-el="text">{{ s.body }}</p>{%- endif -%}
+        {%- if s.cta.href != blank -%}<a class="hl-btn hl-btn-outline" href="{{ s.cta.href }}" data-el="button">{{ s.cta.label | default: 'Learn more' }} <i class="fas fa-arrow-right"></i></a>{%- endif -%}
       </div>
     </div>
   </div>

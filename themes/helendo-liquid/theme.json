@@ -19,23 +19,82 @@
     }
   },
   "settings": [
-    { "type": "header", "label": "Brand" },
-    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#dcb14a" },
-    { "id": "container_width", "type": "range", "label": "Content width", "min": 1140, "max": 1440, "step": 20, "unit": "px", "default": 1200 },
-    { "type": "header", "label": "Announcement bar" },
-    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": false },
-    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "Free shipping for orders over $59 !" },
-    { "type": "header", "label": "Footer" },
-    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "Simple, honest objects for the modern home — designed with care and delivered to your door." },
-    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+    {
+      "type": "header",
+      "label": "Brand"
+    },
+    {
+      "id": "accent_color",
+      "type": "color",
+      "label": "Accent colour",
+      "default": "#dcb14a"
+    },
+    {
+      "id": "container_width",
+      "type": "range",
+      "label": "Content width",
+      "min": 1140,
+      "max": 1440,
+      "step": 20,
+      "unit": "px",
+      "default": 1200
+    },
+    {
+      "type": "header",
+      "label": "Announcement bar"
+    },
+    {
+      "id": "show_announcement",
+      "type": "checkbox",
+      "label": "Show announcement bar",
+      "default": false
+    },
+    {
+      "id": "announcement_text",
+      "type": "text",
+      "label": "Announcement text",
+      "default": "Free shipping for orders over $59 !"
+    },
+    {
+      "type": "header",
+      "label": "Footer"
+    },
+    {
+      "id": "footer_about",
+      "type": "textarea",
+      "label": "About blurb",
+      "default": "Simple, honest objects for the modern home — designed with care and delivered to your door."
+    },
+    {
+      "id": "footer_copyright",
+      "type": "text",
+      "label": "Copyright line",
+      "default": "All rights reserved."
+    }
   ],
   "defaultSections": [
     {
       "block_type": "hero_slider",
       "autoplay_ms": 6000,
       "slides": [
-        { "image": "/helendo/images/hero/home-default-1.jpg", "subtitle": "Handmade decor", "title": "Timeless Objects\nfor Modern Homes", "cta": { "label": "Shop now", "href": "/store" } },
-        { "image": "/helendo/images/hero/home-default-2.jpg", "subtitle": "New collection", "title": "Crafted Pieces\nMade to Last", "cta": { "label": "Shop now", "href": "/store" } }
+        {
+          "image": "/helendo/images/hero/home-default-1.jpg",
+          "subtitle": "Handmade decor",
+          "title": "Timeless Objects\nfor Modern Homes",
+          "cta": {
+            "label": "Shop now",
+            "href": "/store"
+          }
+        },
+        {
+          "image": "/helendo/images/hero/home-default-2.jpg",
+          "subtitle": "New collection",
+          "title": "Crafted Pieces\nMade to Last",
+          "cta": {
+            "label": "Shop now",
+            "href": "/store"
+          }
+        }
       ]
     },
     {
@@ -54,8 +113,20 @@
         "href": "/store"
       },
       "categories": [
-        { "image": "/helendo/images/banners/hl-sb-2.jpg", "title": "Home Decor", "count_label": "16 items", "href": "/store", "wide": false },
-        { "image": "/helendo/images/banners/im-md-5-780x380.jpg", "title": "Furniture", "count_label": "8 items", "href": "/store", "wide": true }
+        {
+          "image": "/helendo/images/banners/hl-sb-2.jpg",
+          "title": "Home Decor",
+          "count_label": "16 items",
+          "href": "/store",
+          "wide": false
+        },
+        {
+          "image": "/helendo/images/banners/im-md-5-780x380.jpg",
+          "title": "Furniture",
+          "count_label": "8 items",
+          "href": "/store",
+          "wide": true
+        }
       ],
       "instagram": {
         "image": "/helendo/images/banners/h-g-3.jpg",
@@ -67,9 +138,24 @@
     {
       "block_type": "product_tabs",
       "tabs": [
-        { "label": "New arrivals", "source": "all", "sort": "created_at", "limit": 8 },
-        { "label": "Best selling", "source": "all", "sort": "price_desc", "limit": 8 },
-        { "label": "Featured", "source": "all", "sort": "created_at", "limit": 8 }
+        {
+          "label": "New arrivals",
+          "source": "all",
+          "sort": "created_at",
+          "limit": 8
+        },
+        {
+          "label": "Best selling",
+          "source": "all",
+          "sort": "price_desc",
+          "limit": 8
+        },
+        {
+          "label": "Featured",
+          "source": "all",
+          "sort": "created_at",
+          "limit": 8
+        }
       ]
     },
     {
@@ -78,28 +164,66 @@
       "description": "A single standout piece at a serious price, refreshed while the clock runs. Built from honest materials by makers we trust — once it is gone, it is gone.",
       "image": "/helendo/images/bg/h1-countdown.jpg",
       "countdown_to": "2030-01-01T00:00:00.000Z",
-      "cta": { "label": "Shop now", "href": "/store" }
+      "cta": {
+        "label": "Shop now",
+        "href": "/store"
+      }
     },
     {
       "block_type": "category_showcase",
       "sub_title": "Browse the rooms",
       "title": "Shop by category",
       "items": [
-        { "category_id": "", "label": "Living room", "image": "/helendo/images/banners/h-g-1.jpg", "href": "/store" },
-        { "category_id": "", "label": "Lighting", "image": "/helendo/images/banners/h-g-2.jpg", "href": "/store" },
-        { "category_id": "", "label": "Decor", "image": "/helendo/images/banners/h-g-4.jpg", "href": "/store" },
-        { "category_id": "", "label": "Kitchen", "image": "/helendo/images/banners/h-g-5.jpg", "href": "/store" }
+        {
+          "category_id": "",
+          "label": "Living room",
+          "image": "/helendo/images/banners/h-g-1.jpg",
+          "href": "/store"
+        },
+        {
+          "category_id": "",
+          "label": "Lighting",
+          "image": "/helendo/images/banners/h-g-2.jpg",
+          "href": "/store"
+        },
+        {
+          "category_id": "",
+          "label": "Decor",
+          "image": "/helendo/images/banners/h-g-4.jpg",
+          "href": "/store"
+        },
+        {
+          "category_id": "",
+          "label": "Kitchen",
+          "image": "/helendo/images/banners/h-g-5.jpg",
+          "href": "/store"
+        }
       ]
     },
     {
       "block_type": "brand_strip",
       "title": "Our partners",
       "brands": [
-        { "image": "/helendo/images/brand/partner1.jpg", "href": "#" },
-        { "image": "/helendo/images/brand/partner2.jpg", "href": "#" },
-        { "image": "/helendo/images/brand/partner3.jpg", "href": "#" },
-        { "image": "/helendo/images/brand/partner4.jpg", "href": "#" },
-        { "image": "/helendo/images/brand/partner5.jpg", "href": "#" }
+        {
+          "image": "/helendo/images/brand/partner1.jpg",
+          "href": "#"
+        },
+        {
+          "image": "/helendo/images/brand/partner2.jpg",
+          "href": "#"
+        },
+        {
+          "image": "/helendo/images/brand/partner3.jpg",
+          "href": "#"
+        },
+        {
+          "image": "/helendo/images/brand/partner4.jpg",
+          "href": "#"
+        },
+        {
+          "image": "/helendo/images/brand/partner5.jpg",
+          "href": "#"
+        }
       ]
     },
     {

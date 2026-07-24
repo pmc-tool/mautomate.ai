@@ -3,14 +3,14 @@
   <div class="bz-container">
     <div class="bz-deal-panel">
       <div class="bz-deal-grid">
-        <div class="bz-deal-media">
+        <div class="bz-deal-media" data-el="image">
           {%- if s.image != blank -%}<img src="{{ s.image }}" alt="{{ s.title | default: 'Deal of the day' }}">{%- else -%}<div class="bz-deal-fallback"></div>{%- endif -%}
           {%- if s.cta.href != blank and s.cta.label != blank -%}
           <div class="bz-deal-media-btn"><a class="bz-btn bz-btn-blur" href="{{ s.cta.href }}">{{ s.cta.label }}</a></div>
           {%- endif -%}
         </div>
-        <div class="bz-deal-content">
-          <div class="bz-countrow" data-countdown="{{ s.countdown_to }}">
+        <div class="bz-deal-content" data-el="content">
+          <div class="bz-countrow" data-el="countdown" data-countdown="{{ s.countdown_to }}">
             <span class="bz-count-label">Ends in</span>
             <div class="bz-countboxes">
               <span class="bz-cd-num" data-cd="days">00</span><i>:</i>
@@ -19,9 +19,9 @@
               <span class="bz-cd-num" data-cd="seconds">00</span>
             </div>
           </div>
-          <h2 class="bz-title">{{ s.title | default: 'Deal of the day' }}</h2>
-          {%- if s.description != blank -%}<p class="bz-deal-desc">{{ s.description }}</p>{%- endif -%}
-          {%- if s.cta.href != blank and s.cta.label != blank -%}<a class="bz-btn" href="{{ s.cta.href }}">{{ s.cta.label }}</a>{%- endif -%}
+          <h2 class="bz-title" data-el="title">{{ s.title | default: 'Deal of the day' }}</h2>
+          {%- if s.description != blank -%}<p class="bz-deal-desc" data-el="text">{{ s.description }}</p>{%- endif -%}
+          {%- if s.cta.href != blank and s.cta.label != blank -%}<a class="bz-btn" href="{{ s.cta.href }}" data-el="button">{{ s.cta.label }}</a>{%- endif -%}
         </div>
       </div>
     </div>

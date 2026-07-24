@@ -1,17 +1,17 @@
 {%- assign s = section.settings -%}
 {%- assign images = s.images -%}
 {%- if images and images.size > 0 -%}
-<section class="bz-section bz-insta">
+<section class="bz-section bz-insta{% if section.in_column %} bz-in-column{% endif %}">
   <div class="bz-container">
     {%- if s.heading != blank or s.handle != blank -%}
     <div class="bz-shead bz-shead-center">
       {%- if s.heading != blank -%}<span class="bz-subtitle">{{ s.heading }}</span>{%- endif -%}
-      {%- if s.handle != blank -%}<h2 class="bz-title">{{ s.handle }}</h2>{%- endif -%}
+      {%- if s.handle != blank -%}<h2 class="bz-title" data-el="title">{{ s.handle }}</h2>{%- endif -%}
     </div>
     {%- endif -%}
     <div class="bz-insta-grid">
       {%- for item in images -%}{%- if item.image != blank -%}
-      <a class="bz-insta-cell" href="{{ item.href | default: '#' }}"><img src="{{ item.image }}" alt="Instagram post"><span class="bz-insta-ic"><i class="fab fa-instagram"></i></span></a>
+      <a class="bz-insta-cell" href="{{ item.href | default: '#' }}" data-el-item="images:{{ forloop.index0 }}" data-el="item"><img src="{{ item.image }}" alt="Instagram post"><span class="bz-insta-ic"><i class="fab fa-instagram"></i></span></a>
       {%- endif -%}{%- endfor -%}
     </div>
   </div>

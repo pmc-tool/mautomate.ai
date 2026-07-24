@@ -1,16 +1,16 @@
 {%- assign s = section.settings -%}
 {%- assign brands = s.brands -%}
 {%- if brands and brands.size > 0 -%}
-<section class="ek-section ek-brands">
+<section class="ek-section ek-brands{% if section.in_column %} ek-in-column{% endif %}">
   <div class="ek-container">
     {%- if s.title != blank -%}
     <div class="ek-stitle">
       <h2 class="ek-bg-title" aria-hidden="true">{{ s.title }}</h2>
-      <h2 class="ek-title">{{ s.title }}</h2>
+      <h2 class="ek-title" data-el="title">{{ s.title }}</h2>
     </div>
     {%- endif -%}
     <div class="ek-brand-row">
-      {%- for brand in brands -%}<a class="ek-brand" href="{{ brand.href | default: '#' }}">{% if brand.image %}<img src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
+      {%- for brand in brands -%}<a class="ek-brand" href="{{ brand.href | default: '#' }}" data-el-item="brands:{{ forloop.index0 }}" data-el="logo">{% if brand.image %}<img src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
     </div>
   </div>
 </section>

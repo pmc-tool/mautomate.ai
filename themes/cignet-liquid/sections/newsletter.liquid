@@ -4,11 +4,11 @@
   <div class="cg-container">
     <div class="cg-newsletter-inner">
       <span class="cg-eyebrow cg-eyebrow-light">Newsletter</span>
-      <h2 class="cg-title cg-title-light">{{ s.title }}</h2>
-      {%- if s.subtitle != blank -%}<p class="cg-newsletter-sub">{{ s.subtitle }}</p>{%- endif -%}
-      <form class="cg-newsletter-form" data-newsletter>
-        <input type="email" placeholder="{{ s.placeholder | default: 'Enter your email address' }}" aria-label="Email address" required>
-        <button type="submit" class="cg-btn cg-btn-white">{{ s.button | default: 'Subscribe' }}</button>
+      <h2 class="cg-title cg-title-light" data-el="heading">{{ s.title }}</h2>
+      {%- if s.subtitle != blank -%}<p class="cg-newsletter-sub" data-el="text">{{ s.subtitle }}</p>{%- endif -%}
+      <form class="cg-newsletter-form" data-newsletter data-el="form">
+        <input type="email" placeholder="{{ s.placeholder | default: 'Enter your email address' }}" aria-label="Email address" data-el="input" required>
+        <button type="submit" class="cg-btn cg-btn-white" data-el="button">{{ s.button | default: 'Subscribe' }}</button>
       </form>
       {%- if s.provider_note != blank -%}<p class="cg-newsletter-note">{{ s.provider_note }}</p>{%- endif -%}
     </div>

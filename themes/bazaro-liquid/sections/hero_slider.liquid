@@ -2,24 +2,24 @@
 {%- assign nl = '
 ' -%}
 {%- if slides and slides.size > 0 -%}
-<section class="bz-hero" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 5000 }}">
+<section class="bz-hero{% if section.in_column %} bz-in-column{% endif %}" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 5000 }}">
   <div class="bz-hero-slides">
     {%- for slide in slides -%}
-    <div class="bz-hero-slide{% if forloop.first %} is-active{% endif %}"{% if slide.image != blank %} style="background-image:url('{{ slide.image }}')"{% endif %}>
+    <div class="bz-hero-slide{% if forloop.first %} is-active{% endif %}" data-el-item="slides:{{ forloop.index0 }}" data-el="image"{% if slide.image != blank %} style="background-image:url('{{ slide.image }}')"{% endif %}>
       <div class="bz-container bz-hero-inner">
-        <div class="bz-hero-content">
-          {%- if slide.subtitle != blank -%}<span class="bz-subtitle">{{ slide.subtitle }}</span>{%- endif -%}
-          <h1 class="bz-hero-title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
-          {%- if slide.cta.href != blank and slide.cta.label != blank -%}<a class="bz-btn" href="{{ slide.cta.href }}">{{ slide.cta.label }}</a>{%- endif -%}
+        <div class="bz-hero-content" data-el="content">
+          {%- if slide.subtitle != blank -%}<span class="bz-subtitle" data-el="kicker">{{ slide.subtitle }}</span>{%- endif -%}
+          <h1 class="bz-hero-title" data-el="title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
+          {%- if slide.cta.href != blank and slide.cta.label != blank -%}<a class="bz-btn" href="{{ slide.cta.href }}" data-el="button">{{ slide.cta.label }}</a>{%- endif -%}
         </div>
       </div>
     </div>
     {%- endfor -%}
   </div>
   {%- if slides.size > 1 -%}
-  <button class="bz-hero-arrow bz-hero-prev" data-hero-prev aria-label="Previous">&#8249;</button>
+  {%- unless section.in_column -%}<button class="bz-hero-arrow bz-hero-prev" data-hero-prev aria-label="Previous">&#8249;</button>
   <button class="bz-hero-arrow bz-hero-next" data-hero-next aria-label="Next">&#8250;</button>
-  <div class="bz-hero-dots" data-hero-dots>
+  {% endunless %}<div class="bz-hero-dots" data-hero-dots>
     {%- for slide in slides -%}<button class="bz-hero-dot{% if forloop.first %} is-active{% endif %}" data-hero-dot="{{ forloop.index0 }}" aria-label="Slide {{ forloop.index }}"></button>{%- endfor -%}
   </div>
   {%- endif -%}

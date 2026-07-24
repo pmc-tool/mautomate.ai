@@ -782,3 +782,72 @@ a.au-footer-email:hover { color: var(--au-ink-2); }
 @media (min-width: 1280px) {
   .au-showcase-grid { grid-template-columns: repeat(5, 1fr); }
 }
+
+/* ==========================================================================
+   COMPACT IN-COLUMN VARIANTS  [.au-in-column]
+   The page builder can drop a commerce section into a container COLUMN as a
+   widget. The platform sets `section.in_column` on the Liquid context and the
+   section templates translate that into a single modifier class on the section
+   ROOT: `au-in-column`. EVERY rule below is scoped under that class, so a
+   full-width section (which never gets the class) is untouched — this block is
+   purely additive.
+   Why it is needed: Aurora is mobile-first and its min-width media queries key
+   off the VIEWPORT, not the box — on a desktop viewport a ~400px column still
+   gets the 640px hero, the 4-up promo grid, the 5-up product grid and the 6-up
+   brand grid. These rules re-tune each one to the box instead.
+   ========================================================================== */
+
+/* shared: kill the full-width vertical rhythm + shrink the display type. The
+   container column owns spacing between its widgets. */
+.au-in-column{ padding-top:0; padding-bottom:0; }
+.au-in-column .au-shead,
+.au-in-column .au-shead-center{ margin-bottom:20px; max-width:none; }
+/* a centred heading block wastes a narrow box — left-align section heads */
+.au-in-column .au-shead-center{ text-align:left; margin-left:0; margin-right:0; }
+.au-in-column .au-title{ font-size:20px; }
+.au-in-column .au-eyebrow{ font-size:10.5px; margin-bottom:8px; }
+.au-in-column .au-btn{ padding:9px 18px; font-size:12.5px; }
+
+/* hero — a modest banner CARD, not a viewport-height cover crop. No arrows
+   (the template omits them); the dots still drive the autoplay slider. */
+.au-in-column .au-hero-slides{ height:260px; }
+.au-in-column .au-hero-content{ max-width:none; padding:0 20px; }
+.au-in-column .au-hero-title{ font-size:21px; line-height:1.2; }
+.au-in-column .au-hero-dots{ bottom:12px; gap:6px; }
+
+/* promo grid — the multi-column tile mosaic has no meaning in a column, so it
+   becomes a single stack of tiles. */
+.au-in-column .au-promo-grid{ grid-template-columns:1fr; gap:14px; }
+.au-in-column .au-promo-intro{ padding:20px; }
+.au-in-column .au-promo-intro-title{ font-size:20px; }
+.au-in-column .au-promo-intro-body{ margin-top:10px; font-size:14.5px; }
+.au-in-column .au-promo-intro .au-btn{ margin-top:16px; }
+.au-in-column .au-promo-tile-img{ aspect-ratio:3/2; }
+.au-in-column .au-promo-tile-body{ padding:14px; }
+.au-in-column .au-promo-tile-title{ font-size:17px; }
+.au-in-column .au-promo-tile-cap{ padding:12px 14px; }
+.au-in-column .au-promo-tile-name{ font-size:14px; }
+
+/* product groups — tighter stacked groups and a 2-up product grid. The
+   template also caps each group at 4 products so the widget stays a
+   card-height block instead of a very tall ribbon. */
+.au-in-column .au-group{ margin-top:32px; }
+.au-in-column .au-group-title{ font-size:20px; }
+.au-in-column .au-grid,
+.au-in-column .au-grid-5{ grid-template-columns:repeat(2,1fr); gap:12px; }
+.au-in-column .au-pcard-body{ padding:12px; gap:5px; }
+.au-in-column .au-pcard-title{ font-size:13.5px; }
+.au-in-column .au-pcard-price{ font-size:13.5px; }
+.au-in-column .au-pcard-badge{ font-size:9px; padding:3px 8px; }
+
+/* mildly-cramped grids — re-tuned to the box */
+.au-in-column .au-brand-grid{ grid-template-columns:repeat(3,1fr); }
+.au-in-column .au-brand{ padding:18px 12px; }
+.au-in-column .au-brand img{ max-height:32px; }
+.au-in-column .au-insta-grid{ grid-template-columns:repeat(3,1fr); gap:8px; }
+.au-in-column .au-gallery-grid{ grid-template-columns:repeat(2,1fr); gap:12px; }
+.au-in-column .au-gallery-cell figcaption{ padding:10px 12px; font-size:12px; }
+.au-in-column .au-showcase-grid{ grid-template-columns:repeat(2,1fr); gap:14px; }
+.au-in-column .au-showcase-cap{ padding:12px 14px; }
+.au-in-column .au-showcase-label{ font-size:13px; }
+.au-in-column .au-showcase-count{ font-size:11px; }

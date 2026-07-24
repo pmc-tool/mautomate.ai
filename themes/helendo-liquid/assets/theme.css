@@ -391,6 +391,77 @@ body.hl-body{ margin:0; min-height:100vh; overflow-x:hidden; background:var(--hl
 }
 
 /* ==========================================================================
+   COMPACT IN-COLUMN VARIANTS  [.hl-in-column]
+   The page builder can drop a commerce section into a container COLUMN as a
+   widget. The platform sets `section.in_column` on the Liquid context and the
+   section templates translate that into a single modifier class on the section
+   ROOT: `hl-in-column`. EVERY rule below is scoped under that class, so a
+   full-width section (which never gets the class) is untouched — this block is
+   purely additive.
+   Why it is needed: the full-width layouts are sized for the wide container and
+   their breakpoints key off the VIEWPORT, not the box. On a desktop viewport a
+   ~400px column would still get the 62vh hero, the 2-up oversized banner grid,
+   the 4-up product grid and centred display headings. These rules re-tune each
+   one to the box instead.
+   ========================================================================== */
+
+/* shared: kill the full-width vertical rhythm + shrink the display type. The
+   container column owns spacing between its widgets. */
+.hl-in-column{ padding-top:0; padding-bottom:0; }
+.hl-in-column .hl-shead,
+.hl-in-column .hl-shead-center{ margin-bottom:20px; max-width:none; }
+/* a centred heading block wastes a narrow box — left-align section heads */
+.hl-in-column .hl-shead-center{ text-align:left; margin-inline:0; }
+.hl-in-column .hl-title{ font-size:20px; padding-bottom:10px; }
+.hl-in-column .hl-title-sm{ font-size:18px; }
+.hl-in-column .hl-title-center::after{ left:0; transform:none; }
+.hl-in-column .hl-eyebrow{ font-size:12px; margin-bottom:6px; }
+.hl-in-column .hl-lead{ font-size:14px; margin:12px 0 0; max-width:none; }
+.hl-in-column .hl-btn{ height:40px; padding:0 20px; font-size:12px; }
+.hl-in-column .hl-link{ font-size:12px; }
+
+/* hero — a modest banner CARD, not a viewport-height cover crop. No arrows
+   (the template omits them); the dots still drive the autoplay slider. */
+.hl-in-column .hl-hero-slide{ align-items:flex-end; }
+.hl-in-column .hl-hero-inner{ padding-inline:22px; }
+.hl-in-column .hl-hero-content{ min-height:240px; max-width:none; padding:26px 0; justify-content:flex-end; }
+.hl-in-column .hl-hero-kicker{ font-size:12.5px; margin-bottom:8px; }
+.hl-in-column .hl-hero-title{ font-size:21px; line-height:1.2; padding-bottom:10px; margin:0 0 16px; }
+.hl-in-column .hl-hero-title::after{ width:44px; height:3px; }
+.hl-in-column .hl-hero-dots{ bottom:12px; gap:10px; }
+.hl-in-column .hl-hero-dot{ width:8px; height:8px; }
+
+/* banner grids (promo + showcase share hl-banner-grid) — a single stack */
+.hl-in-column .hl-promo-intro{ text-align:left; max-width:none; margin:0 0 20px; }
+.hl-in-column .hl-banner-grid{ grid-template-columns:1fr; gap:14px; }
+.hl-in-column .hl-banner-wide{ grid-column:auto; }
+.hl-in-column .hl-banner-img,
+.hl-in-column .hl-banner-wide .hl-banner-img{ aspect-ratio:3/2; }
+.hl-in-column .hl-banner-cap{ top:16px; left:16px; max-width:80%; }
+.hl-in-column .hl-banner-cap h3{ font-size:16px; }
+.hl-in-column .hl-banner-cap h6{ font-size:12px; }
+.hl-in-column .hl-banner-cap .hl-link{ margin-top:10px; }
+.hl-in-column .hl-insta-cap h3{ font-size:16px; }
+
+/* product tabs — one non-wrapping scrollable row of tabs, left aligned, and a
+   2-up product grid. The template also caps each panel at 4 products so the
+   widget stays a card-height block instead of a very tall ribbon. */
+.hl-in-column .hl-tabnav{ justify-content:flex-start; flex-wrap:nowrap; gap:18px; margin-top:12px; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.hl-in-column .hl-tabnav::-webkit-scrollbar{ display:none; }
+.hl-in-column .hl-tabbtn{ font-size:14px; white-space:nowrap; }
+.hl-in-column .hl-grid{ grid-template-columns:repeat(2,1fr); gap:22px 14px; }
+.hl-in-column .hl-card-body{ padding:12px 2px 0; }
+.hl-in-column .hl-card-title{ font-size:13.5px; margin:0 0 4px; }
+.hl-in-column .hl-card-price{ font-size:14px; gap:7px; }
+.hl-in-column .hl-card-badge{ top:9px; right:9px; padding:2px 10px; font-size:11px; }
+
+/* mildly-cramped rows/grids — re-tuned to the box */
+.hl-in-column .hl-brand-row{ gap:18px 26px; justify-content:flex-start; }
+.hl-in-column .hl-brand img{ max-height:32px; }
+.hl-in-column .hl-insta-grid{ grid-template-columns:repeat(3,1fr); gap:8px; }
+.hl-in-column .hl-gallery-grid{ grid-template-columns:repeat(2,1fr); gap:12px; }
+.hl-in-column .hl-gallery-cell figcaption{ font-size:12px; }
+
    Cart page — interactive redesign. Editorial hairline list (gallery-style
    media on --hl-soft, uppercase micro-labels, squared black stepper) with a
    sticky soft-panel summary, newsletter-style promo form and gold code tags.

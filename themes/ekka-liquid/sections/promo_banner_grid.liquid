@@ -1,18 +1,18 @@
 {%- assign s = section.settings -%}
-<section class="ek-section ek-promo">
+<section class="ek-section ek-promo{% if section.in_column %} ek-in-column{% endif %}">
   <div class="ek-container">
     {%- if s.intro -%}
-    <div class="ek-stitle">
+    <div class="ek-stitle" data-el="intro">
       <h2 class="ek-bg-title" aria-hidden="true">{{ s.intro.title }}</h2>
-      <h2 class="ek-title">{{ s.intro.title }}</h2>
-      {%- if s.intro.body != blank -%}<p class="ek-subtitle">{{ s.intro.body }}</p>{%- endif -%}
-      {%- if s.intro.href != blank and s.intro.link_label != blank -%}<div class="ek-stitle-cta"><a class="ek-btn" href="{{ s.intro.href }}">{{ s.intro.link_label }}</a></div>{%- endif -%}
+      <h2 class="ek-title" data-el="title">{{ s.intro.title }}</h2>
+      {%- if s.intro.body != blank -%}<p class="ek-subtitle" data-el="body">{{ s.intro.body }}</p>{%- endif -%}
+      {%- if s.intro.href != blank and s.intro.link_label != blank -%}<div class="ek-stitle-cta"><a class="ek-btn" href="{{ s.intro.href }}" data-el="button">{{ s.intro.link_label }}</a></div>{%- endif -%}
     </div>
     {%- endif -%}
 
     <div class="ek-promo-grid">
       {%- if s.sale -%}
-      <a class="ek-banner-tile" href="{{ s.sale.href | default: '/store' }}">
+      <a class="ek-banner-tile" href="{{ s.sale.href | default: '/store' }}" data-el="sale">
         {%- if s.sale.image %}<img src="{{ s.sale.image }}" alt="{{ s.sale.title }}">{% endif -%}
         <div class="ek-banner-text">
           {%- if s.sale.special_title != blank -%}<span class="ek-banner-stitle">{{ s.sale.special_title }}</span>{%- endif -%}
@@ -23,8 +23,8 @@
       {%- endif -%}
 
       {%- for cat in s.categories -%}{%- unless cat.wide -%}
-      <a class="ek-banner-tile" href="{{ cat.href | default: '/store' }}">
-        {%- if cat.image %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif -%}
+      <a class="ek-banner-tile" href="{{ cat.href | default: '/store' }}" data-el-item="categories:{{ forloop.index0 }}" data-el="item">
+        {%- if cat.image %}<img src="{{ cat.image }}" alt="{{ cat.title }}" data-el="image">{% endif -%}
         <div class="ek-banner-text">
           {%- if cat.count_label != blank -%}<span class="ek-banner-stitle">{{ cat.count_label }}</span>{%- endif -%}
           <span class="ek-banner-title">{{ cat.title }}</span>
@@ -34,7 +34,7 @@
       {%- endunless -%}{%- endfor -%}
 
       {%- if s.instagram -%}
-      <a class="ek-banner-tile" href="{{ s.instagram.href | default: '#' }}">
+      <a class="ek-banner-tile" href="{{ s.instagram.href | default: '#' }}" data-el="instagram">
         {%- if s.instagram.image %}<img src="{{ s.instagram.image }}" alt="{{ s.instagram.handle }}">{% endif -%}
         <div class="ek-banner-text">
           {%- if s.instagram.sub_title != blank -%}<span class="ek-banner-stitle"><i class="fab fa-instagram"></i> {{ s.instagram.sub_title }}</span>{%- endif -%}
@@ -44,8 +44,8 @@
       {%- endif -%}
 
       {%- for cat in s.categories -%}{%- if cat.wide -%}
-      <a class="ek-banner-tile ek-banner-wide" href="{{ cat.href | default: '/store' }}">
-        {%- if cat.image %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif -%}
+      <a class="ek-banner-tile ek-banner-wide" href="{{ cat.href | default: '/store' }}" data-el-item="categories:{{ forloop.index0 }}" data-el="item">
+        {%- if cat.image %}<img src="{{ cat.image }}" alt="{{ cat.title }}" data-el="image">{% endif -%}
         <div class="ek-banner-text">
           {%- if cat.count_label != blank -%}<span class="ek-banner-stitle">{{ cat.count_label }}</span>{%- endif -%}
           <span class="ek-banner-title">{{ cat.title }}</span>

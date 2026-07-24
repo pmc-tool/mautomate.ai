@@ -1,17 +1,17 @@
 {%- assign s = section.settings -%}
 {%- assign items = s.items -%}
 {%- if items and items.size > 0 -%}
-<section class="sf-section sf-testi" data-slider data-autoplay="7000">
+<section class="sf-section sf-testi{% if section.in_column %} sf-in-column{% endif %}" data-slider data-autoplay="7000">
   <div class="sf-container">
     {%- if s.title != blank -%}
-    <div class="sf-shead sf-shead-center"><h2 class="sf-title sf-title-sm">{{ s.title }}</h2></div>
+    <div class="sf-shead sf-shead-center"><h2 class="sf-title sf-title-sm" data-el="title">{{ s.title }}</h2></div>
     {%- endif -%}
     <div class="sf-testi-slides">
       {%- for item in items -%}
-      <figure class="sf-testi-item{% if forloop.first %} is-active{% endif %}" data-slide>
+      <figure class="sf-testi-item{% if forloop.first %} is-active{% endif %}" data-slide data-el-item="items:{{ forloop.index0 }}" data-el="item">
         <div class="sf-testi-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
-        {%- if item.quote != blank -%}<blockquote class="sf-testi-quote">&ldquo;{{ item.quote }}&rdquo;</blockquote>{%- endif -%}
-        <figcaption class="sf-testi-user">
+        {%- if item.quote != blank -%}<blockquote class="sf-testi-quote" data-el="quote">&ldquo;{{ item.quote }}&rdquo;</blockquote>{%- endif -%}
+        <figcaption class="sf-testi-user" data-el="author">
           {%- if item.avatar -%}<img src="{{ item.avatar }}" alt="{{ item.author }}">{%- endif -%}
           <span class="sf-testi-meta"><span class="sf-testi-name">{{ item.author }}</span>{% if item.role != blank %}<span class="sf-testi-role">{{ item.role }}</span>{% endif %}</span>
         </figcaption>

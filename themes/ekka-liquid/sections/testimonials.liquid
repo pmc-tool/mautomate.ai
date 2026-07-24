@@ -5,15 +5,15 @@
   <div class="ek-container">
     <div class="ek-stitle">
       <h2 class="ek-bg-title" aria-hidden="true">Testimonial</h2>
-      <h2 class="ek-title">{{ s.title | default: 'Client Review' }}</h2>
+      <h2 class="ek-title" data-el="title">{{ s.title | default: 'Client Review' }}</h2>
     </div>
     <div class="ek-testi-grid">
       {%- for item in items -%}
-      <figure class="ek-testi-card">
+      <figure class="ek-testi-card" data-el-item="items:{{ forloop.index0 }}" data-el="item">
         <i class="fas fa-quote-right ek-testi-quoteic" aria-hidden="true"></i>
         {%- if item.avatar %}<img class="ek-testi-avatar" src="{{ item.avatar }}" alt="{{ item.author }}">{% endif -%}
-        {%- if item.quote != blank -%}<blockquote class="ek-testi-quote">{{ item.quote }}</blockquote>{%- endif -%}
-        <figcaption class="ek-testi-author">
+        {%- if item.quote != blank -%}<blockquote class="ek-testi-quote" data-el="quote">{{ item.quote }}</blockquote>{%- endif -%}
+        <figcaption class="ek-testi-author" data-el="author">
           <span class="ek-testi-name">{{ item.author }}</span>
           {%- if item.role != blank -%}<span class="ek-testi-role">{{ item.role }}</span>{%- endif -%}
         </figcaption>

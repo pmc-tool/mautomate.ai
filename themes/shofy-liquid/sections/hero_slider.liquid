@@ -2,23 +2,23 @@
 {%- assign nl = '
 ' -%}
 {%- if slides and slides.size > 0 -%}
-<section class="sf-hero" data-slider data-autoplay="{{ section.settings.autoplay_ms | default: 5000 }}">
+<section class="sf-hero{% if section.in_column %} sf-in-column{% endif %}" data-slider data-autoplay="{{ section.settings.autoplay_ms | default: 5000 }}">
   <div class="sf-hero-slides">
     {%- for slide in slides -%}
-    <div class="sf-hero-slide{% if forloop.first %} is-active{% endif %}" data-slide>
+    <div class="sf-hero-slide{% if forloop.first %} is-active{% endif %}" data-slide data-el-item="slides:{{ forloop.index0 }}">
       <div class="sf-hero-shapes" aria-hidden="true">
         <img class="sf-hero-shape-1" src="/shofy/img/slider/shape/slider-shape-1.png" alt="">
         <img class="sf-hero-shape-2" src="/shofy/img/slider/shape/slider-shape-2.png" alt="">
         <img class="sf-hero-shape-3" src="/shofy/img/slider/shape/slider-shape-3.png" alt="">
       </div>
       <div class="sf-container sf-hero-inner">
-        <div class="sf-hero-content">
-          {%- if slide.subtitle != blank -%}<span class="sf-hero-sub">{{ slide.subtitle }}</span>{%- endif -%}
-          <h1 class="sf-hero-title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
+        <div class="sf-hero-content" data-el="content">
+          {%- if slide.subtitle != blank -%}<span class="sf-hero-sub" data-el="kicker">{{ slide.subtitle }}</span>{%- endif -%}
+          <h1 class="sf-hero-title" data-el="title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
           {%- assign cta_label = slide.cta.label | default: 'Shop Now' -%}
-          {%- if slide.cta.href != blank and cta_label != blank -%}<a class="sf-btn sf-btn-white" href="{{ slide.cta.href }}">{{ cta_label }} <i class="fas fa-arrow-right"></i></a>{%- endif -%}
+          {%- if slide.cta.href != blank and cta_label != blank -%}<a class="sf-btn sf-btn-white" href="{{ slide.cta.href }}" data-el="button">{{ cta_label }} <i class="fas fa-arrow-right"></i></a>{%- endif -%}
         </div>
-        <div class="sf-hero-thumb">
+        <div class="sf-hero-thumb" data-el="image">
           {%- if slide.image != blank -%}<img src="{{ slide.image }}" alt="{{ slide.title }}">{%- endif -%}
         </div>
       </div>

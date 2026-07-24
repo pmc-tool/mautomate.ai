@@ -1,16 +1,16 @@
 {%- assign s = section.settings -%}
 {%- assign brands = s.brands -%}
 {%- if brands and brands.size > 0 -%}
-<section class="au-section au-brands">
+<section class="au-section au-brands{% if section.in_column %} au-in-column{% endif %}">
   <div class="au-container">
     {%- if s.title != blank -%}
     <div class="au-shead au-shead-center">
       <p class="au-eyebrow">Trusted by</p>
-      <h2 class="au-title">{{ s.title }}</h2>
+      <h2 class="au-title" data-el="title">{{ s.title }}</h2>
     </div>
     {%- endif -%}
     <div class="au-brand-grid">
-      {%- for brand in brands -%}<a class="au-brand" href="{{ brand.href | default: '#' }}">{% if brand.image %}<img src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
+      {%- for brand in brands -%}<a class="au-brand" href="{{ brand.href | default: '#' }}" data-el-item="brands:{{ forloop.index0 }}" data-el="logo">{% if brand.image %}<img src="{{ brand.image }}" alt="Brand">{% endif %}</a>{%- endfor -%}
     </div>
   </div>
 </section>

@@ -2,7 +2,7 @@
 {%- assign nl = '
 ' -%}
 {%- if s.image != blank or s.title != blank -%}
-<section class="rk-section rk-imgtext{% if s.image_side == 'right' %} rk-imgtext-right{% endif %}">
+<section class="rk-section rk-imgtext{% if s.image_side == 'right' %} rk-imgtext-right{% endif %}{% if section.in_column %} rk-in-column{% endif %}">
   <div class="rk-container">
     <div class="rk-imgtext-grid">
       <div class="rk-imgtext-media">{% if s.image %}<img data-el="image" src="{{ s.image }}" alt="{{ s.title }}">{% endif %}</div>

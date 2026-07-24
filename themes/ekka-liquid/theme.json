@@ -19,23 +19,82 @@
     }
   },
   "settings": [
-    { "type": "header", "label": "Brand" },
-    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#3474d4" },
-    { "id": "container_width", "type": "range", "label": "Content width", "min": 1200, "max": 1500, "step": 20, "unit": "px", "default": 1320 },
-    { "type": "header", "label": "Announcement bar" },
-    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": true },
-    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "Free shipping for orders over $59 !" },
-    { "type": "header", "label": "Footer" },
-    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "A curated collection of quality products, picked with care and delivered to your door." },
-    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+    {
+      "type": "header",
+      "label": "Brand"
+    },
+    {
+      "id": "accent_color",
+      "type": "color",
+      "label": "Accent colour",
+      "default": "#3474d4"
+    },
+    {
+      "id": "container_width",
+      "type": "range",
+      "label": "Content width",
+      "min": 1200,
+      "max": 1500,
+      "step": 20,
+      "unit": "px",
+      "default": 1320
+    },
+    {
+      "type": "header",
+      "label": "Announcement bar"
+    },
+    {
+      "id": "show_announcement",
+      "type": "checkbox",
+      "label": "Show announcement bar",
+      "default": true
+    },
+    {
+      "id": "announcement_text",
+      "type": "text",
+      "label": "Announcement text",
+      "default": "Free shipping for orders over $59 !"
+    },
+    {
+      "type": "header",
+      "label": "Footer"
+    },
+    {
+      "id": "footer_about",
+      "type": "textarea",
+      "label": "About blurb",
+      "default": "A curated collection of quality products, picked with care and delivered to your door."
+    },
+    {
+      "id": "footer_copyright",
+      "type": "text",
+      "label": "Copyright line",
+      "default": "All rights reserved."
+    }
   ],
   "defaultSections": [
     {
       "block_type": "hero_slider",
       "autoplay_ms": 6000,
       "slides": [
-        { "image": "/ekka/images/main-slider-banner/1.jpg", "subtitle": "Sale offer", "title": "New Season\nCollection", "cta": { "label": "Shop now", "href": "/store" } },
-        { "image": "/ekka/images/main-slider-banner/2.jpg", "subtitle": "This week only", "title": "Deals You Will\nNot Want To Miss", "cta": { "label": "Shop deals", "href": "/store" } }
+        {
+          "image": "/ekka/images/main-slider-banner/1.jpg",
+          "subtitle": "Sale offer",
+          "title": "New Season\nCollection",
+          "cta": {
+            "label": "Shop now",
+            "href": "/store"
+          }
+        },
+        {
+          "image": "/ekka/images/main-slider-banner/2.jpg",
+          "subtitle": "This week only",
+          "title": "Deals You Will\nNot Want To Miss",
+          "cta": {
+            "label": "Shop deals",
+            "href": "/store"
+          }
+        }
       ]
     },
     {
@@ -54,14 +113,30 @@
         "href": "/store"
       },
       "categories": [
-        { "image": "/ekka/images/banner/3.jpg", "title": "New arrivals", "count_label": "Fresh in", "href": "/store", "wide": false }
+        {
+          "image": "/ekka/images/banner/3.jpg",
+          "title": "New arrivals",
+          "count_label": "Fresh in",
+          "href": "/store",
+          "wide": false
+        }
       ]
     },
     {
       "block_type": "product_tabs",
       "tabs": [
-        { "label": "New arrivals", "source": "all", "sort": "created_at", "limit": 8 },
-        { "label": "Best sellers", "source": "all", "sort": "price_desc", "limit": 8 }
+        {
+          "label": "New arrivals",
+          "source": "all",
+          "sort": "created_at",
+          "limit": 8
+        },
+        {
+          "label": "Best sellers",
+          "source": "all",
+          "sort": "price_desc",
+          "limit": 8
+        }
       ]
     },
     {
@@ -70,7 +145,10 @@
       "description": "A limited-time offer on one of our most loved products. Once the timer runs out, the price goes back up.",
       "image": "/ekka/images/product-image/8_1.jpg",
       "countdown_to": "2030-01-01T00:00:00.000Z",
-      "cta": { "label": "Shop Now", "href": "/store" }
+      "cta": {
+        "label": "Shop Now",
+        "href": "/store"
+      }
     },
     {
       "block_type": "image_with_text",
@@ -79,20 +157,47 @@
       "eyebrow": "Our promise",
       "title": "Quality picks,\ndelivered fast",
       "body": "Every product in this store is selected for quality and backed by our support team. If something is not right, we make it right.",
-      "cta": { "label": "Shop the collection", "href": "/store" }
+      "cta": {
+        "label": "Shop the collection",
+        "href": "/store"
+      }
     },
     {
       "block_type": "brand_strip",
       "title": "Our Top Brands",
       "brands": [
-        { "image": "/ekka/images/brand-image/1.png", "href": "#" },
-        { "image": "/ekka/images/brand-image/2.png", "href": "#" },
-        { "image": "/ekka/images/brand-image/3.png", "href": "#" },
-        { "image": "/ekka/images/brand-image/4.png", "href": "#" },
-        { "image": "/ekka/images/brand-image/5.png", "href": "#" },
-        { "image": "/ekka/images/brand-image/6.png", "href": "#" },
-        { "image": "/ekka/images/brand-image/7.png", "href": "#" },
-        { "image": "/ekka/images/brand-image/8.png", "href": "#" }
+        {
+          "image": "/ekka/images/brand-image/1.png",
+          "href": "#"
+        },
+        {
+          "image": "/ekka/images/brand-image/2.png",
+          "href": "#"
+        },
+        {
+          "image": "/ekka/images/brand-image/3.png",
+          "href": "#"
+        },
+        {
+          "image": "/ekka/images/brand-image/4.png",
+          "href": "#"
+        },
+        {
+          "image": "/ekka/images/brand-image/5.png",
+          "href": "#"
+        },
+        {
+          "image": "/ekka/images/brand-image/6.png",
+          "href": "#"
+        },
+        {
+          "image": "/ekka/images/brand-image/7.png",
+          "href": "#"
+        },
+        {
+          "image": "/ekka/images/brand-image/8.png",
+          "href": "#"
+        }
       ]
     },
     {

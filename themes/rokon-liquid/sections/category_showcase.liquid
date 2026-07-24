@@ -1,7 +1,7 @@
 {%- assign s = section.settings -%}
 {%- assign items = s.items -%}
 {%- if items and items.size > 0 -%}
-<section class="rk-section rk-showcase">
+<section class="rk-section rk-showcase{% if section.in_column %} rk-in-column{% endif %}">
   <div class="rk-container">
     <div class="rk-shead rk-shead-center">
       {%- if s.title != blank -%}<h2 class="rk-title rk-title-accent" data-el="title">{{ s.title }}</h2>{%- endif -%}
@@ -10,7 +10,7 @@
     <div class="rk-showcase-grid">
       {%- for item in items -%}
       <a class="rk-showcase-tile" data-el="tile" data-el-item="items:{{ forloop.index0 }}" href="{{ item.href | default: '/store' }}">
-        <span class="rk-showcase-img">{% if item.image %}<img src="{{ item.image }}" alt="{{ item.label }}">{% endif %}</span>
+        <span class="rk-showcase-img" data-el="image">{% if item.image %}<img src="{{ item.image }}" alt="{{ item.label }}">{% endif %}</span>
         <span class="rk-showcase-cap">
           <span class="rk-showcase-txt">
             <span class="rk-showcase-label" data-el="label">{{ item.label }}</span>

@@ -19,24 +19,91 @@
     }
   },
   "settings": [
-    { "type": "header", "label": "Brand" },
-    { "id": "accent_color", "type": "color", "label": "Accent colour", "default": "#b8cd06" },
-    { "id": "container_width", "type": "range", "label": "Content width", "min": 1200, "max": 1500, "step": 20, "unit": "px", "default": 1380 },
-    { "type": "header", "label": "Announcement bar" },
-    { "id": "show_announcement", "type": "checkbox", "label": "Show announcement bar", "default": true },
-    { "id": "announcement_text", "type": "text", "label": "Announcement text", "default": "Free shipping for orders over $59 !" },
-    { "type": "header", "label": "Footer" },
-    { "id": "footer_about", "type": "textarea", "label": "About blurb", "default": "A curated collection of quality products, picked with care and delivered to your door." },
-    { "id": "footer_copyright", "type": "text", "label": "Copyright line", "default": "All rights reserved." }
+    {
+      "type": "header",
+      "label": "Brand"
+    },
+    {
+      "id": "accent_color",
+      "type": "color",
+      "label": "Accent colour",
+      "default": "#b8cd06"
+    },
+    {
+      "id": "container_width",
+      "type": "range",
+      "label": "Content width",
+      "min": 1200,
+      "max": 1500,
+      "step": 20,
+      "unit": "px",
+      "default": 1380
+    },
+    {
+      "type": "header",
+      "label": "Announcement bar"
+    },
+    {
+      "id": "show_announcement",
+      "type": "checkbox",
+      "label": "Show announcement bar",
+      "default": true
+    },
+    {
+      "id": "announcement_text",
+      "type": "text",
+      "label": "Announcement text",
+      "default": "Free shipping for orders over $59 !"
+    },
+    {
+      "type": "header",
+      "label": "Footer"
+    },
+    {
+      "id": "footer_about",
+      "type": "textarea",
+      "label": "About blurb",
+      "default": "A curated collection of quality products, picked with care and delivered to your door."
+    },
+    {
+      "id": "footer_copyright",
+      "type": "text",
+      "label": "Copyright line",
+      "default": "All rights reserved."
+    }
   ],
   "defaultSections": [
     {
       "block_type": "hero_slider",
       "autoplay_ms": 6000,
       "slides": [
-        { "image": "/exzo/img/background-1.jpg", "subtitle": "New in store", "title": "Gear You Will\nActually Use", "cta": { "label": "Shop now", "href": "/store" } },
-        { "image": "/exzo/img/background-2.jpg", "subtitle": "This season", "title": "Big Sound,\nSmall Prices", "cta": { "label": "Browse deals", "href": "/store" } },
-        { "image": "/exzo/img/background-3.jpg", "subtitle": "Hand picked", "title": "Tested by Us,\nLoved by You", "cta": { "label": "Shop now", "href": "/store" } }
+        {
+          "image": "/exzo/img/background-1.jpg",
+          "subtitle": "New in store",
+          "title": "Gear You Will\nActually Use",
+          "cta": {
+            "label": "Shop now",
+            "href": "/store"
+          }
+        },
+        {
+          "image": "/exzo/img/background-2.jpg",
+          "subtitle": "This season",
+          "title": "Big Sound,\nSmall Prices",
+          "cta": {
+            "label": "Browse deals",
+            "href": "/store"
+          }
+        },
+        {
+          "image": "/exzo/img/background-3.jpg",
+          "subtitle": "Hand picked",
+          "title": "Tested by Us,\nLoved by You",
+          "cta": {
+            "label": "Shop now",
+            "href": "/store"
+          }
+        }
       ]
     },
     {
@@ -55,9 +122,27 @@
         "href": "/store"
       },
       "categories": [
-        { "image": "/exzo/img/background-9.jpg", "title": "New arrivals", "count_label": "16 items", "href": "/store", "wide": false },
-        { "image": "/exzo/img/background-10.jpg", "title": "Best sellers", "count_label": "16 items", "href": "/store", "wide": false },
-        { "image": "/exzo/img/background-11.jpg", "title": "Accessories", "count_label": "6 items", "href": "/store", "wide": true }
+        {
+          "image": "/exzo/img/background-9.jpg",
+          "title": "New arrivals",
+          "count_label": "16 items",
+          "href": "/store",
+          "wide": false
+        },
+        {
+          "image": "/exzo/img/background-10.jpg",
+          "title": "Best sellers",
+          "count_label": "16 items",
+          "href": "/store",
+          "wide": false
+        },
+        {
+          "image": "/exzo/img/background-11.jpg",
+          "title": "Accessories",
+          "count_label": "6 items",
+          "href": "/store",
+          "wide": true
+        }
       ],
       "instagram": {
         "image": "/exzo/img/background-5.jpg",
@@ -69,9 +154,24 @@
     {
       "block_type": "product_tabs",
       "tabs": [
-        { "label": "New arrivals", "source": "all", "sort": "created_at", "limit": 8 },
-        { "label": "Sale items", "source": "all", "sort": "created_at", "limit": 8 },
-        { "label": "Best sellers", "source": "all", "sort": "price_desc", "limit": 8 }
+        {
+          "label": "New arrivals",
+          "source": "all",
+          "sort": "created_at",
+          "limit": 8
+        },
+        {
+          "label": "Sale items",
+          "source": "all",
+          "sort": "created_at",
+          "limit": 8
+        },
+        {
+          "label": "Best sellers",
+          "source": "all",
+          "sort": "price_desc",
+          "limit": 8
+        }
       ]
     },
     {
@@ -80,31 +180,78 @@
       "description": "Limited-time pricing on one of our most-loved products. When the timer runs out, the deal is gone - grab it while it lasts.",
       "image": "/exzo/img/thumbnail-24.jpg",
       "countdown_to": "2030-01-01T00:00:00.000Z",
-      "cta": { "label": "Shop Now", "href": "/store" }
+      "cta": {
+        "label": "Shop Now",
+        "href": "/store"
+      }
     },
     {
       "block_type": "category_showcase",
       "sub_title": "Browse the range",
       "title": "Shop by category",
       "items": [
-        { "category_id": "", "label": "Audio", "image": "/exzo/img/background-9.jpg", "href": "/store" },
-        { "category_id": "", "label": "Wearables", "image": "/exzo/img/background-10.jpg", "href": "/store" },
-        { "category_id": "", "label": "Smart home", "image": "/exzo/img/background-11.jpg", "href": "/store" },
-        { "category_id": "", "label": "Accessories", "image": "/exzo/img/background-6.jpg", "href": "/store" }
+        {
+          "category_id": "",
+          "label": "Audio",
+          "image": "/exzo/img/background-9.jpg",
+          "href": "/store"
+        },
+        {
+          "category_id": "",
+          "label": "Wearables",
+          "image": "/exzo/img/background-10.jpg",
+          "href": "/store"
+        },
+        {
+          "category_id": "",
+          "label": "Smart home",
+          "image": "/exzo/img/background-11.jpg",
+          "href": "/store"
+        },
+        {
+          "category_id": "",
+          "label": "Accessories",
+          "image": "/exzo/img/background-6.jpg",
+          "href": "/store"
+        }
       ]
     },
     {
       "block_type": "brand_strip",
       "title": "Our brands",
       "brands": [
-        { "image": "/exzo/img/client-logo-1.jpg", "href": "#" },
-        { "image": "/exzo/img/client-logo-2.jpg", "href": "#" },
-        { "image": "/exzo/img/client-logo-3.jpg", "href": "#" },
-        { "image": "/exzo/img/client-logo-4.jpg", "href": "#" },
-        { "image": "/exzo/img/client-logo-5.jpg", "href": "#" },
-        { "image": "/exzo/img/client-logo-6.jpg", "href": "#" },
-        { "image": "/exzo/img/client-logo-7.jpg", "href": "#" },
-        { "image": "/exzo/img/client-logo-8.jpg", "href": "#" }
+        {
+          "image": "/exzo/img/client-logo-1.jpg",
+          "href": "#"
+        },
+        {
+          "image": "/exzo/img/client-logo-2.jpg",
+          "href": "#"
+        },
+        {
+          "image": "/exzo/img/client-logo-3.jpg",
+          "href": "#"
+        },
+        {
+          "image": "/exzo/img/client-logo-4.jpg",
+          "href": "#"
+        },
+        {
+          "image": "/exzo/img/client-logo-5.jpg",
+          "href": "#"
+        },
+        {
+          "image": "/exzo/img/client-logo-6.jpg",
+          "href": "#"
+        },
+        {
+          "image": "/exzo/img/client-logo-7.jpg",
+          "href": "#"
+        },
+        {
+          "image": "/exzo/img/client-logo-8.jpg",
+          "href": "#"
+        }
       ]
     },
     {

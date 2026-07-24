@@ -1,7 +1,7 @@
 {%- assign s = section.settings -%}
-<section class="rk-deal"{% if s.image != blank %} style="background-image:url('{{ s.image }}')"{% endif %}>
+<section class="rk-deal{% if section.in_column %} rk-in-column{% endif %}"{% if s.image != blank %} style="background-image:url('{{ s.image }}')"{% endif %}>
   <div class="rk-container">
-    <div class="rk-deal-content">
+    <div class="rk-deal-content" data-el="content">
       <span class="rk-eyebrow rk-eyebrow-light">Limited time</span>
       <h2 class="rk-deal-title" data-el="title">{{ s.title | default: 'Deal of the day' }}</h2>
       {%- if s.description != blank -%}<p class="rk-deal-desc" data-el="text">{{ s.description }}</p>{%- endif -%}

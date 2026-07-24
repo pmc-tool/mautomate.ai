@@ -1,6 +1,6 @@
 {%- assign s = section.settings -%}
 {%- if s.title != blank -%}
-<section class="rk-newsletter">
+<section class="rk-newsletter{% if section.in_column %} rk-in-column{% endif %}">
   <div class="rk-container">
     <div class="rk-newsletter-grid">
       <div class="rk-newsletter-copy">

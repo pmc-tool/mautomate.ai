@@ -417,6 +417,88 @@ a.cg-footer-contact:hover{ color:#fff; }
 }
 
 /* ==========================================================================
+   COMPACT IN-COLUMN VARIANTS  [.cg-in-column]
+   The page builder can drop a commerce section into a container COLUMN as a
+   widget. The platform sets `section.in_column` on the Liquid context and the
+   section templates translate that into a single modifier class on the section
+   ROOT: `cg-in-column`. EVERY rule below is scoped under that class, so a
+   full-width section (which never gets the class) is untouched — this block is
+   purely additive.
+   Why it is needed: the full-width layouts are sized for the wide container and
+   their breakpoints key off the VIEWPORT, not the box. On a desktop viewport a
+   ~400px column would still get the 12-column promo mosaic, the 4-up product
+   grid, the 5-up circular showcase, the 6-up brand grid and a hero whose
+   min-height is 62vh of the WINDOW. These rules re-tune each one to the box.
+   ========================================================================== */
+
+/* shared: kill the full-width vertical rhythm + shrink the display type. The
+   container column owns spacing between its widgets. */
+.cg-in-column{ padding-top:0; padding-bottom:0; }
+.cg-in-column .cg-shead,
+.cg-in-column .cg-shead-center{ margin-bottom:20px; max-width:none; }
+/* a centred heading block wastes a narrow box — left-align section heads */
+.cg-in-column .cg-shead-center{ text-align:left; margin-inline:0; }
+.cg-in-column .cg-title{ font-size:20px; }
+.cg-in-column .cg-title-sm{ font-size:18px; }
+.cg-in-column .cg-eyebrow{ font-size:11px; padding:5px 14px 5px 28px; margin-bottom:10px; }
+.cg-in-column .cg-eyebrow::before{ left:13px; }
+.cg-in-column .cg-btn{ padding:11px 22px; font-size:11.5px; }
+
+/* hero — a modest banner CARD, not a viewport-height cover crop. No arrows
+   (the template omits them); the dots still drive the autoplay slider. */
+.cg-in-column .cg-hero-slide{ align-items:flex-end; }
+.cg-in-column .cg-hero-inner{ padding-inline:22px; }
+.cg-in-column .cg-hero-content{ min-height:240px; max-width:none; padding:26px 0; justify-content:flex-end; }
+.cg-in-column .cg-hero-title{ font-size:21px; line-height:1.2; margin:0 0 16px; }
+.cg-in-column .cg-hero-dots{ bottom:12px; gap:7px; }
+.cg-in-column .cg-hero-dot{ width:7px; height:7px; }
+
+/* promo mosaic — the 12-column mosaic has no meaning in a column, so it becomes
+   a single stack of uniform banners. */
+.cg-in-column .cg-promo-grid{ grid-template-columns:1fr; gap:14px; }
+.cg-in-column .cg-promo-intro,
+.cg-in-column .cg-promo-sale,
+.cg-in-column .cg-promo-cat,
+.cg-in-column .cg-promo-cat-wide,
+.cg-in-column .cg-promo-insta{ grid-column:auto; }
+.cg-in-column .cg-promo-intro{ padding:20px; }
+.cg-in-column .cg-promo-intro-title{ font-size:20px; margin:0 0 12px; }
+.cg-in-column .cg-promo-intro-body{ margin:0 0 16px; font-size:15px; }
+.cg-in-column .cg-promo-sale{ min-height:200px; }
+.cg-in-column .cg-promo-sale-body{ padding:18px; }
+.cg-in-column .cg-promo-sale-title{ font-size:18px; margin:4px 0 10px; }
+.cg-in-column .cg-promo-cat-img,
+.cg-in-column .cg-promo-cat-wide .cg-promo-cat-img{ aspect-ratio:3/2; }
+.cg-in-column .cg-promo-cat-cap{ left:16px; bottom:14px; }
+.cg-in-column .cg-promo-cat-cap h3{ font-size:17px; }
+.cg-in-column .cg-promo-insta img{ min-height:180px; aspect-ratio:3/2; }
+.cg-in-column .cg-promo-insta-body h3{ font-size:17px; }
+
+/* product tabs — one non-wrapping scrollable row of pill tabs, left aligned,
+   and a 2-up product grid. The template also caps each panel at 4 products so
+   the widget stays a card-height block instead of a very tall ribbon. */
+.cg-in-column .cg-tabnav{ justify-content:flex-start; flex-wrap:nowrap; gap:10px; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.cg-in-column .cg-tabnav::-webkit-scrollbar{ display:none; }
+.cg-in-column .cg-tabbtn{ padding:9px 16px; font-size:11.5px; white-space:nowrap; }
+.cg-in-column .cg-grid{ grid-template-columns:repeat(2,1fr); gap:22px 14px; }
+.cg-in-column .cg-card-body{ padding:12px 2px 0; }
+.cg-in-column .cg-card-title{ font-size:14.5px; margin:0 0 5px; }
+.cg-in-column .cg-card-price{ font-size:13.5px; gap:7px; }
+.cg-in-column .cg-card-badge{ top:9px; left:9px; padding:4px 8px; font-size:9px; }
+
+/* mildly-cramped grids — re-tuned to the box */
+.cg-in-column .cg-brand-row{ grid-template-columns:repeat(3,1fr); gap:12px; }
+.cg-in-column .cg-brand{ padding:16px 12px; }
+.cg-in-column .cg-brand img{ max-height:32px; }
+.cg-in-column .cg-insta-grid{ grid-template-columns:repeat(3,1fr); gap:8px; }
+.cg-in-column .cg-gallery-grid{ grid-template-columns:repeat(2,1fr); gap:12px; }
+.cg-in-column .cg-gallery-cell figcaption{ font-size:12px; }
+.cg-in-column .cg-showcase-head{ margin-bottom:20px; }
+.cg-in-column .cg-showcase-grid{ grid-template-columns:repeat(2,1fr); gap:18px; }
+.cg-in-column .cg-showcase-img{ max-width:150px; margin-bottom:12px; }
+.cg-in-column .cg-showcase-label{ font-size:15px; }
+.cg-in-column .cg-showcase-count{ font-size:11px; }
+
    Interactive cart ("shopping bag") — card line items + deep-green sticky
    summary. Pill qty stepper echoes the cg-eyebrow pill; the promo box echoes
    the bordered footer newsletter; discount reads in the gold accent.

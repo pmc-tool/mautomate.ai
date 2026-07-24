@@ -508,6 +508,126 @@ body.sf-body{ margin:0; min-height:100vh; overflow-x:hidden; background:var(--sf
 }
 
 /* ==========================================================================
+   COMPACT IN-COLUMN VARIANTS  [.sf-in-column]
+   The page builder can drop a commerce section into a container COLUMN as a
+   widget. The platform sets `section.in_column` on the Liquid context (only
+   in MULTI-column containers) and each section template translates that into
+   one modifier class on its ROOT: `sf-in-column`. Every rule below is scoped
+   under that class, so a full-width section (which never gets the class) is
+   byte-identical to before — this block is purely additive.
+   Why: the full-width layouts are sized for a 1320px container and their
+   breakpoints key off the VIEWPORT, not the box. In a ~400px desktop column
+   the 12-col promo mosaic, 4-up product grid, 5-up showcase/insta grids and
+   the 516px-tall hero are unusable. These rules re-tune each to the box.
+   (Same mechanism as learts-liquid 1.0.16.)
+   ========================================================================== */
+
+/* shared: the column owns spacing — kill the full-width vertical rhythm and
+   the container gutters, shrink the display type. */
+.sf-in-column{ padding-top:0; padding-bottom:0; }
+.sf-in-column .sf-container{ padding-left:0; padding-right:0; }
+.sf-in-column .sf-shead,
+.sf-in-column .sf-shead-center{ margin-bottom:18px; max-width:none; }
+/* a centred heading block wastes a narrow box — left-align section heads */
+.sf-in-column .sf-shead-center{ text-align:left; margin-inline:0; }
+.sf-in-column .sf-title{ font-size:20px; }
+.sf-in-column .sf-title-sm{ font-size:17px; }
+/* the 114px squiggle underline is drawn for 36px display titles; under a
+   20px title in a card it reads as a stray scribble. */
+.sf-in-column .sf-title-squiggle svg{ display:none; }
+.sf-in-column .sf-eyebrow{ font-size:12px; margin-bottom:6px; }
+.sf-in-column .sf-btn{ padding:9px 18px; font-size:13px; }
+.sf-in-column .sf-lead{ font-size:14px; }
+
+/* hero — a modest banner CARD, not a 516px cover: stacked copy over a small
+   product shot, decorative shapes dropped (they are positioned for 1320px). */
+.sf-hero.sf-in-column{ border-radius:var(--sf-radius); }
+.sf-in-column .sf-hero-shapes{ display:none; }
+.sf-in-column .sf-hero-inner{ grid-template-columns:1fr; min-height:0; gap:12px; padding:24px 20px 52px; text-align:center; }
+.sf-in-column .sf-hero-sub{ font-size:13px; margin-bottom:4px; }
+.sf-in-column .sf-hero-title{ font-size:22px; line-height:1.15; margin:0 0 16px; }
+.sf-in-column .sf-hero-thumb{ text-align:center; }
+.sf-in-column .sf-hero-thumb img{ max-height:170px; }
+.sf-in-column .sf-hero-dots{ bottom:14px; gap:7px; }
+.sf-in-column .sf-hero-dot{ width:7px; height:7px; }
+.sf-in-column .sf-hero-dot.is-active{ width:20px; }
+
+/* promo mosaic — the 12-column mosaic has no meaning in a column; it becomes
+   a single stack of uniform banner cards. */
+.sf-in-column .sf-promo-grid{ grid-template-columns:1fr; gap:14px; }
+.sf-in-column .sf-promo-tile,
+.sf-in-column .sf-promo-wide{ grid-column:auto; min-height:170px; padding:24px 22px; }
+.sf-in-column .sf-promo-eyebrow{ font-size:13px; margin-bottom:4px; }
+.sf-in-column .sf-promo-title{ font-size:19px; margin-bottom:12px; }
+.sf-in-column .sf-promo-title-sm{ font-size:16px; margin-bottom:6px; }
+.sf-in-column .sf-promo-note{ font-size:13px; margin-bottom:14px; }
+.sf-in-column .sf-promo-intro-body{ font-size:14px; margin:10px 0 10px; }
+
+/* product tabs — stacked head, one non-wrapping scrollable tab row and a
+   2-up product grid (the template also caps each panel at 4 products). */
+.sf-in-column .sf-tabs-head{ flex-direction:column; align-items:flex-start; gap:12px; margin-bottom:18px; }
+.sf-in-column .sf-tabnav{ display:flex; flex-wrap:nowrap; gap:18px; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.sf-in-column .sf-tabnav::-webkit-scrollbar{ display:none; }
+.sf-in-column .sf-tabbtn{ font-size:14px; white-space:nowrap; }
+.sf-in-column .sf-grid{ grid-template-columns:repeat(2,1fr); gap:14px; }
+.sf-in-column .sf-card-body{ padding:10px 12px 14px; }
+.sf-in-column .sf-card-title{ font-size:13.5px; }
+.sf-in-column .sf-card-price{ font-size:13.5px; gap:7px; }
+.sf-in-column .sf-card-badge{ top:10px; right:10px; font-size:11px; }
+
+/* deal of day — the grey band becomes a padded card; media stacks over copy;
+   the head CTA (duplicated inside the content box) is dropped. */
+.sf-deal.sf-in-column{ padding:20px 18px; border-radius:var(--sf-radius); }
+.sf-in-column .sf-deal-head{ flex-direction:column; align-items:flex-start; gap:10px; margin-bottom:16px; }
+.sf-in-column .sf-deal-more{ display:none; }
+.sf-in-column .sf-deal-grid{ grid-template-columns:1fr; gap:16px; }
+.sf-in-column .sf-deal-title{ font-size:19px; }
+.sf-in-column .sf-deal-desc{ font-size:14px; }
+.sf-in-column .sf-countdown{ gap:6px; margin:14px 0 18px; }
+.sf-in-column .sf-cd{ width:48px; height:52px; }
+.sf-in-column .sf-cd-num{ font-size:16px; }
+
+/* mildly-cramped grids — re-tuned to the box */
+.sf-in-column .sf-showcase-grid{ grid-template-columns:repeat(2,1fr); gap:16px; }
+.sf-in-column .sf-showcase-img{ width:min(120px,100%); margin-bottom:10px; }
+.sf-in-column .sf-showcase-label{ font-size:15px; }
+.sf-in-column .sf-showcase-count{ font-size:12px; }
+.sf-in-column .sf-brand-row{ gap:16px 24px; }
+.sf-in-column .sf-brand img{ max-height:34px; max-width:100px; }
+.sf-in-column .sf-insta-grid{ grid-template-columns:repeat(2,1fr); gap:8px; }
+.sf-in-column .sf-gallery-grid{ grid-template-columns:repeat(2,1fr); gap:10px; }
+.sf-in-column .sf-gallery-cell figcaption{ font-size:12px; margin-top:5px; }
+
+/* newsletter — a compact blue card: shapes are positioned for 1320px, drop
+   them; form stacks with a full-width button (mirrors the 560px breakpoint). */
+.sf-subscribe.sf-in-column{ padding:24px 20px; border-radius:var(--sf-radius); }
+.sf-in-column .sf-subscribe-shapes{ display:none; }
+.sf-in-column .sf-subscribe-inner{ grid-template-columns:1fr; gap:14px; }
+.sf-in-column .sf-subscribe-sub{ font-size:13px; }
+.sf-in-column .sf-subscribe-title{ font-size:22px; }
+.sf-in-column .sf-subscribe-note{ font-size:12px; margin-top:10px; }
+.sf-in-column .sf-subscribe-form input{ height:52px; padding:0 20px; }
+.sf-in-column .sf-subscribe-form button{ position:static; width:100%; height:46px; margin-top:8px; padding:0; border-radius:8px; }
+
+/* testimonials — the grey band becomes a padded card with smaller type. */
+.sf-testi.sf-in-column{ padding:22px 18px; border-radius:var(--sf-radius); }
+.sf-in-column .sf-testi-stars{ font-size:13px; margin-bottom:12px; }
+.sf-in-column .sf-testi-quote{ font-size:16px; margin-bottom:16px; }
+.sf-in-column .sf-testi-user{ padding:8px 18px 8px 8px; }
+.sf-in-column .sf-testi-user img{ width:44px; height:44px; }
+.sf-in-column .sf-testi-dots{ margin-top:16px; }
+
+/* image with text — the blue banner stacks; media capped to the box. */
+.sf-in-column .sf-imgtext{ grid-template-columns:1fr; gap:14px; padding:22px 20px; }
+.sf-in-column .sf-imgtext-left .sf-imgtext-media{ order:0; }
+.sf-in-column .sf-imgtext-eyebrow{ font-size:13px; margin-bottom:6px; }
+.sf-in-column .sf-imgtext-title{ font-size:20px; margin-bottom:12px; }
+.sf-in-column .sf-imgtext-copy{ font-size:14px; margin-bottom:16px; }
+.sf-in-column .sf-imgtext-media img{ max-height:200px; }
+
+/* rich text — the narrow variant's centering is meaningless in a box. */
+.sf-in-column .sf-richtext-inner{ max-width:none; }
+
    Cart page (interactive) — card-style line items + sticky grey summary.
    Same language as the rest of Shofy: white cards on --sf-line borders with
    the 8px radius, pill qty stepper, circular remove button, search-bar-style

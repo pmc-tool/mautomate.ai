@@ -1,17 +1,17 @@
 {%- assign s = section.settings -%}
-<section class="cg-section cg-promo">
+<section class="cg-section cg-promo{% if section.in_column %} cg-in-column{% endif %}">
   <div class="cg-container">
     <div class="cg-promo-grid">
       {%- if s.intro -%}
-      <div class="cg-promo-intro">
-        <h2 class="cg-promo-intro-title">{{ s.intro.title }}</h2>
-        {%- if s.intro.body != blank -%}<p class="cg-promo-intro-body">{{ s.intro.body }}</p>{%- endif -%}
-        {%- if s.intro.href != blank -%}<a class="cg-link" href="{{ s.intro.href }}">{{ s.intro.link_label | default: 'Learn more' }}</a>{%- endif -%}
+      <div class="cg-promo-intro" data-el="intro">
+        <h2 class="cg-promo-intro-title" data-el="title">{{ s.intro.title }}</h2>
+        {%- if s.intro.body != blank -%}<p class="cg-promo-intro-body" data-el="body">{{ s.intro.body }}</p>{%- endif -%}
+        {%- if s.intro.href != blank -%}<a class="cg-link" href="{{ s.intro.href }}" data-el="button">{{ s.intro.link_label | default: 'Learn more' }}</a>{%- endif -%}
       </div>
       {%- endif -%}
 
       {%- if s.sale -%}
-      <a class="cg-promo-sale" href="{{ s.sale.href | default: '/store' }}">
+      <a class="cg-promo-sale" href="{{ s.sale.href | default: '/store' }}" data-el="sale">
         {%- if s.sale.image != blank -%}<img src="{{ s.sale.image }}" alt="{{ s.sale.title }}">{%- endif -%}
         <div class="cg-promo-sale-body">
           {%- if s.sale.special_title != blank -%}<span class="cg-eyebrow cg-eyebrow-light">{{ s.sale.special_title }}</span>{%- endif -%}
@@ -22,14 +22,14 @@
       {%- endif -%}
 
       {%- for cat in s.categories -%}{%- unless cat.wide -%}
-      <a class="cg-promo-cat" href="{{ cat.href | default: '/store' }}">
-        <div class="cg-promo-cat-img">{% if cat.image != blank %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</div>
+      <a class="cg-promo-cat" href="{{ cat.href | default: '/store' }}" data-el-item="categories:{{ forloop.index0 }}" data-el="item">
+        <div class="cg-promo-cat-img" data-el="image">{% if cat.image != blank %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</div>
         <div class="cg-promo-cat-cap"><h3>{{ cat.title }}</h3>{% if cat.count_label != blank %}<span>{{ cat.count_label }}</span>{% endif %}</div>
       </a>
       {%- endunless -%}{%- endfor -%}
 
       {%- if s.instagram -%}
-      <a class="cg-promo-insta" href="{{ s.instagram.href | default: '#' }}">
+      <a class="cg-promo-insta" href="{{ s.instagram.href | default: '#' }}" data-el="instagram">
         {%- if s.instagram.image != blank -%}<img src="{{ s.instagram.image }}" alt="{{ s.instagram.handle }}">{%- endif -%}
         <div class="cg-promo-insta-body">
           <i class="fab fa-instagram"></i>
@@ -40,8 +40,8 @@
       {%- endif -%}
 
       {%- for cat in s.categories -%}{%- if cat.wide -%}
-      <a class="cg-promo-cat cg-promo-cat-wide" href="{{ cat.href | default: '/store' }}">
-        <div class="cg-promo-cat-img">{% if cat.image != blank %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</div>
+      <a class="cg-promo-cat cg-promo-cat-wide" href="{{ cat.href | default: '/store' }}" data-el-item="categories:{{ forloop.index0 }}" data-el="item">
+        <div class="cg-promo-cat-img" data-el="image">{% if cat.image != blank %}<img src="{{ cat.image }}" alt="{{ cat.title }}">{% endif %}</div>
         <div class="cg-promo-cat-cap"><h3>{{ cat.title }}</h3>{% if cat.count_label != blank %}<span>{{ cat.count_label }}</span>{% endif %}</div>
       </a>
       {%- endif -%}{%- endfor -%}

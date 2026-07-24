@@ -2,25 +2,25 @@
 {%- assign nl = '
 ' -%}
 {%- if slides and slides.size > 0 -%}
-<section class="ex-hero" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 6000 }}">
+<section class="ex-hero{% if section.in_column %} ex-in-column{% endif %}" data-hero data-autoplay="{{ section.settings.autoplay_ms | default: 6000 }}">
   <div class="ex-hero-slides">
     {%- for slide in slides -%}
-    <div class="ex-hero-slide{% if forloop.first %} is-active{% endif %}"{% if slide.image != blank %} style="background-image:url('{{ slide.image }}')"{% endif %}>
+    <div class="ex-hero-slide{% if forloop.first %} is-active{% endif %}" data-el-item="slides:{{ forloop.index0 }}" data-el="image"{% if slide.image != blank %} style="background-image:url('{{ slide.image }}')"{% endif %}>
       <div class="ex-container ex-hero-inner">
-        <div class="ex-hero-content">
-          {%- if slide.subtitle != blank -%}<span class="ex-hero-kicker">{{ slide.subtitle }}</span>{%- endif -%}
-          <h1 class="ex-hero-title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
+        <div class="ex-hero-content" data-el="content">
+          {%- if slide.subtitle != blank -%}<span class="ex-hero-kicker" data-el="kicker">{{ slide.subtitle }}</span>{%- endif -%}
+          <h1 class="ex-hero-title" data-el="title">{%- assign lines = slide.title | split: nl -%}{%- for line in lines -%}{{ line }}{%- unless forloop.last -%}<br>{%- endunless -%}{%- endfor -%}</h1>
           <span class="ex-underline ex-underline-light ex-underline-left"><span></span></span>
-          {%- if slide.cta.href != blank -%}<a class="ex-btn ex-btn-light" href="{{ slide.cta.href }}">{{ slide.cta.label | default: 'Shop now' }}</a>{%- endif -%}
+          {%- if slide.cta.href != blank -%}<a class="ex-btn ex-btn-light" href="{{ slide.cta.href }}" data-el="button">{{ slide.cta.label | default: 'Shop now' }}</a>{%- endif -%}
         </div>
       </div>
     </div>
     {%- endfor -%}
   </div>
   {%- if slides.size > 1 -%}
-  <button class="ex-hero-arrow ex-hero-prev" data-hero-prev aria-label="Previous">&#8249;</button>
+  {%- unless section.in_column -%}<button class="ex-hero-arrow ex-hero-prev" data-hero-prev aria-label="Previous">&#8249;</button>
   <button class="ex-hero-arrow ex-hero-next" data-hero-next aria-label="Next">&#8250;</button>
-  <div class="ex-hero-dots" data-hero-dots>
+  {% endunless %}<div class="ex-hero-dots" data-hero-dots>
     {%- for slide in slides -%}<button class="ex-hero-dot{% if forloop.first %} is-active{% endif %}" data-hero-dot="{{ forloop.index0 }}" aria-label="Slide {{ forloop.index }}"></button>{%- endfor -%}
   </div>
   {%- endif -%}

@@ -4,13 +4,13 @@
   <div class="hl-container">
     <div class="hl-newsletter-grid">
       <div class="hl-newsletter-copy">
-        <h2 class="hl-title">{{ s.title }}</h2>
-        {%- if s.subtitle != blank -%}<p class="hl-lead" style="margin-left:0">{{ s.subtitle }}</p>{%- endif -%}
+        <h2 class="hl-title" data-el="heading">{{ s.title }}</h2>
+        {%- if s.subtitle != blank -%}<p class="hl-lead" style="margin-left:0" data-el="text">{{ s.subtitle }}</p>{%- endif -%}
       </div>
       <div class="hl-newsletter-side">
-        <form class="hl-newsletter-form" data-newsletter>
-          <input type="email" placeholder="{{ s.placeholder | default: 'Your email address' }}" aria-label="Email address" required>
-          <button type="submit">{{ s.button | default: 'Subscribe' }}</button>
+        <form class="hl-newsletter-form" data-newsletter data-el="form">
+          <input type="email" placeholder="{{ s.placeholder | default: 'Your email address' }}" aria-label="Email address" data-el="input" required>
+          <button type="submit" data-el="button">{{ s.button | default: 'Subscribe' }}</button>
         </form>
         {%- if s.provider_note != blank -%}<p class="hl-newsletter-note">{{ s.provider_note }}</p>{%- endif -%}
       </div>

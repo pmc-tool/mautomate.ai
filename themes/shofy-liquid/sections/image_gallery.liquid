@@ -1,14 +1,14 @@
 {%- assign s = section.settings -%}
 {%- assign images = s.images -%}
 {%- if images and images.size > 0 -%}
-<section class="sf-section sf-gallery">
+<section class="sf-section sf-gallery{% if section.in_column %} sf-in-column{% endif %}">
   <div class="sf-container">
-    {%- if s.title != blank -%}<div class="sf-shead sf-shead-center"><h2 class="sf-title">{{ s.title }}</h2></div>{%- endif -%}
-    <div class="sf-gallery-grid">
+    {%- if s.title != blank -%}<div class="sf-shead sf-shead-center"><h2 class="sf-title" data-el="heading">{{ s.title }}</h2></div>{%- endif -%}
+    <div class="sf-gallery-grid" data-el="grid">
       {%- for item in images -%}
         {%- assign src = item.image | default: item -%}
         {%- if src != blank -%}
-        <figure class="sf-gallery-cell"><img src="{{ src }}" alt="{{ item.alt | default: 'Gallery image' }}">{% if item.caption != blank %}<figcaption>{{ item.caption }}</figcaption>{% endif %}</figure>
+        <figure class="sf-gallery-cell" data-el-item="items:{{ forloop.index0 }}" data-el="item"><img src="{{ src }}" alt="{{ item.alt | default: 'Gallery image' }}">{% if item.caption != blank %}<figcaption data-el="caption">{{ item.caption }}</figcaption>{% endif %}</figure>
         {%- endif -%}
       {%- endfor -%}
     </div>

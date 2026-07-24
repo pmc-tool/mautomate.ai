@@ -1,7 +1,7 @@
 {%- assign s = section.settings -%}
 {%- assign images = s.images -%}
 {%- if images and images.size > 0 -%}
-<section class="rk-section rk-insta">
+<section class="rk-section rk-insta{% if section.in_column %} rk-in-column{% endif %}">
   <div class="rk-container">
     {%- if s.heading != blank or s.handle != blank -%}
     <div class="rk-shead rk-shead-center">

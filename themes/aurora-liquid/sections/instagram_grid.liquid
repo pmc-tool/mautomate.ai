@@ -1,17 +1,17 @@
 {%- assign s = section.settings -%}
 {%- assign images = s.images -%}
 {%- if images and images.size > 0 -%}
-<section class="au-section au-insta">
+<section class="au-section au-insta{% if section.in_column %} au-in-column{% endif %}">
   <div class="au-container">
     {%- if s.heading != blank or s.handle != blank -%}
     <div class="au-shead au-shead-center">
       {%- if s.heading != blank -%}<p class="au-eyebrow">{{ s.heading }}</p>{%- endif -%}
-      {%- if s.handle != blank -%}<h2 class="au-title">{{ s.handle }}</h2>{%- endif -%}
+      {%- if s.handle != blank -%}<h2 class="au-title" data-el="title">{{ s.handle }}</h2>{%- endif -%}
     </div>
     {%- endif -%}
     <div class="au-insta-grid">
       {%- for item in images -%}{%- if item.image != blank -%}
-      <a class="au-insta-cell au-card" href="{{ item.href | default: '#' }}" target="_blank" rel="noreferrer" aria-label="Instagram">
+      <a class="au-insta-cell au-card" href="{{ item.href | default: '#' }}" target="_blank" rel="noreferrer" aria-label="Instagram" data-el-item="images:{{ forloop.index0 }}" data-el="item">
         <img src="{{ item.image }}" alt="Instagram post">
         <span class="au-insta-overlay"><i class="fab fa-instagram" aria-hidden="true"></i></span>
       </a>

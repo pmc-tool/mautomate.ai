@@ -4,14 +4,14 @@
   <div class="au-container">
     <div class="au-newsletter-card au-card">
       <p class="au-eyebrow">Newsletter</p>
-      <h2 class="au-title">{{ s.title }}</h2>
-      {%- if s.subtitle != blank -%}<p class="au-newsletter-sub">{{ s.subtitle }}</p>{%- endif -%}
-      <form class="au-newsletter-form" data-newsletter>
+      <h2 class="au-title" data-el="heading">{{ s.title }}</h2>
+      {%- if s.subtitle != blank -%}<p class="au-newsletter-sub" data-el="text">{{ s.subtitle }}</p>{%- endif -%}
+      <form class="au-newsletter-form" data-newsletter data-el="form">
         <div class="au-input-wrap">
           <i class="far fa-envelope" aria-hidden="true"></i>
-          <input type="email" placeholder="{{ s.placeholder | default: 'Enter your email address' }}" aria-label="Email address" required>
+          <input type="email" placeholder="{{ s.placeholder | default: 'Enter your email address' }}" aria-label="Email address" data-el="input" required>
         </div>
-        <button type="submit" class="au-btn">{{ s.button | default: 'Subscribe' }}</button>
+        <button type="submit" class="au-btn" data-el="button">{{ s.button | default: 'Subscribe' }}</button>
       </form>
       {%- if s.provider_note != blank -%}<p class="au-newsletter-note">{{ s.provider_note }}</p>{%- endif -%}
     </div>

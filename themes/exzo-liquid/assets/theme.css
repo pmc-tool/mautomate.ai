@@ -627,6 +627,80 @@ main#main { display: block; min-height: 40vh; }
   .ex-newsletter-form .ex-btn { border-radius: 25px; }
 }
 
+/* ==========================================================================
+   COMPACT IN-COLUMN VARIANTS  [.ex-in-column]
+   The page builder can drop a commerce section into a container COLUMN as a
+   widget. The platform sets `section.in_column` on the Liquid context and the
+   section templates translate that into a single modifier class on the section
+   ROOT: `ex-in-column`. EVERY rule below is scoped under that class, so a
+   full-width section (which never gets the class) is untouched — this block is
+   purely additive.
+   Why it is needed: the full-width layouts are sized for the wide container and
+   their breakpoints key off the VIEWPORT, not the box. On a desktop viewport a
+   ~400px column would still get the 560px hero with a 58px display title, the
+   3-up promo grid, the 4-up bordered product grid and the 8-up brand strip.
+   These rules re-tune each one to the box instead.
+   ========================================================================== */
+
+/* shared: kill the full-width vertical rhythm + shrink the display type. The
+   container column owns spacing between its widgets. */
+.ex-in-column{ padding-top:0; padding-bottom:0; }
+.ex-in-column .ex-shead{ margin-bottom:18px; }
+/* a centred heading block wastes a narrow box — left-align section heads */
+.ex-in-column .ex-shead-center{ text-align:left; }
+.ex-in-column .ex-title{ font-size:19px; }
+.ex-in-column .ex-title-sm{ font-size:16px; }
+.ex-in-column .ex-eyebrow{ font-size:11px; margin-bottom:6px; }
+.ex-in-column .ex-underline{ padding:10px 0 12px; }
+.ex-in-column .ex-btn{ padding:11px 20px; font-size:11px; }
+
+/* hero — a modest banner CARD, not a viewport-height cover crop. No arrows
+   (the template omits them); the dots still drive the autoplay slider. */
+.ex-in-column .ex-hero-slides{ min-height:240px; }
+.ex-in-column .ex-hero-inner{ padding-inline:22px; }
+.ex-in-column .ex-hero-content{ max-width:none; padding:30px 0; }
+.ex-in-column .ex-hero-kicker{ font-size:11.5px; margin-bottom:8px; }
+.ex-in-column .ex-hero-title{ font-size:22px; line-height:1.1; }
+.ex-in-column .ex-hero-dots{ bottom:12px; }
+.ex-in-column .ex-hero-dot{ width:8px; height:8px; margin:0 4px; }
+
+/* promo grid — the 3-up mosaic has no meaning in a column, so it becomes a
+   single stack of compact tiles. */
+.ex-in-column .ex-promo-grid{ grid-template-columns:1fr; gap:14px; }
+.ex-in-column .ex-promo-cat-wide{ grid-column:auto; }
+.ex-in-column .ex-promo-intro{ padding:0; }
+.ex-in-column .ex-promo-intro-title{ font-size:19px; }
+.ex-in-column .ex-promo-intro-body{ margin:0 0 14px; font-size:14px; }
+.ex-in-column .ex-promo-cat-img,
+.ex-in-column .ex-promo-cat-wide .ex-promo-cat-img{ aspect-ratio:3/2; height:auto; min-height:0; }
+.ex-in-column .ex-promo-cat-cap h3{ font-size:14px; }
+.ex-in-column .ex-promo-sale{ min-height:200px; }
+.ex-in-column .ex-promo-sale-title{ font-size:19px; }
+.ex-in-column .ex-promo-insta{ min-height:180px; }
+.ex-in-column .ex-promo-insta-body h3{ font-size:15px; }
+
+/* product tabs — one non-wrapping scrollable row of pill tabs, left aligned,
+   and a 2-up bordered grid. The template also caps each panel at 4 products so
+   the widget stays a card-height block instead of a very tall ribbon. */
+.ex-in-column .ex-tabnav{ justify-content:flex-start; flex-wrap:nowrap; gap:8px; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.ex-in-column .ex-tabnav::-webkit-scrollbar{ display:none; }
+.ex-in-column .ex-tabbtn{ white-space:nowrap; }
+.ex-in-column .ex-grid{ grid-template-columns:repeat(2,1fr); }
+.ex-in-column .ex-card{ padding:16px 14px 14px; }
+.ex-in-column .ex-card-body{ padding-top:12px; }
+.ex-in-column .ex-card-title{ font-size:11.5px; min-height:0; }
+.ex-in-column .ex-card-price{ margin-top:6px; font-size:14px; }
+
+/* mildly-cramped grids — re-tuned to the box */
+.ex-in-column .ex-brand-row{ grid-template-columns:repeat(3,1fr); }
+.ex-in-column .ex-brand img{ max-height:34px; }
+.ex-in-column .ex-insta-grid{ grid-template-columns:repeat(3,1fr); gap:8px; }
+.ex-in-column .ex-gallery-grid{ grid-template-columns:repeat(2,1fr); gap:12px; }
+.ex-in-column .ex-gallery-cell figcaption{ font-size:12px; }
+.ex-in-column .ex-showcase-grid{ grid-template-columns:repeat(2,1fr); gap:14px; }
+.ex-in-column .ex-showcase-label{ font-size:13px; }
+.ex-in-column .ex-showcase-count{ font-size:10px; }
+
 /* ---------- cart page (interactive bag redesign) ----------
    Card-style line items on hairline borders, pill qty stepper, circular
    remove button and a grey summary panel with the joined pill promo form —

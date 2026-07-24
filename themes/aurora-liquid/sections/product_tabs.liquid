@@ -2,7 +2,7 @@
    ruled heading), matching the React theme — not switchable tabs. {%- endcomment -%}
 {%- assign tabs = section.settings.tabs -%}
 {%- if tabs and tabs.size > 0 -%}
-<section class="au-section au-groups">
+<section class="au-section au-groups{% if section.in_column %} au-in-column{% endif %}">
   <div class="au-container">
     {%- for tab in tabs -%}
     {%- assign products = tab.products -%}
@@ -12,7 +12,11 @@
         <h2 class="au-group-title">{{ tab.label }}</h2>
         <span class="au-eyebrow">{{ products.size }} item{% if products.size != 1 %}s{% endif %}</span>
       </div>
+      {%- if section.in_column -%}
+      <div class="au-grid au-grid-5">{%- for product in products limit: 4 -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- else -%}
       <div class="au-grid au-grid-5">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- endif -%}
     </div>
     {%- endif -%}
     {%- endfor -%}

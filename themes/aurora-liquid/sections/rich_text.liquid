@@ -2,6 +2,6 @@
 {%- assign width = s.width | default: 'normal' -%}
 <section class="au-section au-richtext au-richtext-{{ width }}">
   <div class="au-container">
-    <div class="au-prose">{%- if s.html != blank -%}{% render 'resolve-tokens', text: s.html, shop: shop %}{%- endif -%}</div>
+    <div class="au-prose" data-el="content">{%- if s.html != blank -%}{% render 'resolve-tokens', text: s.html, shop: shop %}{%- endif -%}</div>
   </div>
 </section>

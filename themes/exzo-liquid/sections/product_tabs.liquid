@@ -1,6 +1,6 @@
 {%- assign tabs = section.settings.tabs -%}
 {%- if tabs and tabs.size > 0 -%}
-<section class="ex-section ex-tabs" data-tabs>
+<section class="ex-section ex-tabs{% if section.in_column %} ex-in-column{% endif %}" data-tabs>
   <div class="ex-container">
     <div class="ex-shead ex-shead-center">
       <span class="ex-eyebrow">{{ section.settings.sub_title | default: 'New arrivals' }}</span>
@@ -16,7 +16,11 @@
     <div class="ex-tabpanel{% if forloop.first %} is-active{% endif %}" data-tab-panel="{{ forloop.index0 }}" role="tabpanel">
       {%- assign products = tab.products -%}
       {%- if products and products.size > 0 -%}
+      {%- if section.in_column -%}
+      <div class="ex-grid">{%- for product in products limit: 4 -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- else -%}
       <div class="ex-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- endif -%}
       {%- else -%}
       <p class="ex-empty">No products to show here yet.</p>
       {%- endif -%}

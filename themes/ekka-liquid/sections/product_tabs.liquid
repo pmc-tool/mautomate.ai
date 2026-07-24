@@ -1,6 +1,6 @@
 {%- assign tabs = section.settings.tabs -%}
 {%- if tabs and tabs.size > 0 -%}
-<section class="ek-section ek-tabs" data-tabs>
+<section class="ek-section ek-tabs{% if section.in_column %} ek-in-column{% endif %}" data-tabs>
   <div class="ek-container">
     <div class="ek-stitle">
       <h2 class="ek-bg-title" aria-hidden="true">{{ section.settings.title | default: 'Our Top Collection' }}</h2>
@@ -16,7 +16,11 @@
     <div class="ek-tabpanel{% if forloop.first %} is-active{% endif %}" data-tab-panel="{{ forloop.index0 }}" role="tabpanel">
       {%- assign products = tab.products -%}
       {%- if products and products.size > 0 -%}
+      {%- if section.in_column -%}
+      <div class="ek-grid">{%- for product in products limit: 4 -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- else -%}
       <div class="ek-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- endif -%}
       {%- else -%}
       <p class="ek-empty">No products to show here yet.</p>
       {%- endif -%}
