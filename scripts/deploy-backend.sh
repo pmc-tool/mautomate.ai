@@ -21,7 +21,7 @@ set -uo pipefail
 
 REPO="/home/ratul/brandtodoor"
 APP_DIR="$REPO/apps/backend"
-PM2_APP="b2d-backend"
+PM2_APP="mautomate-backend"
 HEALTH_URL="http://127.0.0.1:9500/health"
 BUILD_OUT="$APP_DIR/.medusa/server"
 

@@ -24,7 +24,10 @@ set -uo pipefail
 
 REPO="/home/ratul/brandtodoor"
 APP_DIR="$REPO/apps/storefront"
-PM2_APP="b2d-storefront-next"
+# pm2 processes were renamed b2d-* -> mautomate-* on 2026-07-23. The old name
+# made the restart a silent no-op while the health gate still saw the old
+# process serving from moved-aside inodes — a fake-success deploy.
+PM2_APP="mautomate-storefront"
 HEALTH_URL="http://127.0.0.1:8601/dashboard"
 LIVE_DIR="$APP_DIR/.next"
 STAGE_DIR="$APP_DIR/.next-build"
