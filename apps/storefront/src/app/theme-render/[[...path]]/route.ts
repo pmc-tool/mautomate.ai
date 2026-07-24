@@ -454,7 +454,30 @@ export async function GET(
                 byCode.get(code) ?? { code, name: code.toUpperCase() }
             )
         : []
-      ;(data as any).countries = shipped.length ? shipped : regionCountries
+      // Pooled tenants' shared region is intentionally COUNTRY-LESS, so with
+      // no shipping set up yet both lists can be empty. The address book is
+      // informational (checkout enforces shippable countries), so fall back
+      // to the full ISO list rather than an empty, unusable select.
+      let countries = shipped.length ? shipped : regionCountries
+      if (!countries.length) {
+        try {
+          const dn = new Intl.DisplayNames(["en"], { type: "region" })
+          const all: { code: string; name: string }[] = []
+          for (let a = 65; a <= 90; a++) {
+            for (let b = 65; b <= 90; b++) {
+              const cc2 = String.fromCharCode(a) + String.fromCharCode(b)
+              const name = dn.of(cc2)
+              if (name && name !== cc2) {
+                all.push({ code: cc2.toLowerCase(), name })
+              }
+            }
+          }
+          countries = all.sort((x, y) => x.name.localeCompare(y.name))
+        } catch {
+          countries = [{ code: "us", name: "United States" }]
+        }
+      }
+      ;(data as any).countries = countries
     }
     // cart/search/wishlist and the remaining customers/* templates render
     // from `base` (cart and customer are already in context).
