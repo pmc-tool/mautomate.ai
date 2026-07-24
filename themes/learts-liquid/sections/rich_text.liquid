@@ -2,6 +2,6 @@
 {%- assign width = s.width | default: 'normal' -%}
 <section class="lz-section lz-richtext lz-richtext-{{ width }}">
   <div class="lz-container">
-    <div class="lz-richtext-inner">{%- if s.html != blank -%}{% render 'resolve-tokens', text: s.html, shop: shop %}{%- endif -%}</div>
+    <div class="lz-richtext-inner" data-el="content">{%- if s.html != blank -%}{% render 'resolve-tokens', text: s.html, shop: shop %}{%- endif -%}</div>
   </div>
 </section>

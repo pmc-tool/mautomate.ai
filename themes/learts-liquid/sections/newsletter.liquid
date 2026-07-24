@@ -4,11 +4,11 @@
   <div class="lz-container">
     <div class="lz-newsletter-inner">
       <span class="lz-eyebrow lz-eyebrow-light">Newsletter</span>
-      <h2 class="lz-title lz-title-light">{{ s.title }}</h2>
-      {%- if s.subtitle != blank -%}<p class="lz-newsletter-sub">{{ s.subtitle }}</p>{%- endif -%}
-      <form class="lz-newsletter-form" data-newsletter>
-        <input type="email" placeholder="{{ s.placeholder | default: 'Enter your email address' }}" aria-label="Email address" required>
-        <button type="submit" class="lz-btn lz-btn-accent">{{ s.button | default: 'Subscribe' }}</button>
+      <h2 class="lz-title lz-title-light" data-el="heading">{{ s.title }}</h2>
+      {%- if s.subtitle != blank -%}<p class="lz-newsletter-sub" data-el="text">{{ s.subtitle }}</p>{%- endif -%}
+      <form class="lz-newsletter-form" data-newsletter data-el="form">
+        <input type="email" placeholder="{{ s.placeholder | default: 'Enter your email address' }}" aria-label="Email address" data-el="input" required>
+        <button type="submit" class="lz-btn lz-btn-accent" data-el="button">{{ s.button | default: 'Subscribe' }}</button>
       </form>
       {%- if s.provider_note != blank -%}<p class="lz-newsletter-note">{{ s.provider_note }}</p>{%- endif -%}
     </div>

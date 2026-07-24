@@ -168,7 +168,8 @@ body.lz-body{ margin:0; min-height:100vh; overflow-x:hidden; background:var(--lz
 .lz-deal-desc{ color:var(--lz-muted); max-width:460px; margin:18px 0 4px; }
 .lz-countdown{ display:flex; gap:clamp(16px,2.4vw,30px); margin:28px 0 32px; }
 .lz-cd{ text-align:center; }
-.lz-cd-num{ display:block; font-family:var(--lz-serif); font-size:clamp(30px,3.4vw,42px); color:var(--lz-ink); line-height:1; font-variant-numeric:tabular-nums; }
+.lz-cd{ min-width:56px; }
+.lz-cd-num{ display:block; font-family:var(--lz-sans); font-weight:500; font-size:clamp(28px,3vw,38px); color:var(--lz-ink); line-height:1; font-variant-numeric:tabular-nums; letter-spacing:.01em; }
 .lz-cd-lbl{ font-size:11px; text-transform:uppercase; letter-spacing:.14em; color:var(--lz-muted); }
 
 /* ---- category showcase ---- */
@@ -401,6 +402,101 @@ a.lz-footer-contact:hover{ color:var(--lz-accent); }
   .lz-newsletter-form{ flex-direction:column; gap:12px; }
   .lz-newsletter-form input{ border-right:1px solid rgba(255,255,255,.28); }
 }
+
+/* ==========================================================================
+   COMPACT IN-COLUMN VARIANTS  [.lz-in-column]
+   The page builder can drop a commerce section into a container COLUMN as a
+   widget. The platform sets `section.in_column` on the Liquid context and the
+   section templates translate that into a single modifier class on the section
+   ROOT: `lz-in-column`. EVERY rule below is scoped under that class, so a
+   full-width section (which never gets the class) is untouched — this block is
+   purely additive.
+   Why it is needed: the full-width layouts are sized for a 1320px container and
+   all their responsive breakpoints key off the VIEWPORT, not the box. On a
+   desktop viewport a ~400px column therefore still gets the 1320px layout —
+   a 12-column promo mosaic at ~100px per cell, a 4-up product grid, a 6-up
+   brand row, and a hero whose min-height is 60vh of the WINDOW. These rules
+   re-tune each one to the box instead.
+   ========================================================================== */
+
+/* shared: kill the full-width vertical rhythm + shrink the display type. The
+   container column owns spacing between its widgets. */
+.lz-in-column{ padding-top:0; padding-bottom:0; }
+.lz-in-column .lz-shead,
+.lz-in-column .lz-shead-center{ margin-bottom:20px; max-width:none; }
+/* a centred heading block wastes a narrow box — left-align section heads */
+.lz-in-column .lz-shead-center{ text-align:left; margin-inline:0; }
+.lz-in-column .lz-title{ font-size:20px; }
+.lz-in-column .lz-title-sm{ font-size:18px; }
+.lz-in-column .lz-eyebrow{ font-size:10.5px; letter-spacing:.18em; margin-bottom:10px; }
+.lz-in-column .lz-btn{ padding:11px 22px; font-size:11px; letter-spacing:.13em; }
+
+/* hero — a modest banner CARD, not a viewport-height cover crop. No arrows
+   (the template omits them); the dots still drive the autoplay slider. */
+.lz-hero.lz-in-column{ border-radius:3px; }
+/* the copy is bottom-anchored so it sits in the DARK end of the scrim — the
+   full-width hero can rely on a left-to-right scrim because its copy column is
+   560px wide, but a 400px card has no such column and white text over the pale
+   top of a photo is unreadable. */
+.lz-in-column .lz-hero-slide{ min-height:240px; align-items:flex-end; }
+.lz-in-column .lz-hero-slide::after{ background:linear-gradient(0deg,rgba(20,20,20,.66),rgba(20,20,20,.34) 45%,rgba(20,20,20,.06)); }
+.lz-in-column .lz-hero-content{ min-height:0; max-width:none; padding:26px 22px; }
+.lz-in-column .lz-hero-title{ font-size:21px; line-height:1.2; margin:0 0 16px; }
+.lz-in-column .lz-hero-content .lz-btn{ align-self:flex-start; }
+.lz-in-column .lz-hero-dots{ bottom:12px; gap:7px; }
+.lz-in-column .lz-hero-dot{ width:7px; height:7px; }
+
+/* promo mosaic — the 12-column mosaic has no meaning in a column, so it becomes
+   a single stack of uniform 3:2 banners. */
+.lz-in-column .lz-promo-grid{ grid-template-columns:1fr; gap:14px; }
+.lz-in-column .lz-promo-intro,
+.lz-in-column .lz-promo-sale,
+.lz-in-column .lz-promo-cat,
+.lz-in-column .lz-promo-cat-wide,
+.lz-in-column .lz-promo-insta{ grid-column:auto; }
+.lz-in-column .lz-promo-intro{ padding:0; }
+.lz-in-column .lz-promo-intro-title{ font-size:20px; margin:0 0 12px; }
+.lz-in-column .lz-promo-intro-body{ margin:0 0 16px; font-size:15px; }
+/* the intro is a flex column, so its inline-block link STRETCHES — harmless at
+   1320px, but in a 400px box the link's underline reads as a full-width rule. */
+.lz-in-column .lz-promo-intro .lz-link{ align-self:flex-start; }
+.lz-in-column .lz-promo-sale{ min-height:200px; }
+.lz-in-column .lz-promo-sale-body{ padding:18px; }
+.lz-in-column .lz-promo-sale-title{ font-size:18px; margin:4px 0 10px; }
+.lz-in-column .lz-promo-cat-img,
+.lz-in-column .lz-promo-cat-wide .lz-promo-cat-img{ aspect-ratio:3/2; }
+.lz-in-column .lz-promo-cat-cap{ left:16px; bottom:14px; }
+.lz-in-column .lz-promo-cat-cap h3{ font-size:17px; }
+.lz-in-column .lz-promo-insta{ min-height:0; }
+.lz-in-column .lz-promo-insta img{ min-height:180px; aspect-ratio:3/2; }
+.lz-in-column .lz-promo-insta-body h3{ font-size:17px; }
+
+/* product tabs — one non-wrapping scrollable row of tabs, left aligned, and a
+   2-up product grid. The template also caps each panel at 4 products so the
+   widget stays a card-height block instead of a very tall ribbon. */
+.lz-in-column .lz-tabnav{ display:flex; flex-wrap:nowrap; justify-content:flex-start; gap:18px; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.lz-in-column .lz-tabnav::-webkit-scrollbar{ display:none; }
+.lz-in-column .lz-tabbtn{ font-size:15px; padding:0 0 10px; white-space:nowrap; }
+.lz-in-column .lz-grid{ grid-template-columns:repeat(2,1fr); gap:22px 14px; }
+.lz-in-column .lz-card-body{ padding:12px 2px 0; }
+.lz-in-column .lz-card-title{ font-size:13.5px; margin:0 0 5px; }
+.lz-in-column .lz-card-price{ font-size:13.5px; gap:7px; }
+.lz-in-column .lz-card-badge{ top:9px; left:9px; padding:4px 8px; font-size:9px; }
+
+/* mildly-cramped grids — re-tuned to the box */
+.lz-in-column .lz-brand-row{ grid-template-columns:repeat(3,1fr); gap:18px; }
+.lz-in-column .lz-brand img{ max-height:34px; }
+.lz-in-column .lz-insta-grid{ grid-template-columns:repeat(3,1fr); gap:8px; }
+.lz-in-column .lz-gallery-grid{ grid-template-columns:repeat(2,1fr); gap:12px; }
+.lz-in-column .lz-gallery-cell figcaption{ font-size:12px; margin-top:6px; }
+.lz-in-column .lz-showcase-grid{ grid-template-columns:repeat(2,1fr); gap:18px; }
+.lz-in-column .lz-showcase-img{ margin-bottom:12px; }
+.lz-in-column .lz-showcase-label{ font-size:15px; }
+.lz-in-column .lz-showcase-count{ font-size:11px; }
+
+/* 1.0.17: optional description under the category-showcase heading. */
+.lz-shead .lz-sdesc{margin:12px auto 0;max-width:640px;color:#777;font-size:15px;line-height:1.7}
+.lz-shead-center .lz-sdesc{text-align:center}
 
 /* blog-article QA fixes 2026-07-23 */
 .lz-richtext-inner a{text-decoration:underline;text-underline-offset:2px}

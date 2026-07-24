@@ -2,20 +2,30 @@
 <section class="lz-section lz-deal">
   <div class="lz-container">
     <div class="lz-deal-grid">
-      <div class="lz-deal-media">
+      <div class="lz-deal-media" data-el="image">
         {%- if s.image %}<img src="{{ s.image }}" alt="{{ s.title | default: 'Deal of the day' }}">{% else %}<div class="lz-deal-fallback"></div>{% endif -%}
       </div>
-      <div class="lz-deal-content">
+      <div class="lz-deal-content" data-el="content">
         <span class="lz-eyebrow">Limited time</span>
-        <h2 class="lz-title">{{ s.title | default: 'Deal of the day' }}</h2>
-        {%- if s.description != blank -%}<p class="lz-deal-desc">{{ s.description }}</p>{%- endif -%}
-        <div class="lz-countdown" data-countdown="{{ s.countdown_to }}">
-          <div class="lz-cd"><span class="lz-cd-num" data-cd="days">00</span><span class="lz-cd-lbl">Days</span></div>
-          <div class="lz-cd"><span class="lz-cd-num" data-cd="hours">00</span><span class="lz-cd-lbl">Hours</span></div>
-          <div class="lz-cd"><span class="lz-cd-num" data-cd="minutes">00</span><span class="lz-cd-lbl">Mins</span></div>
-          <div class="lz-cd"><span class="lz-cd-num" data-cd="seconds">00</span><span class="lz-cd-lbl">Secs</span></div>
+        <h2 class="lz-title" data-el="title">{{ s.title | default: 'Deal of the day' }}</h2>
+        {%- if s.description != blank -%}<p class="lz-deal-desc" data-el="text">{{ s.description }}</p>{%- endif -%}
+        {%- comment -%} Compute the initial countdown server-side so it shows real
+          numbers even before theme.js ticks (and in the editor, which has no JS). {%- endcomment -%}
+        {%- assign _target = s.countdown_to | date: '%s' | plus: 0 -%}
+        {%- assign _now = 'now' | date: '%s' | plus: 0 -%}
+        {%- assign _diff = _target | minus: _now -%}
+        {%- if _diff < 0 -%}{%- assign _diff = 0 -%}{%- endif -%}
+        {%- assign _d = _diff | divided_by: 86400 | floor -%}
+        {%- assign _h = _diff | modulo: 86400 | divided_by: 3600 | floor -%}
+        {%- assign _m = _diff | modulo: 3600 | divided_by: 60 | floor -%}
+        {%- assign _s = _diff | modulo: 60 -%}
+        <div class="lz-countdown" data-el="countdown" data-countdown="{{ s.countdown_to }}">
+          <div class="lz-cd"><span class="lz-cd-num" data-cd="days">{% if _d < 10 %}0{% endif %}{{ _d }}</span><span class="lz-cd-lbl">Days</span></div>
+          <div class="lz-cd"><span class="lz-cd-num" data-cd="hours">{% if _h < 10 %}0{% endif %}{{ _h }}</span><span class="lz-cd-lbl">Hours</span></div>
+          <div class="lz-cd"><span class="lz-cd-num" data-cd="minutes">{% if _m < 10 %}0{% endif %}{{ _m }}</span><span class="lz-cd-lbl">Mins</span></div>
+          <div class="lz-cd"><span class="lz-cd-num" data-cd="seconds">{% if _s < 10 %}0{% endif %}{{ _s }}</span><span class="lz-cd-lbl">Secs</span></div>
         </div>
-        {%- if s.cta.href != blank -%}<a class="lz-btn" href="{{ s.cta.href }}">{{ s.cta.label | default: 'Shop now' }}</a>{%- endif -%}
+        {%- if s.cta.href != blank -%}<a class="lz-btn" href="{{ s.cta.href }}" data-el="button">{{ s.cta.label | default: 'Shop now' }}</a>{%- endif -%}
       </div>
     </div>
   </div>

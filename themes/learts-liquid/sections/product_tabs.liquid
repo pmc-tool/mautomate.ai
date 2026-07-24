@@ -1,6 +1,6 @@
 {%- assign tabs = section.settings.tabs -%}
 {%- if tabs and tabs.size > 0 -%}
-<section class="lz-section lz-tabs" data-tabs>
+<section class="lz-section lz-tabs{% if section.in_column %} lz-in-column{% endif %}" data-tabs>
   <div class="lz-container">
     <div class="lz-shead lz-shead-center">
       <span class="lz-eyebrow">Our collection</span>
@@ -14,7 +14,11 @@
     <div class="lz-tabpanel{% if forloop.first %} is-active{% endif %}" data-tab-panel="{{ forloop.index0 }}" role="tabpanel">
       {%- assign products = tab.products -%}
       {%- if products and products.size > 0 -%}
+      {%- if section.in_column -%}
+      <div class="lz-grid">{%- for product in products limit: 4 -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- else -%}
       <div class="lz-grid">{%- for product in products -%}{% render 'product-card', product: product %}{%- endfor -%}</div>
+      {%- endif -%}
       {%- else -%}
       <p class="lz-empty">No products to show here yet.</p>
       {%- endif -%}

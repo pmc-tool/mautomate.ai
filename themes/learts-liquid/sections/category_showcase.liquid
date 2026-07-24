@@ -1,17 +1,18 @@
 {%- assign s = section.settings -%}
 {%- assign items = s.items -%}
 {%- if items and items.size > 0 -%}
-<section class="lz-section lz-showcase">
+<section class="lz-section lz-showcase{% if section.in_column %} lz-in-column{% endif %}">
   <div class="lz-container">
     <div class="lz-shead lz-shead-center">
       {%- if s.sub_title != blank -%}<span class="lz-eyebrow">{{ s.sub_title }}</span>{%- endif -%}
-      {%- if s.title != blank -%}<h2 class="lz-title">{{ s.title }}</h2>{%- endif -%}
+      {%- if s.title != blank -%}<h2 class="lz-title" data-el="title">{{ s.title }}</h2>{%- endif -%}
+      {%- if s.description != blank -%}<p class="lz-sdesc" data-el="description">{{ s.description }}</p>{%- endif -%}
     </div>
     <div class="lz-showcase-grid">
       {%- for item in items -%}
-      <a class="lz-showcase-tile" href="{{ item.href | default: '/store' }}">
-        <span class="lz-showcase-img">{% if item.image %}<img src="{{ item.image }}" alt="{{ item.label }}">{% endif %}</span>
-        <span class="lz-showcase-label">{{ item.label }}</span>
+      <a class="lz-showcase-tile" href="{{ item.href | default: '/store' }}" data-el-item="items:{{ forloop.index0 }}" data-el="tile">
+        <span class="lz-showcase-img" data-el="image">{% if item.image %}<img src="{{ item.image }}" alt="{{ item.label }}">{% endif %}</span>
+        <span class="lz-showcase-label" data-el="label">{{ item.label }}</span>
         {%- if item.count != blank -%}<span class="lz-showcase-count">{{ item.count }} items</span>{%- endif -%}
       </a>
       {%- endfor -%}
