@@ -1,7 +1,7 @@
 {
   "id": "rokon-liquid",
   "name": "Rokon",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "engine": "1",
   "author": "mAutomate",
   "description": "Bold product-led design ported from the Rokon React theme: red accent on near-black ink, Rubik body and Work Sans headings, tech-store energy. Fully self-contained Liquid package.",

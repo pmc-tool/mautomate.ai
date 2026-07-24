@@ -4,28 +4,70 @@
     <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="hl-current">Cart</span></nav>
   </div>
 </div>
-<section class="hl-section hl-cart-page">
+<section class="hl-section hl-cart-page" data-cart-page>
   <div class="hl-container">
     {%- if cart.items and cart.items.size > 0 -%}
     <div class="hl-cart-layout">
       <div class="hl-cart-lines">
-        <div class="hl-cart-row hl-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
-        {%- for item in cart.items -%}
-        <div class="hl-cart-row">
-          <div class="hl-cart-prod">
-            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
-            <div><a href="{{ routes.root_url }}{{ item.url }}" class="hl-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="hl-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
-          </div>
-          <span>{{ item.line_price | money }}</span>
-          <span>{{ item.quantity }}</span>
-          <span>{{ item.line_price | money }}</span>
+        <div class="hl-cart-lines-head">
+          <span class="hl-cart-lines-label">Product</span>
+          <span class="hl-cart-lines-label">{{ cart.item_count }}{% if cart.item_count == 1 %} item{% else %} items{% endif %}</span>
         </div>
+        {%- for item in cart.items -%}
+        <article class="hl-cart-line" data-cart-line="{{ item.id }}">
+          <a class="hl-cart-line-media" href="{{ routes.root_url }}{{ item.url }}">
+            {%- if item.image -%}<img src="{{ item.image }}" alt="{{ item.title }}">{%- else -%}<span class="hl-cart-line-ph"></span>{%- endif -%}
+          </a>
+          <div class="hl-cart-line-info">
+            <a class="hl-cart-name" href="{{ routes.root_url }}{{ item.url }}">{{ item.title }}</a>
+            {%- if item.variant.title != blank and item.variant.title != "Default Variant" -%}
+            <span class="hl-cart-variant">{{ item.variant.title }}</span>
+            {%- endif -%}
+            <span class="hl-cart-unit">{{ item.unit_price | money }} each</span>
+            <button type="button" class="hl-cart-remove" data-line-remove aria-label="Remove {{ item.title }}">Remove</button>
+          </div>
+          <div class="hl-cart-line-qty">
+            <div class="hl-stepper">
+              <button type="button" data-qty-minus aria-label="Decrease quantity">&minus;</button>
+              <input type="text" inputmode="numeric" value="{{ item.quantity }}" data-qty-input aria-label="Quantity">
+              <button type="button" data-qty-plus aria-label="Increase quantity">+</button>
+            </div>
+          </div>
+          <span class="hl-cart-line-total">{{ item.line_price | money }}</span>
+        </article>
         {%- endfor -%}
+        <p class="hl-cart-msg" data-cart-msg hidden></p>
+        <a class="hl-link hl-cart-back" href="{{ routes.collections_url }}">Continue shopping</a>
       </div>
       <aside class="hl-cart-summary">
-        <h2 class="hl-cart-summary-title">Summary</h2>
+        <h2 class="hl-cart-summary-title">Order summary</h2>
         <div class="hl-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        {%- if cart.discount_total > 0 -%}
+        <div class="hl-cart-sum-row hl-cart-discount"><span>Discount</span><span>&minus;{{ cart.discount_total | money }}</span></div>
+        {%- endif -%}
         <div class="hl-cart-sum-row hl-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <span class="hl-promo-label">Promo code</span>
+        <form class="hl-promo" data-promo-form>
+          <input type="text" name="code" placeholder="Enter code" autocomplete="off" aria-label="Promo code">
+          <button type="submit">Apply</button>
+        </form>
+        {%- assign has_codes = false -%}
+        {%- for promo in cart.promotions -%}
+          {%- if promo.code != blank and promo.is_automatic != true -%}{%- assign has_codes = true -%}{%- endif -%}
+        {%- endfor -%}
+        {%- if has_codes -%}
+        <div class="hl-promo-tags">
+          {%- for promo in cart.promotions -%}
+            {%- if promo.code != blank and promo.is_automatic != true -%}
+            <span class="hl-promo-tag">
+              {{ promo.code }}
+              <button type="button" data-promo-remove="{{ promo.code }}" aria-label="Remove code {{ promo.code }}">&times;</button>
+            </span>
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+        {%- endif -%}
+        <p class="hl-cart-msg" data-promo-msg hidden></p>
         <a class="hl-btn hl-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
         <a class="hl-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
       </aside>

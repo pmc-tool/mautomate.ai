@@ -4,29 +4,59 @@
     <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="bz-current">Cart</span></nav>
   </div>
 </div>
-<section class="bz-section bz-cart">
+<section class="bz-section bz-cartp" data-cart-page>
   <div class="bz-container">
     {%- if cart.items and cart.items.size > 0 -%}
-    <div class="bz-cart-layout">
-      <div class="bz-cart-lines">
-        <div class="bz-cart-row bz-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
-        {%- for item in cart.items -%}
-        <div class="bz-cart-row">
-          <div class="bz-cart-prod">
-            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
-            <div><a href="{{ routes.root_url }}{{ item.url }}" class="bz-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="bz-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
-          </div>
-          <span>{{ item.line_price | money }}</span>
-          <span>{{ item.quantity }}</span>
-          <span class="bz-cart-linetotal">{{ item.line_price | money }}</span>
+    <div class="bz-cartp-cols">
+      <div class="bz-cartp-items">
+        <div class="bz-cartp-bar">
+          <span class="bz-cartp-count">Shopping bag &mdash; {{ cart.item_count }} item{% if cart.item_count != 1 %}s{% endif %}</span>
+          <a class="bz-link" href="{{ routes.collections_url }}">Continue shopping</a>
         </div>
+        {%- for item in cart.items -%}
+        <article class="bz-cartp-item" data-cart-line="{{ item.id }}">
+          <a class="bz-cartp-media" href="{{ routes.root_url }}{{ item.url }}">
+            {%- if item.image != blank -%}<img src="{{ item.image }}" alt="{{ item.title }}">{%- else -%}<span class="bz-cartp-media-ph"></span>{%- endif -%}
+          </a>
+          <div class="bz-cartp-info">
+            <a href="{{ routes.root_url }}{{ item.url }}" class="bz-cart-name">{{ item.title }}</a>
+            {%- if item.variant.title != blank and item.variant.title != "Default Variant" -%}
+            <span class="bz-cart-variant">{{ item.variant.title }}</span>
+            {%- endif -%}
+            <span class="bz-cartp-unit">{{ item.unit_price | money }} each</span>
+            <button type="button" class="bz-cartp-remove" data-line-remove aria-label="Remove {{ item.title }}">Remove</button>
+          </div>
+          <div class="bz-cartp-end">
+            <span class="bz-cartp-stepper">
+              <button type="button" data-qty-minus aria-label="Decrease quantity">&minus;</button>
+              <input type="text" inputmode="numeric" value="{{ item.quantity }}" data-qty-input aria-label="Quantity">
+              <button type="button" data-qty-plus aria-label="Increase quantity">+</button>
+            </span>
+            <span class="bz-cartp-linetotal">{{ item.line_price | money }}</span>
+          </div>
+        </article>
         {%- endfor -%}
+        <p class="bz-cartp-err" data-cart-msg hidden></p>
       </div>
-      <aside class="bz-cart-summary">
-        <h2 class="bz-cart-summary-title">Summary</h2>
-        <div class="bz-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
-        <div class="bz-cart-sum-row bz-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
-        <a class="bz-btn bz-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
+      <aside class="bz-cartp-aside">
+        <h2 class="bz-cartp-aside-title">Order Summary</h2>
+        <div class="bz-cartp-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        {%- if cart.discount_total > 0 -%}
+        <div class="bz-cartp-sum-row bz-cartp-sum-discount"><span>Discount</span><span>&minus;{{ cart.discount_total | money }}</span></div>
+        {%- endif -%}
+        <div class="bz-cartp-sum-row bz-cartp-sum-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <span class="bz-cartp-promo-label">Promo code</span>
+        <form class="bz-cartp-promo" data-promo-form>
+          <input type="text" name="code" placeholder="Enter your code" autocomplete="off" aria-label="Promo code">
+          <button type="submit">Apply</button>
+        </form>
+        {%- for promo in cart.promotions -%}
+          {%- if promo.code != blank and promo.is_automatic != true -%}
+          <button type="button" class="bz-cartp-chip" data-promo-remove="{{ promo.code }}" aria-label="Remove code {{ promo.code }}">{{ promo.code }}<span aria-hidden="true">&times;</span></button>
+          {%- endif -%}
+        {%- endfor -%}
+        <p class="bz-cartp-err" data-promo-msg hidden></p>
+        <a class="bz-btn bz-btn-block" href="{{ cart.checkout_url }}">Proceed to Checkout</a>
         <a class="bz-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
       </aside>
     </div>

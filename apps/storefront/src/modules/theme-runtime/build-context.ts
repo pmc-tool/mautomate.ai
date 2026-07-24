@@ -150,32 +150,104 @@ function priceOf(v: any): number {
   return 0
 }
 
-function mapCart(cart: any): any {
+export function mapCart(cart: any): any {
   if (!cart) return { item_count: 0, total_price: 0, items: [] }
   const items = (cart.items ?? []).map((i: any) => ({
     id: i.id,
     title: i.title ?? i.product_title ?? "",
+    product_title: i.product_title ?? i.title ?? "",
     quantity: i.quantity,
+    unit_price: i.unit_price ?? 0,
     line_price: i.total ?? i.unit_price * i.quantity,
+    original_line_price: i.original_total ?? null,
     image: i.thumbnail ?? i.variant?.product?.thumbnail ?? null,
-    variant: i.variant ? { id: i.variant.id, title: i.variant.title } : null,
+    variant: i.variant
+      ? { id: i.variant.id, title: i.variant.title, sku: i.variant.sku ?? null }
+      : null,
     url: i.product_handle ? `/products/${i.product_handle}` : "#",
   }))
   return {
     item_count: items.reduce((n: number, i: any) => n + (i.quantity ?? 0), 0),
     total_price: cart.total ?? 0,
     subtotal_price: cart.subtotal ?? cart.item_subtotal ?? 0,
+    discount_total: cart.discount_total ?? 0,
+    shipping_total: cart.shipping_total ?? 0,
+    tax_total: cart.tax_total ?? 0,
+    currency: (cart.currency_code ?? "").toUpperCase() || null,
+    promotions: (cart.promotions ?? [])
+      .map((p: any) => ({
+        code: p?.code ?? "",
+        is_automatic: !!p?.is_automatic,
+      }))
+      .filter((p: any) => p.code || p.is_automatic),
     items,
     checkout_url: `/checkout`,
   }
 }
 
-function mapCustomer(c: any): any {
+export function mapCustomer(c: any): any {
   if (!c) return null
   return {
     id: c.id,
     first_name: c.first_name ?? "",
+    last_name: c.last_name ?? "",
     email: c.email ?? "",
+    phone: c.phone ?? "",
     orders_count: c.orders?.length ?? 0,
+    addresses: (c.addresses ?? []).map(mapAddress),
+  }
+}
+
+export function mapAddress(a: any): any {
+  if (!a) return null
+  return {
+    id: a.id,
+    first_name: a.first_name ?? "",
+    last_name: a.last_name ?? "",
+    company: a.company ?? "",
+    address_1: a.address_1 ?? "",
+    address_2: a.address_2 ?? "",
+    city: a.city ?? "",
+    province: a.province ?? "",
+    postal_code: a.postal_code ?? "",
+    country_code: (a.country_code ?? "").toUpperCase(),
+    phone: a.phone ?? "",
+    is_default_shipping: !!a.is_default_shipping,
+    is_default_billing: !!a.is_default_billing,
+  }
+}
+
+/** An order summary/detail for the account templates. Amounts are MAJOR units
+ * like everywhere else in the contract — `money` only formats. */
+export function mapOrder(o: any): any {
+  if (!o) return null
+  const items = (o.items ?? []).map((i: any) => ({
+    id: i.id,
+    title: i.title ?? i.product_title ?? "",
+    variant_title: i.variant_title ?? i.variant?.title ?? "",
+    quantity: i.quantity,
+    unit_price: i.unit_price ?? 0,
+    total: i.total ?? (i.unit_price ?? 0) * (i.quantity ?? 0),
+    image: i.thumbnail ?? null,
+  }))
+  return {
+    id: o.id,
+    display_id: o.display_id ?? null,
+    name: o.display_id != null ? `#${o.display_id}` : o.id,
+    status: o.status ?? "",
+    payment_status: o.payment_status ?? "",
+    fulfillment_status: o.fulfillment_status ?? "",
+    created_at: o.created_at ?? null,
+    email: o.email ?? "",
+    currency: (o.currency_code ?? "").toUpperCase() || null,
+    subtotal: o.subtotal ?? o.item_subtotal ?? 0,
+    discount_total: o.discount_total ?? 0,
+    shipping_total: o.shipping_total ?? 0,
+    tax_total: o.tax_total ?? 0,
+    total: o.total ?? 0,
+    item_count: items.reduce((n: number, i: any) => n + (i.quantity ?? 0), 0),
+    items,
+    shipping_address: mapAddress(o.shipping_address),
+    billing_address: mapAddress(o.billing_address),
   }
 }

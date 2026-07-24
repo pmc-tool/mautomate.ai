@@ -1,7 +1,7 @@
 {
   "id": "bazaro-liquid",
   "name": "Bazaro",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "engine": "1",
   "author": "mAutomate",
   "description": "Bazaro — a bold fashion storefront with Satoshi type, oversized display headings, square black buttons and a signature red accent. Ported from the Bazaro React theme to the upload engine as a fully self-contained Liquid package.",

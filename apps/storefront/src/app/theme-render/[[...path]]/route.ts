@@ -7,6 +7,7 @@ import { getBlogPosts, getBlogPost } from "@lib/data/blog"
 import { getCmsPage } from "@lib/data/cms"
 import { retrieveCart } from "@lib/data/cart"
 import { retrieveCustomer } from "@lib/data/customer"
+import { listOrders, retrieveOrder } from "@lib/data/orders"
 import { getCmsSettings } from "@lib/data/cms"
 import { renderUploadedTheme, loadThemeBundle } from "@modules/theme-runtime/loader"
 import { isValidEditorKeyForRequest } from "@lib/util/secret"
@@ -22,7 +23,20 @@ import {
   homeContext,
   productContext,
   collectionContext,
+  mapOrder,
 } from "@modules/theme-runtime/build-context"
+
+/* customers/* templates that require a signed-in customer. A signed-out visit
+   renders the theme's login template in place (Shopify behavior); login and
+   register invert — signed-in customers see their account instead. */
+const AUTH_REQUIRED_TEMPLATES = new Set([
+  "customers/account",
+  "customers/orders",
+  "customers/order",
+  "customers/addresses",
+  "customers/profile",
+])
+const GUEST_ONLY_TEMPLATES = new Set(["customers/login", "customers/register"])
 
 /* ------------------------------------------------------------------ */
 /* GET /theme-render/*  — render a page through an UPLOADED Liquid theme.*/
@@ -78,6 +92,22 @@ function classify(path: string): { template: string; countryCode: string; handle
   if (rest[0] === "blog" && rest[1]) return { template: "article", countryCode: cc, handle: rest[1] }
   if (rest[0] === "blog") return { template: "blog", countryCode: cc }
   if (rest[0] === "contact") return { template: "contact", countryCode: cc }
+  // Account suite (Shopify's customers/* template set). These paths only reach
+  // this route once they are removed from middleware's REACT_ONLY list — until
+  // then the mapping is dormant plumbing for themes that ship the templates.
+  if (rest[0] === "account") {
+    if (rest[1] === "login") return { template: "customers/login", countryCode: cc }
+    if (rest[1] === "register") return { template: "customers/register", countryCode: cc }
+    if (rest[1] === "orders" && rest[2] === "details" && rest[3])
+      return { template: "customers/order", countryCode: cc, handle: rest[3] }
+    if (rest[1] === "orders") return { template: "customers/orders", countryCode: cc }
+    if (rest[1] === "addresses") return { template: "customers/addresses", countryCode: cc }
+    if (rest[1] === "profile") return { template: "customers/profile", countryCode: cc }
+    return { template: "customers/account", countryCode: cc }
+  }
+  if (rest[0] === "recover") return { template: "customers/recover", countryCode: cc }
+  if (rest[0] === "reset-password") return { template: "customers/reset", countryCode: cc }
+  if (rest[0] === "wishlist") return { template: "wishlist", countryCode: cc }
   // Any other non-empty path is a CMS page slug (about-us, faq, privacy, …) —
   // the same block documents the React app served from its [...slug] route.
   return { template: "page", countryCode: cc, handle: rest.join("/") }
@@ -146,7 +176,9 @@ export async function GET(
 ) {
   const { path } = await params
   const pathStr = (path ?? []).join("/")
-  const { template, countryCode, handle, kind } = classify(pathStr)
+  const classified = classify(pathStr)
+  const { countryCode, handle, kind } = classified
+  let template = classified.template
 
   /* ---- Draft preview (Phase 4D — ARCH-UX §5.5 publish confidence) ----
    * ?preview_draft=<editor key>: render the visual editor's DRAFT buffer
@@ -223,6 +255,14 @@ export async function GET(
 
   const shopName = h.get("x-tenant-name") || settings?.brand_name || "Store"
   const region = h.get("x-tenant-region-id") || ""
+
+  // Account-suite auth gate: protected pages render the login template for
+  // signed-out visitors; login/register render the account for signed-in ones.
+  if (!customer && AUTH_REQUIRED_TEMPLATES.has(template)) {
+    template = "customers/login"
+  } else if (customer && GUEST_ONLY_TEMPLATES.has(template)) {
+    template = "customers/account"
+  }
 
   const base = baseContext({
     shop: {
@@ -363,8 +403,24 @@ export async function GET(
         featured_image: p.images?.[0] ?? (p.thumbnail ? { url: p.thumbnail } : null),
         price: p.variants?.[0]?.calculated_price?.calculated_amount ?? 0,
       }))
+    } else if (template === "customers/orders" || template === "customers/account") {
+      // Both show recent orders (the account dashboard shows a short list).
+      const orders = await listOrders(50, 0).catch(() => [])
+      ;(data as any).orders = (orders ?? []).map(mapOrder)
+    } else if (template === "customers/order" && handle) {
+      // retrieveOrder carries the customer's auth headers, so the backend
+      // scopes it to the owner — another customer's order id is a 404 here.
+      const order = await retrieveOrder(handle).catch(() => null)
+      if (!order) return new NextResponse("Not found", { status: 404 })
+      ;(data as any).order = mapOrder(order)
+    } else if (template === "customers/reset") {
+      ;(data as any).reset = {
+        token: req.nextUrl.searchParams.get("token") || "",
+        email: req.nextUrl.searchParams.get("email") || "",
+      }
     }
-    // cart/search render from `base` (cart is already in context).
+    // cart/search/wishlist and the remaining customers/* templates render
+    // from `base` (cart and customer are already in context).
   } catch {
     // A data fetch failing must not 500 a whole storefront — render what we have.
   }

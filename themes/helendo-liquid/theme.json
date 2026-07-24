@@ -1,7 +1,7 @@
 {
   "id": "helendo-liquid",
   "name": "Helendo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "engine": "1",
   "author": "mAutomate",
   "description": "Helendo — a minimal, gallery-like furniture and decor storefront. Roboto typography, generous whitespace, black buttons and the signature gold underline. Ported from the Helendo React theme to the upload engine as a fully self-contained Liquid package.",

@@ -119,6 +119,79 @@
     });
   });
 
+  /* ---- cart page: quantity / remove / promo code. Mutations post to the
+     same-origin /api/theme-cart bridge; on success the page reloads so the
+     server re-renders the Liquid cart with authoritative totals. ---- */
+  var cartPage = document.querySelector("[data-cart-page]");
+  if (cartPage) {
+    var cartBusy = false;
+    var cartMsg = cartPage.querySelector("[data-cart-msg]");
+    var promoMsg = cartPage.querySelector("[data-promo-msg]");
+    var showCartMsg = function (el, text) {
+      var target = el || cartMsg;
+      if (target) { target.hidden = false; target.textContent = text; }
+    };
+    var cartMutate = function (payload, msgEl) {
+      if (cartBusy) return;
+      cartBusy = true;
+      cartPage.classList.add("is-busy");
+      fetch("/api/theme-cart", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (res.ok) { location.reload(); return; }
+          cartBusy = false;
+          cartPage.classList.remove("is-busy");
+          showCartMsg(msgEl, (res.d && res.d.error) || "Could not update your cart.");
+        })
+        .catch(function () {
+          cartBusy = false;
+          cartPage.classList.remove("is-busy");
+          showCartMsg(msgEl, "Could not update your cart.");
+        });
+    };
+    cartPage.querySelectorAll("[data-cart-line]").forEach(function (line) {
+      var lineId = line.getAttribute("data-cart-line");
+      var input = line.querySelector("[data-qty-input]");
+      function currentQty() {
+        var n = input ? parseInt(input.value, 10) : NaN;
+        return isNaN(n) ? 1 : n;
+      }
+      function setQty(n) {
+        if (n <= 0) { cartMutate({ action: "remove", line_id: lineId }); }
+        else { cartMutate({ action: "update", line_id: lineId, quantity: n }); }
+      }
+      var minus = line.querySelector("[data-qty-minus]");
+      var plus = line.querySelector("[data-qty-plus]");
+      var remove = line.querySelector("[data-line-remove]");
+      if (minus) minus.addEventListener("click", function () { setQty(currentQty() - 1); });
+      if (plus) plus.addEventListener("click", function () { setQty(currentQty() + 1); });
+      if (remove) remove.addEventListener("click", function () { cartMutate({ action: "remove", line_id: lineId }); });
+      if (input) input.addEventListener("change", function () {
+        var n = parseInt(input.value, 10);
+        if (isNaN(n) || n < 0) { input.value = "1"; n = 1; }
+        setQty(n);
+      });
+    });
+    var promoForm = cartPage.querySelector("[data-promo-form]");
+    if (promoForm) {
+      promoForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var input = promoForm.querySelector("input[name=code]");
+        var code = input && input.value ? input.value.trim() : "";
+        if (!code) { showCartMsg(promoMsg, "Enter a promo code."); return; }
+        cartMutate({ action: "promo_add", code: code }, promoMsg);
+      });
+    }
+    cartPage.querySelectorAll("[data-promo-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        cartMutate({ action: "promo_remove", code: btn.getAttribute("data-promo-remove") || "" }, promoMsg);
+      });
+    });
+  }
+
   /* ---- contact form — posts to the storefront bridge, which stores the
      message tenant-stamped via POST /store/contact ---- */
   document.querySelectorAll("[data-contact-form]").forEach(function (form) {

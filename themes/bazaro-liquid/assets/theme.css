@@ -446,6 +446,70 @@ a.bz-footer-contact:hover{ color:var(--bz-accent); }
   .bz-newsletter-btn{ position:static; transform:none; margin-top:12px; width:100%; }
 }
 
+/* ==========================================================================
+   Cart page redesign — interactive shopping bag. Editorial line-item cards
+   with square steppers + a sticky cream summary panel that echoes the
+   pageband; promo field uses Bazaro's inset-button form language and
+   applied codes render as the theme's red pills.
+   ========================================================================== */
+.bz-cartp{ transition:opacity .2s ease; }
+.bz-cartp.is-busy{ opacity:.55; pointer-events:none; }
+.bz-cartp-cols{ display:grid; grid-template-columns:1fr 400px; gap:clamp(28px,4vw,56px); align-items:start; }
+.bz-cartp-bar{ display:flex; align-items:baseline; justify-content:space-between; gap:18px; flex-wrap:wrap; padding-bottom:16px; border-bottom:1px solid var(--bz-ink); }
+.bz-cartp-count{ font-family:var(--bz-bold); font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.12em; color:var(--bz-ink); }
+.bz-cartp-item{ display:grid; grid-template-columns:auto 1fr auto; gap:clamp(16px,2.4vw,28px); align-items:center; padding:clamp(20px,2.6vw,28px) 0; border-bottom:1px solid var(--bz-line); }
+.bz-cartp-media{ display:block; width:96px; background:var(--bz-gray); overflow:hidden; }
+.bz-cartp-media img{ width:96px; height:120px; object-fit:cover; display:block; transition:transform .6s ease; }
+.bz-cartp-item:hover .bz-cartp-media img{ transform:scale(1.06); }
+.bz-cartp-media-ph{ display:block; width:96px; height:120px; background:repeating-linear-gradient(45deg,#f1efee,#f1efee 14px,#e9e4de 14px,#e9e4de 28px); }
+.bz-cartp-info{ display:flex; flex-direction:column; align-items:flex-start; gap:4px; min-width:0; }
+.bz-cartp-info .bz-cart-name{ font-size:17px; line-height:1.35; }
+.bz-cartp-unit{ font-size:13px; color:var(--bz-muted); }
+.bz-cartp-remove{ margin-top:8px; background:none; border:0; padding:0 0 2px; font-family:var(--bz-bold); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--bz-muted); border-bottom:1px solid currentColor; cursor:pointer; transition:color .2s; }
+.bz-cartp-remove:hover{ color:var(--bz-accent); }
+.bz-cartp-end{ display:flex; flex-direction:column; align-items:flex-end; gap:12px; }
+.bz-cartp-stepper{ display:inline-flex; align-items:stretch; border:1px solid var(--bz-line); background:#fff; }
+.bz-cartp-stepper button{ width:40px; height:44px; border:0; background:#fff; color:var(--bz-ink); font-size:17px; line-height:1; cursor:pointer; transition:.22s; }
+.bz-cartp-stepper button:hover{ background:var(--bz-ink); color:#fff; }
+.bz-cartp-stepper input{ width:46px; border:0; border-left:1px solid var(--bz-line); border-right:1px solid var(--bz-line); border-radius:0; text-align:center; font-family:var(--bz-bold); font-weight:700; font-size:15px; color:var(--bz-ink); background:#fff; padding:0; }
+.bz-cartp-stepper input:focus{ outline:none; background:var(--bz-panel); }
+.bz-cartp-linetotal{ font-family:var(--bz-bold); font-weight:700; font-size:17px; color:var(--bz-ink); font-variant-numeric:tabular-nums; }
+.bz-cartp-err{ margin:16px 0 0; font-size:14px; color:var(--bz-accent); }
+.bz-cartp-aside{ position:sticky; top:110px; background:var(--bz-cream); padding:clamp(26px,3vw,38px) clamp(22px,2.6vw,32px); }
+.bz-cartp-aside-title{ font-family:var(--bz-body); font-weight:500; font-size:24px; color:var(--bz-ink); margin:0 0 18px; }
+.bz-cartp-sum-row{ display:flex; justify-content:space-between; gap:14px; padding:10px 0; font-size:15px; color:var(--bz-text); }
+.bz-cartp-sum-row span:last-child{ color:var(--bz-ink); font-variant-numeric:tabular-nums; }
+.bz-cartp-sum-discount span{ color:var(--bz-accent); }
+.bz-cartp-sum-discount span:last-child{ color:var(--bz-accent); }
+.bz-cartp-sum-total{ border-top:1px solid var(--bz-ink); margin-top:8px; padding-top:16px; font-family:var(--bz-bold); font-weight:700; font-size:19px; color:var(--bz-ink); }
+.bz-cartp-sum-total span:last-child{ font-size:22px; }
+.bz-cartp-promo-label{ display:block; font-family:var(--bz-bold); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.14em; color:var(--bz-ink); margin:18px 0 10px; }
+.bz-cartp-promo{ position:relative; }
+.bz-cartp-promo input{ width:100%; height:54px; border:1px solid #e2ded9; border-radius:0; background:#fff; color:var(--bz-ink); padding:0 104px 0 16px; font-family:var(--bz-body); font-size:14px; }
+.bz-cartp-promo input::placeholder{ color:var(--bz-muted); }
+.bz-cartp-promo input:focus{ outline:none; border-color:var(--bz-ink); }
+.bz-cartp-promo button{ position:absolute; top:50%; right:4px; transform:translateY(-50%); border:0; background:var(--bz-ink); color:#fff; font-family:var(--bz-bold); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.06em; padding:14px 22px; cursor:pointer; transition:.2s; line-height:1; }
+.bz-cartp-promo button:hover{ background:var(--bz-accent); }
+.bz-cartp-chip{ display:inline-flex; align-items:center; gap:8px; margin:12px 8px 0 0; border:0; background:var(--bz-accent); color:#fff; font-family:var(--bz-bold); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.06em; padding:8px 16px; border-radius:40px; cursor:pointer; transition:.2s; line-height:1; }
+.bz-cartp-chip span{ font-size:15px; line-height:1; }
+.bz-cartp-chip:hover{ background:var(--bz-accent-deep); }
+.bz-cartp-aside .bz-btn{ margin-top:20px; }
+.bz-cartp-aside .bz-cart-continue{ display:none; }
+@media (max-width:991px){
+  .bz-cartp-cols{ grid-template-columns:1fr; }
+  .bz-cartp-aside{ position:static; }
+  .bz-cartp-aside .bz-cart-continue{ display:block; }
+}
+@media (max-width:600px){
+  .bz-cartp-item{ grid-template-columns:auto 1fr; }
+  .bz-cartp-media, .bz-cartp-media img, .bz-cartp-media-ph{ width:76px; }
+  .bz-cartp-media img, .bz-cartp-media-ph{ height:95px; }
+  .bz-cartp-end{ grid-column:1 / -1; flex-direction:row; align-items:center; justify-content:space-between; }
+  .bz-cartp-stepper button{ width:36px; height:40px; }
+  .bz-cartp-promo input{ padding-right:16px; }
+  .bz-cartp-promo button{ position:static; transform:none; margin-top:10px; width:100%; }
+}
+
 /* blog-article QA fixes 2026-07-23 */
 .bz-richtext-inner ul{list-style:disc;padding-left:1.4em;margin:0 0 1em}
 .bz-richtext-inner ol{list-style:decimal;padding-left:1.4em;margin:0 0 1em}

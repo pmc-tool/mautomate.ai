@@ -1,37 +1,71 @@
 <div class="sf-pagehead">
   <div class="sf-container">
-    <h1 class="sf-pagehead-title">Your Cart</h1>
+    <h1 class="sf-pagehead-title">Shopping Cart</h1>
     <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="sf-current">Cart</span></nav>
   </div>
 </div>
-<section class="sf-section sf-cartpage">
+<section class="sf-section sf-cartpage" data-cart-page>
   <div class="sf-container">
     {%- if cart.items and cart.items.size > 0 -%}
-    <div class="sf-cart-layout">
-      <div class="sf-cart-lines">
-        <div class="sf-cart-row sf-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+    <div class="sf-cartx">
+      <div class="sf-cartx-lines">
+        <p class="sf-cartx-caption"><i class="fas fa-shopping-cart"></i> {{ cart.item_count }} item{% if cart.item_count != 1 %}s{% endif %} in your cart</p>
         {%- for item in cart.items -%}
-        <div class="sf-cart-row">
-          <div class="sf-cart-prod">
-            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
-            <div><a href="{{ routes.root_url }}{{ item.url }}" class="sf-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="sf-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+        <div class="sf-cartx-item" data-cart-line="{{ item.id }}">
+          <a class="sf-cartx-thumb" href="{{ routes.root_url }}{{ item.url }}">
+            {%- if item.image -%}<img src="{{ item.image }}" alt="{{ item.title }}">{%- else -%}<span class="sf-cartx-thumb-ph"></span>{%- endif -%}
+          </a>
+          <div class="sf-cartx-info">
+            <a href="{{ routes.root_url }}{{ item.url }}" class="sf-cart-name">{{ item.title }}</a>
+            {%- if item.variant.title != blank and item.variant.title != "Default Variant" -%}
+            <span class="sf-cart-variant">{{ item.variant.title }}</span>
+            {%- endif -%}
+            <span class="sf-cartx-unit">{{ item.unit_price | money }} each</span>
           </div>
-          <span>{{ item.line_price | money }}</span>
-          <span>{{ item.quantity }}</span>
-          <span>{{ item.line_price | money }}</span>
+          <div class="sf-cartx-controls">
+            <span class="sf-cartx-qty">
+              <button type="button" data-qty-minus aria-label="Decrease quantity"><i class="fas fa-minus"></i></button>
+              <input type="text" inputmode="numeric" value="{{ item.quantity }}" data-qty-input aria-label="Quantity">
+              <button type="button" data-qty-plus aria-label="Increase quantity"><i class="fas fa-plus"></i></button>
+            </span>
+            <span class="sf-cartx-line-total">{{ item.line_price | money }}</span>
+          </div>
+          <button type="button" class="sf-cartx-remove" data-line-remove aria-label="Remove {{ item.title }}"><i class="fas fa-times"></i></button>
         </div>
         {%- endfor -%}
+        <p class="sf-cartx-msg" data-cart-msg hidden></p>
+        <a class="sf-link sf-cartx-continue" href="{{ routes.collections_url }}"><i class="fas fa-arrow-left"></i> Continue shopping</a>
       </div>
-      <aside class="sf-cart-summary">
-        <h2 class="sf-cart-summary-title">Summary</h2>
+
+      <aside class="sf-cartx-summary">
+        <h2 class="sf-cart-summary-title">Order Summary</h2>
         <div class="sf-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        {%- if cart.discount_total > 0 -%}
+        <div class="sf-cart-sum-row sf-cartx-discount"><span>Discount</span><span>&minus;{{ cart.discount_total | money }}</span></div>
+        {%- endif -%}
         <div class="sf-cart-sum-row sf-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
-        <a class="sf-btn sf-btn-primary sf-btn-block" href="{{ cart.checkout_url }}">Proceed to Checkout</a>
-        <a class="sf-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+        <form class="sf-cartx-promo" data-promo-form>
+          <input type="text" name="code" placeholder="Promo code" autocomplete="off" aria-label="Promo code">
+          <button type="submit">Apply</button>
+        </form>
+        {%- for promo in cart.promotions -%}
+          {%- if promo.code != blank and promo.is_automatic != true -%}
+          <div class="sf-cartx-promo-tag">
+            <span><i class="fas fa-tag"></i> {{ promo.code }}</span>
+            <button type="button" data-promo-remove="{{ promo.code }}" aria-label="Remove code {{ promo.code }}">&times;</button>
+          </div>
+          {%- endif -%}
+        {%- endfor -%}
+        <p class="sf-cartx-msg" data-promo-msg hidden></p>
+        <a class="sf-btn sf-btn-primary sf-btn-block" href="{{ cart.checkout_url }}">Proceed to Checkout <i class="fas fa-arrow-right"></i></a>
       </aside>
     </div>
     {%- else -%}
-    <div class="sf-cart-empty"><p>Your cart is empty.</p><a class="sf-btn sf-btn-primary" href="{{ routes.collections_url }}">Start shopping</a></div>
+    <div class="sf-cart-empty">
+      <span class="sf-cartx-empty-icon"><i class="fas fa-shopping-cart"></i></span>
+      <p>Your cart is empty.</p>
+      <a class="sf-btn sf-btn-primary" href="{{ routes.collections_url }}">Start shopping</a>
+    </div>
     {%- endif -%}
   </div>
 </section>

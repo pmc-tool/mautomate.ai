@@ -1,7 +1,7 @@
 {
   "id": "aurora-liquid",
   "name": "Aurora",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "engine": "1",
   "author": "mAutomate",
   "description": "A modern, minimalist editorial design — generous whitespace, clean type, monochrome palette, rounded cards. The Aurora React theme ported to the upload engine as a fully self-contained Liquid package.",

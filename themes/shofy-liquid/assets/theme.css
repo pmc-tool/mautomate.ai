@@ -507,6 +507,70 @@ body.sf-body{ margin:0; min-height:100vh; overflow-x:hidden; background:var(--sf
   .sf-tabs-head{ flex-direction:column; align-items:flex-start; }
 }
 
+/* ==========================================================================
+   Cart page (interactive) — card-style line items + sticky grey summary.
+   Same language as the rest of Shofy: white cards on --sf-line borders with
+   the 8px radius, pill qty stepper, circular remove button, search-bar-style
+   promo form in the vivid blue, pink used only as the destructive/sale accent.
+   ========================================================================== */
+.sf-cartx{ display:grid; grid-template-columns:1fr 380px; gap:clamp(28px,4vw,44px); align-items:start; }
+.sf-cartx-caption{ margin:0 0 18px; font-size:14px; font-weight:500; color:var(--sf-muted); }
+.sf-cartx-caption i{ color:var(--sf-primary); margin-right:8px; }
+.sf-cartx-item{ position:relative; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:clamp(14px,2vw,24px); background:#fff; border:1px solid var(--sf-line); border-radius:var(--sf-radius); padding:16px clamp(16px,2vw,24px); margin-bottom:14px; transition:box-shadow .25s ease; }
+.sf-cartx-item:hover{ box-shadow:0 16px 34px -20px rgba(1,15,28,.3); }
+.sf-cartx-thumb{ display:block; width:92px; height:92px; flex-shrink:0; border:1px solid var(--sf-line); border-radius:6px; overflow:hidden; background:#fff; }
+.sf-cartx-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.sf-cartx-thumb-ph{ display:block; width:100%; height:100%; background:radial-gradient(95.56% 95.56% at 50% 50%,#ffffff 0%,#e8f1fb 100%); }
+.sf-cartx-info{ display:flex; flex-direction:column; gap:2px; min-width:0; padding-right:28px; }
+.sf-cartx-info .sf-cart-name{ font-size:16px; line-height:1.35; }
+.sf-cartx-unit{ font-size:13px; color:var(--sf-muted); }
+.sf-cartx-controls{ display:flex; align-items:center; gap:clamp(16px,2vw,28px); }
+.sf-cartx-line-total{ min-width:86px; text-align:right; font-weight:700; font-size:16px; letter-spacing:-.02em; color:var(--sf-primary); font-variant-numeric:tabular-nums; }
+/* qty stepper — bordered pill, blue on hover, matching the card action idiom */
+.sf-cartx-qty{ display:inline-flex; align-items:stretch; border:1px solid var(--sf-line); border-radius:6px; overflow:hidden; background:#fff; }
+.sf-cartx-qty button{ width:36px; height:40px; border:0; background:var(--sf-grey); color:var(--sf-ink); font-size:11px; display:flex; align-items:center; justify-content:center; transition:.2s; }
+.sf-cartx-qty button:hover{ background:var(--sf-primary); color:#fff; }
+.sf-cartx-qty input{ width:46px; height:40px; border:0; border-left:1px solid var(--sf-line); border-right:1px solid var(--sf-line); text-align:center; font-family:inherit; font-weight:600; font-size:15px; color:var(--sf-ink); background:#fff; }
+.sf-cartx-qty input:focus{ outline:none; }
+/* remove — circular icon button in the header's ringed-icon style, pink on hover */
+.sf-cartx-remove{ position:absolute; top:12px; right:12px; display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border:2px solid rgba(1,15,28,.1); border-radius:50%; background:#fff; color:var(--sf-muted); font-size:12px; transition:.2s; }
+.sf-cartx-remove:hover{ border-color:var(--sf-pink); background:var(--sf-pink); color:#fff; }
+.sf-cartx-msg{ margin:10px 0 0; font-size:14px; font-weight:500; color:var(--sf-pink); }
+.sf-cartx-continue{ margin-top:8px; }
+.sf-cartx-continue i{ margin-left:0; margin-right:6px; }
+/* summary — soft grey panel, sticky beside the lines */
+.sf-cartx-summary{ position:sticky; top:24px; background:var(--sf-grey); border-radius:var(--sf-radius); padding:clamp(24px,3vw,32px); }
+.sf-cartx-summary .sf-cart-sum-row{ color:var(--sf-text); }
+.sf-cartx-discount span:last-child{ color:var(--sf-pink); font-weight:600; }
+.sf-cartx-summary .sf-btn-block{ margin-top:18px; padding:14px 26px; }
+/* promo — the header search-bar idiom: 2px blue frame, solid blue action */
+.sf-cartx-promo{ display:flex; border:2px solid var(--sf-primary); border-radius:6px; overflow:hidden; background:#fff; margin-top:14px; }
+.sf-cartx-promo input{ flex:1; min-width:0; height:44px; border:0; padding:0 16px; font-size:14px; font-weight:500; color:var(--sf-ink); background:#fff; }
+.sf-cartx-promo input:focus{ outline:none; }
+.sf-cartx-promo input::placeholder{ color:var(--sf-muted); }
+.sf-cartx-promo button{ border:0; background:var(--sf-primary); color:#fff; font-weight:500; font-size:14px; padding:0 20px; transition:.2s; }
+.sf-cartx-promo button:hover{ background:var(--sf-ink); }
+/* applied promo chip */
+.sf-cartx-promo-tag{ display:inline-flex; align-items:center; gap:10px; margin-top:12px; margin-right:8px; padding:7px 8px 7px 14px; background:#e6f3ff; border:1px solid rgba(9,137,255,.25); border-radius:100px; font-size:13px; font-weight:600; color:var(--sf-primary); }
+.sf-cartx-promo-tag i{ font-size:11px; margin-right:2px; }
+.sf-cartx-promo-tag button{ display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border:0; border-radius:50%; background:var(--sf-primary); color:#fff; font-size:13px; line-height:1; padding:0; transition:.2s; }
+.sf-cartx-promo-tag button:hover{ background:var(--sf-pink); }
+/* empty state */
+.sf-cartx-empty-icon{ display:inline-flex; align-items:center; justify-content:center; width:84px; height:84px; border-radius:50%; background:var(--sf-grey-band); color:var(--sf-primary); font-size:30px; margin-bottom:20px; }
+/* busy state while a mutation is in flight */
+[data-cart-page].is-busy .sf-cartx{ opacity:.55; pointer-events:none; }
+/* responsive */
+@media (max-width:900px){
+  .sf-cartx{ grid-template-columns:1fr; }
+  .sf-cartx-summary{ position:static; }
+}
+@media (max-width:560px){
+  .sf-cartx-item{ grid-template-columns:auto 1fr; }
+  .sf-cartx-thumb{ width:72px; height:72px; }
+  .sf-cartx-controls{ grid-column:1 / -1; justify-content:space-between; width:100%; border-top:1px solid var(--sf-line); padding-top:12px; }
+  .sf-cartx-line-total{ text-align:right; }
+}
+
 /* blog-article QA fixes 2026-07-23 */
 .sf-richtext-inner ul{list-style:disc;padding-left:1.4em;margin:0 0 1em}
 .sf-richtext-inner ol{list-style:decimal;padding-left:1.4em;margin:0 0 1em}

@@ -1,7 +1,7 @@
 {
   "id": "learts-liquid",
   "name": "Learts",
-  "version": "1.0.11",
+  "version": "1.1.0",
   "engine": "1",
   "author": "mAutomate",
   "description": "The original Forever Finds / Learts storefront — a warm, handcrafted gift-shop design — ported to the upload engine. A first-party reference theme: it reuses the platform's Learts asset bundle so it renders byte-identical to the live React theme.",

@@ -1,37 +1,75 @@
 <div class="cg-pagehead">
   <div class="cg-container">
-    <h1 class="cg-pagehead-title">Your cart</h1>
+    <h1 class="cg-pagehead-title">Shopping bag</h1>
     <nav class="cg-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="cg-current">Cart</span></nav>
   </div>
 </div>
-<section class="cg-section cg-cart">
+<section class="cg-section cg-bag" data-cart-page>
   <div class="cg-container">
     {%- if cart.items and cart.items.size > 0 -%}
-    <div class="cg-cart-layout">
-      <div class="cg-cart-lines">
-        <div class="cg-cart-row cg-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
-        {%- for item in cart.items -%}
-        <div class="cg-cart-row">
-          <div class="cg-cart-prod">
-            {%- if item.image != blank -%}<img src="{{ item.image }}" alt="{{ item.title }}">{%- endif -%}
-            <div><a href="{{ routes.root_url }}{{ item.url }}" class="cg-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="cg-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
-          </div>
-          <span>{{ item.line_price | money }}</span>
-          <span>{{ item.quantity }}</span>
-          <span>{{ item.line_price | money }}</span>
+    <div class="cg-bag-layout">
+      <div class="cg-bag-lines">
+        <div class="cg-bag-caption">
+          <span class="cg-eyebrow">Your selection</span>
+          <span class="cg-bag-count">{{ cart.item_count }} {% if cart.item_count == 1 %}item{% else %}items{% endif %}</span>
         </div>
+        {%- for item in cart.items -%}
+        <article class="cg-bag-line" data-cart-line="{{ item.id }}">
+          <a class="cg-bag-media" href="{{ routes.root_url }}{{ item.url }}">
+            {%- if item.image != blank -%}<img src="{{ item.image }}" alt="{{ item.title }}">{%- else -%}<span class="cg-bag-media-ph" aria-hidden="true"></span>{%- endif -%}
+          </a>
+          <div class="cg-bag-info">
+            <h3 class="cg-bag-name"><a href="{{ routes.root_url }}{{ item.url }}">{{ item.title }}</a></h3>
+            {%- if item.variant.title != blank and item.variant.title != "Default Variant" -%}
+            <span class="cg-bag-variant">{{ item.variant.title }}</span>
+            {%- endif -%}
+            <span class="cg-bag-unit">{{ item.unit_price | money }} each</span>
+          </div>
+          <div class="cg-bag-controls">
+            <span class="cg-bag-qty">
+              <button type="button" data-qty-minus aria-label="Decrease quantity">&minus;</button>
+              <input type="text" inputmode="numeric" value="{{ item.quantity }}" data-qty-input aria-label="Quantity">
+              <button type="button" data-qty-plus aria-label="Increase quantity">+</button>
+            </span>
+            <span class="cg-bag-linetotal">{{ item.line_price | money }}</span>
+          </div>
+          <button type="button" class="cg-bag-remove" data-line-remove aria-label="Remove {{ item.title }}">&times;</button>
+        </article>
         {%- endfor -%}
+        <p class="cg-bag-msg" data-cart-msg hidden></p>
+        <a class="cg-bag-continue cg-link" href="{{ routes.collections_url }}">Continue shopping</a>
       </div>
-      <aside class="cg-cart-summary">
-        <h2 class="cg-cart-summary-title">Summary</h2>
-        <div class="cg-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
-        <div class="cg-cart-sum-row cg-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
-        <a class="cg-btn cg-btn-solid cg-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
-        <a class="cg-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+      <aside class="cg-bag-summary">
+        <h2 class="cg-bag-summary-title">Order summary</h2>
+        <div class="cg-bag-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        {%- if cart.discount_total > 0 -%}
+        <div class="cg-bag-sum-row cg-bag-discount"><span>Discount</span><span>&minus;{{ cart.discount_total | money }}</span></div>
+        {%- endif -%}
+        <div class="cg-bag-sum-row cg-bag-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <form class="cg-bag-promo" data-promo-form>
+          <input type="text" name="code" placeholder="Promo code" autocomplete="off" aria-label="Promo code">
+          <button type="submit">Apply</button>
+        </form>
+        {%- for promo in cart.promotions -%}
+          {%- if promo.code != blank and promo.is_automatic != true -%}
+          <div class="cg-bag-promo-tag">
+            <span>{{ promo.code }}</span>
+            <button type="button" data-promo-remove="{{ promo.code }}" aria-label="Remove code {{ promo.code }}">&times;</button>
+          </div>
+          {%- endif -%}
+        {%- endfor -%}
+        <p class="cg-bag-msg cg-bag-msg-light" data-promo-msg hidden></p>
+        <a class="cg-btn cg-btn-white cg-btn-block cg-bag-checkout" href="{{ cart.checkout_url }}">Proceed to checkout</a>
+        <p class="cg-bag-note">Complimentary gift wrapping on every order.</p>
       </aside>
     </div>
     {%- else -%}
-    <div class="cg-cart-empty"><p>Your cart is empty.</p><a class="cg-btn cg-btn-solid" href="{{ routes.collections_url }}">Start shopping</a></div>
+    <div class="cg-bag-empty">
+      <span class="cg-eyebrow">Shopping bag</span>
+      <h2 class="cg-title cg-title-sm">Your bag is empty</h2>
+      <p>Discover pieces crafted to be treasured — from everyday essentials to statement jewellery.</p>
+      <a class="cg-btn cg-btn-solid" href="{{ routes.collections_url }}">Explore the collection</a>
+    </div>
     {%- endif -%}
   </div>
 </section>

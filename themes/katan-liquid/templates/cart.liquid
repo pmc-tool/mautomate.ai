@@ -1,35 +1,80 @@
 <nav class="kt-crumbs"><div class="kt-container">
   <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="kt-current">Cart</span>
 </div></nav>
-<section class="kt-section kt-cart-page">
+<section class="kt-section kt-cart-page" data-cart-page>
   <div class="kt-container">
-    <div class="kt-shead"><h1 class="kt-title">Your cart</h1></div>
     {%- if cart.items and cart.items.size > 0 -%}
-    <div class="kt-cart-layout">
-      <div class="kt-cart-lines">
-        <div class="kt-cart-row kt-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+    <div class="kt-shead">
+      <span class="kt-eyebrow">Your order</span>
+      <h1 class="kt-title">Shopping bag</h1>
+      <span class="kt-count">{{ cart.item_count }}{% if cart.item_count == 1 %} item{% else %} items{% endif %}</span>
+    </div>
+    <div class="kt-bag-layout">
+      <div class="kt-bag-lines">
         {%- for item in cart.items -%}
-        <div class="kt-cart-row">
-          <div class="kt-cart-prod">
-            {%- if item.image != blank %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
-            <div><a href="{{ routes.root_url }}{{ item.url }}" class="kt-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="kt-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+        <article class="kt-bag-line" data-cart-line="{{ item.id }}">
+          <a class="kt-bag-media" href="{{ routes.root_url }}{{ item.url }}">
+            {%- if item.image != blank -%}
+            <img src="{{ item.image }}" alt="{{ item.title }}">
+            {%- else -%}
+            <span class="kt-bag-media-ph"></span>
+            {%- endif -%}
+          </a>
+          <div class="kt-bag-body">
+            <h2 class="kt-bag-title"><a href="{{ routes.root_url }}{{ item.url }}">{{ item.title }}</a></h2>
+            {%- if item.variant.title != blank and item.variant.title != "Default Variant" -%}
+            <span class="kt-bag-variant">{{ item.variant.title }}</span>
+            {%- endif -%}
+            <span class="kt-bag-unit">{{ item.unit_price | money }} each</span>
+            <button type="button" class="kt-bag-remove" data-line-remove aria-label="Remove {{ item.title }}">Remove</button>
           </div>
-          <span>{{ item.line_price | money }}</span>
-          <span>{{ item.quantity }}</span>
-          <span>{{ item.line_price | money }}</span>
-        </div>
+          <div class="kt-bag-end">
+            <span class="kt-stepper">
+              <button type="button" data-qty-minus aria-label="Decrease quantity">&minus;</button>
+              <input type="text" inputmode="numeric" value="{{ item.quantity }}" data-qty-input aria-label="Quantity">
+              <button type="button" data-qty-plus aria-label="Increase quantity">+</button>
+            </span>
+            <span class="kt-bag-total">{{ item.line_price | money }}</span>
+          </div>
+        </article>
         {%- endfor -%}
+        <p class="kt-bag-msg" data-cart-msg hidden></p>
+        <a class="kt-bag-continue kt-link" href="{{ routes.collections_url }}">Continue shopping</a>
       </div>
-      <aside class="kt-cart-summary">
-        <h2 class="kt-cart-summary-title">Order summary</h2>
-        <div class="kt-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
-        <div class="kt-cart-sum-row kt-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
-        <a class="kt-btn kt-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
-        <a class="kt-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+      <aside class="kt-bag-summary">
+        <h2 class="kt-bag-summary-title">Order summary</h2>
+        <div class="kt-bag-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        {%- if cart.discount_total > 0 -%}
+        <div class="kt-bag-sum-row kt-bag-discount"><span>Discount</span><span>&minus;{{ cart.discount_total | money }}</span></div>
+        {%- endif -%}
+        <div class="kt-bag-sum-row kt-bag-grand"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        <form class="kt-promo" data-promo-form>
+          <label class="kt-promo-label" for="kt-promo-code">Promo code</label>
+          <div class="kt-promo-fields">
+            <input id="kt-promo-code" type="text" name="code" placeholder="Enter code" autocomplete="off">
+            <button type="submit">Apply</button>
+          </div>
+        </form>
+        {%- for promo in cart.promotions -%}
+          {%- if promo.code != blank and promo.is_automatic != true -%}
+          <div class="kt-promo-chip">
+            <span>{{ promo.code }}</span>
+            <button type="button" data-promo-remove="{{ promo.code }}" aria-label="Remove code {{ promo.code }}">&times;</button>
+          </div>
+          {%- endif -%}
+        {%- endfor -%}
+        <p class="kt-bag-msg" data-promo-msg hidden></p>
+        <a class="kt-btn kt-btn-block" href="{{ cart.checkout_url }}">Proceed to checkout</a>
+        <p class="kt-bag-note">Taxes and shipping calculated at checkout.</p>
       </aside>
     </div>
     {%- else -%}
-    <div class="kt-cart-empty"><p>Your cart is empty.</p><a class="kt-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+    <div class="kt-bag-empty">
+      <span class="kt-eyebrow">Your order</span>
+      <h1 class="kt-title">Your bag is empty</h1>
+      <p>Considered pieces are waiting — start with the new season edit.</p>
+      <a class="kt-btn" href="{{ routes.collections_url }}">Start shopping</a>
+    </div>
     {%- endif -%}
   </div>
 </section>

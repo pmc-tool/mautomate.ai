@@ -1,7 +1,7 @@
 {
   "id": "shofy-liquid",
   "name": "Shofy",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "engine": "1",
   "author": "mAutomate",
   "description": "Shofy — a bright, modern multipurpose electronics-style storefront: Jost typography, a vivid blue accent, rounded cards and a classic three-tier shop header. Ported from the compiled Shofy React theme to the upload engine as a fully self-contained Liquid package.",

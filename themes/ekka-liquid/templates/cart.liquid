@@ -4,29 +4,64 @@
     <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ek-current">Cart</span></nav>
   </div>
 </div>
-<section class="ek-section ek-cartpage">
+<section class="ek-section ek-cartpage" data-cart-page>
   <div class="ek-container">
+    <div class="ek-stitle">
+      <span class="ek-bg-title" aria-hidden="true">Shopping Cart</span>
+      <h2 class="ek-title">Shopping Cart</h2>
+      {%- if cart.items and cart.items.size > 0 -%}
+      <span class="ek-count">{{ cart.item_count }}{% if cart.item_count == 1 %} item{% else %} items{% endif %} in your cart</span>
+      {%- endif -%}
+    </div>
     {%- if cart.items and cart.items.size > 0 -%}
     <div class="ek-cart-layout">
-      <div class="ek-cart-lines">
-        <div class="ek-cart-row ek-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+      <div class="ek-cart-items">
         {%- for item in cart.items -%}
-        <div class="ek-cart-row">
-          <div class="ek-cart-prod">
-            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
-            <div><a href="{{ routes.root_url }}{{ item.url }}" class="ek-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="ek-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+        <article class="ek-cart-card" data-cart-line="{{ item.id }}">
+          <a class="ek-cart-thumb" href="{{ routes.root_url }}{{ item.url }}">
+            {%- if item.image -%}<img src="{{ item.image }}" alt="{{ item.title }}">{%- endif -%}
+          </a>
+          <div class="ek-cart-info">
+            <a class="ek-cart-name" href="{{ routes.root_url }}{{ item.url }}">{{ item.title }}</a>
+            {%- if item.variant.title != blank and item.variant.title != "Default Variant" -%}
+            <span class="ek-cart-variant">{{ item.variant.title }}</span>
+            {%- endif -%}
+            <span class="ek-cart-unit">{{ item.unit_price | money }} each</span>
           </div>
-          <span>{{ item.line_price | money }}</span>
-          <span>{{ item.quantity }}</span>
-          <span>{{ item.line_price | money }}</span>
-        </div>
+          <div class="ek-cart-controls">
+            <span class="ek-qtybox">
+              <button type="button" data-qty-minus aria-label="Decrease quantity">&minus;</button>
+              <input type="text" inputmode="numeric" value="{{ item.quantity }}" data-qty-input aria-label="Quantity">
+              <button type="button" data-qty-plus aria-label="Increase quantity">+</button>
+            </span>
+            <span class="ek-cart-linetotal">{{ item.line_price | money }}</span>
+          </div>
+          <button type="button" class="ek-cart-remove" data-line-remove aria-label="Remove {{ item.title }}">&times;</button>
+        </article>
         {%- endfor -%}
+        <p class="ek-cart-msg" data-cart-msg hidden></p>
       </div>
       <aside class="ek-cart-summary">
-        <h2 class="ek-cart-summary-title">Summary</h2>
+        <h2 class="ek-cart-summary-title">Order Summary</h2>
         <div class="ek-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+        {%- if cart.discount_total > 0 -%}
+        <div class="ek-cart-sum-row ek-cart-discount"><span>Discount</span><span>&minus;{{ cart.discount_total | money }}</span></div>
+        {%- endif -%}
         <div class="ek-cart-sum-row ek-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
-        <a class="ek-btn ek-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
+        <form class="ek-promo" data-promo-form>
+          <input type="text" name="code" placeholder="Promo code" autocomplete="off" aria-label="Promo code">
+          <button type="submit">Apply</button>
+        </form>
+        {%- for promo in cart.promotions -%}
+          {%- if promo.code != blank and promo.is_automatic != true -%}
+          <div class="ek-promo-tag">
+            <span>{{ promo.code }}</span>
+            <button type="button" data-promo-remove="{{ promo.code }}" aria-label="Remove code {{ promo.code }}">&times;</button>
+          </div>
+          {%- endif -%}
+        {%- endfor -%}
+        <p class="ek-cart-msg" data-promo-msg hidden></p>
+        <a class="ek-btn ek-btn-block ek-cart-checkout" href="{{ cart.checkout_url }}">Proceed To Checkout</a>
         <a class="ek-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
       </aside>
     </div>

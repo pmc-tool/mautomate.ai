@@ -1,32 +1,89 @@
-<section class="au-section au-cart">
+<nav class="au-crumbs"><div class="au-container">
+  <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">Cart</span>
+</div></nav>
+
+<section class="au-section au-cartpage" data-cart-page>
   <div class="au-container">
-    <h1 class="au-listing-title">Shopping Cart</h1>
+    <header class="au-listing-head">
+      <span class="au-eyebrow">Your bag</span>
+      <h1 class="au-listing-title">Shopping cart</h1>
+      {%- if cart.item_count > 0 -%}
+      <p class="au-lead">{{ cart.item_count }} item{% if cart.item_count != 1 %}s{% endif %} in your cart.</p>
+      {%- endif -%}
+    </header>
+
     {%- if cart.items and cart.items.size > 0 -%}
-    <div class="au-cart-layout">
-      <div class="au-cart-lines au-card-flat">
-        <div class="au-cart-row au-cart-head"><span>Product</span><span>Price</span><span>Qty</span><span>Total</span></div>
+    <div class="au-cartpage-layout">
+      <div class="au-cartpage-lines">
         {%- for item in cart.items -%}
-        <div class="au-cart-row">
-          <div class="au-cart-prod">
-            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
-            <div><a href="{{ routes.root_url }}{{ item.url }}" class="au-cart-name">{{ item.title }}</a>{% if item.variant.title != blank %}<span class="au-cart-variant">{{ item.variant.title }}</span>{% endif %}</div>
+        <article class="au-cartline au-card-flat" data-cart-line="{{ item.id }}">
+          <a class="au-cartline-media" href="{{ routes.root_url }}{{ item.url }}">
+            {%- if item.image -%}<img src="{{ item.image }}" alt="{{ item.title }}">{%- else -%}<span class="au-cartline-ph"></span>{%- endif -%}
+          </a>
+          <div class="au-cartline-info">
+            <a class="au-cartline-name" href="{{ routes.root_url }}{{ item.url }}">{{ item.title }}</a>
+            {%- if item.variant.title != blank and item.variant.title != "Default Variant" -%}
+            <span class="au-cartline-variant">{{ item.variant.title }}</span>
+            {%- endif -%}
+            <span class="au-cartline-unit">{{ item.unit_price | money }} each</span>
           </div>
-          <span>{{ item.line_price | money }}</span>
-          <span>{{ item.quantity }}</span>
-          <span class="au-cart-line-total">{{ item.line_price | money }}</span>
-        </div>
+          <div class="au-cartline-actions">
+            <span class="au-qtystep">
+              <button type="button" class="au-qtystep-btn" data-qty-minus aria-label="Decrease quantity">&minus;</button>
+              <input type="text" inputmode="numeric" value="{{ item.quantity }}" data-qty-input aria-label="Quantity">
+              <button type="button" class="au-qtystep-btn" data-qty-plus aria-label="Increase quantity">+</button>
+            </span>
+            <span class="au-cartline-total">{{ item.line_price | money }}</span>
+          </div>
+          <button type="button" class="au-cartline-remove" data-line-remove aria-label="Remove {{ item.title }}">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </article>
         {%- endfor -%}
+        <p class="au-cartpage-msg" data-cart-msg hidden></p>
       </div>
-      <aside class="au-cart-summary au-card-flat">
-        <h2 class="au-cart-summary-title">Summary</h2>
-        <div class="au-cart-sum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
-        <div class="au-cart-sum-row au-cart-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
-        <a class="au-btn au-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
-        <a class="au-cart-continue" href="{{ routes.collections_url }}">Continue shopping</a>
+
+      <aside class="au-cartpage-summary au-card-flat">
+        <span class="au-eyebrow">Order summary</span>
+        <div class="au-cartsum-rows">
+          <div class="au-cartsum-row"><span>Subtotal</span><span>{{ cart.subtotal_price | money }}</span></div>
+          {%- if cart.discount_total > 0 -%}
+          <div class="au-cartsum-row au-cartsum-discount"><span>Discount</span><span>&minus;{{ cart.discount_total | money }}</span></div>
+          {%- endif -%}
+          <div class="au-cartsum-row au-cartsum-total"><span>Total</span><span>{{ cart.total_price | money }}</span></div>
+        </div>
+
+        <form class="au-promo" data-promo-form>
+          <input type="text" name="code" placeholder="Promo code" autocomplete="off" aria-label="Promo code">
+          <button type="submit" class="au-promo-apply">Apply</button>
+        </form>
+        {%- assign has_codes = false -%}
+        {%- for promo in cart.promotions -%}
+          {%- if promo.code != blank and promo.is_automatic != true -%}{%- assign has_codes = true -%}{%- endif -%}
+        {%- endfor -%}
+        {%- if has_codes -%}
+        <div class="au-promo-tags">
+          {%- for promo in cart.promotions -%}
+            {%- if promo.code != blank and promo.is_automatic != true -%}
+            <button type="button" class="au-promo-chip" data-promo-remove="{{ promo.code }}" aria-label="Remove code {{ promo.code }}">
+              <span>{{ promo.code }}</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+        {%- endif -%}
+        <p class="au-cartpage-msg" data-promo-msg hidden></p>
+
+        <a class="au-btn au-btn-lg au-btn-block" href="{{ cart.checkout_url }}">Checkout</a>
+        <a class="au-cartpage-continue" href="{{ routes.collections_url }}">Continue shopping</a>
       </aside>
     </div>
     {%- else -%}
-    <div class="au-cart-empty au-card-flat"><p>Your cart is empty.</p><a class="au-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+    <div class="au-cartpage-empty au-card-flat">
+      <p>Your cart is empty.</p>
+      <a class="au-btn" href="{{ routes.collections_url }}">Start shopping</a>
+    </div>
     {%- endif -%}
   </div>
 </section>
