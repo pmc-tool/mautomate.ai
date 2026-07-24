@@ -1,0 +1,28 @@
+<nav class="lz-crumbs"><div class="lz-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="lz-current">New password</span>
+</div></nav>
+<section class="lz-section lz-auth">
+  <div class="lz-container">
+    <div class="lz-auth-card">
+      <h1 class="lz-title lz-title-sm">Choose a new password</h1>
+      {%- if reset.email != blank -%}
+      <p class="lz-auth-sub">Setting a new password for {{ reset.email }}.</p>
+      {%- endif -%}
+      <form data-account-form="reset" data-success="Your password has been updated. You can now sign in.">
+        <input type="hidden" name="token" value="{{ reset.token }}">
+        <label class="lz-field"><span>New password</span>
+          <input type="password" name="password" autocomplete="new-password" required>
+        </label>
+        <label class="lz-field"><span>Confirm new password</span>
+          <input type="password" name="confirm" autocomplete="new-password" required>
+        </label>
+        <p class="lz-field-hint">At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+        <p class="lz-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="lz-btn lz-btn-block">Update password</button>
+      </form>
+      <div class="lz-auth-links">
+        <a href="{{ routes.account_url }}/login">Back to sign in</a>
+      </div>
+    </div>
+  </div>
+</section>

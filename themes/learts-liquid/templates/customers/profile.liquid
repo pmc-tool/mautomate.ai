@@ -1,0 +1,32 @@
+<nav class="lz-crumbs"><div class="lz-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="lz-current">Profile</span>
+</div></nav>
+<section class="lz-section lz-account">
+  <div class="lz-container">
+    <div class="lz-shead"><h1 class="lz-title">Profile</h1></div>
+    <div class="lz-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'profile' %}
+      <div class="lz-acct-main">
+        <form class="lz-profile-form" data-account-form="profile" data-success="Profile updated.">
+          <div class="lz-field-row">
+            <label class="lz-field"><span>First name</span>
+              <input type="text" name="first_name" value="{{ customer.first_name }}" required>
+            </label>
+            <label class="lz-field"><span>Last name</span>
+              <input type="text" name="last_name" value="{{ customer.last_name }}" required>
+            </label>
+          </div>
+          <label class="lz-field"><span>Phone</span>
+            <input type="tel" name="phone" value="{{ customer.phone }}">
+          </label>
+          <label class="lz-field"><span>Email</span>
+            <input type="email" value="{{ customer.email }}" disabled>
+          </label>
+          <p class="lz-field-hint">To change your password, sign out and use <a href="{{ routes.root_url }}/recover">Forgot your password</a> — we will email you a secure reset link.</p>
+          <p class="lz-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="lz-btn">Save changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

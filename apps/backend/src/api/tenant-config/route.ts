@@ -136,6 +136,61 @@ const shippableCountries = async (
   }
 }
 
+/**
+ * Does this tenant's ACTIVE theme ship its own customer-account pages?
+ *
+ * The storefront middleware flips /account, /wishlist, /recover and
+ * /reset-password from the shared React base to the theme's Liquid templates
+ * ONLY when this is true, so a merchant-uploaded theme without the templates
+ * keeps its working React account pages. The probe is the canonical template:
+ * a theme with templates/customers/login.liquid is declaring the suite.
+ *
+ * Mirrors the storefront middleware's effectiveTheme(): null/"" falls back to
+ * the platform default and retired compiled-theme ids map to their Liquid
+ * successors. Best-effort and FAIL-CLOSED — any error means "no", which
+ * renders the React pages that always work.
+ */
+const DEFAULT_THEME = "learts-liquid"
+const RETIRED_THEMES: Record<string, string> = {
+  learts: "learts-liquid",
+  aurora: "aurora-liquid",
+  cignet: "cignet-liquid",
+  shofy: "shofy-liquid",
+  ekka: "ekka-liquid",
+  helendo: "helendo-liquid",
+  bazaro: "bazaro-liquid",
+  exzo: "exzo-liquid",
+  rokon: "rokon-liquid",
+}
+
+const themeCustomerPages = async (
+  scope: any,
+  activeTheme: string | null
+): Promise<boolean> => {
+  try {
+    const raw = (activeTheme || "").trim()
+    const handle = raw ? RETIRED_THEMES[raw] ?? raw : DEFAULT_THEME
+    const svc: any = scope.resolve("theme")
+    const [theme] = await svc.listThemes({ handle }, { take: 1 })
+    if (!theme?.id || !theme?.current_version) return false
+    const [version] = await svc.listThemeVersions(
+      { theme_id: theme.id, version: theme.current_version },
+      { select: ["id"], take: 1 }
+    )
+    if (!version?.id) return false
+    const files = await svc.listThemeFiles(
+      {
+        theme_version_id: version.id,
+        path: "templates/customers/login.liquid",
+      },
+      { select: ["id"], take: 1 }
+    )
+    return Array.isArray(files) && files.length > 0
+  } catch {
+    return false
+  }
+}
+
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const host = String(
     (req.query.host as string) ?? req.headers["x-forwarded-host"] ?? req.headers.host ?? ""
@@ -169,6 +224,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     resolved.tenant_id
   )
   const shipCountries = await shippableCountries(req.scope, resolved.tenant_id)
+  const customerPages = await themeCustomerPages(
+    req.scope,
+    typeof tenant?.meta?.active_theme === "string"
+      ? tenant.meta.active_theme
+      : null
+  )
 
   // The tenant's active Meta pixel id (public by design — it ships in every
   // storefront page). The storefront middleware threads it to the root layout
@@ -210,6 +271,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       typeof tenant?.meta?.active_theme === "string"
         ? tenant.meta.active_theme
         : null,
+    // Whether the active theme ships its own Liquid customer-account pages
+    // (login/register/account/orders/addresses/wishlist). The storefront
+    // middleware only routes those paths to the theme engine when true, so a
+    // theme without the templates keeps the shared React account pages.
+    // Additive + backwards compatible: older storefront builds ignore it.
+    theme_customer_pages: customerPages,
     // Dedicated-instance backend (instance-per-tenant). When set, this tenant
     // runs its OWN Medusa instance/admin at this URL; the edge routes the store
     // admin + store API there. Null => pooled tenant on the shared backend.

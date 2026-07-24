@@ -1,0 +1,48 @@
+<nav class="lz-crumbs"><div class="lz-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="lz-current">My account</span>
+</div></nav>
+<section class="lz-section lz-account">
+  <div class="lz-container">
+    <div class="lz-shead"><h1 class="lz-title">My account</h1></div>
+    <div class="lz-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'dashboard' %}
+      <div class="lz-acct-main">
+        <div class="lz-acct-cards">
+          <div class="lz-acct-card">
+            <span class="lz-acct-card-label">Signed in as</span>
+            <p class="lz-acct-card-value">{{ customer.first_name }} {{ customer.last_name }}</p>
+            <p class="lz-acct-card-sub">{{ customer.email }}</p>
+          </div>
+          <div class="lz-acct-card">
+            <span class="lz-acct-card-label">Orders</span>
+            <p class="lz-acct-card-value">{{ orders | size }}</p>
+            <p class="lz-acct-card-sub"><a href="{{ routes.account_url }}/orders">View order history</a></p>
+          </div>
+          <div class="lz-acct-card">
+            <span class="lz-acct-card-label">Addresses</span>
+            <p class="lz-acct-card-value">{{ customer.addresses | size }}</p>
+            <p class="lz-acct-card-sub"><a href="{{ routes.account_url }}/addresses">Manage addresses</a></p>
+          </div>
+        </div>
+
+        <h2 class="lz-acct-h2">Recent orders</h2>
+        {%- if orders and orders.size > 0 -%}
+        <div class="lz-orders-table">
+          <div class="lz-orders-row lz-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders limit: 5 -%}
+          <div class="lz-orders-row">
+            <span class="lz-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="lz-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span>{{ order.total | money }}</span>
+            <span><a class="lz-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="lz-acct-empty"><p>No orders yet.</p><a class="lz-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

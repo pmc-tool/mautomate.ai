@@ -52,6 +52,13 @@ type TenantConfig = {
    * this store have a bot?) rather than env-driven.
    */
   chatbot_public_key: string | null
+  /**
+   * True when the active theme's published version ships its own Liquid
+   * customer-account templates (templates/customers/*). Gates the account/
+   * wishlist/recover/reset-password ownership flip below — a theme without
+   * the templates keeps the shared React account pages.
+   */
+  theme_customer_pages?: boolean
 }
 
 // Per-host tenant resolution cache (module-scoped, short TTL). Keyed by Host so
@@ -297,23 +304,35 @@ function effectiveTheme(active?: string | null): string {
   return RETIRED_THEMES.get(a) ?? a
 }
 
-/* Paths an uploaded theme OWNS. Checkout, account and order stay on the
-   platform's own React implementation — a theme styles them but never renders
-   the payment flow (see the developer guide, checkout section). */
-function isThemeOwnedPath(pathname: string, country: string): boolean {
+/* Paths an uploaded theme OWNS. Checkout, payment and the order-confirmation
+   flow stay on the platform's own React implementation — a theme styles them
+   but never renders the payment flow (see the developer guide, checkout
+   section). The ACCOUNT suite (account/wishlist/recover/reset-password) is
+   theme-owned ONLY when the active theme ships the customers/* templates —
+   the tenant-config `theme_customer_pages` capability — so themes without
+   them keep the shared React pages that always work. */
+function isThemeOwnedPath(
+  pathname: string,
+  country: string,
+  opts?: { customerPages?: boolean; preview?: boolean }
+): boolean {
   const rest = pathname
     .replace(new RegExp("^/" + country + "(?=/|$)", "i"), "")
     .replace(/^\/+/, "")
   const first = rest.split("/")[0] ?? ""
-  // Inverted ownership: the theme owns EVERY storefront page (home, catalog,
-  // categories, blog, contact, and any CMS page slug like about-us / faq /
-  // privacy) EXCEPT the React-only flows below, which handle auth, the cart
-  // mutations, payment and orders and must not be re-rendered by a theme.
-  const REACT_ONLY = new Set([
-    "account", "checkout", "order", "payment",
-    "verify-account", "recover", "wishlist", "reset-password",
-  ])
+  // Never theme-rendered: auth-sensitive payment surfaces.
+  const REACT_ONLY = new Set(["checkout", "order", "payment", "verify-account"])
   if (REACT_ONLY.has(first)) return false
+  // Capability-gated: the account suite. A ?preview_theme request is allowed
+  // through regardless so a capable theme can be previewed before applying —
+  // the theme-render route 404s gracefully if the previewed theme lacks the
+  // template.
+  const ACCOUNT_SEGMENTS = new Set([
+    "account", "wishlist", "recover", "reset-password",
+  ])
+  if (ACCOUNT_SEGMENTS.has(first)) {
+    return !!(opts?.customerPages || opts?.preview)
+  }
   // A path whose first segment looks like a file (robots.txt, sitemap.xml, an
   // opengraph image) is not a page — leave it to Next.
   if (first.includes(".")) return false
@@ -520,7 +539,10 @@ export async function middleware(request: NextRequest) {
     if (
       themeToRender &&
       !COMPILED_THEMES.has(themeToRender) &&
-      isThemeOwnedPath(request.nextUrl.pathname, country)
+      isThemeOwnedPath(request.nextUrl.pathname, country, {
+        customerPages: tenant?.theme_customer_pages === true,
+        preview: !!previewTheme,
+      })
     ) {
       const url = request.nextUrl.clone()
       url.pathname = `/theme-render${request.nextUrl.pathname}`

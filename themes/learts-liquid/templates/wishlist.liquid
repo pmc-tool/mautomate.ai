@@ -1,0 +1,13 @@
+<nav class="lz-crumbs"><div class="lz-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="lz-current">Wishlist</span>
+</div></nav>
+<section class="lz-section lz-wishlist">
+  <div class="lz-container">
+    <div class="lz-shead"><h1 class="lz-title">Your wishlist</h1></div>
+    <div class="lz-grid" data-wishlist-grid data-root="{{ routes.root_url }}"></div>
+    <div class="lz-acct-empty" data-wishlist-empty hidden>
+      <p>Your wishlist is empty. Tap the heart on any product to save it here.</p>
+      <a class="lz-btn" href="{{ routes.collections_url }}">Browse products</a>
+    </div>
+  </div>
+</section>

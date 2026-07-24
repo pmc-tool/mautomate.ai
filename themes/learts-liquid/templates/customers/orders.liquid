@@ -1,0 +1,29 @@
+<nav class="lz-crumbs"><div class="lz-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="lz-current">Orders</span>
+</div></nav>
+<section class="lz-section lz-account">
+  <div class="lz-container">
+    <div class="lz-shead"><h1 class="lz-title">Orders</h1></div>
+    <div class="lz-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'orders' %}
+      <div class="lz-acct-main">
+        {%- if orders and orders.size > 0 -%}
+        <div class="lz-orders-table">
+          <div class="lz-orders-row lz-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders -%}
+          <div class="lz-orders-row">
+            <span class="lz-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="lz-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span>{{ order.total | money }}</span>
+            <span><a class="lz-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="lz-acct-empty"><p>You have not placed any orders yet.</p><a class="lz-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

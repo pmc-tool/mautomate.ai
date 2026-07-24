@@ -8,6 +8,7 @@ import { getCmsPage } from "@lib/data/cms"
 import { retrieveCart } from "@lib/data/cart"
 import { retrieveCustomer } from "@lib/data/customer"
 import { listOrders, retrieveOrder } from "@lib/data/orders"
+import { getRegion } from "@lib/data/regions"
 import { getCmsSettings } from "@lib/data/cms"
 import { renderUploadedTheme, loadThemeBundle } from "@modules/theme-runtime/loader"
 import { isValidEditorKeyForRequest } from "@lib/util/secret"
@@ -245,6 +246,20 @@ export async function GET(
     return new NextResponse("Theme not found", { status: 404 })
   }
 
+  // Account-suite templates are OPTIONAL for a theme (middleware gates live
+  // stores on the tenant-config capability, but a ?preview_theme request is
+  // let through unconditionally). A theme without the template gets a clear
+  // 404 instead of a raw render crash.
+  if (
+    (template.startsWith("customers/") || template === "wishlist") &&
+    !bundle.files[`templates/${template}.liquid`]
+  ) {
+    return new NextResponse(
+      "This theme does not include customer account pages.",
+      { status: 404 }
+    )
+  }
+
   // ---- gather the tenant + shared context ----
   const [settings, customer, cart, categories] = await Promise.all([
     getCmsSettings().catch(() => null),
@@ -418,6 +433,28 @@ export async function GET(
         token: req.nextUrl.searchParams.get("token") || "",
         email: req.nextUrl.searchParams.get("email") || "",
       }
+    } else if (template === "customers/addresses") {
+      // Country options for the address form. Prefer the tenant's shippable
+      // countries (forwarded by middleware — the same list checkout offers);
+      // fall back to the region's countries.
+      const shipCsv = (h.get("x-tenant-ship-countries") || "").trim()
+      const region = await getRegion(countryCode).catch(() => null)
+      const regionCountries = (region?.countries ?? []).map((c: any) => ({
+        code: String(c.iso_2 ?? "").toLowerCase(),
+        name: c.display_name ?? c.name ?? String(c.iso_2 ?? "").toUpperCase(),
+      }))
+      const byCode = new Map(regionCountries.map((c: any) => [c.code, c]))
+      const shipped = shipCsv
+        ? shipCsv
+            .split(",")
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean)
+            .map(
+              (code) =>
+                byCode.get(code) ?? { code, name: code.toUpperCase() }
+            )
+        : []
+      ;(data as any).countries = shipped.length ? shipped : regionCountries
     }
     // cart/search/wishlist and the remaining customers/* templates render
     // from `base` (cart and customer are already in context).
