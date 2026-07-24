@@ -300,6 +300,56 @@ export function createEngine(
  * is the platform's own head content (SEO, analytics, tenant scripts) — a theme
  * cannot opt out of it, which is why the validator insists it is present.
  */
+/**
+ * Render ONE chrome section (header or footer) of a theme, standalone.
+ *
+ * Used by the React-rendered surfaces that remain after the Liquid migration
+ * (checkout, payment, order confirmation, account fallback for themes without
+ * customer templates) so they carry the store's real theme chrome instead of
+ * the generic base header/footer. Deliberately NO theme.js runs on those
+ * surfaces — the payment boundary — so the caller hides script-driven
+ * controls (e.g. the mobile burger). Fails soft: any error returns "".
+ */
+export async function renderThemeChrome(
+  files: ThemeFiles,
+  opts: {
+    themeId: string
+    version: string
+    part: "header" | "footer"
+    data: Record<string, unknown>
+    currency: string
+    locale: string
+  }
+): Promise<string> {
+  const src = files[`sections/${opts.part}.liquid`]
+  if (!src) return ""
+  const engine = createEngine(files, {
+    themeId: opts.themeId,
+    version: opts.version,
+    currency: opts.currency,
+    locale: opts.locale,
+  })
+  const run = () =>
+    engine.render(
+      engine.parse(src, `sections/${opts.part}.liquid`),
+      opts.data
+    ) as Promise<string>
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Chrome render exceeded ${RENDER_TIMEOUT_MS}ms`)),
+      RENDER_TIMEOUT_MS
+    )
+  })
+  try {
+    return await Promise.race([run(), deadline])
+  } catch {
+    return ""
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 export async function renderThemePage(
   files: ThemeFiles,
   opts: {

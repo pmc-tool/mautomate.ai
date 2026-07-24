@@ -12,6 +12,12 @@ import ChromeStyles from "@modules/layout/components/chrome-styles"
 import Footer from "@modules/layout/templates/footer"
 import Nav from "@modules/layout/templates/nav"
 import FreeShippingPriceNudge from "@modules/shipping/components/free-shipping-price-nudge"
+import {
+  getLiquidChrome,
+  getThemeBranding,
+  brandingCss,
+  LiquidChromeHead,
+} from "@modules/theme-runtime/chrome"
 
 export const metadata: Metadata = {
   metadataBase: new URL(getBaseURL()),
@@ -59,7 +65,11 @@ function PreviewBanner() {
   )
 }
 
-export default async function PageLayout(props: { children: React.ReactNode }) {
+export default async function PageLayout(props: {
+  children: React.ReactNode
+  params: Promise<{ countryCode: string }>
+}) {
+  const { countryCode } = await props.params
   const customer = await retrieveCustomer()
   const cart = await retrieveCart()
   const { isEnabled: isPreview } = await draftMode()
@@ -71,14 +81,36 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
     shippingOptions = shipping_options
   }
 
+  // The store's own theme chrome for the React pages that remain after the
+  // Liquid migration (order confirmation, payment, account fallback). The
+  // theme's header/footer render server-side — NO theme.js on these
+  // surfaces — so they finally match the rest of the storefront. Falls back
+  // to the base Nav/Footer whenever the theme has no chrome.
+  const [liquidChrome, branding] = await Promise.all([
+    getLiquidChrome(countryCode).catch(() => null),
+    getThemeBranding().catch(() => null),
+  ])
+
   return (
     <>
       {/* F1: scoped chrome (topbar/header/footer) CSS — applies live-storefront
           chrome styling identically to the editor. Renders nothing when unset. */}
       <ChromeStyles />
       {isPreview && <PreviewBanner />}
+      {liquidChrome && <LiquidChromeHead chrome={liquidChrome} />}
+      {branding && (
+        <style dangerouslySetInnerHTML={{ __html: brandingCss(branding) }} />
+      )}
       <WishlistProvider>
-      <Nav />
+      {liquidChrome ? (
+        <div
+          data-liquid-chrome
+          className={liquidChrome.bodyClass}
+          dangerouslySetInnerHTML={{ __html: liquidChrome.header }}
+        />
+      ) : (
+        <Nav />
+      )}
       {customer && cart && (
         <CartMismatchBanner customer={customer} cart={cart} />
       )}
@@ -90,8 +122,18 @@ export default async function PageLayout(props: { children: React.ReactNode }) {
           shippingOptions={shippingOptions}
         />
       )}
-      {props.children}
-      <Footer />
+      <div data-theme-branded={branding ? "" : undefined}>
+        {props.children}
+      </div>
+      {liquidChrome ? (
+        <div
+          data-liquid-chrome
+          className={liquidChrome.bodyClass}
+          dangerouslySetInnerHTML={{ __html: liquidChrome.footer }}
+        />
+      ) : (
+        <Footer />
+      )}
       {/* A-2: the store's own chatbot. Renders only when THIS tenant has an
           active chatbot (see chat-widget-mount) — nothing otherwise. */}
       <ChatWidgetMount />
