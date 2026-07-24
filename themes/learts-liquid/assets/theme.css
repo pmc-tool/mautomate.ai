@@ -265,7 +265,7 @@ body.lz-body{ margin:0; min-height:100vh; overflow-x:hidden; background:var(--lz
 .lz-pdp-buy .lz-btn{ flex:1; }
 .lz-pdp-msg{ margin:14px 0 0; font-size:14px; color:var(--lz-accent); }
 .lz-cart-layout{ display:grid; grid-template-columns:1fr 340px; gap:44px; align-items:start; margin-top:32px; }
-.lz-cart-row{ display:grid; grid-template-columns:2fr .8fr 1fr .8fr 32px; gap:16px; align-items:center; padding:20px 0; border-bottom:1px solid var(--lz-line); }
+.lz-cart-row{ display:grid; grid-template-columns:2fr .8fr minmax(104px,1fr) .8fr 32px; gap:16px; align-items:center; padding:20px 0; border-bottom:1px solid var(--lz-line); }
 .lz-cart-head{ font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--lz-muted); padding:0 0 12px; }
 .lz-cart-prod{ display:flex; gap:16px; align-items:center; }
 .lz-cart-prod img{ width:70px; height:88px; object-fit:cover; background:var(--lz-soft); }
@@ -283,9 +283,9 @@ body.lz-body{ margin:0; min-height:100vh; overflow-x:hidden; background:var(--lz
 /* interactive cart (qty stepper, remove, promo) */
 .lz-cart-page.is-busy .lz-cart-lines, .lz-cart-page.is-busy .lz-cart-summary{ opacity:.55; pointer-events:none; }
 .lz-qty{ display:inline-flex; align-items:center; border:1px solid var(--lz-line); border-radius:3px; overflow:hidden; }
-.lz-qty button{ width:30px; height:36px; border:none; background:none; cursor:pointer; font-size:16px; color:var(--lz-muted); line-height:1; }
+.lz-qty button{ flex:0 0 30px; width:30px; height:36px; border:none; background:none; cursor:pointer; font-size:16px; color:var(--lz-muted); line-height:1; }
 .lz-qty button:hover{ color:var(--lz-ink); background:var(--lz-soft); }
-.lz-qty input{ width:38px; height:36px; border:none; border-left:1px solid var(--lz-line); border-right:1px solid var(--lz-line); text-align:center; font-size:14px; color:var(--lz-ink); background:none; }
+.lz-qty input{ flex:0 0 38px; width:38px; height:36px; border:none; border-left:1px solid var(--lz-line); border-right:1px solid var(--lz-line); text-align:center; font-size:14px; color:var(--lz-ink); background:none; }
 .lz-cart-remove{ width:28px; height:28px; border:none; background:none; cursor:pointer; font-size:20px; line-height:1; color:var(--lz-muted); justify-self:end; }
 .lz-cart-remove:hover{ color:var(--lz-ink); }
 .lz-cart-msg{ margin:12px 0 0; font-size:13px; color:#b3261e; }
