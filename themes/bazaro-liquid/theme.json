@@ -1,7 +1,7 @@
 {
   "id": "bazaro-liquid",
   "name": "Bazaro",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "engine": "1",
   "author": "mAutomate",
   "description": "Bazaro — a bold fashion storefront with Satoshi type, oversized display headings, square black buttons and a signature red accent. Ported from the Bazaro React theme to the upload engine as a fully self-contained Liquid package.",
@@ -70,6 +70,22 @@
       "type": "text",
       "label": "Copyright line",
       "default": "All rights reserved."
+    },
+    {
+      "type": "header",
+      "label": "Checkout"
+    },
+    {
+      "id": "checkout_accent",
+      "type": "color",
+      "label": "Checkout accent colour",
+      "default": "#141414"
+    },
+    {
+      "id": "checkout_button",
+      "type": "color",
+      "label": "Checkout button colour",
+      "default": "#141414"
     }
   ],
   "defaultSections": [

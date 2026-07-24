@@ -56,7 +56,13 @@ export const LIMITS = {
   maxTemplateBytes: 512 * 1024,
 }
 
-/** Files a theme cannot render without. */
+/** Files a theme cannot render without. The customer-account suite is
+ * required as a COMPLETE set: the storefront's capability gate probes
+ * templates/customers/login.liquid and flips /account, /wishlist, /recover
+ * and /reset-password to the theme when it exists — a partial suite would
+ * flip the gate and then 404 the missing pages. Already-published versions
+ * are unaffected (validation runs at upload only); themes without the suite
+ * keep the platform's React account pages via the fail-closed gate. */
 const REQUIRED = [
   "theme.json",
   "preview.png",
@@ -66,6 +72,16 @@ const REQUIRED = [
   "templates/collection.liquid",
   "templates/list-collections.liquid",
   "templates/cart.liquid",
+  "templates/wishlist.liquid",
+  "templates/customers/login.liquid",
+  "templates/customers/register.liquid",
+  "templates/customers/account.liquid",
+  "templates/customers/orders.liquid",
+  "templates/customers/order.liquid",
+  "templates/customers/addresses.liquid",
+  "templates/customers/profile.liquid",
+  "templates/customers/recover.liquid",
+  "templates/customers/reset.liquid",
 ]
 
 /** The 13 block types the page builder can emit. A theme that renders none of

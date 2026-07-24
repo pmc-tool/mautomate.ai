@@ -50,8 +50,12 @@ A store's `tenant.meta.active_theme` decides how its storefront renders:
 theme, middleware **rewrites** every storefront page to the Route Handler
 `app/theme-render/[[...path]]/route.ts`, which renders the whole HTML document
 through the theme's Liquid. Ownership is **inverted** — the theme owns EVERY page
-except a `REACT_ONLY` blacklist (`account`, `checkout`, `order`, `payment`,
-`verify-account`, `recover`, `wishlist`) and file-like paths (contain a `.`).
+except (a) the payment core (`checkout`, `order`, `payment`, `verify-account`)
+which is ALWAYS React, (b) the ACCOUNT suite (`account`, `wishlist`,
+`recover`, `reset-password`) which is theme-owned ONLY when the active
+theme's published version ships `templates/customers/login.liquid` (the
+`theme_customer_pages` capability computed by /tenant-config — fail-closed),
+and (c) file-like paths (contain a `.`). See section 11.
 `?preview_theme=<handle>` forces the rewrite for ANY store (even React ones)
 without changing its live theme — this is how you preview safely.
 
@@ -448,3 +452,83 @@ raw decimals (`1262.8389…` days). Hit in learts-liquid `deal_of_day.liquid`
 `/home/ratul/theme-dev/learts-liquid` dev copy is STALE (predates the data-el
 markers and the server-side countdown) — do NOT repack from it without first
 exporting the published files back from the DB.
+
+---
+
+## 11. Account suite + checkout branding (Phase 2/3, 2026-07-25)
+
+Every first-party theme ships the CUSTOMER ACCOUNT suite as Liquid (validator
+REQUIRES the full set since Phase 4 — a partial suite would flip the
+capability gate and 404):
+
+```
+templates/customers/login.liquid      /account (signed out; auth gate serves it
+templates/customers/register.liquid     for ANY protected page when signed out)
+templates/customers/account.liquid    /account (dashboard; gets orders[])
+templates/customers/orders.liquid     /account/orders (orders[])
+templates/customers/order.liquid      /account/orders/details/<id> (order)
+templates/customers/addresses.liquid  /account/addresses (customer.addresses,
+                                        countries[] {code,name})
+templates/customers/profile.liquid    /account/profile
+templates/customers/recover.liquid    /recover
+templates/customers/reset.liquid      /reset-password (reset {token,email})
+templates/wishlist.liquid             /wishlist (client-rendered)
+snippets/account-nav.liquid           shared sidebar (convention)
+```
+
+**Auth gate is server-side** (theme-render route): signed-out on a protected
+template renders customers/login; signed-in on login/register renders
+customers/account. Templates only render.
+
+**The frozen JS contract** (all themes identical; only classes/CSS differ —
+learts-liquid is the reference):
+- Forms: `data-account-form="login|register|recover|reset|profile|address"`,
+  a `<p data-form-msg hidden>` per form (style error + `.is-ok` success),
+  optional `data-redirect` / `data-success`. Input NAMES are fixed: email,
+  password, confirm_password, first_name, last_name, phone, token, confirm,
+  address_id, company, address_1, address_2, city, postal_code, province,
+  country_code, default_shipping, default_billing, terms_accepted.
+- `data-logout`; `data-address-new`; `data-address-edit` (carries
+  `data-a-<field>` for all 11 fields); `data-address-delete="<id>"`; the
+  address form ships `hidden` and JS unhides it.
+- Wishlist: localStorage `ff_wishlist` (JSON array of product-id strings),
+  hearts = `data-wishlist-toggle data-product-id` + `<span data-wish-label>`,
+  page = `data-wishlist-grid data-root="{{ routes.root_url }}"` +
+  `data-wishlist-empty`.
+
+**Same-origin bridges** (the SAME server actions the React pages use; the
+tenant key, session cookie and validation are identical):
+- `POST /api/theme-cart` — actions add / update / remove / promo_add /
+  promo_remove; returns the mapped cart (same shape as the Liquid context).
+- `POST /api/theme-account` — login / register / logout / recover / reset /
+  profile / address_add / address_update / address_delete.
+- `GET /api/theme-products?ids=…&country=…` — product cards for the wishlist
+  (includes `price_formatted`).
+
+**Checkout + remaining React pages carry the theme (Phase 3):**
+- The React (main) layout renders the theme's OWN header/footer sections
+  server-side (`renderThemeChrome` + `theme-runtime/chrome.tsx`) with the
+  theme stylesheet — NO theme.js ever loads there (payment boundary; the
+  burger/mobile-nav are CSS-hidden). Order confirmation, payment,
+  verify-account and the account FALLBACK all wear the store's chrome.
+- The checkout stays a locked minimal surface (the Shopify model) reskinned
+  from manifest `tokens` (fonts.heading/body, colors.primary/dark). Merchant
+  overrides: theme.json declares `checkout_accent` + `checkout_button`
+  (colors) — edited in the visual editor's theme-settings panel, stored in
+  CMS `theme_settings[handle]`, and they beat the tokens.
+
+**React account pages are KEPT as the fail-closed fallback** (deliberate
+Phase 4 decision): a theme without the suite — or any capability-resolution
+failure — falls back to React pages that now wear the theme chrome anyway.
+Do not delete them.
+
+**Gotchas from this build:**
+- Pooled tenants' region is COUNTRY-LESS: the addresses page falls back to a
+  full ISO country list (Intl.DisplayNames) when the tenant has no shippable
+  countries. Checkout still enforces shippable countries.
+- theme.js loads `defer` — QA scripts that click before it binds see dead
+  handlers. Retest before calling it a bug.
+- upload2.js validates with the COMPILED validator
+  (`.medusa/server/src/modules/theme/lib/validator.js`); after editing the
+  source validator, esbuild-drop the compiled copy or uploads validate
+  against the OLD rules while the running backend uses the new ones.

@@ -153,7 +153,13 @@ export type ThemeBranding = {
   headLinks: string[]
 }
 
-/** The active theme's design tokens for reskinning React surfaces. */
+/** The active theme's design tokens for reskinning React surfaces.
+ *
+ * Merchant overrides come from the SAME mechanism as every other theme
+ * setting: the theme declares `checkout_accent` / `checkout_button` in its
+ * theme.json settings schema, the merchant edits them in the visual editor's
+ * theme-settings panel, and the values land in CMS settings under
+ * theme_settings[handle]. When set, they beat the theme's manifest tokens. */
 export async function getThemeBranding(): Promise<ThemeBranding | null> {
   try {
     const bundle = await activeBundle()
@@ -161,12 +167,26 @@ export async function getThemeBranding(): Promise<ThemeBranding | null> {
     const tokens = (bundle.manifest as any)?.tokens ?? {}
     const colors = tokens.colors ?? {}
     const fonts = tokens.fonts ?? {}
+    const settings = await getCmsSettings().catch(() => null)
+    const overrides =
+      ((settings as any)?.theme_settings?.[bundle.handle] ?? {}) as Record<
+        string,
+        unknown
+      >
+    const color = (v: unknown) =>
+      typeof v === "string" && /^#[0-9a-fA-F]{3,8}$/.test(v.trim())
+        ? v.trim()
+        : null
     return {
       handle: bundle.handle,
       headingFont: typeof fonts.heading === "string" ? fonts.heading : null,
       bodyFont: typeof fonts.body === "string" ? fonts.body : null,
-      accent: typeof colors.primary === "string" ? colors.primary : null,
-      ink: typeof colors.dark === "string" ? colors.dark : null,
+      accent:
+        color(overrides.checkout_accent) ??
+        (typeof colors.primary === "string" ? colors.primary : null),
+      ink:
+        color(overrides.checkout_button) ??
+        (typeof colors.dark === "string" ? colors.dark : null),
       headLinks: extractHeadLinks(bundle.files["layout/theme.liquid"] ?? ""),
     }
   } catch {

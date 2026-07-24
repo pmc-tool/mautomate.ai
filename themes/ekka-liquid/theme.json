@@ -1,7 +1,7 @@
 {
   "id": "ekka-liquid",
   "name": "Ekka",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "engine": "1",
   "author": "mAutomate",
   "description": "Ekka — a modern multipurpose ecommerce design ported to the upload engine: crisp white layout, Poppins/Montserrat type, blue accents, ghost display headings and dense card-based product grids with hover actions.",
@@ -70,6 +70,22 @@
       "type": "text",
       "label": "Copyright line",
       "default": "All rights reserved."
+    },
+    {
+      "type": "header",
+      "label": "Checkout"
+    },
+    {
+      "id": "checkout_accent",
+      "type": "color",
+      "label": "Checkout accent colour",
+      "default": "#3474d4"
+    },
+    {
+      "id": "checkout_button",
+      "type": "color",
+      "label": "Checkout button colour",
+      "default": "#212121"
     }
   ],
   "defaultSections": [

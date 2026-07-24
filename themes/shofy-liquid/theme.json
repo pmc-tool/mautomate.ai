@@ -1,7 +1,7 @@
 {
   "id": "shofy-liquid",
   "name": "Shofy",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "engine": "1",
   "author": "mAutomate",
   "description": "Shofy — a bright, modern multipurpose electronics-style storefront: Jost typography, a vivid blue accent, rounded cards and a classic three-tier shop header. Ported from the compiled Shofy React theme to the upload engine as a fully self-contained Liquid package.",
@@ -70,6 +70,22 @@
       "type": "text",
       "label": "Copyright line",
       "default": "All rights reserved."
+    },
+    {
+      "type": "header",
+      "label": "Checkout"
+    },
+    {
+      "id": "checkout_accent",
+      "type": "color",
+      "label": "Checkout accent colour",
+      "default": "#0989ff"
+    },
+    {
+      "id": "checkout_button",
+      "type": "color",
+      "label": "Checkout button colour",
+      "default": "#010f1c"
     }
   ],
   "defaultSections": [
