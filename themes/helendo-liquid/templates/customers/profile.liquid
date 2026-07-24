@@ -1,0 +1,34 @@
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">Profile</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="hl-current">Profile</span></nav>
+  </div>
+</div>
+<section class="hl-section hl-account">
+  <div class="hl-container">
+    <div class="hl-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'profile' %}
+      <div class="hl-acct-main">
+        <form class="hl-profile-form" data-account-form="profile" data-success="Profile updated.">
+          <div class="hl-field-row">
+            <label class="hl-field"><span>First name</span>
+              <input type="text" name="first_name" value="{{ customer.first_name }}" required>
+            </label>
+            <label class="hl-field"><span>Last name</span>
+              <input type="text" name="last_name" value="{{ customer.last_name }}" required>
+            </label>
+          </div>
+          <label class="hl-field"><span>Phone</span>
+            <input type="tel" name="phone" value="{{ customer.phone }}">
+          </label>
+          <label class="hl-field"><span>Email</span>
+            <input type="email" value="{{ customer.email }}" disabled>
+          </label>
+          <p class="hl-field-hint">To change your password, sign out and use <a href="{{ routes.root_url }}/recover">Forgot your password</a> — we will email you a secure reset link.</p>
+          <p class="hl-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="hl-btn">Save changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

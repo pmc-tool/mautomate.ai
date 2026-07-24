@@ -1,0 +1,36 @@
+<nav class="au-crumbs"><div class="au-container">
+  <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><a href="{{ routes.account_url }}">My account</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">Profile</span>
+</div></nav>
+
+<section class="au-section au-account">
+  <div class="au-container">
+    <header class="au-listing-head">
+      <span class="au-eyebrow">Your account</span>
+      <h1 class="au-listing-title">Profile</h1>
+    </header>
+    <div class="au-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'profile' %}
+      <div class="au-acct-main">
+        <form class="au-profile-form au-card-flat" data-account-form="profile" data-success="Profile updated.">
+          <div class="au-field-row">
+            <label class="au-field"><span>First name</span>
+              <input type="text" name="first_name" value="{{ customer.first_name }}" required>
+            </label>
+            <label class="au-field"><span>Last name</span>
+              <input type="text" name="last_name" value="{{ customer.last_name }}" required>
+            </label>
+          </div>
+          <label class="au-field"><span>Phone</span>
+            <input type="tel" name="phone" value="{{ customer.phone }}">
+          </label>
+          <label class="au-field"><span>Email</span>
+            <input type="email" value="{{ customer.email }}" disabled>
+          </label>
+          <p class="au-field-hint">To change your password, sign out and use <a href="{{ routes.root_url }}/recover">Forgot your password</a> — we will email you a secure reset link.</p>
+          <p class="au-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="au-btn">Save changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

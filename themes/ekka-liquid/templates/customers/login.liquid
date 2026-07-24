@@ -1,0 +1,28 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">Sign In</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ek-current">Sign in</span></nav>
+  </div>
+</div>
+<section class="ek-section ek-auth">
+  <div class="ek-container">
+    <div class="ek-auth-card">
+      <h2 class="ek-auth-title">Sign In</h2>
+      <p class="ek-auth-sub">Welcome back. Sign in to see your orders and manage your account.</p>
+      <form data-account-form="login" data-redirect="{{ routes.account_url }}">
+        <label class="ek-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="ek-field"><span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <p class="ek-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="ek-btn ek-btn-block">Sign In</button>
+      </form>
+      <div class="ek-auth-links">
+        <a href="{{ routes.root_url }}/recover">Forgot your password?</a>
+        <span>New here? <a href="{{ routes.account_url }}/register">Create an account</a></span>
+      </div>
+    </div>
+  </div>
+</section>

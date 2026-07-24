@@ -1,0 +1,82 @@
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="kt-current">Addresses</span>
+</div></nav>
+<section class="kt-section kt-account">
+  <div class="kt-container">
+    <div class="kt-shead"><span class="kt-eyebrow">My account</span><h1 class="kt-title">Addresses</h1></div>
+    <div class="kt-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'addresses' %}
+      <div class="kt-acct-main">
+        <div class="kt-acct-toolbar">
+          <button type="button" class="kt-btn" data-address-new>Add address</button>
+        </div>
+
+        {%- if customer.addresses and customer.addresses.size > 0 -%}
+        <div class="kt-addr-grid">
+          {%- for address in customer.addresses -%}
+          <div class="kt-addr-card">
+            <p class="kt-addr-name">{{ address.first_name }} {{ address.last_name }}
+              {%- if address.is_default_shipping %} <span class="kt-badge">Default shipping</span>{% endif -%}
+              {%- if address.is_default_billing %} <span class="kt-badge">Default billing</span>{% endif -%}
+            </p>
+            <p class="kt-addr-lines">{{ address.address_1 }}{% if address.address_2 != blank %}, {{ address.address_2 }}{% endif %}<br>
+            {{ address.city }}{% if address.province != blank %}, {{ address.province }}{% endif %} {{ address.postal_code }}<br>
+            {{ address.country_code }}{% if address.phone != blank %} &middot; {{ address.phone }}{% endif %}</p>
+            <div class="kt-addr-actions">
+              <button type="button" class="kt-linkbtn" data-address-edit
+                data-a-address_id="{{ address.id }}"
+                data-a-first_name="{{ address.first_name }}"
+                data-a-last_name="{{ address.last_name }}"
+                data-a-company="{{ address.company }}"
+                data-a-address_1="{{ address.address_1 }}"
+                data-a-address_2="{{ address.address_2 }}"
+                data-a-city="{{ address.city }}"
+                data-a-postal_code="{{ address.postal_code }}"
+                data-a-province="{{ address.province }}"
+                data-a-country_code="{{ address.country_code | downcase }}"
+                data-a-phone="{{ address.phone }}">Edit</button>
+              <button type="button" class="kt-linkbtn kt-linkbtn-danger" data-address-delete="{{ address.id }}">Delete</button>
+            </div>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="kt-acct-empty"><p>No saved addresses yet.</p></div>
+        {%- endif -%}
+
+        <form class="kt-addr-form" data-account-form="address" data-success="Address saved." hidden>
+          <h2 class="kt-acct-h2">Address details</h2>
+          <input type="hidden" name="address_id" value="">
+          <div class="kt-field-row">
+            <label class="kt-field"><span>First name</span><input type="text" name="first_name" required></label>
+            <label class="kt-field"><span>Last name</span><input type="text" name="last_name" required></label>
+          </div>
+          <label class="kt-field"><span>Company <em>(optional)</em></span><input type="text" name="company"></label>
+          <label class="kt-field"><span>Address</span><input type="text" name="address_1" required></label>
+          <label class="kt-field"><span>Apartment, suite, etc. <em>(optional)</em></span><input type="text" name="address_2"></label>
+          <div class="kt-field-row">
+            <label class="kt-field"><span>City</span><input type="text" name="city" required></label>
+            <label class="kt-field"><span>Postal code</span><input type="text" name="postal_code" required></label>
+          </div>
+          <div class="kt-field-row">
+            <label class="kt-field"><span>Province / state <em>(optional)</em></span><input type="text" name="province"></label>
+            <label class="kt-field"><span>Country</span>
+              <select class="kt-select" name="country_code" required>
+                {%- for country in countries -%}
+                <option value="{{ country.code }}">{{ country.name }}</option>
+                {%- endfor -%}
+              </select>
+            </label>
+          </div>
+          <label class="kt-field"><span>Phone <em>(optional)</em></span><input type="tel" name="phone"></label>
+          <div class="kt-field-row">
+            <label class="kt-check"><input type="checkbox" name="default_shipping"><span>Default shipping address</span></label>
+            <label class="kt-check"><input type="checkbox" name="default_billing"><span>Default billing address</span></label>
+          </div>
+          <p class="kt-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="kt-btn">Save address</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

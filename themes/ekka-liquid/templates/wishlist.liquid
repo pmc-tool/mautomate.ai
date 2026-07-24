@@ -1,0 +1,19 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">Wishlist</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ek-current">Wishlist</span></nav>
+  </div>
+</div>
+<section class="ek-section ek-wishlist">
+  <div class="ek-container">
+    <div class="ek-stitle">
+      <span class="ek-bg-title" aria-hidden="true">Your Wishlist</span>
+      <h2 class="ek-title">Your Wishlist</h2>
+    </div>
+    <div class="ek-grid" data-wishlist-grid data-root="{{ routes.root_url }}"></div>
+    <div class="ek-acct-empty" data-wishlist-empty hidden>
+      <p>Your wishlist is empty. Tap the heart on any product to save it here.</p>
+      <a class="ek-btn" href="{{ routes.collections_url }}">Browse Products</a>
+    </div>
+  </div>
+</section>

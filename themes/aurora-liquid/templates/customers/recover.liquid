@@ -1,0 +1,23 @@
+<nav class="au-crumbs"><div class="au-container">
+  <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">Reset password</span>
+</div></nav>
+
+<section class="au-section au-auth">
+  <div class="au-container">
+    <div class="au-auth-card au-card-flat">
+      <span class="au-eyebrow">Account help</span>
+      <h1 class="au-auth-title">Reset your password</h1>
+      <p class="au-auth-sub">Enter your email and we will send you a link to set a new password.</p>
+      <form data-account-form="recover" data-success="If an account exists for that email, a reset link is on its way.">
+        <label class="au-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <p class="au-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="au-btn au-btn-block">Send reset link</button>
+      </form>
+      <div class="au-auth-links">
+        <a href="{{ routes.account_url }}/login">Back to sign in</a>
+      </div>
+    </div>
+  </div>
+</section>

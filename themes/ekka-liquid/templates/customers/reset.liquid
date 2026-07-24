@@ -1,0 +1,31 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">New Password</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ek-current">New password</span></nav>
+  </div>
+</div>
+<section class="ek-section ek-auth">
+  <div class="ek-container">
+    <div class="ek-auth-card">
+      <h2 class="ek-auth-title">Choose A New Password</h2>
+      {%- if reset.email != blank -%}
+      <p class="ek-auth-sub">Setting a new password for {{ reset.email }}.</p>
+      {%- endif -%}
+      <form data-account-form="reset" data-success="Your password has been updated. You can now sign in.">
+        <input type="hidden" name="token" value="{{ reset.token }}">
+        <label class="ek-field"><span>New password</span>
+          <input type="password" name="password" autocomplete="new-password" required>
+        </label>
+        <label class="ek-field"><span>Confirm new password</span>
+          <input type="password" name="confirm" autocomplete="new-password" required>
+        </label>
+        <p class="ek-field-hint">At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+        <p class="ek-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="ek-btn ek-btn-block">Update Password</button>
+      </form>
+      <div class="ek-auth-links">
+        <a href="{{ routes.account_url }}/login">Back to sign in</a>
+      </div>
+    </div>
+  </div>
+</section>

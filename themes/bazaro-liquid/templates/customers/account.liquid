@@ -1,0 +1,50 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">My Account</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="bz-current">My account</span></nav>
+  </div>
+</div>
+<section class="bz-section bz-account">
+  <div class="bz-container">
+    <div class="bz-acc-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'dashboard' %}
+      <div class="bz-acc-main">
+        <div class="bz-acc-cards">
+          <div class="bz-acc-card">
+            <span class="bz-acc-card-label">Signed in as</span>
+            <p class="bz-acc-card-value">{{ customer.first_name }} {{ customer.last_name }}</p>
+            <p class="bz-acc-card-sub">{{ customer.email }}</p>
+          </div>
+          <div class="bz-acc-card">
+            <span class="bz-acc-card-label">Orders</span>
+            <p class="bz-acc-card-value">{{ orders | size }}</p>
+            <p class="bz-acc-card-sub"><a href="{{ routes.account_url }}/orders">View order history</a></p>
+          </div>
+          <div class="bz-acc-card">
+            <span class="bz-acc-card-label">Addresses</span>
+            <p class="bz-acc-card-value">{{ customer.addresses | size }}</p>
+            <p class="bz-acc-card-sub"><a href="{{ routes.account_url }}/addresses">Manage addresses</a></p>
+          </div>
+        </div>
+
+        <h2 class="bz-acc-h2">Recent orders</h2>
+        {%- if orders and orders.size > 0 -%}
+        <div class="bz-orders-table">
+          <div class="bz-orders-row bz-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders limit: 5 -%}
+          <div class="bz-orders-row">
+            <span class="bz-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="bz-acc-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span class="bz-order-total">{{ order.total | money }}</span>
+            <span><a class="bz-acc-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="bz-acc-empty"><p>No orders yet.</p><a class="bz-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

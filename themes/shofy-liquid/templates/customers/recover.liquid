@@ -1,0 +1,25 @@
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">Reset Password</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="sf-current">Reset password</span></nav>
+  </div>
+</div>
+<section class="sf-section sf-auth">
+  <div class="sf-container">
+    <div class="sf-auth-card">
+      <span class="sf-auth-icon"><i class="fas fa-envelope-open-text"></i></span>
+      <h2 class="sf-auth-title">Reset your password</h2>
+      <p class="sf-auth-sub">Enter your email and we will send you a link to set a new password.</p>
+      <form data-account-form="recover" data-success="If an account exists for that email, a reset link is on its way.">
+        <label class="sf-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <p class="sf-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="sf-btn sf-btn-primary sf-btn-block">Send Reset Link <i class="fas fa-arrow-right"></i></button>
+      </form>
+      <div class="sf-auth-links">
+        <a href="{{ routes.account_url }}/login">Back to sign in</a>
+      </div>
+    </div>
+  </div>
+</section>

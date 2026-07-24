@@ -1,0 +1,29 @@
+<div class="cg-pagehead">
+  <div class="cg-container">
+    <h1 class="cg-pagehead-title">Sign in</h1>
+    <nav class="cg-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="cg-current">Sign in</span></nav>
+  </div>
+</div>
+<section class="cg-section cg-auth">
+  <div class="cg-container">
+    <div class="cg-auth-card">
+      <span class="cg-eyebrow">Welcome back</span>
+      <h2 class="cg-auth-title">Sign in to your account</h2>
+      <p class="cg-auth-sub">Sign in to see your orders, addresses and saved pieces.</p>
+      <form data-account-form="login" data-redirect="{{ routes.account_url }}">
+        <label class="cg-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="cg-field"><span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <p class="cg-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="cg-btn cg-btn-solid cg-btn-block">Sign in</button>
+      </form>
+      <div class="cg-auth-links">
+        <a href="{{ routes.root_url }}/recover">Forgot your password?</a>
+        <span>New here? <a href="{{ routes.account_url }}/register">Create an account</a></span>
+      </div>
+    </div>
+  </div>
+</section>

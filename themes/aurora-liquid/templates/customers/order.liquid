@@ -1,0 +1,69 @@
+<nav class="au-crumbs"><div class="au-container">
+  <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><a href="{{ routes.account_url }}/orders">Orders</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">{{ order.name }}</span>
+</div></nav>
+
+<section class="au-section au-account">
+  <div class="au-container">
+    <header class="au-listing-head">
+      <span class="au-eyebrow">Order detail</span>
+      <h1 class="au-listing-title">Order {{ order.name }}</h1>
+      <p class="au-lead">Placed {{ order.created_at | date: "%B %d, %Y" }} &middot; <span class="au-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span> <span class="au-badge">{{ order.payment_status | replace: "_", " " | capitalize }}</span></p>
+    </header>
+    <div class="au-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'orders' %}
+      <div class="au-acct-main">
+        <div class="au-order-lines au-card-flat">
+          {%- for item in order.items -%}
+          <div class="au-order-line">
+            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
+            <div class="au-order-line-info">
+              <p class="au-order-line-title">{{ item.title }}</p>
+              {%- if item.variant_title != blank and item.variant_title != "Default Variant" -%}
+              <span class="au-order-line-variant">{{ item.variant_title }}</span>
+              {%- endif -%}
+              <span class="au-order-line-qty">Qty {{ item.quantity }} &times; {{ item.unit_price | money }}</span>
+            </div>
+            <span class="au-order-line-total">{{ item.total | money }}</span>
+          </div>
+          {%- endfor -%}
+        </div>
+
+        <div class="au-order-summary au-card-flat">
+          <span class="au-eyebrow">Summary</span>
+          <div class="au-cartsum-rows">
+            <div class="au-cartsum-row"><span>Subtotal</span><span>{{ order.subtotal | money }}</span></div>
+            {%- if order.discount_total > 0 -%}
+            <div class="au-cartsum-row au-cartsum-discount"><span>Discount</span><span>&minus;{{ order.discount_total | money }}</span></div>
+            {%- endif -%}
+            <div class="au-cartsum-row"><span>Shipping</span><span>{{ order.shipping_total | money }}</span></div>
+            {%- if order.tax_total > 0 -%}
+            <div class="au-cartsum-row"><span>Tax</span><span>{{ order.tax_total | money }}</span></div>
+            {%- endif -%}
+            <div class="au-cartsum-row au-cartsum-total"><span>Total</span><span>{{ order.total | money }}</span></div>
+          </div>
+        </div>
+
+        <div class="au-order-addresses">
+          {%- if order.shipping_address -%}
+          <div class="au-addr-card au-card-flat">
+            <span class="au-acct-card-label">Shipping address</span>
+            <p class="au-addr-lines">{{ order.shipping_address.first_name }} {{ order.shipping_address.last_name }}<br>
+            {{ order.shipping_address.address_1 }}{% if order.shipping_address.address_2 != blank %}, {{ order.shipping_address.address_2 }}{% endif %}<br>
+            {{ order.shipping_address.city }}{% if order.shipping_address.province != blank %}, {{ order.shipping_address.province }}{% endif %} {{ order.shipping_address.postal_code }}<br>
+            {{ order.shipping_address.country_code }}</p>
+          </div>
+          {%- endif -%}
+          {%- if order.billing_address -%}
+          <div class="au-addr-card au-card-flat">
+            <span class="au-acct-card-label">Billing address</span>
+            <p class="au-addr-lines">{{ order.billing_address.first_name }} {{ order.billing_address.last_name }}<br>
+            {{ order.billing_address.address_1 }}{% if order.billing_address.address_2 != blank %}, {{ order.billing_address.address_2 }}{% endif %}<br>
+            {{ order.billing_address.city }}{% if order.billing_address.province != blank %}, {{ order.billing_address.province }}{% endif %} {{ order.billing_address.postal_code }}<br>
+            {{ order.billing_address.country_code }}</p>
+          </div>
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

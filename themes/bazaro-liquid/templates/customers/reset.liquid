@@ -1,0 +1,31 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">New Password</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="bz-current">New password</span></nav>
+  </div>
+</div>
+<section class="bz-section bz-auth">
+  <div class="bz-container">
+    <div class="bz-auth-card">
+      <h2 class="bz-auth-title">Choose a new password</h2>
+      {%- if reset.email != blank -%}
+      <p class="bz-auth-sub">Setting a new password for {{ reset.email }}.</p>
+      {%- endif -%}
+      <form data-account-form="reset" data-success="Your password has been updated. You can now sign in.">
+        <input type="hidden" name="token" value="{{ reset.token }}">
+        <label class="bz-field"><span>New password</span>
+          <input type="password" name="password" autocomplete="new-password" required>
+        </label>
+        <label class="bz-field"><span>Confirm new password</span>
+          <input type="password" name="confirm" autocomplete="new-password" required>
+        </label>
+        <p class="bz-field-hint">At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+        <p class="bz-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="bz-btn bz-btn-block">Update password</button>
+      </form>
+      <div class="bz-auth-links">
+        <a href="{{ routes.account_url }}/login">Back to sign in</a>
+      </div>
+    </div>
+  </div>
+</section>

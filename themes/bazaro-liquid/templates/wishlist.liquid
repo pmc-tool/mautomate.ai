@@ -1,0 +1,15 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">Your Wishlist</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="bz-current">Wishlist</span></nav>
+  </div>
+</div>
+<section class="bz-section bz-wishlist">
+  <div class="bz-container">
+    <div class="bz-grid" data-wishlist-grid data-root="{{ routes.root_url }}"></div>
+    <div class="bz-acc-empty" data-wishlist-empty hidden>
+      <p>Your wishlist is empty. Tap the heart on any product to save it here.</p>
+      <a class="bz-btn" href="{{ routes.collections_url }}">Browse products</a>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,34 @@
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">New Password</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><span class="rk-crumb-active">New password</span></li>
+    </ul>
+  </div>
+</section>
+<section class="rk-section rk-auth">
+  <div class="rk-container">
+    <div class="rk-auth-card">
+      <h2 class="rk-auth-title">Choose a new password</h2>
+      {%- if reset.email != blank -%}
+      <p class="rk-auth-sub">Setting a new password for {{ reset.email }}.</p>
+      {%- endif -%}
+      <form data-account-form="reset" data-success="Your password has been updated. You can now sign in.">
+        <input type="hidden" name="token" value="{{ reset.token }}">
+        <label class="rk-field"><span>New password</span>
+          <input type="password" name="password" autocomplete="new-password" required>
+        </label>
+        <label class="rk-field"><span>Confirm new password</span>
+          <input type="password" name="confirm" autocomplete="new-password" required>
+        </label>
+        <p class="rk-field-hint">At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+        <p class="rk-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="rk-btn rk-btn-block">Update password</button>
+      </form>
+      <div class="rk-auth-links">
+        <a href="{{ routes.account_url }}/login">Back to sign in</a>
+      </div>
+    </div>
+  </div>
+</section>

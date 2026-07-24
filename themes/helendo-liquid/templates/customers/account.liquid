@@ -1,0 +1,50 @@
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">My account</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="hl-current">My account</span></nav>
+  </div>
+</div>
+<section class="hl-section hl-account">
+  <div class="hl-container">
+    <div class="hl-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'dashboard' %}
+      <div class="hl-acct-main">
+        <div class="hl-acct-cards">
+          <div class="hl-acct-card">
+            <span class="hl-acct-card-label">Signed in as</span>
+            <p class="hl-acct-card-value">{{ customer.first_name }} {{ customer.last_name }}</p>
+            <p class="hl-acct-card-sub">{{ customer.email }}</p>
+          </div>
+          <div class="hl-acct-card">
+            <span class="hl-acct-card-label">Orders</span>
+            <p class="hl-acct-card-value">{{ orders | size }}</p>
+            <p class="hl-acct-card-sub"><a href="{{ routes.account_url }}/orders">View order history</a></p>
+          </div>
+          <div class="hl-acct-card">
+            <span class="hl-acct-card-label">Addresses</span>
+            <p class="hl-acct-card-value">{{ customer.addresses | size }}</p>
+            <p class="hl-acct-card-sub"><a href="{{ routes.account_url }}/addresses">Manage addresses</a></p>
+          </div>
+        </div>
+
+        <h2 class="hl-acct-h2">Recent orders</h2>
+        {%- if orders and orders.size > 0 -%}
+        <div class="hl-orders-table">
+          <div class="hl-orders-row hl-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders limit: 5 -%}
+          <div class="hl-orders-row">
+            <span class="hl-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="hl-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span>{{ order.total | money }}</span>
+            <span><a class="hl-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="hl-acct-empty"><p>No orders yet.</p><a class="hl-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

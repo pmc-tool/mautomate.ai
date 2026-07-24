@@ -1,0 +1,17 @@
+<nav class="au-crumbs"><div class="au-container">
+  <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">Wishlist</span>
+</div></nav>
+
+<section class="au-section au-wishlist">
+  <div class="au-container">
+    <header class="au-listing-head">
+      <span class="au-eyebrow">Saved for later</span>
+      <h1 class="au-listing-title">Your wishlist</h1>
+    </header>
+    <div class="au-grid" data-wishlist-grid data-root="{{ routes.root_url }}"></div>
+    <div class="au-acct-empty au-card-flat" data-wishlist-empty hidden>
+      <p>Your wishlist is empty. Tap the heart on any product to save it here.</p>
+      <a class="au-btn" href="{{ routes.collections_url }}">Browse products</a>
+    </div>
+  </div>
+</section>

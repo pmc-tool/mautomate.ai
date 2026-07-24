@@ -851,3 +851,146 @@ a.au-footer-email:hover { color: var(--au-ink-2); }
 .au-in-column .au-showcase-cap{ padding:12px 14px; }
 .au-in-column .au-showcase-label{ font-size:13px; }
 .au-in-column .au-showcase-count{ font-size:11px; }
+
+/* ==========================================================================
+   ACCOUNT SUITE  [au-auth / au-account / au-wishlist]
+   customers/* templates + wishlist — Aurora language: white rounded-16
+   bordered cards, pill buttons, tracked uppercase eyebrows, tight
+   semibold headings, monochrome neutrals. Mobile-first like the rest.
+   ========================================================================== */
+
+/* ---- auth cards ---- */
+.au-auth-card { max-width: 440px; margin: 0 auto; padding: 32px 24px; }
+.au-auth-wide { max-width: 620px; }
+.au-auth-title { margin-top: 12px; font-size: 26px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.15; color: var(--au-ink); }
+.au-auth-sub { margin: 10px 0 24px; font-size: 14px; line-height: 1.6; color: var(--au-soft); }
+.au-auth-links { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--au-line); font-size: 14px; color: var(--au-soft); text-align: center; }
+.au-auth-links a { font-weight: 500; color: var(--au-ink); transition: color 0.2s ease; }
+.au-auth-links a:hover { color: var(--au-soft); }
+
+/* ---- fields ---- */
+.au-field { display: block; margin-bottom: 16px; }
+.au-field > span { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: var(--au-ink-2); }
+.au-field span em { font-style: normal; font-weight: 400; color: var(--au-faint); }
+.au-field input, .au-field select {
+  width: 100%; padding: 12px 16px;
+  border: 1px solid var(--au-line); border-radius: var(--au-r-sm);
+  background: #fff; font-size: 14px; outline: none;
+  transition: border-color 0.2s ease;
+}
+.au-field input::placeholder { color: var(--au-faint); }
+.au-field input:focus, .au-field select:focus { border-color: var(--au-ink); }
+.au-field input[disabled] { background: var(--au-wash-2); color: var(--au-soft); }
+.au-auth-card .au-field-row .au-field,
+.au-acct-main .au-field-row .au-field { margin-bottom: 0; }
+.au-auth-card .au-field-row,
+.au-acct-main .au-field-row { margin-bottom: 16px; }
+.au-field-hint { margin: 2px 0 16px; font-size: 12.5px; line-height: 1.6; color: var(--au-soft); }
+.au-field-hint a { font-weight: 500; color: var(--au-ink); text-decoration: underline; text-underline-offset: 3px; }
+.au-check { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 18px; font-size: 13.5px; line-height: 1.55; color: var(--au-ink-2); cursor: pointer; }
+.au-check input { margin-top: 3px; accent-color: var(--au-ink); }
+.au-check a { font-weight: 500; color: var(--au-ink); text-decoration: underline; text-underline-offset: 3px; }
+.au-check-row { row-gap: 6px; }
+.au-form-msg { margin: 0 0 14px; font-size: 13px; color: #b91c1c; }
+.au-form-msg.is-ok { color: #047857; }
+
+/* ---- account shell ---- */
+.au-acct-grid { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: start; }
+.au-acct-nav { padding: 20px; }
+.au-acct-hello { margin: 0 0 12px; font-size: 16px; font-weight: 600; letter-spacing: -0.025em; color: var(--au-ink); }
+.au-acct-nav ul { display: flex; flex-direction: column; gap: 4px; }
+.au-acct-nav a {
+  display: block; padding: 10px 12px; border-radius: var(--au-r-sm);
+  font-size: 14px; font-weight: 500; color: var(--au-ink-2);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.au-acct-nav a:hover { background: var(--au-wash-2); color: var(--au-ink); }
+.au-acct-nav a.is-active { background: var(--au-ink); color: #fff; }
+.au-acct-main { min-width: 0; }
+.au-acct-cards { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 40px; }
+.au-acct-card { padding: 20px; }
+.au-acct-card-label { display: block; margin-bottom: 8px; font-size: 11px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--au-soft); }
+.au-acct-card-value { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.025em; color: var(--au-ink); }
+.au-acct-card-sub { margin: 6px 0 0; font-size: 13px; color: var(--au-soft); overflow-wrap: anywhere; }
+.au-acct-card-sub a { font-weight: 500; color: var(--au-ink); transition: color 0.2s ease; }
+.au-acct-card-sub a:hover { color: var(--au-soft); }
+.au-acct-h2 { margin: 0 0 16px; font-size: 20px; font-weight: 600; letter-spacing: -0.025em; color: var(--au-ink); }
+.au-acct-empty { padding: 48px 24px; text-align: center; color: var(--au-soft); }
+.au-acct-empty p { margin-bottom: 20px; }
+.au-acct-toolbar { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+
+/* ---- orders ---- */
+.au-orders-table { padding: 8px 24px; }
+.au-orders-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--au-line); font-size: 14px; color: var(--au-ink-2); }
+.au-orders-row:last-child { border-bottom: 0; }
+.au-orders-head { display: none; padding: 12px 0 10px; font-size: 11px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--au-soft); }
+.au-order-name { font-weight: 600; color: var(--au-ink); }
+.au-badge {
+  display: inline-block; padding: 4px 10px; border-radius: 999px;
+  background: var(--au-wash-2); font-size: 11px; font-weight: 500;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--au-ink-2);
+  line-height: 1.4; white-space: nowrap;
+}
+
+/* ---- order detail ---- */
+.au-order-lines { padding: 4px 24px; margin-bottom: 24px; }
+.au-order-line { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--au-line); }
+.au-order-line:last-child { border-bottom: 0; }
+.au-order-line img { width: 64px; height: 64px; flex-shrink: 0; object-fit: cover; border: 1px solid var(--au-line); border-radius: var(--au-r-sm); background: var(--au-wash); }
+.au-order-line-info { flex: 1; min-width: 0; }
+.au-order-line-title { margin: 0; font-size: 14px; font-weight: 500; letter-spacing: -0.01em; color: var(--au-ink); }
+.au-order-line-variant { display: block; font-size: 12px; color: var(--au-soft); }
+.au-order-line-qty { display: block; margin-top: 2px; font-size: 12px; color: var(--au-faint); }
+.au-order-line-total { font-size: 15px; font-weight: 600; color: var(--au-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.au-order-summary { max-width: 400px; margin-left: auto; margin-bottom: 24px; padding: 24px; }
+.au-order-addresses { display: grid; grid-template-columns: 1fr; gap: 16px; }
+
+/* ---- addresses ---- */
+.au-addr-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 32px; }
+.au-addr-card { padding: 20px; }
+.au-addr-name { margin: 0 0 8px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--au-ink); }
+.au-addr-name .au-badge { margin-left: 6px; }
+.au-addr-lines { margin: 0; font-size: 14px; line-height: 1.7; color: var(--au-ink-2); }
+.au-addr-actions { display: flex; gap: 16px; margin-top: 14px; }
+.au-body button.au-textlink { background: none; border: 0; padding: 0; border-radius: 0; }
+.au-link-danger { color: #b91c1c; }
+.au-link-danger:hover { color: #991b1b; }
+.au-body button.au-link-danger { color: #b91c1c; }
+.au-body button.au-link-danger:hover { color: #991b1b; }
+.au-addr-form { margin-top: 8px; padding: 24px; }
+.au-addr-form .au-acct-h2 { margin-bottom: 20px; }
+.au-profile-form { max-width: 620px; padding: 24px; }
+
+/* ---- wishlist ---- */
+.au-wish-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  align-self: flex-start; margin-top: 20px; padding: 10px 20px;
+  border: 1px solid var(--au-line); border-radius: 999px; background: #fff;
+  font-size: 13px; font-weight: 500; color: var(--au-ink-2);
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+.au-wish-btn .au-wish-ic { color: var(--au-faint); transition: color 0.2s ease; }
+.au-wish-btn:hover { border-color: var(--au-ink); color: var(--au-ink); }
+.au-wish-btn:hover .au-wish-ic { color: var(--au-ink); }
+.au-wish-btn.is-active { border-color: var(--au-ink); color: var(--au-ink); }
+.au-wish-btn.is-active .au-wish-ic { color: var(--au-ink); fill: currentColor; }
+.au-body button.au-wish-btn { background: #fff; color: var(--au-ink-2); border: 1px solid var(--au-line); border-radius: 999px; padding: 10px 20px; }
+.au-body button.au-wish-btn:hover { border-color: var(--au-ink); color: var(--au-ink); }
+.au-body button.au-wish-btn.is-active { border-color: var(--au-ink); color: var(--au-ink); }
+.au-wish-btn-sm { margin-top: 10px; padding: 8px 14px; font-size: 12px; }
+.au-body button.au-wish-btn-sm { padding: 8px 14px; }
+.au-wishlist .au-grid:empty { display: none; }
+
+/* ---- responsive ---- */
+@media (min-width: 640px) {
+  .au-auth-card { padding: 40px; }
+  .au-acct-cards { grid-template-columns: repeat(3, 1fr); }
+  .au-addr-grid { grid-template-columns: repeat(2, 1fr); }
+  .au-order-addresses { grid-template-columns: repeat(2, 1fr); }
+  .au-orders-row { grid-template-columns: 1.1fr 1.1fr 1.2fr 1fr auto; }
+  .au-orders-head { display: grid; }
+}
+@media (min-width: 1024px) {
+  .au-acct-grid { grid-template-columns: 260px 1fr; gap: 32px; }
+  .au-acct-nav { position: sticky; top: 96px; }
+}

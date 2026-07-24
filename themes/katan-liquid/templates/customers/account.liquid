@@ -1,0 +1,48 @@
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="kt-current">My account</span>
+</div></nav>
+<section class="kt-section kt-account">
+  <div class="kt-container">
+    <div class="kt-shead"><span class="kt-eyebrow">My account</span><h1 class="kt-title">Dashboard</h1></div>
+    <div class="kt-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'dashboard' %}
+      <div class="kt-acct-main">
+        <div class="kt-acct-cards">
+          <div class="kt-acct-card">
+            <span class="kt-acct-card-label">Signed in as</span>
+            <p class="kt-acct-card-value">{{ customer.first_name }} {{ customer.last_name }}</p>
+            <p class="kt-acct-card-sub">{{ customer.email }}</p>
+          </div>
+          <div class="kt-acct-card">
+            <span class="kt-acct-card-label">Orders</span>
+            <p class="kt-acct-card-value">{{ orders | size }}</p>
+            <p class="kt-acct-card-sub"><a href="{{ routes.account_url }}/orders">View order history</a></p>
+          </div>
+          <div class="kt-acct-card">
+            <span class="kt-acct-card-label">Addresses</span>
+            <p class="kt-acct-card-value">{{ customer.addresses | size }}</p>
+            <p class="kt-acct-card-sub"><a href="{{ routes.account_url }}/addresses">Manage addresses</a></p>
+          </div>
+        </div>
+
+        <h2 class="kt-acct-h2">Recent orders</h2>
+        {%- if orders and orders.size > 0 -%}
+        <div class="kt-orders-table">
+          <div class="kt-orders-row kt-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders limit: 5 -%}
+          <div class="kt-orders-row">
+            <span class="kt-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="kt-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span>{{ order.total | money }}</span>
+            <span><a class="kt-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="kt-acct-empty"><p>No orders yet.</p><a class="kt-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

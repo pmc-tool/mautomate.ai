@@ -49,6 +49,12 @@
           </div>
           <p class="hl-pdp-msg" data-cart-msg hidden></p>
         </form>
+        {%- if p.id -%}
+        <button type="button" class="hl-wish-btn" data-wishlist-toggle data-product-id="{{ p.id }}">
+          <span class="hl-wish-heart" aria-hidden="true">&hearts;</span>
+          <span data-wish-label>Add to wishlist</span>
+        </button>
+        {%- endif -%}
       </div>
     </div>
   </div>

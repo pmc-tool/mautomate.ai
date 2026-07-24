@@ -1,0 +1,35 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">Profile</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="ek-current">Profile</span></nav>
+  </div>
+</div>
+<section class="ek-section ek-account">
+  <div class="ek-container">
+    <div class="ek-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'profile' %}
+      <div class="ek-acct-main">
+        <h2 class="ek-acct-h2">Your Details</h2>
+        <form class="ek-profile-form" data-account-form="profile" data-success="Profile updated.">
+          <div class="ek-field-row">
+            <label class="ek-field"><span>First name</span>
+              <input type="text" name="first_name" value="{{ customer.first_name }}" required>
+            </label>
+            <label class="ek-field"><span>Last name</span>
+              <input type="text" name="last_name" value="{{ customer.last_name }}" required>
+            </label>
+          </div>
+          <label class="ek-field"><span>Phone</span>
+            <input type="tel" name="phone" value="{{ customer.phone }}">
+          </label>
+          <label class="ek-field"><span>Email</span>
+            <input type="email" value="{{ customer.email }}" disabled>
+          </label>
+          <p class="ek-field-hint">To change your password, sign out and use <a href="{{ routes.root_url }}/recover">Forgot your password</a> — we will email you a secure reset link.</p>
+          <p class="ek-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="ek-btn">Save Changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

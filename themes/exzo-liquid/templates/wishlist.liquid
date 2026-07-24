@@ -1,0 +1,16 @@
+<nav class="ex-crumbs"><div class="ex-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ex-current">Wishlist</span>
+</div></nav>
+<section class="ex-section ex-wishlist">
+  <div class="ex-container">
+    <div class="ex-shead">
+      <h1 class="ex-title">Your wishlist</h1>
+      <span class="ex-underline ex-underline-left"><span></span></span>
+    </div>
+    <div class="ex-grid" data-wishlist-grid data-root="{{ routes.root_url }}"></div>
+    <div class="ex-acct-empty" data-wishlist-empty hidden>
+      <p>Your wishlist is empty. Tap the heart on any product to save it here.</p>
+      <a class="ex-btn" href="{{ routes.collections_url }}">Browse products</a>
+    </div>
+  </div>
+</section>

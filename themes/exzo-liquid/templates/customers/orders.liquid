@@ -1,0 +1,32 @@
+<nav class="ex-crumbs"><div class="ex-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="ex-current">Orders</span>
+</div></nav>
+<section class="ex-section ex-account">
+  <div class="ex-container">
+    <div class="ex-shead">
+      <h1 class="ex-title">Orders</h1>
+      <span class="ex-underline ex-underline-left"><span></span></span>
+    </div>
+    <div class="ex-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'orders' %}
+      <div class="ex-acct-main">
+        {%- if orders and orders.size > 0 -%}
+        <div class="ex-orders-table">
+          <div class="ex-orders-row ex-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders -%}
+          <div class="ex-orders-row">
+            <span class="ex-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="ex-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span>{{ order.total | money }}</span>
+            <span><a class="ex-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="ex-acct-empty"><p>You have not placed any orders yet.</p><a class="ex-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

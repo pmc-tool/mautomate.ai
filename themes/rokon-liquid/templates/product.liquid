@@ -53,6 +53,9 @@
           </div>
           <p class="rk-pdp-msg" data-cart-msg hidden></p>
         </form>
+        {% if product.id %}
+        <button type="button" class="rk-wish-btn" data-wishlist-toggle data-product-id="{{ product.id }}"><span class="rk-wish-heart" aria-hidden="true">&hearts;</span> <span data-wish-label>Add to wishlist</span></button>
+        {% endif %}
       </div>
     </div>
   </div>

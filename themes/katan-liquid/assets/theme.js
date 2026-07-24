@@ -286,3 +286,160 @@
     });
   });
 })();
+
+/* ---- account pages: auth + profile + addresses. Forms post JSON to the
+   same-origin /api/theme-account bridge (the SAME server actions the React
+   pages use — session, tenant binding and validation are identical). All
+   selection is via data attributes so the block is theme-agnostic. Also
+   renders the wishlist page: ids from ff_wishlist are resolved to Katan
+   product cards via /api/theme-products. Toggling hearts remains owned by
+   the single delegated [data-wishlist-toggle] handler above — this block
+   only reads the list and removes cards the shared handler un-hearted. ---- */
+(function () {
+  "use strict";
+  function countryFromPath() {
+    var seg = (location.pathname.split("/")[1] || "").toLowerCase();
+    return /^[a-z]{2,3}$/.test(seg) ? seg : "us";
+  }
+  function accountRequest(payload) {
+    return fetch("/api/theme-account", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-account-form]"), function (form) {
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var kind = form.getAttribute("data-account-form");
+      var msg = form.querySelector("[data-form-msg]");
+      var payload = { action: kind };
+      new FormData(form).forEach(function (v, k) { payload[k] = v; });
+      if (kind === "address") {
+        payload.action = payload.address_id ? "address_update" : "address_add";
+        payload.default_shipping = !!form.querySelector("[name=default_shipping]:checked");
+        payload.default_billing = !!form.querySelector("[name=default_billing]:checked");
+      }
+      if (kind === "register") {
+        payload.terms_accepted = !!form.querySelector("[name=terms_accepted]:checked");
+      }
+      var btn = form.querySelector("[type=submit]");
+      if (btn) { btn.disabled = true; }
+      function show(text, ok) {
+        if (!msg) return;
+        msg.hidden = false;
+        msg.classList.toggle("is-ok", !!ok);
+        msg.textContent = text;
+      }
+      accountRequest(payload).then(function (res) {
+        if (btn) { btn.disabled = false; }
+        if (!res.ok) { show((res.d && res.d.error) || "Something went wrong. Please try again.", false); return; }
+        var state = res.d && res.d.state;
+        if (state === "verification_required") { show("Check your email to verify your account, then sign in.", true); return; }
+        var success = form.getAttribute("data-success");
+        var redirect = form.getAttribute("data-redirect");
+        if (state === "sent") { show(success || "If an account exists for that email, a reset link is on its way.", true); return; }
+        if (redirect) { location.href = redirect; return; }
+        if (kind === "address") { location.reload(); return; }
+        if (success) { show(success, true); return; }
+        location.reload();
+      }).catch(function () {
+        if (btn) { btn.disabled = false; }
+        show("Something went wrong. Please try again.", false);
+      });
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-logout]"), function (el) {
+    el.addEventListener("click", function (e) {
+      e.preventDefault();
+      accountRequest({ action: "logout" }).then(function () { location.href = "/"; });
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-address-delete]"), function (btn) {
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      accountRequest({ action: "address_delete", address_id: btn.getAttribute("data-address-delete") })
+        .then(function (res) { if (res.ok) { location.reload(); } else { btn.disabled = false; } });
+    });
+  });
+  var addrForm = document.querySelector('[data-account-form="address"]');
+  var ADDR_KEYS = ["address_id", "first_name", "last_name", "company", "address_1", "address_2", "city", "postal_code", "province", "country_code", "phone"];
+  Array.prototype.forEach.call(document.querySelectorAll("[data-address-new]"), function (btn) {
+    btn.addEventListener("click", function () {
+      if (!addrForm) return;
+      addrForm.reset();
+      var idEl = addrForm.querySelector("[name=address_id]");
+      if (idEl) idEl.value = "";
+      addrForm.hidden = false;
+      addrForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-address-edit]"), function (btn) {
+    btn.addEventListener("click", function () {
+      if (!addrForm) return;
+      addrForm.reset();
+      ADDR_KEYS.forEach(function (k) {
+        var el = addrForm.querySelector("[name=" + k + "]");
+        if (el) el.value = btn.getAttribute("data-a-" + k) || "";
+      });
+      addrForm.hidden = false;
+      addrForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+
+  /* wishlist page rendering — reads the shared ff_wishlist key (same
+     contract as the delegated toggle handler; this never writes it) */
+  function wishlistIds() {
+    try { var a = JSON.parse(window.localStorage.getItem("ff_wishlist") || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+  }
+  var wishGrid = document.querySelector("[data-wishlist-grid]");
+  var wishEmpty = document.querySelector("[data-wishlist-empty]");
+  if (wishGrid) {
+    var wishIds = wishlistIds();
+    if (!wishIds.length) {
+      if (wishEmpty) wishEmpty.hidden = false;
+    } else {
+      var rootUrl = wishGrid.getAttribute("data-root") || ("/" + countryFromPath());
+      var escapeHtml = function (s) {
+        return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      };
+      var HEART = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 20.5 5.2 13.7a4.6 4.6 0 0 1 0-6.5 4.6 4.6 0 0 1 6.5 0l.3.3.3-.3a4.6 4.6 0 0 1 6.5 6.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+      fetch("/api/theme-products?ids=" + encodeURIComponent(wishIds.join(",")) + "&country=" + countryFromPath())
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var products = (d && d.products) || [];
+          if (!products.length) { if (wishEmpty) wishEmpty.hidden = false; return; }
+          wishGrid.innerHTML = products.map(function (p) {
+            var img = p.featured_image && (p.featured_image.url || p.featured_image);
+            var href = escapeHtml(rootUrl) + "/products/" + escapeHtml(p.handle);
+            return '<article class="kt-card" data-wishlist-card>' +
+              '<div class="kt-card-media"><a href="' + href + '" class="kt-card-img">' +
+              (img ? '<img class="kt-card-img-main" src="' + escapeHtml(img) + '" alt="' + escapeHtml(p.title) + '" loading="lazy">' : "") +
+              "</a>" +
+              '<button type="button" class="kt-wish is-active" data-wishlist-toggle data-product-id="' + escapeHtml(p.id) + '" aria-label="Remove from wishlist" aria-pressed="true">' + HEART + "</button>" +
+              '<span class="kt-card-cta">View product</span></div>' +
+              '<div class="kt-card-body">' +
+              '<h3 class="kt-card-title"><a href="' + href + '">' + escapeHtml(p.title) + "</a></h3>" +
+              '<div class="kt-card-price"><span class="kt-price-now">' + escapeHtml(p.price_formatted || "") + "</span></div>" +
+              "</div></article>";
+          }).join("");
+        })
+        .catch(function () { if (wishEmpty) wishEmpty.hidden = false; });
+    }
+    /* runs AFTER the shared toggle handler (registered earlier on document),
+       so ff_wishlist already reflects the click by the time this fires */
+    document.addEventListener("click", function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest("[data-wishlist-toggle]") : null;
+      if (!btn) return;
+      var card = btn.closest("[data-wishlist-card]");
+      if (!card) return;
+      var id = btn.getAttribute("data-product-id");
+      if (!id) return;
+      if (wishlistIds().indexOf(id) === -1) {
+        card.parentNode.removeChild(card);
+        if (wishEmpty && !wishGrid.children.length) { wishEmpty.hidden = false; }
+      }
+    });
+  }
+})();

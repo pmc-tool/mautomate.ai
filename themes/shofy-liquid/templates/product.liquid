@@ -47,6 +47,9 @@
           </div>
           <p class="sf-pdp-msg" data-cart-msg hidden></p>
         </form>
+        {% if product.id %}
+        <button type="button" class="sf-wish-btn" data-wishlist-toggle data-product-id="{{ product.id }}"><span class="sf-wish-heart" aria-hidden="true"><i class="fas fa-heart"></i></span> <span data-wish-label>Add to wishlist</span></button>
+        {% endif %}
       </div>
     </div>
   </div>

@@ -1,0 +1,32 @@
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="kt-current">Profile</span>
+</div></nav>
+<section class="kt-section kt-account">
+  <div class="kt-container">
+    <div class="kt-shead"><span class="kt-eyebrow">My account</span><h1 class="kt-title">Profile</h1></div>
+    <div class="kt-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'profile' %}
+      <div class="kt-acct-main">
+        <form class="kt-profile-form" data-account-form="profile" data-success="Profile updated.">
+          <div class="kt-field-row">
+            <label class="kt-field"><span>First name</span>
+              <input type="text" name="first_name" value="{{ customer.first_name }}" required>
+            </label>
+            <label class="kt-field"><span>Last name</span>
+              <input type="text" name="last_name" value="{{ customer.last_name }}" required>
+            </label>
+          </div>
+          <label class="kt-field"><span>Phone</span>
+            <input type="tel" name="phone" value="{{ customer.phone }}">
+          </label>
+          <label class="kt-field"><span>Email</span>
+            <input type="email" value="{{ customer.email }}" disabled>
+          </label>
+          <p class="kt-field-hint">To change your password, sign out and use <a href="{{ routes.root_url }}/recover">Forgot your password</a> &mdash; we will email you a secure reset link.</p>
+          <p class="kt-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="kt-btn">Save changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

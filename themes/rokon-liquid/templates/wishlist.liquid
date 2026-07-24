@@ -1,0 +1,18 @@
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">Your Wishlist</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><span class="rk-crumb-active">Wishlist</span></li>
+    </ul>
+  </div>
+</section>
+<section class="rk-section rk-wishlist">
+  <div class="rk-container">
+    <div class="rk-grid" data-wishlist-grid data-root="{{ routes.root_url }}"></div>
+    <div class="rk-acct-empty" data-wishlist-empty hidden>
+      <p>Your wishlist is empty. Tap the heart on any product to save it here.</p>
+      <a class="rk-btn" href="{{ routes.collections_url }}">Browse products</a>
+    </div>
+  </div>
+</section>

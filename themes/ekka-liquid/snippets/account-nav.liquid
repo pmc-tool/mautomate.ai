@@ -1,0 +1,11 @@
+<aside class="ek-acct-nav">
+  <p class="ek-acct-hello">Hello, {{ customer.first_name | default: "there" }}</p>
+  <ul>
+    <li><a href="{{ routes.account_url }}" {% if active == "dashboard" %}class="is-active"{% endif %}><i class="fas fa-th-large" aria-hidden="true"></i> Dashboard</a></li>
+    <li><a href="{{ routes.account_url }}/orders" {% if active == "orders" %}class="is-active"{% endif %}><i class="fas fa-box" aria-hidden="true"></i> Orders</a></li>
+    <li><a href="{{ routes.account_url }}/addresses" {% if active == "addresses" %}class="is-active"{% endif %}><i class="fas fa-map-marker-alt" aria-hidden="true"></i> Addresses</a></li>
+    <li><a href="{{ routes.account_url }}/profile" {% if active == "profile" %}class="is-active"{% endif %}><i class="far fa-user" aria-hidden="true"></i> Profile</a></li>
+    <li><a href="{{ routes.root_url }}/wishlist" {% if active == "wishlist" %}class="is-active"{% endif %}><i class="far fa-heart" aria-hidden="true"></i> Wishlist</a></li>
+    <li><a href="#" data-logout><i class="fas fa-sign-out-alt" aria-hidden="true"></i> Log out</a></li>
+  </ul>
+</aside>

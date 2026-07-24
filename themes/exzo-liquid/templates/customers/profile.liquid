@@ -1,0 +1,35 @@
+<nav class="ex-crumbs"><div class="ex-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="ex-current">Profile</span>
+</div></nav>
+<section class="ex-section ex-account">
+  <div class="ex-container">
+    <div class="ex-shead">
+      <h1 class="ex-title">Profile</h1>
+      <span class="ex-underline ex-underline-left"><span></span></span>
+    </div>
+    <div class="ex-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'profile' %}
+      <div class="ex-acct-main">
+        <form class="ex-profile-form" data-account-form="profile" data-success="Profile updated.">
+          <div class="ex-field-row">
+            <label class="ex-field"><span>First name</span>
+              <input type="text" name="first_name" value="{{ customer.first_name }}" required>
+            </label>
+            <label class="ex-field"><span>Last name</span>
+              <input type="text" name="last_name" value="{{ customer.last_name }}" required>
+            </label>
+          </div>
+          <label class="ex-field"><span>Phone</span>
+            <input type="tel" name="phone" value="{{ customer.phone }}">
+          </label>
+          <label class="ex-field"><span>Email</span>
+            <input type="email" value="{{ customer.email }}" disabled>
+          </label>
+          <p class="ex-field-hint">To change your password, sign out and use <a href="{{ routes.root_url }}/recover">Forgot your password</a> &mdash; we will email you a secure reset link.</p>
+          <p class="ex-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="ex-btn">Save changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,52 @@
+<nav class="au-crumbs"><div class="au-container">
+  <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">My account</span>
+</div></nav>
+
+<section class="au-section au-account">
+  <div class="au-container">
+    <header class="au-listing-head">
+      <span class="au-eyebrow">Your account</span>
+      <h1 class="au-listing-title">My account</h1>
+    </header>
+    <div class="au-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'dashboard' %}
+      <div class="au-acct-main">
+        <div class="au-acct-cards">
+          <div class="au-acct-card au-card-flat">
+            <span class="au-acct-card-label">Signed in as</span>
+            <p class="au-acct-card-value">{{ customer.first_name }} {{ customer.last_name }}</p>
+            <p class="au-acct-card-sub">{{ customer.email }}</p>
+          </div>
+          <div class="au-acct-card au-card-flat">
+            <span class="au-acct-card-label">Orders</span>
+            <p class="au-acct-card-value">{{ orders | size }}</p>
+            <p class="au-acct-card-sub"><a href="{{ routes.account_url }}/orders">View order history</a></p>
+          </div>
+          <div class="au-acct-card au-card-flat">
+            <span class="au-acct-card-label">Addresses</span>
+            <p class="au-acct-card-value">{{ customer.addresses | size }}</p>
+            <p class="au-acct-card-sub"><a href="{{ routes.account_url }}/addresses">Manage addresses</a></p>
+          </div>
+        </div>
+
+        <h2 class="au-acct-h2">Recent orders</h2>
+        {%- if orders and orders.size > 0 -%}
+        <div class="au-orders-table au-card-flat">
+          <div class="au-orders-row au-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders limit: 5 -%}
+          <div class="au-orders-row">
+            <span class="au-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="au-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span>{{ order.total | money }}</span>
+            <span><a class="au-textlink" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="au-acct-empty au-card-flat"><p>No orders yet.</p><a class="au-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,49 @@
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">Create Account</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="sf-current">Create account</span></nav>
+  </div>
+</div>
+<section class="sf-section sf-auth">
+  <div class="sf-container">
+    <div class="sf-auth-card sf-auth-wide">
+      <span class="sf-auth-icon"><i class="fas fa-user-plus"></i></span>
+      <h2 class="sf-auth-title">Join the store</h2>
+      <p class="sf-auth-sub">Track orders, save your details and check out faster.</p>
+      <form data-account-form="register" data-redirect="{{ routes.account_url }}">
+        <div class="sf-field-row">
+          <label class="sf-field"><span>First name</span>
+            <input type="text" name="first_name" autocomplete="given-name" required>
+          </label>
+          <label class="sf-field"><span>Last name</span>
+            <input type="text" name="last_name" autocomplete="family-name" required>
+          </label>
+        </div>
+        <label class="sf-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="sf-field"><span>Phone <em>(optional)</em></span>
+          <input type="tel" name="phone" autocomplete="tel">
+        </label>
+        <div class="sf-field-row">
+          <label class="sf-field"><span>Password</span>
+            <input type="password" name="password" autocomplete="new-password" required>
+          </label>
+          <label class="sf-field"><span>Confirm password</span>
+            <input type="password" name="confirm_password" autocomplete="new-password" required>
+          </label>
+        </div>
+        <p class="sf-field-hint">At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+        <label class="sf-checkline">
+          <input type="checkbox" name="terms_accepted">
+          <span>I agree to the <a href="{{ routes.root_url }}/terms-of-use" target="_blank">Terms of Use</a> and <a href="{{ routes.root_url }}/privacy-policy" target="_blank">Privacy Policy</a>.</span>
+        </label>
+        <p class="sf-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="sf-btn sf-btn-primary sf-btn-block">Create Account <i class="fas fa-arrow-right"></i></button>
+      </form>
+      <div class="sf-auth-links">
+        <span>Already have an account? <a href="{{ routes.account_url }}/login">Sign in</a></span>
+      </div>
+    </div>
+  </div>
+</section>

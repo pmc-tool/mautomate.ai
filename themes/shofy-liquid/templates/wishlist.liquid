@@ -1,0 +1,16 @@
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">Your Wishlist</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="sf-current">Wishlist</span></nav>
+  </div>
+</div>
+<section class="sf-section sf-wishlist">
+  <div class="sf-container">
+    <div class="sf-grid" data-wishlist-grid data-root="{{ routes.root_url }}"></div>
+    <div class="sf-acct-empty" data-wishlist-empty hidden>
+      <span class="sf-acct-empty-icon"><i class="far fa-heart"></i></span>
+      <p>Your wishlist is empty. Tap the heart on any product to save it here.</p>
+      <a class="sf-btn sf-btn-primary" href="{{ routes.collections_url }}">Browse Products</a>
+    </div>
+  </div>
+</section>

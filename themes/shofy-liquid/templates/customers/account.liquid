@@ -1,0 +1,57 @@
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">My Account</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="sf-current">My account</span></nav>
+  </div>
+</div>
+<section class="sf-section sf-account">
+  <div class="sf-container">
+    <div class="sf-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'dashboard' %}
+      <div class="sf-acct-main">
+        <div class="sf-acct-cards">
+          <div class="sf-acct-card">
+            <span class="sf-acct-card-icon"><i class="far fa-user"></i></span>
+            <span class="sf-acct-card-label">Signed in as</span>
+            <p class="sf-acct-card-value">{{ customer.first_name }} {{ customer.last_name }}</p>
+            <p class="sf-acct-card-sub">{{ customer.email }}</p>
+          </div>
+          <div class="sf-acct-card">
+            <span class="sf-acct-card-icon"><i class="fas fa-box"></i></span>
+            <span class="sf-acct-card-label">Orders</span>
+            <p class="sf-acct-card-value">{{ orders | size }}</p>
+            <p class="sf-acct-card-sub"><a href="{{ routes.account_url }}/orders">View order history</a></p>
+          </div>
+          <div class="sf-acct-card">
+            <span class="sf-acct-card-icon"><i class="fas fa-map-marker-alt"></i></span>
+            <span class="sf-acct-card-label">Addresses</span>
+            <p class="sf-acct-card-value">{{ customer.addresses | size }}</p>
+            <p class="sf-acct-card-sub"><a href="{{ routes.account_url }}/addresses">Manage addresses</a></p>
+          </div>
+        </div>
+
+        <h2 class="sf-acct-h2">Recent orders</h2>
+        {%- if orders and orders.size > 0 -%}
+        <div class="sf-orders-table">
+          <div class="sf-orders-row sf-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders limit: 5 -%}
+          <div class="sf-orders-row">
+            <span class="sf-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="sf-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span class="sf-order-total">{{ order.total | money }}</span>
+            <span><a class="sf-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View <i class="fas fa-arrow-right"></i></a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="sf-acct-empty">
+          <span class="sf-acct-empty-icon"><i class="fas fa-box-open"></i></span>
+          <p>No orders yet.</p>
+          <a class="sf-btn sf-btn-primary" href="{{ routes.collections_url }}">Start Shopping</a>
+        </div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

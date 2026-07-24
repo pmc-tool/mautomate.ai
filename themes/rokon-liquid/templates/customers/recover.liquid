@@ -1,0 +1,27 @@
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">Reset Password</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><span class="rk-crumb-active">Reset password</span></li>
+    </ul>
+  </div>
+</section>
+<section class="rk-section rk-auth">
+  <div class="rk-container">
+    <div class="rk-auth-card">
+      <h2 class="rk-auth-title">Forgot your password?</h2>
+      <p class="rk-auth-sub">Enter your email and we will send you a link to set a new password.</p>
+      <form data-account-form="recover" data-success="If an account exists for that email, a reset link is on its way.">
+        <label class="rk-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <p class="rk-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="rk-btn rk-btn-block">Send reset link</button>
+      </form>
+      <div class="rk-auth-links">
+        <a href="{{ routes.account_url }}/login">Back to sign in</a>
+      </div>
+    </div>
+  </div>
+</section>

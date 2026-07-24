@@ -1,0 +1,35 @@
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">Profile</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="sf-current">Profile</span></nav>
+  </div>
+</div>
+<section class="sf-section sf-account">
+  <div class="sf-container">
+    <div class="sf-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'profile' %}
+      <div class="sf-acct-main">
+        <form class="sf-profile-form" data-account-form="profile" data-success="Profile updated.">
+          <h2 class="sf-acct-h2">Your details</h2>
+          <div class="sf-field-row">
+            <label class="sf-field"><span>First name</span>
+              <input type="text" name="first_name" value="{{ customer.first_name }}" required>
+            </label>
+            <label class="sf-field"><span>Last name</span>
+              <input type="text" name="last_name" value="{{ customer.last_name }}" required>
+            </label>
+          </div>
+          <label class="sf-field"><span>Phone</span>
+            <input type="tel" name="phone" value="{{ customer.phone }}">
+          </label>
+          <label class="sf-field"><span>Email</span>
+            <input type="email" value="{{ customer.email }}" disabled>
+          </label>
+          <p class="sf-field-hint">To change your password, sign out and use <a href="{{ routes.root_url }}/recover">Forgot your password</a> — we will email you a secure reset link.</p>
+          <p class="sf-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="sf-btn sf-btn-primary">Save Changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

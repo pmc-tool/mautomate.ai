@@ -1,0 +1,47 @@
+<nav class="au-crumbs"><div class="au-container">
+  <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">Create account</span>
+</div></nav>
+
+<section class="au-section au-auth">
+  <div class="au-container">
+    <div class="au-auth-card au-auth-wide au-card-flat">
+      <span class="au-eyebrow">Join us</span>
+      <h1 class="au-auth-title">Create account</h1>
+      <p class="au-auth-sub">Track orders, save your details and check out faster.</p>
+      <form data-account-form="register" data-redirect="{{ routes.account_url }}">
+        <div class="au-field-row">
+          <label class="au-field"><span>First name</span>
+            <input type="text" name="first_name" autocomplete="given-name" required>
+          </label>
+          <label class="au-field"><span>Last name</span>
+            <input type="text" name="last_name" autocomplete="family-name" required>
+          </label>
+        </div>
+        <label class="au-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="au-field"><span>Phone <em>(optional)</em></span>
+          <input type="tel" name="phone" autocomplete="tel">
+        </label>
+        <div class="au-field-row">
+          <label class="au-field"><span>Password</span>
+            <input type="password" name="password" autocomplete="new-password" required>
+          </label>
+          <label class="au-field"><span>Confirm password</span>
+            <input type="password" name="confirm_password" autocomplete="new-password" required>
+          </label>
+        </div>
+        <p class="au-field-hint">At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+        <label class="au-check">
+          <input type="checkbox" name="terms_accepted">
+          <span>I agree to the <a href="{{ routes.root_url }}/terms-of-use" target="_blank">Terms of Use</a> and <a href="{{ routes.root_url }}/privacy-policy" target="_blank">Privacy Policy</a>.</span>
+        </label>
+        <p class="au-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="au-btn au-btn-block">Create account</button>
+      </form>
+      <div class="au-auth-links">
+        <span>Already have an account? <a href="{{ routes.account_url }}/login">Sign in</a></span>
+      </div>
+    </div>
+  </div>
+</section>

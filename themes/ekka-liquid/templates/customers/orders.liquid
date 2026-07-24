@@ -1,0 +1,32 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">Orders</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="ek-current">Orders</span></nav>
+  </div>
+</div>
+<section class="ek-section ek-account">
+  <div class="ek-container">
+    <div class="ek-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'orders' %}
+      <div class="ek-acct-main">
+        <h2 class="ek-acct-h2">Order History</h2>
+        {%- if orders and orders.size > 0 -%}
+        <div class="ek-orders-table">
+          <div class="ek-orders-row ek-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders -%}
+          <div class="ek-orders-row">
+            <span class="ek-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="ek-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span class="ek-order-total">{{ order.total | money }}</span>
+            <span><a class="ek-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="ek-acct-empty"><p>You have not placed any orders yet.</p><a class="ek-btn" href="{{ routes.collections_url }}">Start Shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

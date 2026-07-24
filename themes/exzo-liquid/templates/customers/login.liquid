@@ -1,0 +1,26 @@
+<nav class="ex-crumbs"><div class="ex-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ex-current">Sign in</span>
+</div></nav>
+<section class="ex-section ex-auth">
+  <div class="ex-container">
+    <div class="ex-auth-card">
+      <h1 class="ex-title ex-title-sm">Sign in</h1>
+      <span class="ex-underline ex-underline-left"><span></span></span>
+      <p class="ex-auth-sub">Welcome back. Sign in to see your orders and manage your account.</p>
+      <form data-account-form="login" data-redirect="{{ routes.account_url }}">
+        <label class="ex-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="ex-field"><span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <p class="ex-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="ex-btn ex-btn-block">Sign in</button>
+      </form>
+      <div class="ex-auth-links">
+        <a href="{{ routes.root_url }}/recover">Forgot your password?</a>
+        <span>New here? <a href="{{ routes.account_url }}/register">Create an account</a></span>
+      </div>
+    </div>
+  </div>
+</section>

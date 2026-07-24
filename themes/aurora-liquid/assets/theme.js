@@ -228,6 +228,169 @@
     });
   });
 
+  /* ---- account pages: auth + profile + addresses. Forms post JSON to the
+     same-origin /api/theme-account bridge (the SAME server actions the React
+     pages use — session, tenant binding and validation are identical). All
+     selection is via data attributes so the block is theme-agnostic. ---- */
+  function accountRequest(payload) {
+    return fetch("/api/theme-account", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-account-form]"), function (form) {
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var kind = form.getAttribute("data-account-form");
+      var msg = form.querySelector("[data-form-msg]");
+      var payload = { action: kind };
+      new FormData(form).forEach(function (v, k) { payload[k] = v; });
+      if (kind === "address") {
+        payload.action = payload.address_id ? "address_update" : "address_add";
+        payload.default_shipping = !!form.querySelector("[name=default_shipping]:checked");
+        payload.default_billing = !!form.querySelector("[name=default_billing]:checked");
+      }
+      if (kind === "register") {
+        payload.terms_accepted = !!form.querySelector("[name=terms_accepted]:checked");
+      }
+      var btn = form.querySelector("[type=submit]");
+      if (btn) { btn.disabled = true; }
+      function show(text, ok) {
+        if (!msg) return;
+        msg.hidden = false;
+        msg.classList.toggle("is-ok", !!ok);
+        msg.textContent = text;
+      }
+      accountRequest(payload).then(function (res) {
+        if (btn) { btn.disabled = false; }
+        if (!res.ok) { show((res.d && res.d.error) || "Something went wrong. Please try again.", false); return; }
+        var state = res.d && res.d.state;
+        if (state === "verification_required") { show("Check your email to verify your account, then sign in.", true); return; }
+        var success = form.getAttribute("data-success");
+        var redirect = form.getAttribute("data-redirect");
+        if (state === "sent") { show(success || "If an account exists for that email, a reset link is on its way.", true); return; }
+        if (redirect) { location.href = redirect; return; }
+        if (kind === "address") { location.reload(); return; }
+        if (success) { show(success, true); return; }
+        location.reload();
+      }).catch(function () {
+        if (btn) { btn.disabled = false; }
+        show("Something went wrong. Please try again.", false);
+      });
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-logout]"), function (el) {
+    el.addEventListener("click", function (e) {
+      e.preventDefault();
+      accountRequest({ action: "logout" }).then(function () { location.href = "/"; });
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-address-delete]"), function (btn) {
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      accountRequest({ action: "address_delete", address_id: btn.getAttribute("data-address-delete") })
+        .then(function (res) { if (res.ok) { location.reload(); } else { btn.disabled = false; } });
+    });
+  });
+  var addrForm = document.querySelector('[data-account-form="address"]');
+  var ADDR_KEYS = ["address_id", "first_name", "last_name", "company", "address_1", "address_2", "city", "postal_code", "province", "country_code", "phone"];
+  Array.prototype.forEach.call(document.querySelectorAll("[data-address-new]"), function (btn) {
+    btn.addEventListener("click", function () {
+      if (!addrForm) return;
+      addrForm.reset();
+      var idEl = addrForm.querySelector("[name=address_id]");
+      if (idEl) idEl.value = "";
+      addrForm.hidden = false;
+      addrForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-address-edit]"), function (btn) {
+    btn.addEventListener("click", function () {
+      if (!addrForm) return;
+      addrForm.reset();
+      ADDR_KEYS.forEach(function (k) {
+        var el = addrForm.querySelector("[name=" + k + "]");
+        if (el) el.value = btn.getAttribute("data-a-" + k) || "";
+      });
+      addrForm.hidden = false;
+      addrForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+
+  /* ---- wishlist: localStorage ff_wishlist (JSON array of product-id strings,
+     the platform-wide contract). Hearts toggle membership; the wishlist page
+     resolves ids to cards via the same-origin /api/theme-products bridge. ---- */
+  function wishlistIds() {
+    try { var a = JSON.parse(localStorage.getItem("ff_wishlist") || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+  }
+  function wishlistSave(ids) { try { localStorage.setItem("ff_wishlist", JSON.stringify(ids)); } catch (e) { } }
+  function wishlistSync(btn) {
+    var id = btn.getAttribute("data-product-id");
+    var on = wishlistIds().indexOf(id) !== -1;
+    btn.classList.toggle("is-active", on);
+    var label = btn.querySelector("[data-wish-label]");
+    if (label) label.textContent = on ? "Saved to wishlist" : "Add to wishlist";
+  }
+  function wishlistBind(root) {
+    Array.prototype.forEach.call((root || document).querySelectorAll("[data-wishlist-toggle]"), function (btn) {
+      wishlistSync(btn);
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-product-id");
+        if (!id) return;
+        var ids = wishlistIds();
+        var i = ids.indexOf(id);
+        if (i === -1) { ids.push(id); } else { ids.splice(i, 1); }
+        wishlistSave(ids);
+        wishlistSync(btn);
+        var card = btn.closest("[data-wishlist-card]");
+        if (card && i !== -1) {
+          card.parentNode.removeChild(card);
+          var grid = document.querySelector("[data-wishlist-grid]");
+          var empty = document.querySelector("[data-wishlist-empty]");
+          if (grid && empty && !grid.children.length) { empty.hidden = false; }
+        }
+      });
+    });
+  }
+  wishlistBind(document);
+  var wishGrid = document.querySelector("[data-wishlist-grid]");
+  if (wishGrid) {
+    var wishIds = wishlistIds();
+    var wishEmpty = document.querySelector("[data-wishlist-empty]");
+    if (!wishIds.length) {
+      if (wishEmpty) wishEmpty.hidden = false;
+    } else {
+      var rootUrl = wishGrid.getAttribute("data-root") || ("/" + countryFromPath());
+      var escapeHtml = function (s) {
+        return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      };
+      var wishHeart = '<svg class="au-wish-ic" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+      fetch("/api/theme-products?ids=" + encodeURIComponent(wishIds.join(",")) + "&country=" + countryFromPath())
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var products = (d && d.products) || [];
+          if (!products.length) { if (wishEmpty) wishEmpty.hidden = false; return; }
+          wishGrid.innerHTML = products.map(function (p) {
+            var img = p.featured_image && (p.featured_image.url || p.featured_image);
+            var href = escapeHtml(rootUrl) + "/products/" + escapeHtml(p.handle);
+            return '<article class="au-pcard au-card" data-wishlist-card>' +
+              '<a class="au-pcard-media" href="' + href + '">' +
+              (img ? '<img class="au-pcard-img-main" src="' + escapeHtml(img) + '" alt="' + escapeHtml(p.title) + '" loading="lazy">' : "") +
+              "</a>" +
+              '<span class="au-pcard-body">' +
+              '<a class="au-pcard-title" href="' + href + '">' + escapeHtml(p.title) + "</a>" +
+              '<span class="au-pcard-price"><span class="au-price-now">' + escapeHtml(p.price_formatted || "") + "</span></span>" +
+              '<button type="button" class="au-wish-btn au-wish-btn-sm" data-wishlist-toggle data-product-id="' + escapeHtml(p.id) + '">' + wishHeart + ' <span data-wish-label>Saved to wishlist</span></button>' +
+              "</span></article>";
+          }).join("");
+          wishlistBind(wishGrid);
+        })
+        .catch(function () { if (wishEmpty) wishEmpty.hidden = false; });
+    }
+  }
+
   /* ---- newsletter (presentational) ---- */
   document.querySelectorAll("[data-newsletter]").forEach(function (form) {
     form.addEventListener("submit", function (e) {

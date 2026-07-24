@@ -1,0 +1,84 @@
+<div class="cg-pagehead">
+  <div class="cg-container">
+    <h1 class="cg-pagehead-title">Addresses</h1>
+    <nav class="cg-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="cg-current">Addresses</span></nav>
+  </div>
+</div>
+<section class="cg-section cg-account">
+  <div class="cg-container">
+    <div class="cg-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'addresses' %}
+      <div class="cg-acct-main">
+        <div class="cg-acct-toolbar">
+          <button type="button" class="cg-btn cg-btn-solid" data-address-new>Add address</button>
+        </div>
+
+        {%- if customer.addresses and customer.addresses.size > 0 -%}
+        <div class="cg-addr-grid">
+          {%- for address in customer.addresses -%}
+          <div class="cg-addr-card">
+            <p class="cg-addr-name">{{ address.first_name }} {{ address.last_name }}
+              {%- if address.is_default_shipping %} <span class="cg-badge">Default shipping</span>{% endif -%}
+              {%- if address.is_default_billing %} <span class="cg-badge">Default billing</span>{% endif -%}
+            </p>
+            <p class="cg-addr-lines">{{ address.address_1 }}{% if address.address_2 != blank %}, {{ address.address_2 }}{% endif %}<br>
+            {{ address.city }}{% if address.province != blank %}, {{ address.province }}{% endif %} {{ address.postal_code }}<br>
+            {{ address.country_code }}{% if address.phone != blank %} &middot; {{ address.phone }}{% endif %}</p>
+            <div class="cg-addr-actions">
+              <button type="button" class="cg-link" data-address-edit
+                data-a-address_id="{{ address.id }}"
+                data-a-first_name="{{ address.first_name }}"
+                data-a-last_name="{{ address.last_name }}"
+                data-a-company="{{ address.company }}"
+                data-a-address_1="{{ address.address_1 }}"
+                data-a-address_2="{{ address.address_2 }}"
+                data-a-city="{{ address.city }}"
+                data-a-postal_code="{{ address.postal_code }}"
+                data-a-province="{{ address.province }}"
+                data-a-country_code="{{ address.country_code | downcase }}"
+                data-a-phone="{{ address.phone }}">Edit</button>
+              <button type="button" class="cg-link cg-link-danger" data-address-delete="{{ address.id }}">Delete</button>
+            </div>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="cg-acct-empty"><p>No saved addresses yet.</p></div>
+        {%- endif -%}
+
+        <form class="cg-addr-form" data-account-form="address" data-success="Address saved." hidden>
+          <h2 class="cg-acct-h2">Address details</h2>
+          <input type="hidden" name="address_id" value="">
+          <div class="cg-field-row">
+            <label class="cg-field"><span>First name</span><input type="text" name="first_name" required></label>
+            <label class="cg-field"><span>Last name</span><input type="text" name="last_name" required></label>
+          </div>
+          <label class="cg-field"><span>Company <em>(optional)</em></span><input type="text" name="company"></label>
+          <label class="cg-field"><span>Address</span><input type="text" name="address_1" required></label>
+          <label class="cg-field"><span>Apartment, suite, etc. <em>(optional)</em></span><input type="text" name="address_2"></label>
+          <div class="cg-field-row">
+            <label class="cg-field"><span>City</span><input type="text" name="city" required></label>
+            <label class="cg-field"><span>Postal code</span><input type="text" name="postal_code" required></label>
+          </div>
+          <div class="cg-field-row">
+            <label class="cg-field"><span>Province / state <em>(optional)</em></span><input type="text" name="province"></label>
+            <label class="cg-field"><span>Country</span>
+              <select class="cg-select" name="country_code" required>
+                {%- for country in countries -%}
+                <option value="{{ country.code }}">{{ country.name }}</option>
+                {%- endfor -%}
+              </select>
+            </label>
+          </div>
+          <label class="cg-field"><span>Phone <em>(optional)</em></span><input type="tel" name="phone"></label>
+          <div class="cg-field-row">
+            <label class="cg-check"><input type="checkbox" name="default_shipping"><span>Default shipping address</span></label>
+            <label class="cg-check"><input type="checkbox" name="default_billing"><span>Default billing address</span></label>
+          </div>
+          <p class="cg-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="cg-btn cg-btn-solid">Save address</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

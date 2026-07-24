@@ -1,0 +1,85 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">Addresses</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="ek-current">Addresses</span></nav>
+  </div>
+</div>
+<section class="ek-section ek-account">
+  <div class="ek-container">
+    <div class="ek-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'addresses' %}
+      <div class="ek-acct-main">
+        <div class="ek-acct-toolbar">
+          <h2 class="ek-acct-h2">Saved Addresses</h2>
+          <button type="button" class="ek-btn" data-address-new><i class="fas fa-plus" aria-hidden="true"></i> Add Address</button>
+        </div>
+
+        {%- if customer.addresses and customer.addresses.size > 0 -%}
+        <div class="ek-addr-grid">
+          {%- for address in customer.addresses -%}
+          <div class="ek-addr-card">
+            <p class="ek-addr-name">{{ address.first_name }} {{ address.last_name }}
+              {%- if address.is_default_shipping %} <span class="ek-badge">Default shipping</span>{% endif -%}
+              {%- if address.is_default_billing %} <span class="ek-badge">Default billing</span>{% endif -%}
+            </p>
+            <p class="ek-addr-lines">{{ address.address_1 }}{% if address.address_2 != blank %}, {{ address.address_2 }}{% endif %}<br>
+            {{ address.city }}{% if address.province != blank %}, {{ address.province }}{% endif %} {{ address.postal_code }}<br>
+            {{ address.country_code }}{% if address.phone != blank %} &middot; {{ address.phone }}{% endif %}</p>
+            <div class="ek-addr-actions">
+              <button type="button" class="ek-link" data-address-edit
+                data-a-address_id="{{ address.id }}"
+                data-a-first_name="{{ address.first_name }}"
+                data-a-last_name="{{ address.last_name }}"
+                data-a-company="{{ address.company }}"
+                data-a-address_1="{{ address.address_1 }}"
+                data-a-address_2="{{ address.address_2 }}"
+                data-a-city="{{ address.city }}"
+                data-a-postal_code="{{ address.postal_code }}"
+                data-a-province="{{ address.province }}"
+                data-a-country_code="{{ address.country_code | downcase }}"
+                data-a-phone="{{ address.phone }}">Edit</button>
+              <button type="button" class="ek-link ek-link-danger" data-address-delete="{{ address.id }}">Delete</button>
+            </div>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="ek-acct-empty"><p>No saved addresses yet.</p></div>
+        {%- endif -%}
+
+        <form class="ek-addr-form" data-account-form="address" data-success="Address saved." hidden>
+          <h2 class="ek-acct-h2">Address Details</h2>
+          <input type="hidden" name="address_id" value="">
+          <div class="ek-field-row">
+            <label class="ek-field"><span>First name</span><input type="text" name="first_name" required></label>
+            <label class="ek-field"><span>Last name</span><input type="text" name="last_name" required></label>
+          </div>
+          <label class="ek-field"><span>Company <em>(optional)</em></span><input type="text" name="company"></label>
+          <label class="ek-field"><span>Address</span><input type="text" name="address_1" required></label>
+          <label class="ek-field"><span>Apartment, suite, etc. <em>(optional)</em></span><input type="text" name="address_2"></label>
+          <div class="ek-field-row">
+            <label class="ek-field"><span>City</span><input type="text" name="city" required></label>
+            <label class="ek-field"><span>Postal code</span><input type="text" name="postal_code" required></label>
+          </div>
+          <div class="ek-field-row">
+            <label class="ek-field"><span>Province / state <em>(optional)</em></span><input type="text" name="province"></label>
+            <label class="ek-field"><span>Country</span>
+              <select class="ek-select" name="country_code" required>
+                {%- for country in countries -%}
+                <option value="{{ country.code }}">{{ country.name }}</option>
+                {%- endfor -%}
+              </select>
+            </label>
+          </div>
+          <label class="ek-field"><span>Phone <em>(optional)</em></span><input type="tel" name="phone"></label>
+          <div class="ek-field-row">
+            <label class="ek-check"><input type="checkbox" name="default_shipping"><span>Default shipping address</span></label>
+            <label class="ek-check"><input type="checkbox" name="default_billing"><span>Default billing address</span></label>
+          </div>
+          <p class="ek-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="ek-btn">Save Address</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

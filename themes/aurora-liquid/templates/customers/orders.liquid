@@ -1,0 +1,33 @@
+<nav class="au-crumbs"><div class="au-container">
+  <a href="{{ routes.root_url }}">Home</a><span class="au-crumb-sep">/</span><a href="{{ routes.account_url }}">My account</a><span class="au-crumb-sep">/</span><span class="au-crumb-current">Orders</span>
+</div></nav>
+
+<section class="au-section au-account">
+  <div class="au-container">
+    <header class="au-listing-head">
+      <span class="au-eyebrow">Your account</span>
+      <h1 class="au-listing-title">Orders</h1>
+    </header>
+    <div class="au-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'orders' %}
+      <div class="au-acct-main">
+        {%- if orders and orders.size > 0 -%}
+        <div class="au-orders-table au-card-flat">
+          <div class="au-orders-row au-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders -%}
+          <div class="au-orders-row">
+            <span class="au-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="au-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span>{{ order.total | money }}</span>
+            <span><a class="au-textlink" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="au-acct-empty au-card-flat"><p>You have not placed any orders yet.</p><a class="au-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

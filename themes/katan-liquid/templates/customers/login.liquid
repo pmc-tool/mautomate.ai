@@ -1,0 +1,26 @@
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="kt-current">Sign in</span>
+</div></nav>
+<section class="kt-section kt-auth">
+  <div class="kt-container">
+    <div class="kt-auth-card">
+      <span class="kt-eyebrow">Account</span>
+      <h1 class="kt-title kt-title-sm">Sign in</h1>
+      <p class="kt-auth-sub">Welcome back. Sign in to see your orders and manage your account.</p>
+      <form data-account-form="login" data-redirect="{{ routes.account_url }}">
+        <label class="kt-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="kt-field"><span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <p class="kt-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="kt-btn kt-btn-block">Sign in</button>
+      </form>
+      <div class="kt-auth-links">
+        <a href="{{ routes.root_url }}/recover">Forgot your password?</a>
+        <span>New here? <a href="{{ routes.account_url }}/register">Create an account</a></span>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,48 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">Create Account</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ek-current">Create account</span></nav>
+  </div>
+</div>
+<section class="ek-section ek-auth">
+  <div class="ek-container">
+    <div class="ek-auth-card ek-auth-wide">
+      <h2 class="ek-auth-title">Create Account</h2>
+      <p class="ek-auth-sub">Track orders, save your details and check out faster.</p>
+      <form data-account-form="register" data-redirect="{{ routes.account_url }}">
+        <div class="ek-field-row">
+          <label class="ek-field"><span>First name</span>
+            <input type="text" name="first_name" autocomplete="given-name" required>
+          </label>
+          <label class="ek-field"><span>Last name</span>
+            <input type="text" name="last_name" autocomplete="family-name" required>
+          </label>
+        </div>
+        <label class="ek-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="ek-field"><span>Phone <em>(optional)</em></span>
+          <input type="tel" name="phone" autocomplete="tel">
+        </label>
+        <div class="ek-field-row">
+          <label class="ek-field"><span>Password</span>
+            <input type="password" name="password" autocomplete="new-password" required>
+          </label>
+          <label class="ek-field"><span>Confirm password</span>
+            <input type="password" name="confirm_password" autocomplete="new-password" required>
+          </label>
+        </div>
+        <p class="ek-field-hint">At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+        <label class="ek-check">
+          <input type="checkbox" name="terms_accepted">
+          <span>I agree to the <a href="{{ routes.root_url }}/terms-of-use" target="_blank">Terms of Use</a> and <a href="{{ routes.root_url }}/privacy-policy" target="_blank">Privacy Policy</a>.</span>
+        </label>
+        <p class="ek-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="ek-btn ek-btn-block">Create Account</button>
+      </form>
+      <div class="ek-auth-links">
+        <span>Already have an account? <a href="{{ routes.account_url }}/login">Sign in</a></span>
+      </div>
+    </div>
+  </div>
+</section>

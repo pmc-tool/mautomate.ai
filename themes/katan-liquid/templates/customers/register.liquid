@@ -1,0 +1,46 @@
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="kt-current">Create account</span>
+</div></nav>
+<section class="kt-section kt-auth">
+  <div class="kt-container">
+    <div class="kt-auth-card kt-auth-wide">
+      <span class="kt-eyebrow">Account</span>
+      <h1 class="kt-title kt-title-sm">Create account</h1>
+      <p class="kt-auth-sub">Track orders, save your details and check out faster.</p>
+      <form data-account-form="register" data-redirect="{{ routes.account_url }}">
+        <div class="kt-field-row">
+          <label class="kt-field"><span>First name</span>
+            <input type="text" name="first_name" autocomplete="given-name" required>
+          </label>
+          <label class="kt-field"><span>Last name</span>
+            <input type="text" name="last_name" autocomplete="family-name" required>
+          </label>
+        </div>
+        <label class="kt-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="kt-field"><span>Phone <em>(optional)</em></span>
+          <input type="tel" name="phone" autocomplete="tel">
+        </label>
+        <div class="kt-field-row">
+          <label class="kt-field"><span>Password</span>
+            <input type="password" name="password" autocomplete="new-password" required>
+          </label>
+          <label class="kt-field"><span>Confirm password</span>
+            <input type="password" name="confirm_password" autocomplete="new-password" required>
+          </label>
+        </div>
+        <p class="kt-field-hint">At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+        <label class="kt-check">
+          <input type="checkbox" name="terms_accepted">
+          <span>I agree to the <a href="{{ routes.root_url }}/terms-of-use" target="_blank">Terms of Use</a> and <a href="{{ routes.root_url }}/privacy-policy" target="_blank">Privacy Policy</a>.</span>
+        </label>
+        <p class="kt-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="kt-btn kt-btn-block">Create account</button>
+      </form>
+      <div class="kt-auth-links">
+        <span>Already have an account? <a href="{{ routes.account_url }}/login">Sign in</a></span>
+      </div>
+    </div>
+  </div>
+</section>

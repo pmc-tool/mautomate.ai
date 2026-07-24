@@ -1,0 +1,16 @@
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="kt-current">Wishlist</span>
+</div></nav>
+<section class="kt-section kt-wishlist-page">
+  <div class="kt-container">
+    <div class="kt-shead kt-shead-center">
+      <span class="kt-eyebrow">Saved pieces</span>
+      <h1 class="kt-title">Your wishlist</h1>
+    </div>
+    <div class="kt-grid" data-wishlist-grid data-root="{{ routes.root_url }}"></div>
+    <div class="kt-acct-empty" data-wishlist-empty hidden>
+      <p>Your wishlist is empty. Tap the heart on any product to save it here.</p>
+      <a class="kt-btn" href="{{ routes.collections_url }}">Browse products</a>
+    </div>
+  </div>
+</section>

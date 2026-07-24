@@ -1,0 +1,24 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">Reset Password</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ek-current">Reset password</span></nav>
+  </div>
+</div>
+<section class="ek-section ek-auth">
+  <div class="ek-container">
+    <div class="ek-auth-card">
+      <h2 class="ek-auth-title">Reset Your Password</h2>
+      <p class="ek-auth-sub">Enter your email and we will send you a link to set a new password.</p>
+      <form data-account-form="recover" data-success="If an account exists for that email, a reset link is on its way.">
+        <label class="ek-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <p class="ek-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="ek-btn ek-btn-block">Send Reset Link</button>
+      </form>
+      <div class="ek-auth-links">
+        <a href="{{ routes.account_url }}/login">Back to sign in</a>
+      </div>
+    </div>
+  </div>
+</section>

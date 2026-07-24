@@ -1,0 +1,19 @@
+<div class="cg-pagehead">
+  <div class="cg-container">
+    <h1 class="cg-pagehead-title">Your wishlist</h1>
+    <nav class="cg-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="cg-current">Wishlist</span></nav>
+  </div>
+</div>
+<section class="cg-section cg-wishlist">
+  <div class="cg-container">
+    <div class="cg-shead-center">
+      <span class="cg-eyebrow">Saved pieces</span>
+      <h2 class="cg-title cg-title-sm">Pieces you love</h2>
+    </div>
+    <div class="cg-grid" data-wishlist-grid data-root="{{ routes.root_url }}"></div>
+    <div class="cg-acct-empty" data-wishlist-empty hidden>
+      <p>Your wishlist is empty. Tap the heart on any piece to save it here.</p>
+      <a class="cg-btn cg-btn-solid" href="{{ routes.collections_url }}">Explore the collection</a>
+    </div>
+  </div>
+</section>

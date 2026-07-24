@@ -1,0 +1,51 @@
+<nav class="ex-crumbs"><div class="ex-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ex-current">My account</span>
+</div></nav>
+<section class="ex-section ex-account">
+  <div class="ex-container">
+    <div class="ex-shead">
+      <h1 class="ex-title">My account</h1>
+      <span class="ex-underline ex-underline-left"><span></span></span>
+    </div>
+    <div class="ex-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'dashboard' %}
+      <div class="ex-acct-main">
+        <div class="ex-acct-cards">
+          <div class="ex-acct-card">
+            <span class="ex-acct-card-label">Signed in as</span>
+            <p class="ex-acct-card-value">{{ customer.first_name }} {{ customer.last_name }}</p>
+            <p class="ex-acct-card-sub">{{ customer.email }}</p>
+          </div>
+          <div class="ex-acct-card">
+            <span class="ex-acct-card-label">Orders</span>
+            <p class="ex-acct-card-value">{{ orders | size }}</p>
+            <p class="ex-acct-card-sub"><a href="{{ routes.account_url }}/orders">View order history</a></p>
+          </div>
+          <div class="ex-acct-card">
+            <span class="ex-acct-card-label">Addresses</span>
+            <p class="ex-acct-card-value">{{ customer.addresses | size }}</p>
+            <p class="ex-acct-card-sub"><a href="{{ routes.account_url }}/addresses">Manage addresses</a></p>
+          </div>
+        </div>
+
+        <h2 class="ex-acct-h2">Recent orders</h2>
+        {%- if orders and orders.size > 0 -%}
+        <div class="ex-orders-table">
+          <div class="ex-orders-row ex-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders limit: 5 -%}
+          <div class="ex-orders-row">
+            <span class="ex-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="ex-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span>{{ order.total | money }}</span>
+            <span><a class="ex-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="ex-acct-empty"><p>No orders yet.</p><a class="ex-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

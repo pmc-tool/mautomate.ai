@@ -1,0 +1,22 @@
+<nav class="kt-crumbs"><div class="kt-container">
+  <a href="{{ routes.root_url }}">Home</a><span>/</span><span class="kt-current">Reset password</span>
+</div></nav>
+<section class="kt-section kt-auth">
+  <div class="kt-container">
+    <div class="kt-auth-card">
+      <span class="kt-eyebrow">Account</span>
+      <h1 class="kt-title kt-title-sm">Reset your password</h1>
+      <p class="kt-auth-sub">Enter your email and we will send you a link to set a new password.</p>
+      <form data-account-form="recover" data-success="If an account exists for that email, a reset link is on its way.">
+        <label class="kt-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <p class="kt-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="kt-btn kt-btn-block">Send reset link</button>
+      </form>
+      <div class="kt-auth-links">
+        <a href="{{ routes.account_url }}/login">Back to sign in</a>
+      </div>
+    </div>
+  </div>
+</section>

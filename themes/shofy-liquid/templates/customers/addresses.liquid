@@ -1,0 +1,87 @@
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">Addresses</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="sf-current">Addresses</span></nav>
+  </div>
+</div>
+<section class="sf-section sf-account">
+  <div class="sf-container">
+    <div class="sf-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'addresses' %}
+      <div class="sf-acct-main">
+        <div class="sf-acct-toolbar">
+          <button type="button" class="sf-btn sf-btn-primary" data-address-new><i class="fas fa-plus"></i> Add Address</button>
+        </div>
+
+        {%- if customer.addresses and customer.addresses.size > 0 -%}
+        <div class="sf-addr-grid">
+          {%- for address in customer.addresses -%}
+          <div class="sf-addr-card">
+            <p class="sf-addr-name">{{ address.first_name }} {{ address.last_name }}
+              {%- if address.is_default_shipping %} <span class="sf-badge">Default shipping</span>{% endif -%}
+              {%- if address.is_default_billing %} <span class="sf-badge">Default billing</span>{% endif -%}
+            </p>
+            <p class="sf-addr-lines">{{ address.address_1 }}{% if address.address_2 != blank %}, {{ address.address_2 }}{% endif %}<br>
+            {{ address.city }}{% if address.province != blank %}, {{ address.province }}{% endif %} {{ address.postal_code }}<br>
+            {{ address.country_code }}{% if address.phone != blank %} &middot; {{ address.phone }}{% endif %}</p>
+            <div class="sf-addr-actions">
+              <button type="button" class="sf-addr-action" data-address-edit
+                data-a-address_id="{{ address.id }}"
+                data-a-first_name="{{ address.first_name }}"
+                data-a-last_name="{{ address.last_name }}"
+                data-a-company="{{ address.company }}"
+                data-a-address_1="{{ address.address_1 }}"
+                data-a-address_2="{{ address.address_2 }}"
+                data-a-city="{{ address.city }}"
+                data-a-postal_code="{{ address.postal_code }}"
+                data-a-province="{{ address.province }}"
+                data-a-country_code="{{ address.country_code | downcase }}"
+                data-a-phone="{{ address.phone }}"><i class="fas fa-pen"></i> Edit</button>
+              <button type="button" class="sf-addr-action sf-addr-action-danger" data-address-delete="{{ address.id }}"><i class="fas fa-times"></i> Delete</button>
+            </div>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="sf-acct-empty">
+          <span class="sf-acct-empty-icon"><i class="fas fa-map-marker-alt"></i></span>
+          <p>No saved addresses yet.</p>
+        </div>
+        {%- endif -%}
+
+        <form class="sf-addr-form" data-account-form="address" data-success="Address saved." hidden>
+          <h2 class="sf-acct-h2">Address details</h2>
+          <input type="hidden" name="address_id" value="">
+          <div class="sf-field-row">
+            <label class="sf-field"><span>First name</span><input type="text" name="first_name" required></label>
+            <label class="sf-field"><span>Last name</span><input type="text" name="last_name" required></label>
+          </div>
+          <label class="sf-field"><span>Company <em>(optional)</em></span><input type="text" name="company"></label>
+          <label class="sf-field"><span>Address</span><input type="text" name="address_1" required></label>
+          <label class="sf-field"><span>Apartment, suite, etc. <em>(optional)</em></span><input type="text" name="address_2"></label>
+          <div class="sf-field-row">
+            <label class="sf-field"><span>City</span><input type="text" name="city" required></label>
+            <label class="sf-field"><span>Postal code</span><input type="text" name="postal_code" required></label>
+          </div>
+          <div class="sf-field-row">
+            <label class="sf-field"><span>Province / state <em>(optional)</em></span><input type="text" name="province"></label>
+            <label class="sf-field"><span>Country</span>
+              <select name="country_code" required>
+                {%- for country in countries -%}
+                <option value="{{ country.code }}">{{ country.name }}</option>
+                {%- endfor -%}
+              </select>
+            </label>
+          </div>
+          <label class="sf-field"><span>Phone <em>(optional)</em></span><input type="tel" name="phone"></label>
+          <div class="sf-field-row">
+            <label class="sf-checkline"><input type="checkbox" name="default_shipping"><span>Default shipping address</span></label>
+            <label class="sf-checkline"><input type="checkbox" name="default_billing"><span>Default billing address</span></label>
+          </div>
+          <p class="sf-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="sf-btn sf-btn-primary">Save Address</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

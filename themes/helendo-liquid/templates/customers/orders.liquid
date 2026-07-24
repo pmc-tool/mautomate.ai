@@ -1,0 +1,31 @@
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">Orders</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="hl-current">Orders</span></nav>
+  </div>
+</div>
+<section class="hl-section hl-account">
+  <div class="hl-container">
+    <div class="hl-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'orders' %}
+      <div class="hl-acct-main">
+        {%- if orders and orders.size > 0 -%}
+        <div class="hl-orders-table">
+          <div class="hl-orders-row hl-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders -%}
+          <div class="hl-orders-row">
+            <span class="hl-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="hl-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span>{{ order.total | money }}</span>
+            <span><a class="hl-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="hl-acct-empty"><p>You have not placed any orders yet.</p><a class="hl-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

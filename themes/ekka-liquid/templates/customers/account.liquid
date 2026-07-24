@@ -1,0 +1,50 @@
+<div class="ek-breadband">
+  <div class="ek-container">
+    <h1 class="ek-breadband-title">My Account</h1>
+    <nav class="ek-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="ek-current">My account</span></nav>
+  </div>
+</div>
+<section class="ek-section ek-account">
+  <div class="ek-container">
+    <div class="ek-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'dashboard' %}
+      <div class="ek-acct-main">
+        <div class="ek-acct-cards">
+          <div class="ek-acct-card">
+            <span class="ek-acct-card-label">Signed in as</span>
+            <p class="ek-acct-card-value">{{ customer.first_name }} {{ customer.last_name }}</p>
+            <p class="ek-acct-card-sub">{{ customer.email }}</p>
+          </div>
+          <div class="ek-acct-card">
+            <span class="ek-acct-card-label">Orders</span>
+            <p class="ek-acct-card-value">{{ orders | size }}</p>
+            <p class="ek-acct-card-sub"><a href="{{ routes.account_url }}/orders">View order history</a></p>
+          </div>
+          <div class="ek-acct-card">
+            <span class="ek-acct-card-label">Addresses</span>
+            <p class="ek-acct-card-value">{{ customer.addresses | size }}</p>
+            <p class="ek-acct-card-sub"><a href="{{ routes.account_url }}/addresses">Manage addresses</a></p>
+          </div>
+        </div>
+
+        <h2 class="ek-acct-h2">Recent Orders</h2>
+        {%- if orders and orders.size > 0 -%}
+        <div class="ek-orders-table">
+          <div class="ek-orders-row ek-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders limit: 5 -%}
+          <div class="ek-orders-row">
+            <span class="ek-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="ek-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span class="ek-order-total">{{ order.total | money }}</span>
+            <span><a class="ek-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="ek-acct-empty"><p>No orders yet.</p><a class="ek-btn" href="{{ routes.collections_url }}">Start Shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

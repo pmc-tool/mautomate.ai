@@ -1,0 +1,51 @@
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">Create Account</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><span class="rk-crumb-active">Create account</span></li>
+    </ul>
+  </div>
+</section>
+<section class="rk-section rk-auth">
+  <div class="rk-container">
+    <div class="rk-auth-card rk-auth-wide">
+      <h2 class="rk-auth-title">Join the store</h2>
+      <p class="rk-auth-sub">Track orders, save your details and check out faster.</p>
+      <form data-account-form="register" data-redirect="{{ routes.account_url }}">
+        <div class="rk-field-row">
+          <label class="rk-field"><span>First name</span>
+            <input type="text" name="first_name" autocomplete="given-name" required>
+          </label>
+          <label class="rk-field"><span>Last name</span>
+            <input type="text" name="last_name" autocomplete="family-name" required>
+          </label>
+        </div>
+        <label class="rk-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="rk-field"><span>Phone <em>(optional)</em></span>
+          <input type="tel" name="phone" autocomplete="tel">
+        </label>
+        <div class="rk-field-row">
+          <label class="rk-field"><span>Password</span>
+            <input type="password" name="password" autocomplete="new-password" required>
+          </label>
+          <label class="rk-field"><span>Confirm password</span>
+            <input type="password" name="confirm_password" autocomplete="new-password" required>
+          </label>
+        </div>
+        <p class="rk-field-hint">At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+        <label class="rk-check">
+          <input type="checkbox" name="terms_accepted">
+          <span>I agree to the <a href="{{ routes.root_url }}/terms-of-use" target="_blank">Terms of Use</a> and <a href="{{ routes.root_url }}/privacy-policy" target="_blank">Privacy Policy</a>.</span>
+        </label>
+        <p class="rk-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="rk-btn rk-btn-block">Create account</button>
+      </form>
+      <div class="rk-auth-links">
+        <span>Already have an account? <a href="{{ routes.account_url }}/login">Sign in</a></span>
+      </div>
+    </div>
+  </div>
+</section>

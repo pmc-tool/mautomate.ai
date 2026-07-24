@@ -1,0 +1,66 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">Order {{ order.name }}</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}/orders">Orders</a><span>/</span><span class="bz-current">{{ order.name }}</span></nav>
+  </div>
+</div>
+<section class="bz-section bz-account">
+  <div class="bz-container">
+    <div class="bz-acc-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'orders' %}
+      <div class="bz-acc-main">
+        <p class="bz-order-meta">Placed {{ order.created_at | date: "%B %d, %Y" }} &middot; <span class="bz-acc-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span> <span class="bz-acc-badge">{{ order.payment_status | replace: "_", " " | capitalize }}</span></p>
+
+        <div class="bz-order-lines">
+          {%- for item in order.items -%}
+          <div class="bz-order-line">
+            {%- if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">{% endif -%}
+            <div class="bz-order-line-info">
+              <p class="bz-order-line-title">{{ item.title }}</p>
+              {%- if item.variant_title != blank and item.variant_title != "Default Variant" -%}
+              <span class="bz-order-line-variant">{{ item.variant_title }}</span>
+              {%- endif -%}
+              <span class="bz-order-line-qty">Qty {{ item.quantity }} &times; {{ item.unit_price | money }}</span>
+            </div>
+            <span class="bz-order-line-total">{{ item.total | money }}</span>
+          </div>
+          {%- endfor -%}
+        </div>
+
+        <div class="bz-order-summary">
+          <h2 class="bz-cartp-aside-title">Summary</h2>
+          <div class="bz-cartp-sum-row"><span>Subtotal</span><span>{{ order.subtotal | money }}</span></div>
+          {%- if order.discount_total > 0 -%}
+          <div class="bz-cartp-sum-row bz-cartp-sum-discount"><span>Discount</span><span>&minus;{{ order.discount_total | money }}</span></div>
+          {%- endif -%}
+          <div class="bz-cartp-sum-row"><span>Shipping</span><span>{{ order.shipping_total | money }}</span></div>
+          {%- if order.tax_total > 0 -%}
+          <div class="bz-cartp-sum-row"><span>Tax</span><span>{{ order.tax_total | money }}</span></div>
+          {%- endif -%}
+          <div class="bz-cartp-sum-row bz-cartp-sum-total"><span>Total</span><span>{{ order.total | money }}</span></div>
+        </div>
+
+        <div class="bz-order-addresses">
+          {%- if order.shipping_address -%}
+          <div class="bz-addr-card">
+            <span class="bz-acc-card-label">Shipping address</span>
+            <p class="bz-addr-lines">{{ order.shipping_address.first_name }} {{ order.shipping_address.last_name }}<br>
+            {{ order.shipping_address.address_1 }}{% if order.shipping_address.address_2 != blank %}, {{ order.shipping_address.address_2 }}{% endif %}<br>
+            {{ order.shipping_address.city }}{% if order.shipping_address.province != blank %}, {{ order.shipping_address.province }}{% endif %} {{ order.shipping_address.postal_code }}<br>
+            {{ order.shipping_address.country_code }}</p>
+          </div>
+          {%- endif -%}
+          {%- if order.billing_address -%}
+          <div class="bz-addr-card">
+            <span class="bz-acc-card-label">Billing address</span>
+            <p class="bz-addr-lines">{{ order.billing_address.first_name }} {{ order.billing_address.last_name }}<br>
+            {{ order.billing_address.address_1 }}{% if order.billing_address.address_2 != blank %}, {{ order.billing_address.address_2 }}{% endif %}<br>
+            {{ order.billing_address.city }}{% if order.billing_address.province != blank %}, {{ order.billing_address.province }}{% endif %} {{ order.billing_address.postal_code }}<br>
+            {{ order.billing_address.country_code }}</p>
+          </div>
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

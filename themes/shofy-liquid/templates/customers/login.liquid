@@ -1,0 +1,29 @@
+<div class="sf-pagehead">
+  <div class="sf-container">
+    <h1 class="sf-pagehead-title">Sign In</h1>
+    <nav class="sf-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="sf-current">Sign in</span></nav>
+  </div>
+</div>
+<section class="sf-section sf-auth">
+  <div class="sf-container">
+    <div class="sf-auth-card">
+      <span class="sf-auth-icon"><i class="far fa-user"></i></span>
+      <h2 class="sf-auth-title">Welcome back</h2>
+      <p class="sf-auth-sub">Sign in to see your orders and manage your account.</p>
+      <form data-account-form="login" data-redirect="{{ routes.account_url }}">
+        <label class="sf-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="sf-field"><span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <p class="sf-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="sf-btn sf-btn-primary sf-btn-block">Sign In <i class="fas fa-arrow-right"></i></button>
+      </form>
+      <div class="sf-auth-links">
+        <a href="{{ routes.root_url }}/recover">Forgot your password?</a>
+        <span>New here? <a href="{{ routes.account_url }}/register">Create an account</a></span>
+      </div>
+    </div>
+  </div>
+</section>

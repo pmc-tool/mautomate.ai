@@ -1,0 +1,34 @@
+<div class="cg-pagehead">
+  <div class="cg-container">
+    <h1 class="cg-pagehead-title">Profile</h1>
+    <nav class="cg-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="cg-current">Profile</span></nav>
+  </div>
+</div>
+<section class="cg-section cg-account">
+  <div class="cg-container">
+    <div class="cg-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'profile' %}
+      <div class="cg-acct-main">
+        <form class="cg-profile-form" data-account-form="profile" data-success="Profile updated.">
+          <div class="cg-field-row">
+            <label class="cg-field"><span>First name</span>
+              <input type="text" name="first_name" value="{{ customer.first_name }}" required>
+            </label>
+            <label class="cg-field"><span>Last name</span>
+              <input type="text" name="last_name" value="{{ customer.last_name }}" required>
+            </label>
+          </div>
+          <label class="cg-field"><span>Phone</span>
+            <input type="tel" name="phone" value="{{ customer.phone }}">
+          </label>
+          <label class="cg-field"><span>Email</span>
+            <input type="email" value="{{ customer.email }}" disabled>
+          </label>
+          <p class="cg-field-hint">To change your password, sign out and use <a href="{{ routes.root_url }}/recover">Forgot your password</a> — we will email you a secure reset link.</p>
+          <p class="cg-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="cg-btn cg-btn-solid">Save changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>

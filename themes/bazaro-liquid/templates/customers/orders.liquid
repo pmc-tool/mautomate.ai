@@ -1,0 +1,31 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">Orders</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="bz-current">Orders</span></nav>
+  </div>
+</div>
+<section class="bz-section bz-account">
+  <div class="bz-container">
+    <div class="bz-acc-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'orders' %}
+      <div class="bz-acc-main">
+        {%- if orders and orders.size > 0 -%}
+        <div class="bz-orders-table">
+          <div class="bz-orders-row bz-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders -%}
+          <div class="bz-orders-row">
+            <span class="bz-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="bz-acc-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span class="bz-order-total">{{ order.total | money }}</span>
+            <span><a class="bz-acc-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="bz-acc-empty"><p>You have not placed any orders yet.</p><a class="bz-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

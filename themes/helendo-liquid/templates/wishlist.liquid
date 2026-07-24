@@ -1,0 +1,15 @@
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">Your wishlist</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="hl-current">Wishlist</span></nav>
+  </div>
+</div>
+<section class="hl-section hl-wishlist">
+  <div class="hl-container">
+    <div class="hl-grid" data-wishlist-grid data-root="{{ routes.root_url }}"></div>
+    <div class="hl-acct-empty" data-wishlist-empty hidden>
+      <p>Your wishlist is empty. Tap the heart on any product to save it here.</p>
+      <a class="hl-btn" href="{{ routes.collections_url }}">Browse products</a>
+    </div>
+  </div>
+</section>

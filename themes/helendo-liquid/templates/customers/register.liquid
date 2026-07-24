@@ -1,0 +1,48 @@
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">Create account</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="hl-current">Create account</span></nav>
+  </div>
+</div>
+<section class="hl-section hl-auth">
+  <div class="hl-container">
+    <div class="hl-auth-card hl-auth-wide">
+      <h2 class="hl-title hl-title-sm">Create account</h2>
+      <p class="hl-auth-sub">Track orders, save your details and check out faster.</p>
+      <form data-account-form="register" data-redirect="{{ routes.account_url }}">
+        <div class="hl-field-row">
+          <label class="hl-field"><span>First name</span>
+            <input type="text" name="first_name" autocomplete="given-name" required>
+          </label>
+          <label class="hl-field"><span>Last name</span>
+            <input type="text" name="last_name" autocomplete="family-name" required>
+          </label>
+        </div>
+        <label class="hl-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="hl-field"><span>Phone <em>(optional)</em></span>
+          <input type="tel" name="phone" autocomplete="tel">
+        </label>
+        <div class="hl-field-row">
+          <label class="hl-field"><span>Password</span>
+            <input type="password" name="password" autocomplete="new-password" required>
+          </label>
+          <label class="hl-field"><span>Confirm password</span>
+            <input type="password" name="confirm_password" autocomplete="new-password" required>
+          </label>
+        </div>
+        <p class="hl-field-hint">At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character.</p>
+        <label class="hl-check">
+          <input type="checkbox" name="terms_accepted">
+          <span>I agree to the <a href="{{ routes.root_url }}/terms-of-use" target="_blank">Terms of Use</a> and <a href="{{ routes.root_url }}/privacy-policy" target="_blank">Privacy Policy</a>.</span>
+        </label>
+        <p class="hl-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="hl-btn hl-btn-block">Create account</button>
+      </form>
+      <div class="hl-auth-links">
+        <span>Already have an account? <a href="{{ routes.account_url }}/login">Sign in</a></span>
+      </div>
+    </div>
+  </div>
+</section>

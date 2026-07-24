@@ -1,0 +1,28 @@
+<div class="hl-crumbband">
+  <div class="hl-container hl-crumbband-inner">
+    <h1 class="hl-crumbband-title">Sign in</h1>
+    <nav class="hl-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="hl-current">Sign in</span></nav>
+  </div>
+</div>
+<section class="hl-section hl-auth">
+  <div class="hl-container">
+    <div class="hl-auth-card">
+      <h2 class="hl-title hl-title-sm">Welcome back</h2>
+      <p class="hl-auth-sub">Sign in to see your orders and manage your account.</p>
+      <form data-account-form="login" data-redirect="{{ routes.account_url }}">
+        <label class="hl-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="hl-field"><span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <p class="hl-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="hl-btn hl-btn-block">Sign in</button>
+      </form>
+      <div class="hl-auth-links">
+        <a href="{{ routes.root_url }}/recover">Forgot your password?</a>
+        <span>New here? <a href="{{ routes.account_url }}/register">Create an account</a></span>
+      </div>
+    </div>
+  </div>
+</section>

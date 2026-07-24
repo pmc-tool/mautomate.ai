@@ -1,0 +1,12 @@
+<aside class="ex-acct-nav">
+  <p class="ex-acct-hello">Hello, {{ customer.first_name | default: "there" }}</p>
+  <span class="ex-underline ex-underline-left ex-acct-nav-rule"><span></span></span>
+  <ul>
+    <li><a href="{{ routes.account_url }}" {% if active == "dashboard" %}class="is-active"{% endif %}>Dashboard</a></li>
+    <li><a href="{{ routes.account_url }}/orders" {% if active == "orders" %}class="is-active"{% endif %}>Orders</a></li>
+    <li><a href="{{ routes.account_url }}/addresses" {% if active == "addresses" %}class="is-active"{% endif %}>Addresses</a></li>
+    <li><a href="{{ routes.account_url }}/profile" {% if active == "profile" %}class="is-active"{% endif %}>Profile</a></li>
+    <li><a href="{{ routes.root_url }}/wishlist" {% if active == "wishlist" %}class="is-active"{% endif %}>Wishlist</a></li>
+    <li><a href="#" data-logout>Log out</a></li>
+  </ul>
+</aside>

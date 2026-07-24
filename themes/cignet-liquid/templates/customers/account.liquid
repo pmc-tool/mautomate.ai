@@ -1,0 +1,50 @@
+<div class="cg-pagehead">
+  <div class="cg-container">
+    <h1 class="cg-pagehead-title">My account</h1>
+    <nav class="cg-pagehead-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="cg-current">My account</span></nav>
+  </div>
+</div>
+<section class="cg-section cg-account">
+  <div class="cg-container">
+    <div class="cg-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'dashboard' %}
+      <div class="cg-acct-main">
+        <div class="cg-acct-cards">
+          <div class="cg-acct-card">
+            <span class="cg-acct-card-label">Signed in as</span>
+            <p class="cg-acct-card-value">{{ customer.first_name }} {{ customer.last_name }}</p>
+            <p class="cg-acct-card-sub">{{ customer.email }}</p>
+          </div>
+          <div class="cg-acct-card">
+            <span class="cg-acct-card-label">Orders</span>
+            <p class="cg-acct-card-value">{{ orders | size }}</p>
+            <p class="cg-acct-card-sub"><a href="{{ routes.account_url }}/orders">View order history</a></p>
+          </div>
+          <div class="cg-acct-card">
+            <span class="cg-acct-card-label">Addresses</span>
+            <p class="cg-acct-card-value">{{ customer.addresses | size }}</p>
+            <p class="cg-acct-card-sub"><a href="{{ routes.account_url }}/addresses">Manage addresses</a></p>
+          </div>
+        </div>
+
+        <h2 class="cg-acct-h2">Recent orders</h2>
+        {%- if orders and orders.size > 0 -%}
+        <div class="cg-orders-table">
+          <div class="cg-orders-row cg-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders limit: 5 -%}
+          <div class="cg-orders-row">
+            <span class="cg-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="cg-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span>{{ order.total | money }}</span>
+            <span><a class="cg-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="cg-acct-empty"><p>No orders yet.</p><a class="cg-btn cg-btn-solid" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

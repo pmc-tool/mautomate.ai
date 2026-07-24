@@ -1,0 +1,53 @@
+<section class="rk-crumbband">
+  <div class="rk-container">
+    <h1 class="rk-crumb-title">My Account</h1>
+    <ul class="rk-crumb-menu">
+      <li><a href="{{ routes.root_url }}">Home</a></li>
+      <li><span class="rk-crumb-active">My account</span></li>
+    </ul>
+  </div>
+</section>
+<section class="rk-section rk-account">
+  <div class="rk-container">
+    <div class="rk-acct-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'dashboard' %}
+      <div class="rk-acct-main">
+        <div class="rk-acct-cards">
+          <div class="rk-acct-card">
+            <span class="rk-acct-card-label">Signed in as</span>
+            <p class="rk-acct-card-value">{{ customer.first_name }} {{ customer.last_name }}</p>
+            <p class="rk-acct-card-sub">{{ customer.email }}</p>
+          </div>
+          <div class="rk-acct-card">
+            <span class="rk-acct-card-label">Orders</span>
+            <p class="rk-acct-card-value">{{ orders | size }}</p>
+            <p class="rk-acct-card-sub"><a href="{{ routes.account_url }}/orders">View order history</a></p>
+          </div>
+          <div class="rk-acct-card">
+            <span class="rk-acct-card-label">Addresses</span>
+            <p class="rk-acct-card-value">{{ customer.addresses | size }}</p>
+            <p class="rk-acct-card-sub"><a href="{{ routes.account_url }}/addresses">Manage addresses</a></p>
+          </div>
+        </div>
+
+        <h2 class="rk-acct-h2">Recent orders</h2>
+        {%- if orders and orders.size > 0 -%}
+        <div class="rk-orders-table">
+          <div class="rk-orders-row rk-orders-head"><span>Order</span><span>Date</span><span>Status</span><span>Total</span><span></span></div>
+          {%- for order in orders limit: 5 -%}
+          <div class="rk-orders-row">
+            <span class="rk-order-name">{{ order.name }}</span>
+            <span>{{ order.created_at | date: "%b %d, %Y" }}</span>
+            <span><span class="rk-badge">{{ order.fulfillment_status | replace: "_", " " | capitalize }}</span></span>
+            <span class="rk-order-total">{{ order.total | money }}</span>
+            <span><a class="rk-link" href="{{ routes.account_url }}/orders/details/{{ order.id }}">View</a></span>
+          </div>
+          {%- endfor -%}
+        </div>
+        {%- else -%}
+        <div class="rk-acct-empty"><p>No orders yet.</p><a class="rk-btn" href="{{ routes.collections_url }}">Start shopping</a></div>
+        {%- endif -%}
+      </div>
+    </div>
+  </div>
+</section>

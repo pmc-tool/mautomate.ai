@@ -1,0 +1,28 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">Sign In</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><span class="bz-current">Sign in</span></nav>
+  </div>
+</div>
+<section class="bz-section bz-auth">
+  <div class="bz-container">
+    <div class="bz-auth-card">
+      <h2 class="bz-auth-title">Welcome back</h2>
+      <p class="bz-auth-sub">Sign in to see your orders and manage your account.</p>
+      <form data-account-form="login" data-redirect="{{ routes.account_url }}">
+        <label class="bz-field"><span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="bz-field"><span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <p class="bz-form-msg" data-form-msg hidden></p>
+        <button type="submit" class="bz-btn bz-btn-block">Sign in</button>
+      </form>
+      <div class="bz-auth-links">
+        <a href="{{ routes.root_url }}/recover">Forgot your password?</a>
+        <span>New here? <a href="{{ routes.account_url }}/register">Create an account</a></span>
+      </div>
+    </div>
+  </div>
+</section>

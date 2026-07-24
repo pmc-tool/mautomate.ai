@@ -50,6 +50,11 @@
           </div>
           <p class="ek-pdp-msg" data-cart-msg hidden></p>
         </form>
+        {% if product.id %}
+        <button type="button" class="ek-wish-btn" data-wishlist-toggle data-product-id="{{ product.id }}">
+          <i class="far fa-heart ek-wish-heart" aria-hidden="true"></i> <span data-wish-label>Add to wishlist</span>
+        </button>
+        {% endif %}
       </div>
     </div>
   </div>

@@ -1,0 +1,34 @@
+<div class="bz-pageband">
+  <div class="bz-container">
+    <h1 class="bz-pageband-title">Profile</h1>
+    <nav class="bz-pageband-crumbs"><a href="{{ routes.root_url }}">Home</a><span>/</span><a href="{{ routes.account_url }}">My account</a><span>/</span><span class="bz-current">Profile</span></nav>
+  </div>
+</div>
+<section class="bz-section bz-account">
+  <div class="bz-container">
+    <div class="bz-acc-grid">
+      {% render 'account-nav', routes: routes, customer: customer, active: 'profile' %}
+      <div class="bz-acc-main">
+        <form class="bz-profile-form" data-account-form="profile" data-success="Profile updated.">
+          <div class="bz-field-row">
+            <label class="bz-field"><span>First name</span>
+              <input type="text" name="first_name" value="{{ customer.first_name }}" required>
+            </label>
+            <label class="bz-field"><span>Last name</span>
+              <input type="text" name="last_name" value="{{ customer.last_name }}" required>
+            </label>
+          </div>
+          <label class="bz-field"><span>Phone</span>
+            <input type="tel" name="phone" value="{{ customer.phone }}">
+          </label>
+          <label class="bz-field"><span>Email</span>
+            <input type="email" value="{{ customer.email }}" disabled>
+          </label>
+          <p class="bz-field-hint">To change your password, sign out and use <a href="{{ routes.root_url }}/recover">Forgot your password</a> &mdash; we will email you a secure reset link.</p>
+          <p class="bz-form-msg" data-form-msg hidden></p>
+          <button type="submit" class="bz-btn">Save changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
