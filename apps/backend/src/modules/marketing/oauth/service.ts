@@ -197,6 +197,145 @@ const emptyProfile = (): ProfileInfo => ({
   avatar_url: null,
 })
 
+/**
+ * Turn a Facebook login into connected PAGE accounts — one row per Page the
+ * login manages, each sealed with its own Page access token (Page tokens
+ * from /me/accounts do not expire while the underlying user session lives).
+ * Existing rows for the same Page are updated in place, so reconnecting or
+ * adding Pages never disconnects the ones already there. The legacy
+ * user-identity row (pre-pages model) is retired afterwards — it was never
+ * a publishable destination.
+ */
+const connectFacebookPages = async (
+  mk: any,
+  input: {
+    tenantId: string
+    scopes: string[]
+    connectedByUserId: string | null
+    userToken: string
+    userProfile: ProfileInfo
+  }
+): Promise<any> => {
+  const pages: any[] = []
+  let url: string | null =
+    `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token,picture&limit=100&access_token=${encodeURIComponent(
+      input.userToken
+    )}`
+  for (let i = 0; i < 5 && url; i++) {
+    let res: Response
+    try {
+      res = await fetch(url)
+    } catch (e) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Could not reach Facebook to list your Pages: ${(e as Error).message}`
+      )
+    }
+    const data: any = await res.json().catch(() => null)
+    if (!res.ok) {
+      const err = data?.error
+      // eslint-disable-next-line no-console
+      console.error(
+        `[marketing-oauth] listing Facebook Pages failed (${res.status}):`,
+        JSON.stringify(err ?? {}).slice(0, 400)
+      )
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        String(
+          err?.error_user_msg ??
+            err?.message ??
+            "Could not list your Facebook Pages."
+        )
+      )
+    }
+    pages.push(...(data?.data ?? []))
+    url = data?.paging?.next ?? null
+  }
+
+  if (!pages.length) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "This Facebook login does not manage any Pages. Create a Page (or get admin access to one), then connect again — and make sure you keep the Pages selected in Facebook's permission screen."
+    )
+  }
+
+  let firstAccount: any = null
+  for (const page of pages) {
+    if (!page?.id || !page?.access_token) continue
+    const existing = first(
+      await mk.listMarketingSocialAccounts({
+        tenant_id: input.tenantId,
+        platform: "facebook",
+        external_id: String(page.id),
+      })
+    )
+    const payload = {
+      tenant_id: input.tenantId,
+      platform: "facebook",
+      external_id: String(page.id),
+      handle: page.name ?? null,
+      display_name: page.name ?? null,
+      avatar_url: page?.picture?.data?.url ?? null,
+      scopes: input.scopes,
+      status: "connected",
+      connected_by_user_id: input.connectedByUserId,
+      meta: {
+        ...((existing?.meta as Record<string, unknown>) ?? {}),
+        kind: "page",
+        page_id: String(page.id),
+        via_user_id: input.userProfile.external_id,
+        via_user_name: input.userProfile.display_name,
+      },
+    }
+    let account: any
+    if (existing?.id) {
+      account = await mk.updateMarketingSocialAccounts({
+        id: existing.id,
+        ...payload,
+      } as any)
+      account = first(account) ?? account
+    } else {
+      account = await mk.createMarketingSocialAccounts(payload as any)
+      account = first(account) ?? account
+    }
+    await sealCredentials(mk, {
+      tenantId: input.tenantId,
+      socialAccountId: account.id,
+      accessToken: page.access_token,
+      refreshToken: null,
+      tokenType: "bearer",
+      expiresAt: null,
+    })
+    firstAccount = firstAccount ?? account
+  }
+
+  if (!firstAccount) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "Facebook returned Pages without access tokens — grant the Pages permissions on the consent screen and try again."
+    )
+  }
+
+  // Retire the legacy USER-identity row so it stops masquerading as a
+  // destination (best-effort; a failure here never breaks the connect).
+  if (input.userProfile.external_id) {
+    try {
+      const stale = await mk.listMarketingSocialAccounts({
+        tenant_id: input.tenantId,
+        platform: "facebook",
+        external_id: input.userProfile.external_id,
+      })
+      for (const s of Array.isArray(stale) ? stale : []) {
+        await mk.softDeleteMarketingSocialAccounts([s.id])
+      }
+    } catch {
+      /* legacy row cleanup only */
+    }
+  }
+
+  return firstAccount
+}
+
 /** Best-effort profile lookup; never throws — connect works without it. */
 const fetchProfile = async (
   platform: string,
@@ -341,6 +480,22 @@ export const completeOAuth = async (
     input.platform,
     tokens.access_token as string
   )
+
+  // Facebook connects PAGES, not the login: a user token cannot publish
+  // anywhere, and the publisher/inbox address accounts BY PAGE ID. Every
+  // Page this login manages becomes its own connected account row (with its
+  // own Page token), so a merchant can run 1, 5 or all of their Pages at
+  // once — connecting again upserts rather than replacing.
+  if (input.platform === "facebook") {
+    const account = await connectFacebookPages(mk, {
+      tenantId,
+      scopes: config.scopes,
+      connectedByUserId: row.user_id ?? null,
+      userToken: tokens.access_token as string,
+      userProfile: profile,
+    })
+    return account
+  }
 
   const existing = first(
     await mk.listMarketingSocialAccounts({
