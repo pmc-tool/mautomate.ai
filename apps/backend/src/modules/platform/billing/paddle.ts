@@ -63,15 +63,15 @@ const PACK_PRICE: Record<number, string> = {
   50000: "pri_01ky6t4hfkrpwc9hkzqfssk2eg",
 }
 
-/* One "credit unit" price powers EVERY top-up: 100 credits = $1.00, charged
- * with a Paddle quantity, so a merchant can buy ANY amount (min 100, in
- * 100-credit steps) — the fixed PACK_PRICE map above only covered 4 exact
- * sizes and everything else failed with "No Paddle pack". Charging
- * quantity × $1 also keeps the invariant the webhook enforces (credits
- * granted = verified paid USD × 100) EXACTLY equal to what was advertised.
- * The id comes from PADDLE_PRICE_CREDIT_UNIT, or is created once via the
- * Paddle API (against the same product the packs bill to) and cached. */
-const CREDIT_UNIT_CREDITS = 100
+/* One "credit unit" price powers EVERY top-up: 1 credit = $0.01, charged
+ * with a Paddle quantity equal to the CREDIT COUNT — so the checkout line
+ * reads "AI Credits · Qty 3700 — $37.00" (the quantity IS the credits, no
+ * translation for the buyer) and any amount is purchasable to the cent
+ * ($1.20 = exactly 120 credits; min 100 credits = $1). This keeps the
+ * webhook invariant (credits granted = verified paid USD x 100) EXACTLY
+ * equal to what was advertised. The id comes from PADDLE_PRICE_CREDIT_UNIT,
+ * or is created once via the Paddle API and cached. */
+const CREDIT_UNIT_CREDITS = 1
 let cachedUnitPriceId: string | undefined
 
 const planPrice = (key: string, billing = "monthly"): string | undefined =>
@@ -196,10 +196,10 @@ export class PaddleGateway implements PaymentGateway {
         },
         body: JSON.stringify({
           product_id: productId,
-          name: "100 AI credits",
-          description: "100 AI credits per unit",
-          unit_price: { amount: "100", currency_code: "USD" },
-          quantity: { minimum: 1, maximum: 10000 },
+          name: "AI credit",
+          description: "1 AI credit ($0.01)",
+          unit_price: { amount: "1", currency_code: "USD" },
+          quantity: { minimum: 100, maximum: 1000000 },
           tax_mode: "account_setting",
         }),
       })
@@ -225,12 +225,13 @@ export class PaddleGateway implements PaymentGateway {
     success_url: string
     cancel_url: string
   }): Promise<GatewayResult<CheckoutSession>> {
-    // Preferred path: the unit price × quantity, which supports ANY amount
-    // and charges exactly credits/100 USD — so the webhook's paid-amount
-    // derived grant equals the advertised credits to the credit.
+    // Preferred path: the 1-credit unit price × quantity, which supports ANY
+    // amount to the cent and charges exactly credits/100 USD — the webhook's
+    // paid-amount derived grant equals the advertised credits to the credit,
+    // and the checkout quantity IS the credit count.
     const unit = await this.unitPriceId()
     if (unit) {
-      const units = Math.max(1, Math.ceil(input.credits / CREDIT_UNIT_CREDITS))
+      const units = Math.max(100, Math.round(input.credits / CREDIT_UNIT_CREDITS))
       return this.createTransaction(
         unit,
         {

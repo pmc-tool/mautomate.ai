@@ -108,13 +108,11 @@ export const POST = async (req: AuthenticatedMedusaRequest, res: MedusaResponse)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
 
   const body = (req.body ?? {}) as any
-  // Any amount is purchasable, normalized UP to a 100-credit step (the Paddle
-  // unit price is 100 credits = $1.00 charged by quantity) with a $1 minimum.
-  const requested = Math.floor(Number(body.credits) || 0)
-  const credits = Math.max(
-    100,
-    Math.min(1000000, Math.ceil(requested / 100) * 100)
-  )
+  // Any whole-credit amount is purchasable (the Paddle unit price is 1
+  // credit = $0.01 charged by quantity), with a 100-credit ($1) minimum —
+  // so $1.20 buys exactly 120 credits, no silent rounding.
+  const requested = Math.round(Number(body.credits) || 0)
+  const credits = Math.max(100, Math.min(1000000, requested))
   // SECURITY INVARIANT (top-up underpayment, P1): the dollar charge is ALWAYS
   // derived server-side from the credit quantity at the fixed rate
   // (1 credit = CREDIT_USD = $0.01 → 100 credits per USD). Any client-supplied

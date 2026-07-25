@@ -127,17 +127,27 @@ export default function BillingPage() {
     }
   }
 
-  /* The one purchase amount, derived from the current selection: a preset
-   * pack, or the custom DOLLAR amount (whole dollars, min $1) converted at
-   * 100 credits per $1. The server still prices the credits independently. */
+  /* The custom DOLLAR amount converts EXACTLY at 100 credits per $1 —
+   * $1.20 = 120 credits, no silent rounding. Invalid input (below $1, more
+   * than 2 decimals, not a number) disables Buy and shows a message instead
+   * of quietly charging something else. */
+  const customTrim = customUsd.trim()
+  const customValid = /^\d+(\.\d{1,2})?$/.test(customTrim) && Number(customTrim) >= 1
+  const customError =
+    customTrim.length > 0 && !customValid
+      ? /^\d+\.\d{3,}$/.test(customTrim)
+        ? "Cents only — use at most 2 decimals (e.g. 1.20)."
+        : "Enter at least $1.00 (e.g. 1.20 = 120 credits)."
+      : null
   const chosenCredits = (() => {
     if (selectedPack === "custom") {
-      const n = Number(customUsd) || 0
-      return n > 0 ? Math.max(1, Math.ceil(n)) * 100 : 0
+      return customValid ? Math.round(Number(customTrim) * 100) : 0
     }
     return ov?.packs[selectedPack]?.credits ?? 0
   })()
   const chosenUsd = chosenCredits / 100
+  const usdLabel =
+    chosenUsd % 1 === 0 ? `$${nf(chosenUsd)}` : `$${chosenUsd.toFixed(2)}`
 
   const buy = async () => {
     if (!token || !chosenCredits) return
@@ -474,16 +484,28 @@ export default function BillingPage() {
                           </p>
                           <p className="text-xs text-grey-50">
                             Enter how much you want to spend — $1 = 100
-                            credits.
+                            credits, cents included ($1.20 = 120).
                           </p>
+                          {selectedPack === "custom" && customError && (
+                            <p className="mt-1 text-xs font-medium text-rose-600">
+                              {customError}
+                            </p>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center rounded-base border border-grey-20 bg-white focus-within:border-grey-50">
+                          <div
+                            className={cn(
+                              "flex items-center rounded-base border bg-white focus-within:border-grey-50",
+                              selectedPack === "custom" && customError
+                                ? "border-rose-400"
+                                : "border-grey-20"
+                            )}
+                          >
                             <span className="pl-3 text-sm text-grey-50">$</span>
                             <input
                               type="number"
                               min={1}
-                              step={1}
+                              step={0.01}
                               value={customUsd}
                               onFocus={() => setSelectedPack("custom")}
                               onChange={(e) => {
@@ -496,8 +518,8 @@ export default function BillingPage() {
                             />
                           </div>
                           <span className="min-w-[110px] text-sm font-medium tabular-nums text-grey-70">
-                            {Number(customUsd) > 0
-                              ? `= ${nf(Math.max(1, Math.ceil(Number(customUsd))) * 100)} credits`
+                            {customValid
+                              ? `= ${nf(Math.round(Number(customTrim) * 100))} credits`
                               : ""}
                           </span>
                         </div>
@@ -519,7 +541,7 @@ export default function BillingPage() {
                         <div className="flex items-center gap-3">
                           {chosenCredits > 0 && (
                             <span className="text-lg font-semibold tabular-nums text-grey-90">
-                              ${nf(chosenUsd)}
+                              {usdLabel}
                             </span>
                           )}
                           <button
