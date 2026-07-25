@@ -306,6 +306,38 @@ const connectFacebookPages = async (
       tokenType: "bearer",
       expiresAt: null,
     })
+
+    // Subscribe the Page to the app so Facebook DELIVERS its Messenger
+    // messages to our webhook — without this, the inbox never receives
+    // anything for the page. Best-effort: publishing still works if the
+    // login lacks messaging permissions; the failure is logged.
+    try {
+      const sub = await fetch(
+        `https://graph.facebook.com/v19.0/${page.id}/subscribed_apps`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            subscribed_fields: "messages,messaging_postbacks",
+            access_token: page.access_token,
+          }).toString(),
+        }
+      )
+      const subBody: any = await sub.json().catch(() => null)
+      if (!sub.ok || subBody?.success !== true) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[marketing-oauth] page ${page.id} webhook subscription failed:`,
+          JSON.stringify(subBody ?? {}).slice(0, 300)
+        )
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[marketing-oauth] page ${page.id} webhook subscription errored:`,
+        (e as Error).message
+      )
+    }
     firstAccount = firstAccount ?? account
   }
 

@@ -26,6 +26,9 @@ const CONFIGS: Record<OAuthPlatform, OAuthConfig> = {
       "pages_show_list",
       "pages_manage_posts",
       "pages_read_engagement",
+      // Messenger inbox: without pages_messaging the Page token cannot
+      // subscribe to message webhooks and inbound DMs are never delivered.
+      "pages_messaging",
       "business_management",
     ],
     clientIdEnv: "MARKETING_FACEBOOK_APP_ID",
