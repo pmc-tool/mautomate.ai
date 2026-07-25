@@ -55,7 +55,7 @@ export function baseContext(opts: {
       collections_url: `/${cc}/store`,
     },
     request: { country_code: cc, locale: shop.locale ?? "en", path: `/${cc}` },
-    cart: mapCart(opts.cart),
+    cart: mapCart(opts.cart, cc),
     customer: mapCustomer(opts.customer),
     chrome: opts.chrome ?? {},
     __theme_settings: opts.settings ?? {},
@@ -150,8 +150,13 @@ function priceOf(v: any): number {
   return 0
 }
 
-export function mapCart(cart: any): any {
-  if (!cart) return { item_count: 0, total_price: 0, items: [] }
+export function mapCart(cart: any, countryCode?: string): any {
+  // The checkout link must carry the country prefix: a bare /checkout takes
+  // an extra middleware redirect hop, and historically the edge hijacked
+  // that exact path with the PLATFORM's Paddle billing page on store hosts.
+  const checkoutUrl = countryCode ? `/${countryCode}/checkout` : "/checkout"
+  if (!cart)
+    return { item_count: 0, total_price: 0, items: [], checkout_url: checkoutUrl }
   const items = (cart.items ?? []).map((i: any) => ({
     id: i.id,
     title: i.title ?? i.product_title ?? "",
@@ -181,7 +186,7 @@ export function mapCart(cart: any): any {
       }))
       .filter((p: any) => p.code || p.is_automatic),
     items,
-    checkout_url: `/checkout`,
+    checkout_url: checkoutUrl,
   }
 }
 
