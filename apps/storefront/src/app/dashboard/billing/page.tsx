@@ -57,7 +57,9 @@ export default function BillingPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [buying, setBuying] = useState(false)
   const [selectedPack, setSelectedPack] = useState<number | "custom">(0)
-  const [customCredits, setCustomCredits] = useState<string>("")
+  // Money-first: the merchant types DOLLARS and the calculator shows the
+  // credits ($1 = 100 credits), not the other way around.
+  const [customUsd, setCustomUsd] = useState<string>("")
   const [busyPlan, setBusyPlan] = useState<string | null>(null)
   const [planBilling, setPlanBilling] = useState("monthly")
   const [histOffset, setHistOffset] = useState(0)
@@ -126,12 +128,12 @@ export default function BillingPage() {
   }
 
   /* The one purchase amount, derived from the current selection: a preset
-   * pack or the custom input normalized UP to a 100-credit step (mirrors the
-   * server's rule; the server still prices it independently). */
+   * pack, or the custom DOLLAR amount (whole dollars, min $1) converted at
+   * 100 credits per $1. The server still prices the credits independently. */
   const chosenCredits = (() => {
     if (selectedPack === "custom") {
-      const n = Number(customCredits) || 0
-      return n > 0 ? Math.max(100, Math.ceil(n / 100) * 100) : 0
+      const n = Number(customUsd) || 0
+      return n > 0 ? Math.max(1, Math.ceil(n)) * 100 : 0
     }
     return ov?.packs[selectedPack]?.credits ?? 0
   })()
@@ -447,10 +449,10 @@ export default function BillingPage() {
                               )}
                             >
                               <span className="text-sm font-semibold text-grey-90">
-                                {nf(p.credits)}
+                                ${p.amount_usd}
                               </span>
                               <span className="text-xs text-grey-50">
-                                credits · ${p.amount_usd}
+                                {nf(p.credits)} credits
                               </span>
                             </button>
                           )
@@ -471,23 +473,34 @@ export default function BillingPage() {
                             Custom amount
                           </p>
                           <p className="text-xs text-grey-50">
-                            Any amount from 100 credits, in steps of 100.
+                            Enter how much you want to spend — $1 = 100
+                            credits.
                           </p>
                         </div>
-                        <input
-                          type="number"
-                          min={100}
-                          step={100}
-                          value={customCredits}
-                          onFocus={() => setSelectedPack("custom")}
-                          onChange={(e) => {
-                            setSelectedPack("custom")
-                            setCustomCredits(e.target.value)
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          placeholder="e.g. 3000"
-                          className="w-32 rounded-base border border-grey-20 px-3 py-2 text-sm text-grey-90 focus:border-grey-50 focus:outline-none"
-                        />
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center rounded-base border border-grey-20 bg-white focus-within:border-grey-50">
+                            <span className="pl-3 text-sm text-grey-50">$</span>
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={customUsd}
+                              onFocus={() => setSelectedPack("custom")}
+                              onChange={(e) => {
+                                setSelectedPack("custom")
+                                setCustomUsd(e.target.value)
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              placeholder="e.g. 20"
+                              className="w-24 rounded-base border-0 px-2 py-2 text-sm text-grey-90 focus:outline-none"
+                            />
+                          </div>
+                          <span className="min-w-[110px] text-sm font-medium tabular-nums text-grey-70">
+                            {Number(customUsd) > 0
+                              ? `= ${nf(Math.max(1, Math.ceil(Number(customUsd))) * 100)} credits`
+                              : ""}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="flex items-center justify-between rounded-base bg-grey-10 px-4 py-3">
