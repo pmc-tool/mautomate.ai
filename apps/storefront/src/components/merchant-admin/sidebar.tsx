@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   House,
   CubeSolid,
@@ -45,8 +45,43 @@ import {
   Phone,
 } from "@medusajs/icons"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
+import { apiUrl } from "@lib/merchant-admin/api"
 import { CreditsBadge } from "./credits-badge"
 import { cn } from "@lib/util/cn"
+
+/**
+ * Unread-inbox counter for the sidebar badge: the number of conversations
+ * with unread messages. Polled every 45s and re-fetched on every route
+ * change, so reading a thread in the inbox clears the badge on the next
+ * navigation without waiting for the timer.
+ */
+function useInboxUnread(token: string | null, pathname: string): number {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (!token) return
+    let alive = true
+    const load = async () => {
+      try {
+        const r = await fetch(
+          apiUrl("/merchant/marketing/conversations?unread=true&limit=1"),
+          { headers: { authorization: `Bearer ${token}` } }
+        )
+        if (!r.ok) return
+        const d = await r.json().catch(() => null)
+        if (alive && d && typeof d.count === "number") setCount(d.count)
+      } catch {
+        /* keep the last known count */
+      }
+    }
+    load()
+    const timer = setInterval(load, 45_000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [token, pathname])
+  return count
+}
 
 type NavChild = { href: string; label: string; icon?: React.ComponentType<{ className?: string }> }
 
@@ -261,8 +296,9 @@ export function Sidebar({
   onClose?: () => void
 } = {}) {
   const pathname = usePathname()
-  const { me, logout } = useMerchantAuth()
+  const { me, token, logout } = useMerchantAuth()
   const [open, setOpen] = useState(false)
+  const inboxUnread = useInboxUnread(token ?? null, pathname)
 
   const dismiss = () => {
     setOpen(false)
@@ -438,7 +474,15 @@ export function Sidebar({
                       active ? "text-brand-600" : "text-grey-40 group-hover:text-grey-90"
                     )}
                   />
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {item.href === "/dashboard/inbox" && inboxUnread > 0 && (
+                    <span
+                      aria-label={`${inboxUnread} unread conversation${inboxUnread === 1 ? "" : "s"}`}
+                      className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-brand-500 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"
+                    >
+                      {inboxUnread > 99 ? "99+" : inboxUnread}
+                    </span>
+                  )}
                 </Link>
               )
             })}
