@@ -71,13 +71,19 @@ const sections = [
     ],
   },
   {
-    heading: "10. Changes to this policy",
+    heading: "10. Data deletion",
+    body: [
+      "You can request deletion of your personal data at any time.\n- mAutomate account data: email support@mautomate.ai from the address on your account and ask for deletion. We will remove your account and associated personal data within 30 days, except records we must keep by law.\n- Facebook / Instagram connections: if you connected a Facebook or Instagram account to mAutomate, you can trigger deletion from Facebook itself (Settings > Apps and Websites > mAutomate > Remove) — Facebook then instructs us automatically and we delete the connection and all related access tokens. You can also email support@mautomate.ai with the request.\n- Store customer data: merchants are responsible for their customers' requests; contact the store you purchased from, or email support@mautomate.ai and we will route the request to the right merchant.",
+    ],
+  },
+  {
+    heading: "11. Changes to this policy",
     body: [
       "We may update this Privacy Policy as the product evolves or as the law changes. When we make material changes we will update the date at the top of this page and, where appropriate, notify you by email or in the app. Continued use of mAutomate after an update means you accept the revised policy.",
     ],
   },
   {
-    heading: "11. Contact us",
+    heading: "12. Contact us",
     body: [
       "If you have any questions about this Privacy Policy or how we handle your data, email us at hello@mautomate.com. We read every message and aim to reply quickly.",
     ],
