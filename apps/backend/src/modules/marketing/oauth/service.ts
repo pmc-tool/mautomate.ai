@@ -197,6 +197,86 @@ const emptyProfile = (): ProfileInfo => ({
   avatar_url: null,
 })
 
+/** Subscribe a Page to the app's webhooks so Meta DELIVERS its Messenger /
+ * Instagram messages. Best-effort: a login without messaging permissions
+ * still connects for publishing; the failure is logged. */
+const subscribePageWebhooks = async (
+  pageId: string,
+  pageToken: string
+): Promise<void> => {
+  try {
+    const sub = await fetch(
+      `https://graph.facebook.com/v19.0/${pageId}/subscribed_apps`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          subscribed_fields: "messages,messaging_postbacks",
+          access_token: pageToken,
+        }).toString(),
+      }
+    )
+    const body: any = await sub.json().catch(() => null)
+    if (!sub.ok || body?.success !== true) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[marketing-oauth] page ${pageId} webhook subscription failed:`,
+        JSON.stringify(body ?? {}).slice(0, 300)
+      )
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[marketing-oauth] page ${pageId} webhook subscription errored:`,
+      (e as Error).message
+    )
+  }
+}
+
+/** List the Pages a Meta user token manages (paginated, with the requested
+ * fields). Throws INVALID_DATA with Meta's own explanation on failure. */
+const listUserPages = async (
+  userToken: string,
+  fields: string
+): Promise<any[]> => {
+  const pages: any[] = []
+  let url: string | null =
+    `https://graph.facebook.com/v19.0/me/accounts?fields=${encodeURIComponent(
+      fields
+    )}&limit=100&access_token=${encodeURIComponent(userToken)}`
+  for (let i = 0; i < 5 && url; i++) {
+    let res: Response
+    try {
+      res = await fetch(url)
+    } catch (e) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Could not reach Facebook to list your Pages: ${(e as Error).message}`
+      )
+    }
+    const data: any = await res.json().catch(() => null)
+    if (!res.ok) {
+      const err = data?.error
+      // eslint-disable-next-line no-console
+      console.error(
+        `[marketing-oauth] listing Pages failed (${res.status}):`,
+        JSON.stringify(err ?? {}).slice(0, 400)
+      )
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        String(
+          err?.error_user_msg ??
+            err?.message ??
+            "Could not list your Facebook Pages."
+        )
+      )
+    }
+    pages.push(...(data?.data ?? []))
+    url = data?.paging?.next ?? null
+  }
+  return pages
+}
+
 /**
  * Turn a Facebook login into connected PAGE accounts — one row per Page the
  * login manages, each sealed with its own Page access token (Page tokens
@@ -216,41 +296,10 @@ const connectFacebookPages = async (
     userProfile: ProfileInfo
   }
 ): Promise<any> => {
-  const pages: any[] = []
-  let url: string | null =
-    `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token,picture&limit=100&access_token=${encodeURIComponent(
-      input.userToken
-    )}`
-  for (let i = 0; i < 5 && url; i++) {
-    let res: Response
-    try {
-      res = await fetch(url)
-    } catch (e) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        `Could not reach Facebook to list your Pages: ${(e as Error).message}`
-      )
-    }
-    const data: any = await res.json().catch(() => null)
-    if (!res.ok) {
-      const err = data?.error
-      // eslint-disable-next-line no-console
-      console.error(
-        `[marketing-oauth] listing Facebook Pages failed (${res.status}):`,
-        JSON.stringify(err ?? {}).slice(0, 400)
-      )
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        String(
-          err?.error_user_msg ??
-            err?.message ??
-            "Could not list your Facebook Pages."
-        )
-      )
-    }
-    pages.push(...(data?.data ?? []))
-    url = data?.paging?.next ?? null
-  }
+  const pages = await listUserPages(
+    input.userToken,
+    "id,name,access_token,picture"
+  )
 
   if (!pages.length) {
     throw new MedusaError(
@@ -309,35 +358,8 @@ const connectFacebookPages = async (
 
     // Subscribe the Page to the app so Facebook DELIVERS its Messenger
     // messages to our webhook — without this, the inbox never receives
-    // anything for the page. Best-effort: publishing still works if the
-    // login lacks messaging permissions; the failure is logged.
-    try {
-      const sub = await fetch(
-        `https://graph.facebook.com/v19.0/${page.id}/subscribed_apps`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            subscribed_fields: "messages,messaging_postbacks",
-            access_token: page.access_token,
-          }).toString(),
-        }
-      )
-      const subBody: any = await sub.json().catch(() => null)
-      if (!sub.ok || subBody?.success !== true) {
-        // eslint-disable-next-line no-console
-        console.error(
-          `[marketing-oauth] page ${page.id} webhook subscription failed:`,
-          JSON.stringify(subBody ?? {}).slice(0, 300)
-        )
-      }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error(
-        `[marketing-oauth] page ${page.id} webhook subscription errored:`,
-        (e as Error).message
-      )
-    }
+    // anything for the page.
+    await subscribePageWebhooks(String(page.id), page.access_token)
     firstAccount = firstAccount ?? account
   }
 
@@ -355,6 +377,112 @@ const connectFacebookPages = async (
       const stale = await mk.listMarketingSocialAccounts({
         tenant_id: input.tenantId,
         platform: "facebook",
+        external_id: input.userProfile.external_id,
+      })
+      for (const s of Array.isArray(stale) ? stale : []) {
+        await mk.softDeleteMarketingSocialAccounts([s.id])
+      }
+    } catch {
+      /* legacy row cleanup only */
+    }
+  }
+
+  return firstAccount
+}
+
+/**
+ * Turn an Instagram (Meta) login into connected IG BUSINESS accounts — one
+ * row per Instagram professional account linked to the login's Facebook
+ * Pages, keyed by ig user id (what the publisher and the DM inbox address)
+ * and sealed with the linked Page's token (which IG publishing and the IG
+ * Send API both use). The linked Page is also subscribed to the app so IG
+ * Direct messages are delivered.
+ */
+const connectInstagramAccounts = async (
+  mk: any,
+  input: {
+    tenantId: string
+    scopes: string[]
+    connectedByUserId: string | null
+    userToken: string
+    userProfile: ProfileInfo
+  }
+): Promise<any> => {
+  const pages = await listUserPages(
+    input.userToken,
+    "id,name,access_token,instagram_business_account{id,username,profile_picture_url}"
+  )
+  const linked = pages.filter(
+    (p: any) => p?.instagram_business_account?.id && p?.access_token
+  )
+
+  if (!linked.length) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "No Instagram professional account is linked to your Facebook Pages. In Instagram: Settings, switch to a Professional account and connect it to your Facebook Page — then connect again."
+    )
+  }
+
+  let firstAccount: any = null
+  for (const page of linked) {
+    const ig = page.instagram_business_account
+    const igId = String(ig.id)
+    const existing = first(
+      await mk.listMarketingSocialAccounts({
+        tenant_id: input.tenantId,
+        platform: "instagram",
+        external_id: igId,
+      })
+    )
+    const payload = {
+      tenant_id: input.tenantId,
+      platform: "instagram",
+      external_id: igId,
+      handle: ig.username ?? null,
+      display_name: ig.username ?? null,
+      avatar_url: ig.profile_picture_url ?? null,
+      scopes: input.scopes,
+      status: "connected",
+      connected_by_user_id: input.connectedByUserId,
+      meta: {
+        ...((existing?.meta as Record<string, unknown>) ?? {}),
+        kind: "ig_business",
+        ig_user_id: igId,
+        page_id: String(page.id),
+        via_user_id: input.userProfile.external_id,
+        via_user_name: input.userProfile.display_name,
+      },
+    }
+    let account: any
+    if (existing?.id) {
+      account = await mk.updateMarketingSocialAccounts({
+        id: existing.id,
+        ...payload,
+      } as any)
+      account = first(account) ?? account
+    } else {
+      account = await mk.createMarketingSocialAccounts(payload as any)
+      account = first(account) ?? account
+    }
+    await sealCredentials(mk, {
+      tenantId: input.tenantId,
+      socialAccountId: account.id,
+      accessToken: page.access_token,
+      refreshToken: null,
+      tokenType: "bearer",
+      expiresAt: null,
+    })
+    await subscribePageWebhooks(String(page.id), page.access_token)
+    firstAccount = firstAccount ?? account
+  }
+
+  // Retire the legacy IG user-identity row (same pre-pages defect as
+  // facebook) — best-effort.
+  if (input.userProfile.external_id) {
+    try {
+      const stale = await mk.listMarketingSocialAccounts({
+        tenant_id: input.tenantId,
+        platform: "instagram",
         external_id: input.userProfile.external_id,
       })
       for (const s of Array.isArray(stale) ? stale : []) {
@@ -520,6 +648,21 @@ export const completeOAuth = async (
   // once — connecting again upserts rather than replacing.
   if (input.platform === "facebook") {
     const account = await connectFacebookPages(mk, {
+      tenantId,
+      scopes: config.scopes,
+      connectedByUserId: row.user_id ?? null,
+      userToken: tokens.access_token as string,
+      userProfile: profile,
+    })
+    return account
+  }
+
+  // Instagram likewise connects the IG BUSINESS ACCOUNTS linked to the
+  // login's Pages: the publisher addresses accounts by ig user id and the
+  // DM inbox attributes by the receiving IG account id — a user-identity
+  // row satisfies neither.
+  if (input.platform === "instagram") {
+    const account = await connectInstagramAccounts(mk, {
       tenantId,
       scopes: config.scopes,
       connectedByUserId: row.user_id ?? null,

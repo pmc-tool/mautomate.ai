@@ -41,7 +41,11 @@ const CONFIGS: Record<OAuthPlatform, OAuthConfig> = {
     scopes: [
       "instagram_basic",
       "instagram_content_publish",
+      // IG Direct inbox: without instagram_manage_messages (plus the page
+      // messaging grant below) Meta never delivers DMs to the webhook.
+      "instagram_manage_messages",
       "pages_show_list",
+      "pages_messaging",
       "business_management",
     ],
     clientIdEnv: "MARKETING_FACEBOOK_APP_ID",
