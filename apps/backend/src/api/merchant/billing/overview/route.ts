@@ -23,13 +23,18 @@ import {
  * platform_package, usage_event, billing gateways) — no new billing primitives.
  */
 
-// Credit packs offered to merchants. Credits are USD-pegged (1 credit = $0.01);
-// larger packs include a bonus. Checkout itself reuses POST /merchant/credits.
+// Credit packs offered to merchants. Credits are USD-pegged (1 credit = $0.01)
+// at a FLAT rate: the payment webhook grants exactly paid_usd x 100 (its
+// underpayment invariant), so the old bonus packs (e.g. 2750 for $25) never
+// actually granted their bonus — and three of the four sizes had no Paddle
+// price at all. Presets are now flat-rate quick picks; ANY custom amount
+// (min 100, 100-credit steps) checks out via POST /merchant/credits using the
+// Paddle unit price x quantity.
 const PACKS = [
   { credits: 1000, amount_usd: 10, bonus_pct: 0 },
-  { credits: 2750, amount_usd: 25, bonus_pct: 10 },
-  { credits: 6000, amount_usd: 50, bonus_pct: 20 },
-  { credits: 13000, amount_usd: 100, bonus_pct: 30 },
+  { credits: 2500, amount_usd: 25, bonus_pct: 0 },
+  { credits: 5000, amount_usd: 50, bonus_pct: 0 },
+  { credits: 10000, amount_usd: 100, bonus_pct: 0 },
 ]
 
 const ACTION_LABEL: Record<string, string> = {

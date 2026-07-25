@@ -50,6 +50,7 @@ export default function BillingPage() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busyPack, setBusyPack] = useState<number | null>(null)
+  const [customCredits, setCustomCredits] = useState<string>("")
   const [busyPlan, setBusyPlan] = useState<string | null>(null)
   const [planBilling, setPlanBilling] = useState("monthly")
   const [histOffset, setHistOffset] = useState(0)
@@ -390,6 +391,54 @@ export default function BillingPage() {
                         </span>
                       </button>
                     ))}
+                  </div>
+                  {/* custom amount — any size, 100-credit steps, $1 per 100 */}
+                  <div className="mt-2 flex items-center gap-2 rounded-base border border-grey-20 bg-white p-3">
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-grey-60">
+                        Custom amount
+                      </p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={100}
+                          step={100}
+                          value={customCredits}
+                          onChange={(e) => setCustomCredits(e.target.value)}
+                          placeholder="e.g. 3000"
+                          className="w-28 rounded-base border border-grey-20 px-2 py-1.5 text-sm text-grey-90 focus:border-grey-50 focus:outline-none"
+                        />
+                        <span className="text-xs text-grey-50">
+                          credits ·{" "}
+                          {(() => {
+                            const n = Math.max(
+                              100,
+                              Math.ceil((Number(customCredits) || 0) / 100) * 100
+                            )
+                            return Number(customCredits) > 0
+                              ? `$${(n / 100).toFixed(0)}`
+                              : "$1 per 100"
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const n = Math.max(
+                          100,
+                          Math.ceil((Number(customCredits) || 0) / 100) * 100
+                        )
+                        if (Number(customCredits) > 0) buy(n, n / 100, -2)
+                      }}
+                      disabled={busyPack !== null || !(Number(customCredits) > 0)}
+                      className="rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white hover:bg-grey-80 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {busyPack === -2 ? (
+                        <Spinner className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Buy"
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>

@@ -63,6 +63,17 @@ const PACK_PRICE: Record<number, string> = {
   50000: "pri_01ky6t4hfkrpwc9hkzqfssk2eg",
 }
 
+/* One "credit unit" price powers EVERY top-up: 100 credits = $1.00, charged
+ * with a Paddle quantity, so a merchant can buy ANY amount (min 100, in
+ * 100-credit steps) — the fixed PACK_PRICE map above only covered 4 exact
+ * sizes and everything else failed with "No Paddle pack". Charging
+ * quantity × $1 also keeps the invariant the webhook enforces (credits
+ * granted = verified paid USD × 100) EXACTLY equal to what was advertised.
+ * The id comes from PADDLE_PRICE_CREDIT_UNIT, or is created once via the
+ * Paddle API (against the same product the packs bill to) and cached. */
+const CREDIT_UNIT_CREDITS = 100
+let cachedUnitPriceId: string | undefined
+
 const planPrice = (key: string, billing = "monthly"): string | undefined =>
   process.env[`PADDLE_PRICE_${key.toUpperCase()}_${billing.toUpperCase()}`] ||
   PLAN_PRICE[key]?.[billing]
@@ -90,7 +101,8 @@ export class PaddleGateway implements PaymentGateway {
   /** Create a Paddle transaction and return its hosted-checkout URL. */
   private async createTransaction(
     priceId: string,
-    customData: Record<string, unknown>
+    customData: Record<string, unknown>,
+    quantity = 1
   ): Promise<GatewayResult<CheckoutSession>> {
     const key = this.apiKey()
     if (!key) return { ok: false, error: "Paddle is not configured (missing API key)." }
@@ -102,7 +114,7 @@ export class PaddleGateway implements PaymentGateway {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          items: [{ price_id: priceId, quantity: 1 }],
+          items: [{ price_id: priceId, quantity }],
           custom_data: customData,
           collection_mode: "automatic",
         }),
@@ -149,6 +161,52 @@ export class PaddleGateway implements PaymentGateway {
     })
   }
 
+  /** Resolve (or lazily create) the 100-credit unit price. */
+  private async unitPriceId(): Promise<string | undefined> {
+    const fromEnv = process.env.PADDLE_PRICE_CREDIT_UNIT
+    if (fromEnv) return fromEnv
+    if (cachedUnitPriceId) return cachedUnitPriceId
+    const key = this.apiKey()
+    if (!key) return undefined
+    try {
+      // Bill against the same product as the fixed packs.
+      const probeId = Object.values(PACK_PRICE)[0]
+      const probe = await fetch(`${apiBase()}/prices/${probeId}`, {
+        headers: { Authorization: `Bearer ${key}` },
+      })
+      const probeBody: any = await probe.json().catch(() => ({}))
+      const productId = probeBody?.data?.product_id
+      if (!productId) return undefined
+      const res = await fetch(`${apiBase()}/prices`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          product_id: productId,
+          name: "100 AI credits",
+          description: "AI credits (100-credit unit for custom top-ups)",
+          unit_price: { amount: "100", currency_code: "USD" },
+          quantity: { minimum: 1, maximum: 10000 },
+          tax_mode: "account_setting",
+        }),
+      })
+      const d: any = await res.json().catch(() => ({}))
+      const id = d?.data?.id ? String(d.data.id) : undefined
+      if (id) {
+        cachedUnitPriceId = id
+        // eslint-disable-next-line no-console
+        console.log(
+          `[paddle] created credit-unit price ${id} — set PADDLE_PRICE_CREDIT_UNIT=${id} to pin it across restarts`
+        )
+      }
+      return id
+    } catch {
+      return undefined
+    }
+  }
+
   async createTopupCheckout(input: {
     tenant_id: string
     credits: number
@@ -156,6 +214,23 @@ export class PaddleGateway implements PaymentGateway {
     success_url: string
     cancel_url: string
   }): Promise<GatewayResult<CheckoutSession>> {
+    // Preferred path: the unit price × quantity, which supports ANY amount
+    // and charges exactly credits/100 USD — so the webhook's paid-amount
+    // derived grant equals the advertised credits to the credit.
+    const unit = await this.unitPriceId()
+    if (unit) {
+      const units = Math.max(1, Math.ceil(input.credits / CREDIT_UNIT_CREDITS))
+      return this.createTransaction(
+        unit,
+        {
+          tenant_id: input.tenant_id,
+          kind: "topup",
+          credits: units * CREDIT_UNIT_CREDITS,
+        },
+        units
+      )
+    }
+    // Fallback: the legacy fixed packs (exact sizes only).
     const priceId = PACK_PRICE[input.credits]
     if (!priceId) return { ok: false, error: `No Paddle pack for ${input.credits} credits.` }
     return this.createTransaction(priceId, {
