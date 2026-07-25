@@ -495,14 +495,17 @@ tenant key, session cookie and validation are identical):
   burger/mobile-nav are CSS-hidden). Order confirmation, payment,
   verify-account and the account FALLBACK all wear the store's chrome.
 - The checkout stays a locked minimal surface (the Shopify model) reskinned
-  from manifest `tokens` (fonts.heading/body, colors.primary/dark). Override
-  READ path is wired: theme.json declares `checkout_accent` +
-  `checkout_button` (colors) and getThemeBranding prefers CMS
-  `theme_settings[handle]` values over the tokens. ⚠️ The WRITE path does
-  NOT exist yet — nothing persists theme_settings (the cms_setting key
-  constraint doesn't allow it and the editor has no theme-settings panel).
-  Building that panel + storage is the remaining customizer work; until
-  then branding always derives from the theme tokens.
+  from manifest `tokens` (fonts.heading/body, colors.primary/dark).
+  MERCHANT OVERRIDES (shipped 2026-07-25, browser-verified): the dashboard
+  page **Design > Theme settings** renders the active theme's theme.json
+  `settings` schema (color/text/textarea/checkbox/range/select, grouped by
+  `header` entries) and saves via `GET/PUT /merchant/theme-settings`
+  (values sanitized per type; unknown ids dropped). Storage: cms_setting
+  key `theme_settings`, shape `{ value: { [handle]: { [id]: value } } }`
+  (locale-invariant, per-handle so switching themes keeps tweaks; key
+  allowed by Migration20260725120000). `/store/cms/settings` returns it,
+  which feeds BOTH the Liquid `settings` merge (`{{ settings.x }}`) and
+  checkout branding — `checkout_accent`/`checkout_button` beat the tokens.
 
 **React account pages are KEPT as the fail-closed fallback** (deliberate
 Phase 4 decision): a theme without the suite — or any capability-resolution
