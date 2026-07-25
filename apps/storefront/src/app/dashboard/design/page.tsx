@@ -188,6 +188,13 @@ function DesignPageContent() {
           <h1 className="text-2xl sm:text-3xl font-semibold text-grey-90 tracking-tight">Design</h1>
           <p className="text-grey-50 mt-1 text-sm sm:text-base">Choose a theme and customize your storefront.</p>
         </div>
+        <div className="flex items-center gap-3">
+        <Link
+          href="/dashboard/design/settings"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-grey-90 border border-grey-20 rounded-base font-medium shadow-sm hover:bg-grey-5 transition-all"
+        >
+          Theme settings
+        </Link>
         <button
           onClick={async () => {
             if (!token) return
@@ -219,6 +226,7 @@ function DesignPageContent() {
           <PencilSquare className="w-4 h-4 transition-transform group-hover:rotate-12" />
           Open visual editor
         </button>
+        </div>
       </div>
 
       {error && (

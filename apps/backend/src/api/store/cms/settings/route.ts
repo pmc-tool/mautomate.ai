@@ -57,6 +57,20 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   ;(settings as any).active_theme =
     (activeThemeRow?.data as { value?: string } | undefined)?.value ?? "learts-liquid"
 
+  // theme_settings — the merchant's saved values for the theme.json settings
+  // schema, keyed by theme handle (locale-invariant, { value: {...} } shape
+  // like active_theme). The storefront merges these over the theme's setting
+  // DEFAULTS for Liquid `{{ settings.x }}` and checkout branding. Missing row
+  // => empty object, so nothing downstream needs a guard.
+  const themeSettingsRow = byKey.get("theme_settings")
+  const savedThemeSettings = (
+    themeSettingsRow?.data as { value?: Record<string, unknown> } | undefined
+  )?.value
+  ;(settings as any).theme_settings =
+    savedThemeSettings && typeof savedThemeSettings === "object"
+      ? savedThemeSettings
+      : {}
+
   res.json({
     settings,
     locale,

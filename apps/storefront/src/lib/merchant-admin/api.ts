@@ -365,6 +365,37 @@ export async function updateTheme(
   })
 }
 
+export type ThemeSettingEntry = {
+  id?: string
+  type?: string
+  label?: string
+  default?: unknown
+  min?: number
+  max?: number
+  step?: number
+  unit?: string
+  options?: { value: string; label?: string }[] | string[]
+}
+
+export async function getThemeSettings(token: string): Promise<{
+  handle: string
+  schema: ThemeSettingEntry[]
+  values: Record<string, unknown>
+}> {
+  return request("/merchant/theme-settings", { token })
+}
+
+export async function saveThemeSettings(
+  token: string,
+  values: Record<string, unknown>
+): Promise<{ handle: string; values: Record<string, unknown> }> {
+  return request("/merchant/theme-settings", {
+    method: "PUT",
+    token,
+    body: { values },
+  })
+}
+
 /** Is there a previous storefront design to roll back to? */
 export async function getDesignRestorable(
   token: string
