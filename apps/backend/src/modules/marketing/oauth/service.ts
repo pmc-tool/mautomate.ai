@@ -151,14 +151,34 @@ const exchangeToken = async (
   }
 
   if (!res.ok || !data?.access_token) {
-    const message =
+    // Providers disagree on error shape: OAuth2 spec uses error/
+    // error_description STRINGS, but Facebook nests an OBJECT under `error`
+    // ({message, type, code}). The old extraction treated the object as
+    // unusable and collapsed every Facebook failure into a bare "Token
+    // exchange failed", hiding the real reason (used code, redirect
+    // mismatch, app restriction, ...).
+    const raw =
       data?.error_description ??
-      data?.error ??
-      `Token exchange failed with status ${res.status}`
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      typeof message === "string" ? message : "Token exchange failed"
+      (typeof data?.error === "string" ? data.error : null) ??
+      data?.error?.message ??
+      null
+    const message =
+      typeof raw === "string" && raw
+        ? raw
+        : `Token exchange failed with status ${res.status}`
+    // eslint-disable-next-line no-console
+    console.error(
+      `[marketing-oauth] token exchange failed (${res.status}):`,
+      JSON.stringify(data ?? {}).slice(0, 500)
     )
+    // The single most common failure is a reused single-use code (browser
+    // refresh / double navigation of the callback URL) — say so plainly.
+    const friendly = /authorization code has been used|code was already redeemed|invalid_grant/i.test(
+      message
+    )
+      ? "This sign-in link was already used. Click Connect again to restart."
+      : message
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, friendly)
   }
 
   return {
@@ -306,6 +326,17 @@ export const completeOAuth = async (
 
   const tokens = await exchangeToken(config.tokenUrl, form)
 
+  // The provider code is single-use and is now SPENT — consume the state
+  // immediately so a callback refresh/retry gets the clear "already used"
+  // message instead of re-exchanging the burned code and surfacing a
+  // confusing provider error. (Previously the state was consumed only after
+  // every downstream step succeeded, so any late failure created exactly
+  // that retry trap.)
+  await mk.updateMarketingOauthStates({
+    id: row.id,
+    consumed_at: new Date(),
+  } as any)
+
   const profile = await fetchProfile(
     input.platform,
     tokens.access_token as string
@@ -353,11 +384,6 @@ export const completeOAuth = async (
       ? new Date(Date.now() + tokens.expires_in * 1000)
       : null,
   })
-
-  await mk.updateMarketingOauthStates({
-    id: row.id,
-    consumed_at: new Date(),
-  } as any)
 
   return account
 }
