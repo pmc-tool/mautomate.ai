@@ -206,6 +206,14 @@ export default function SocialConnectPage() {
   const [tgSubmitting, setTgSubmitting] = useState(false)
   const [tgError, setTgError] = useState<string | null>(null)
 
+  // WhatsApp (Cloud API credentials) connect dialog
+  const [waOpen, setWaOpen] = useState(false)
+  const [waWabaId, setWaWabaId] = useState("")
+  const [waPhoneId, setWaPhoneId] = useState("")
+  const [waToken, setWaToken] = useState("")
+  const [waSubmitting, setWaSubmitting] = useState(false)
+  const [waError, setWaError] = useState<string | null>(null)
+
   const providerByPlatform = useMemo(() => {
     const map: Record<string, SocialProvider> = {}
     for (const p of providers) map[p.platform] = p
@@ -360,6 +368,15 @@ export default function SocialConnectPage() {
     const provider = providerByPlatform[meta.platform]
     const mechanism = provider?.connect ?? "oauth"
 
+    if (meta.platform === "whatsapp") {
+      setWaWabaId("")
+      setWaPhoneId("")
+      setWaToken("")
+      setWaError(null)
+      setWaOpen(true)
+      return
+    }
+
     if (mechanism === "webhook_token") {
       setTgToken("")
       setTgChatId("")
@@ -422,6 +439,37 @@ export default function SocialConnectPage() {
       )
     } finally {
       setTgSubmitting(false)
+    }
+  }
+
+  const submitWhatsApp = async () => {
+    if (!token) return
+    if (!waWabaId.trim() || !waPhoneId.trim() || !waToken.trim()) {
+      setWaError(
+        "Business account ID, phone number ID and access token are all required."
+      )
+      return
+    }
+    setWaSubmitting(true)
+    setWaError(null)
+    try {
+      await connectSocialAccount(token, {
+        platform: "whatsapp",
+        credentials: {
+          waba_id: waWabaId.trim(),
+          phone_number_id: waPhoneId.trim(),
+          access_token: waToken.trim(),
+        },
+      })
+      setWaOpen(false)
+      setNotice({ tone: "success", text: "WhatsApp connected." })
+      load()
+    } catch (err) {
+      setWaError(
+        err instanceof ApiError ? err.message : "Failed to connect WhatsApp."
+      )
+    } finally {
+      setWaSubmitting(false)
     }
   }
 
@@ -890,6 +938,83 @@ export default function SocialConnectPage() {
               className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-grey-80 disabled:opacity-60"
             >
               {tgSubmitting && <Spinner className="h-4 w-4 animate-spin" />}
+              Connect
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={waOpen}
+        onClose={() => (waSubmitting ? null : setWaOpen(false))}
+        title="Connect WhatsApp"
+        description="Paste the three values from Meta Business Suite. Your customers' WhatsApp messages will arrive in the Inbox and replies go out from your business number."
+        size="sm"
+      >
+        <div className="space-y-4">
+          <FormField
+            label="WhatsApp Business Account ID"
+            htmlFor="wa-waba"
+            hint="Meta Business Suite -> WhatsApp -> API Setup -> WhatsApp Business Account ID."
+          >
+            <Input
+              id="wa-waba"
+              value={waWabaId}
+              onChange={(e) => setWaWabaId(e.target.value)}
+              placeholder="102290129340398"
+              autoComplete="off"
+            />
+          </FormField>
+          <FormField
+            label="Phone number ID"
+            htmlFor="wa-phone"
+            hint="Same API Setup page, under the business phone number."
+          >
+            <Input
+              id="wa-phone"
+              value={waPhoneId}
+              onChange={(e) => setWaPhoneId(e.target.value)}
+              placeholder="106540352242922"
+              autoComplete="off"
+            />
+          </FormField>
+          <FormField
+            label="Access token"
+            htmlFor="wa-token"
+            hint="A permanent System User token with whatsapp_business_messaging and whatsapp_business_management."
+          >
+            <Input
+              id="wa-token"
+              value={waToken}
+              onChange={(e) => setWaToken(e.target.value)}
+              placeholder="EAAG..."
+              autoComplete="off"
+            />
+          </FormField>
+
+          {waError && (
+            <div className="flex items-start gap-2 rounded-base bg-red-50 px-3 py-2 text-xs text-red-700">
+              <ExclamationCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{waError}</span>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setWaOpen(false)}
+              disabled={waSubmitting}
+              className="rounded-base border border-grey-20 px-4 py-2 text-sm font-medium text-grey-70 transition-colors hover:bg-grey-10 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submitWhatsApp}
+              disabled={waSubmitting}
+              className="inline-flex items-center gap-2 rounded-base bg-grey-90 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-grey-80 disabled:opacity-60"
+            >
+              {waSubmitting && <Spinner className="h-4 w-4 animate-spin" />}
               Connect
             </button>
           </div>

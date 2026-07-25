@@ -78,6 +78,67 @@ const registerTelegramWebhook = async (
   }
 }
 
+const GRAPH = "https://graph.facebook.com/v21.0"
+
+/**
+ * Validate the merchant's WhatsApp Cloud API credentials against Graph and
+ * subscribe OUR app to their WABA so its message webhooks are delivered to
+ * this platform. Returns the number's display fields for the account row.
+ * Throws INVALID_DATA with Meta's own words so connect fails closed.
+ */
+const verifyAndSubscribeWhatsApp = async (
+  wabaId: string,
+  phoneNumberId: string,
+  accessToken: string
+): Promise<{ display_phone_number: string | null; verified_name: string | null }> => {
+  const call = async (path: string, init?: RequestInit): Promise<any> => {
+    let resp: Response
+    try {
+      resp = await fetch(`${GRAPH}${path}`, {
+        ...init,
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          ...(init?.headers ?? {}),
+        },
+      })
+    } catch (e: any) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Could not reach the WhatsApp API: ${e?.message ?? "network error"}`
+      )
+    }
+    const data: any = await resp.json().catch(() => null)
+    if (!resp.ok) {
+      const err = data?.error
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `WhatsApp rejected the credentials: ${
+          err?.error_user_msg ?? err?.message ?? `status ${resp.status}`
+        }`
+      )
+    }
+    return data
+  }
+
+  const number = await call(
+    `/${encodeURIComponent(phoneNumberId)}?fields=display_phone_number,verified_name`
+  )
+  const sub = await call(`/${encodeURIComponent(wabaId)}/subscribed_apps`, {
+    method: "POST",
+  })
+  if (sub?.success !== true) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "WhatsApp did not confirm the webhook subscription for this business account. Check that the access token has whatsapp_business_management permission."
+    )
+  }
+
+  return {
+    display_phone_number: number?.display_phone_number ?? null,
+    verified_name: number?.verified_name ?? null,
+  }
+}
+
 const toAccountDto = (row: any) => ({
   id: row.id,
   platform: row.platform,
@@ -132,6 +193,88 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         MedusaError.Types.INVALID_DATA,
         "`platform` is required."
       )
+    }
+
+    // WhatsApp is messaging-only (no publish provider): the merchant pastes
+    // their own Cloud API credentials from Meta Business (WhatsApp -> API
+    // Setup). external_id = WABA id, which is what inbound webhooks carry
+    // (entry[].id) — the shared ingest resolves the owning tenant by it.
+    if (platform === "whatsapp") {
+      const wabaId = String(credentials.waba_id ?? "").trim()
+      const phoneNumberId = String(credentials.phone_number_id ?? "").trim()
+      const accessToken = String(credentials.access_token ?? "").trim()
+      if (!wabaId || !phoneNumberId || !accessToken) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "`credentials.waba_id`, `credentials.phone_number_id` and `credentials.access_token` are required."
+        )
+      }
+
+      const mkWa: any = req.scope.resolve(MARKETING_MODULE)
+
+      // The WABA id is the inbound routing key, so it can belong to exactly
+      // one store — a second tenant claiming it would swallow the first
+      // tenant's messages.
+      const claimed = await mkWa.listMarketingSocialAccounts({
+        platform: "whatsapp",
+        external_id: wabaId,
+      })
+      const other = (Array.isArray(claimed) ? claimed : [claimed]).find(
+        (a: any) => a && a.tenant_id !== tenantId
+      )
+      if (other) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          "This WhatsApp business account is already connected to another store."
+        )
+      }
+
+      const info = await verifyAndSubscribeWhatsApp(
+        wabaId,
+        phoneNumberId,
+        accessToken
+      )
+      const handle = info.display_phone_number ?? phoneNumberId
+      const displayName = info.verified_name ?? handle
+
+      // Reconnect updates the existing row (fresh token/number) instead of
+      // stacking duplicates.
+      const mine = (Array.isArray(claimed) ? claimed : [claimed]).find(
+        (a: any) => a && a.tenant_id === tenantId
+      )
+      let account: any
+      if (mine) {
+        const updated = await mkWa.updateMarketingSocialAccounts({
+          id: mine.id,
+          handle,
+          display_name: displayName,
+          status: "connected",
+          meta: { waba_id: wabaId, phone_number_id: phoneNumberId },
+        } as any)
+        account = first(updated) ?? mine
+      } else {
+        const created = await mkWa.createMarketingSocialAccounts({
+          tenant_id: tenantId,
+          platform: "whatsapp",
+          external_id: wabaId,
+          handle,
+          display_name: displayName,
+          status: "connected",
+          connected_by_user_id: userId,
+          meta: { waba_id: wabaId, phone_number_id: phoneNumberId },
+        } as any)
+        account = first(created)
+      }
+
+      await sealCredentials(mkWa, {
+        tenantId,
+        socialAccountId: account.id,
+        accessToken,
+        tokenType: "access_token",
+      })
+
+      res.status(mine ? 200 : 201).json({ account: toAccountDto(account) })
+      return
     }
 
     const provider = getPublishProvider(platform)

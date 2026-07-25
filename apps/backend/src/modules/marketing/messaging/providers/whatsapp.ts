@@ -5,9 +5,9 @@
  *
  * MULTI-TENANT: `entry[].id` is the receiving WhatsApp Business Account (WABA)
  * id — emitted as `receivingAccountExternalId` so the shared ingest resolves the
- * owning tenant. NOTE: WhatsApp is not yet a connectable social_account platform
- * in this codebase, so these currently resolve to no account and are DROPPED
- * (fail closed) rather than written to a shared/default tenant.
+ * owning tenant. Merchants connect via the accounts/connect route (platform
+ * "whatsapp"), which stores external_id = WABA id; an update whose WABA matches
+ * no connected account is DROPPED (fail closed).
  */
 
 import { registerMessagingProvider } from "../registry"
