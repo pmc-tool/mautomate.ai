@@ -580,8 +580,10 @@ export default function SocialConnectPage() {
             // the operator's app credentials. Anything else renders as an
             // unavailable card with the real reason, never a dead button.
             const blockedReason: string | null = !provider
-              ? (messaging?.reason ??
-                "Not available yet - this platform needs operator setup before it can be connected.")
+              ? (messaging?.available
+                  ? null
+                  : messaging?.reason ??
+                    "Not available yet - this platform needs operator setup before it can be connected.")
               : mechanism === "oauth" && !provider.configured
                 ? (messaging && !messaging.available
                     ? messaging.reason
