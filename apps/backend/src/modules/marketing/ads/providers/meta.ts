@@ -37,6 +37,30 @@ type GraphErrorBody = {
   error?: { message?: string; code?: number; type?: string }
 }
 
+/** Meta's generic `message` ("Invalid parameter") hides the useful part:
+ * error_user_title/error_user_msg carry the human explanation and
+ * error_subcode pinpoints the field. Compose them, and log the full error
+ * body server-side so a merchant report is always diagnosable. */
+const graphErrorMessage = (path: string, status: number, err: any): string => {
+  // eslint-disable-next-line no-console
+  console.error(
+    `[ads:meta] ${path} failed (${status}):`,
+    JSON.stringify(err ?? {}).slice(0, 600)
+  )
+  const parts: string[] = []
+  if (err?.error_user_title) parts.push(String(err.error_user_title))
+  if (err?.error_user_msg) parts.push(String(err.error_user_msg))
+  if (!parts.length && err?.message) parts.push(String(err.message))
+  if (!parts.length) return `Meta request failed (${status})`
+  const detail = [
+    err?.error_subcode ? `subcode ${err.error_subcode}` : null,
+    err?.code != null && !err?.error_user_msg ? `code ${err.code}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ")
+  return detail ? `${parts.join(": ")} (${detail})` : parts.join(": ")
+}
+
 const graphGet = async (path: string, params: Record<string, string>) => {
   const qs = new URLSearchParams(params).toString()
   let res: Response
@@ -58,7 +82,7 @@ const graphGet = async (path: string, params: Record<string, string>) => {
     if (err?.code === 190 || err?.type === "OAuthException") {
       throw new AdsAuthError(err?.message ?? "Meta session expired")
     }
-    throw new Error(err?.message ?? `Meta request failed (${res.status})`)
+    throw new Error(graphErrorMessage(path, res.status, err))
   }
   return data
 }
@@ -88,7 +112,7 @@ const graphPost = async (
     if (err?.code === 190 || err?.type === "OAuthException") {
       throw new AdsAuthError(err?.message ?? "Meta session expired")
     }
-    throw new Error(err?.message ?? `Meta request failed (${res.status})`)
+    throw new Error(graphErrorMessage(path, res.status, err))
   }
   return data
 }
@@ -225,14 +249,42 @@ export const metaAdsProvider: AdsProvider = {
           ? "OUTCOME_AWARENESS"
           : "OUTCOME_TRAFFIC"
 
-    const campaign = await graphPost(`/${externalAccountId}/campaigns`, {
-      name: spec.name,
-      objective,
-      status: "PAUSED",
-      special_ad_categories: "[]",
-      buying_type: "AUCTION",
-      access_token: creds.accessToken,
-    })
+    // Pre-flight the two setups Meta will definitely reject with an opaque
+    // "Invalid parameter", so the merchant gets an actionable message BEFORE
+    // anything is created.
+    if (spec.goal === "sales" && !spec.pixel_external_id) {
+      throw new Error(
+        "A Sales campaign needs your Meta pixel connected (it optimizes for purchases). Connect the pixel in Advertising, or choose the Traffic goal."
+      )
+    }
+    if (!spec.page_id) {
+      throw new Error(
+        "Ads must run from a Facebook Page. Pick the Page for this ad, or reconnect Meta and grant access to your Page."
+      )
+    }
+
+    // The creation is a 4-step chain; a failure names ITS step so "Invalid
+    // parameter" is at least located (the graph error itself carries Meta's
+    // error_user_msg when one exists).
+    const step = async <T>(label: string, run: () => Promise<T>): Promise<T> => {
+      try {
+        return await run()
+      } catch (e: any) {
+        if (e instanceof AdsAuthError) throw e
+        throw new Error(`${label}: ${e?.message ?? "Meta request failed"}`)
+      }
+    }
+
+    const campaign = await step("Campaign", () =>
+      graphPost(`/${externalAccountId}/campaigns`, {
+        name: spec.name,
+        objective,
+        status: "PAUSED",
+        special_ad_categories: "[]",
+        buying_type: "AUCTION",
+        access_token: creds.accessToken,
+      })
+    )
 
     const adsetForm: Record<string, string> = {
       name: `${spec.name} — ad set`,
@@ -268,7 +320,9 @@ export const metaAdsProvider: AdsProvider = {
     if (spec.start_at) {
       adsetForm.start_time = new Date(spec.start_at).toISOString()
     }
-    const adset = await graphPost(`/${externalAccountId}/adsets`, adsetForm)
+    const adset = await step("Ad set", () =>
+      graphPost(`/${externalAccountId}/adsets`, adsetForm)
+    )
 
     const linkData: Record<string, any> = {
       link: spec.link_url,
@@ -278,22 +332,26 @@ export const metaAdsProvider: AdsProvider = {
     if (spec.image_url) {
       linkData.picture = spec.image_url
     }
-    const creative = await graphPost(`/${externalAccountId}/adcreatives`, {
-      name: `${spec.name} — creative`,
-      object_story_spec: JSON.stringify({
-        page_id: spec.page_id,
-        link_data: linkData,
-      }),
-      access_token: creds.accessToken,
-    })
+    const creative = await step("Ad creative", () =>
+      graphPost(`/${externalAccountId}/adcreatives`, {
+        name: `${spec.name} — creative`,
+        object_story_spec: JSON.stringify({
+          page_id: spec.page_id,
+          link_data: linkData,
+        }),
+        access_token: creds.accessToken,
+      })
+    )
 
-    const ad = await graphPost(`/${externalAccountId}/ads`, {
-      name: `${spec.name} — ad`,
-      adset_id: String(adset.id),
-      creative: JSON.stringify({ creative_id: String(creative.id) }),
-      status: "PAUSED",
-      access_token: creds.accessToken,
-    })
+    const ad = await step("Ad", () =>
+      graphPost(`/${externalAccountId}/ads`, {
+        name: `${spec.name} — ad`,
+        adset_id: String(adset.id),
+        creative: JSON.stringify({ creative_id: String(creative.id) }),
+        status: "PAUSED",
+        access_token: creds.accessToken,
+      })
+    )
 
     return {
       campaign_external_id: String(campaign.id),
