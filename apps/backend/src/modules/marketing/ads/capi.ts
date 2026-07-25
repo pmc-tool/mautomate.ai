@@ -1,4 +1,5 @@
 import crypto from "crypto"
+import { metaErrorText } from "./graph-error"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MARKETING_MODULE } from "../index"
@@ -171,7 +172,7 @@ export const sendPurchaseEvent = async (
   }
 
   if (!res.ok) {
-    const msg = resData?.error?.message ?? `status ${res.status}`
+    const msg = metaErrorText("capi", res.status, resData?.error)
     await mk.createAdsActionLogs({
       tenant_id: tenantId,
       actor: "system",

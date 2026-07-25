@@ -36,7 +36,7 @@ const graphJson = async (res: Response): Promise<any> => {
   if (!res.ok) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      data?.error?.message ?? `Meta request failed (${res.status})`
+      metaErrorText("catalog", res.status, data?.error)
     )
   }
   return data

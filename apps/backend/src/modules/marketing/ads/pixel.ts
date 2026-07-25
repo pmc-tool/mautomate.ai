@@ -1,4 +1,5 @@
 import { MedusaError } from "@medusajs/framework/utils"
+import { metaErrorText } from "./graph-error"
 import { openAdsConnectionCredentials } from "./credentials"
 import { requireAccountContext } from "./launch"
 import type { AdsCredentials } from "./types"
@@ -25,7 +26,7 @@ const graphJson = async (res: Response): Promise<any> => {
   if (!res.ok) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
-      data?.error?.message ?? `Meta request failed (${res.status})`
+      metaErrorText("pixel", res.status, data?.error)
     )
   }
   return data
