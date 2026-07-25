@@ -169,13 +169,24 @@ export class PaddleGateway implements PaymentGateway {
     const key = this.apiKey()
     if (!key) return undefined
     try {
-      // Bill against the same product as the fixed packs.
-      const probeId = Object.values(PACK_PRICE)[0]
-      const probe = await fetch(`${apiBase()}/prices/${probeId}`, {
-        headers: { Authorization: `Bearer ${key}` },
+      // A DEDICATED product, so the checkout line reads "AI Credits · Qty N"
+      // — billing the unit against a pack's product made the overlay show the
+      // pack's name ("1,000 AI Credits · Qty 2" for a 200-credit purchase).
+      const productRes = await fetch(`${apiBase()}/products`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "AI Credits",
+          description:
+            "mAutomate AI credits, sold in 100-credit units ($1 per 100). Purchased credits never expire.",
+          tax_category: "standard",
+        }),
       })
-      const probeBody: any = await probe.json().catch(() => ({}))
-      const productId = probeBody?.data?.product_id
+      const productBody: any = await productRes.json().catch(() => ({}))
+      const productId = productBody?.data?.id
       if (!productId) return undefined
       const res = await fetch(`${apiBase()}/prices`, {
         method: "POST",
@@ -186,7 +197,7 @@ export class PaddleGateway implements PaymentGateway {
         body: JSON.stringify({
           product_id: productId,
           name: "100 AI credits",
-          description: "AI credits (100-credit unit for custom top-ups)",
+          description: "100 AI credits per unit",
           unit_price: { amount: "100", currency_code: "USD" },
           quantity: { minimum: 1, maximum: 10000 },
           tax_mode: "account_setting",
