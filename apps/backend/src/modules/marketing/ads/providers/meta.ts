@@ -77,9 +77,11 @@ const graphGet = async (path: string, params: Record<string, string>) => {
   }
   if (!res.ok) {
     const err = (data as GraphErrorBody)?.error
-    // 190 = invalid/expired token; 10/200-299 = permission errors — both mean
-    // the CONNECTION is unusable, not that the request was malformed.
-    if (err?.code === 190 || err?.type === "OAuthException") {
+    // 190 = invalid/expired token; 102 = session. Meta labels EVERY Graph
+    // error type "OAuthException" (even parameter errors, code 100), so the
+    // old type-based check swallowed real validation errors as "session
+    // expired" and skipped the detailed message entirely.
+    if (err?.code === 190 || err?.code === 102) {
       throw new AdsAuthError(err?.message ?? "Meta session expired")
     }
     throw new Error(graphErrorMessage(path, res.status, err))
@@ -109,7 +111,7 @@ const graphPost = async (
   }
   if (!res.ok) {
     const err = (data as GraphErrorBody)?.error
-    if (err?.code === 190 || err?.type === "OAuthException") {
+    if (err?.code === 190 || err?.code === 102) {
       throw new AdsAuthError(err?.message ?? "Meta session expired")
     }
     throw new Error(graphErrorMessage(path, res.status, err))
@@ -282,6 +284,11 @@ export const metaAdsProvider: AdsProvider = {
         status: "PAUSED",
         special_ad_categories: "[]",
         buying_type: "AUCTION",
+        // Required by Graph (subcode 4834011) whenever the budget lives on
+        // the AD SET rather than the campaign — exactly our model. False:
+        // the panel manages one ad set per campaign; sharing is meaningless
+        // and would only blur the merchant's set budget.
+        is_adset_budget_sharing_enabled: "false",
         access_token: creds.accessToken,
       })
     )
