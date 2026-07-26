@@ -108,6 +108,53 @@ Voice delivery:
  * honours (Deepgram Aura-2 TTS + Novita/Kimi LLM). `req` only supplies a DI
  * scope; the tool closures it builds are not used here (definitions are static).
  */
+/**
+ * Voice-only tool-schema compression (voice architecture D2). The 63 tool
+ * schemas were ~9.8k prompt tokens PER TURN — the dominant share of voice
+ * TTFT. For the spoken surface only, descriptions are trimmed to their
+ * leading sentences within a budget and schema noise (examples, defaults,
+ * long per-property prose) is dropped. Tool NAMES, parameter names, types,
+ * enums and required lists are untouched, so calls stay wire-identical.
+ * Dashboard chat keeps the full schemas. Kill switch: VOICE_TOOL_COMPRESS=0.
+ */
+const VOICE_COMPRESS = () => process.env.VOICE_TOOL_COMPRESS !== "0"
+
+const compressText = (text: unknown, budget: number): string => {
+  const s = typeof text === "string" ? text.trim() : ""
+  if (!VOICE_COMPRESS() || s.length <= budget) return s
+  // Keep whole leading sentences while they fit; never cut mid-sentence.
+  const parts = s.split(/(?<=[.!?])\s+/)
+  let out = ""
+  for (const p of parts) {
+    if (!out) {
+      out = p
+      continue
+    }
+    if ((out + " " + p).length > budget) break
+    out = `${out} ${p}`
+  }
+  return out
+}
+
+const compressParams = (params: any): any => {
+  if (!VOICE_COMPRESS() || !params || typeof params !== "object") return params
+  const walk = (node: any): any => {
+    if (Array.isArray(node)) return node.map(walk)
+    if (!node || typeof node !== "object") return node
+    const out: Record<string, any> = {}
+    for (const [k, v] of Object.entries(node)) {
+      if (k === "examples" || k === "default") continue
+      if (k === "description") {
+        out[k] = compressText(v, 100)
+        continue
+      }
+      out[k] = walk(v)
+    }
+    return out
+  }
+  return walk(params)
+}
+
 export async function buildJarvisVoiceConfig(
   req: MedusaRequest,
   tenantId: string,
@@ -129,8 +176,8 @@ export async function buildJarvisVoiceConfig(
     type: "function" as const,
     function: {
       name: t.name,
-      description: t.description,
-      parameters: t.parameters,
+      description: compressText(t.description, 180),
+      parameters: compressParams(t.parameters),
     },
   }))
 

@@ -465,6 +465,7 @@ def start_call_trace(
 ) -> CallTrace:
     """Create the per-call trace. Returns an inert CallTrace when tracing off."""
     meta: Dict[str, Any] = {
+        "call_id": call_id,
         "tenant_id": tenant_id,
         "playbook_id": playbook_id,
         "locale": locale,
@@ -595,6 +596,23 @@ def make_observers(call_trace: Optional[CallTrace]) -> List[Any]:
                 for metric in getattr(frame, "data", None) or []:
                     if isinstance(metric, TTFBMetricsData):
                         proc = str(getattr(metric, "processor", "") or "")
+                        # Local, grep-able latency trace (voice architecture
+                        # V2): one line per LLM/TTS first-byte measurement so
+                        # the latency budget is enforceable from plain logs,
+                        # independent of Langfuse being reachable.
+                        try:
+                            val = getattr(metric, "value", None)
+                            if val is not None and ("LLM" in proc or "TTS" in proc):
+                                log.info(
+                                    "turn ttfb",
+                                    extra={
+                                        "call_id": (self._ct._meta or {}).get("call_id"),
+                                        "processor": proc[:48],
+                                        "ttfb_s": round(float(val), 3),
+                                    },
+                                )
+                        except Exception:  # noqa: BLE001
+                            pass
                         if "LLM" in proc:
                             self._last_llm_ttfb = getattr(metric, "value", None)
                     elif isinstance(metric, LLMUsageMetricsData):
