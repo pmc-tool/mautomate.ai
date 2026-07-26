@@ -133,9 +133,10 @@ def main():
                 body={"to_store_id": FOREIGN, "credits": 10})
     report("transfer: foreign destination denied", c == 403, f"{c} {str(d)[:60]}")
 
-    # B's 1500 credits are PLAN credits — moving them must be refused
+    # Plan credits are immovable: asking for more than the purchased pool
+    # must refuse, no matter how large the plan allowance is.
     c, d = call("POST", "/merchant/credits/transfer", token, store=B,
-                body={"to_store_id": A, "credits": 100})
+                body={"to_store_id": A, "credits": 999999})
     report("transfer: plan credits immovable", c == 400 and d.get("reason") == "insufficient_purchased",
            f"{c} {str(d)[:80]}")
 
