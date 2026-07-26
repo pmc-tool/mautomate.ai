@@ -347,6 +347,25 @@ export class CreditLedgerService {
       await this.store.recordIdempotencyKey(fromTenantId, opts.idempotencyKey)
     }
 
+    // Record the outgoing tx FIRST (it also carries the idempotency key). If
+    // this insert fails the reservation is released and the wallet is exactly
+    // as before — the failure mode that stranded a half-transfer in testing
+    // (a CHECK constraint rejecting the row AFTER lots were burned).
+    const fw0 = await this.store.getWallet(fromTenantId)
+    try {
+      await this.store.appendTx({
+        tenant_id: fromTenantId,
+        type: "transfer_out",
+        amount: -amount,
+        balance_after: fw0.balance,
+        idempotency_key: opts.idempotencyKey,
+        meta: { to_tenant_id: toTenantId },
+      })
+    } catch (e) {
+      await this.store.applyDelta(fromTenantId, amount, -amount) // full revert
+      throw e
+    }
+
     // Burn from topup lots specifically (oldest-first), then finalize the
     // reserved hold as spent.
     let left = amount
@@ -358,14 +377,6 @@ export class CreditLedgerService {
     }
     await this.store.applyDelta(fromTenantId, 0, -amount)
     const fw = await this.store.getWallet(fromTenantId)
-    await this.store.appendTx({
-      tenant_id: fromTenantId,
-      type: "transfer_out",
-      amount: -amount,
-      balance_after: fw.balance,
-      idempotency_key: opts.idempotencyKey,
-      meta: { to_tenant_id: toTenantId },
-    })
 
     const toBalance = await this.credit(toTenantId, amount, {
       type: "topup",
