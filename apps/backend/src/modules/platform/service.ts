@@ -24,6 +24,7 @@ import BlogPost from "./models/blog-post"
 import Merchant from "./models/merchant"
 import MerchantDevice from "./models/merchant-device"
 import MobileAppOrder from "./models/mobile-app-order"
+import MerchantStore from "./models/merchant-store"
 
 /**
  * Platform (control-plane) module service — generated CRUD for the mAutomate
@@ -57,6 +58,7 @@ class PlatformModuleService extends MedusaService({
   Merchant,
   MerchantDevice,
   MobileAppOrder,
+  MerchantStore,
 }) {}
 
 export default PlatformModuleService

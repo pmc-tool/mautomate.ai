@@ -40,6 +40,10 @@ export type LimitKey =
   | "emails_month"
   | "storage_mb"
   | "scheduled_posts"
+  // Multi-store M0: how many stores this plan's OWNER may hold in total.
+  // Included-with-plan vs paid-add-on split is enforced in the store-create
+  // route (M2); this cap is the hard ceiling (Scale: 10 with add-ons).
+  | "stores"
 
 /** null = unlimited */
 type Limits = Record<LimitKey, number | null>
@@ -68,6 +72,7 @@ const MATRIX: Record<PlanKey, PlanEntitlements> = {
       emails_month: 50,
       storage_mb: 500,
       scheduled_posts: 10,
+      stores: 1,
     },
     // ai_generation in trial is granted dynamically after the first credit
     // purchase (the $5 unlock, P2) — see resolveEntitlements.
@@ -84,6 +89,7 @@ const MATRIX: Record<PlanKey, PlanEntitlements> = {
       emails_month: 1_000,
       storage_mb: 5_120,
       scheduled_posts: null,
+      stores: 1,
     },
     features: ["ai_generation"],
   },
@@ -98,6 +104,7 @@ const MATRIX: Record<PlanKey, PlanEntitlements> = {
       emails_month: 10_000,
       storage_mb: 25_600,
       scheduled_posts: null,
+      stores: 1,
     },
     features: [
       "ai_generation",
@@ -119,6 +126,7 @@ const MATRIX: Record<PlanKey, PlanEntitlements> = {
       emails_month: 50_000,
       storage_mb: 102_400,
       scheduled_posts: null,
+      stores: 1,
     },
     features: [
       "ai_generation",
@@ -143,6 +151,7 @@ const MATRIX: Record<PlanKey, PlanEntitlements> = {
       emails_month: 250_000,
       storage_mb: 512_000,
       scheduled_posts: null,
+      stores: 10,
     },
     features: [
       "ai_generation",

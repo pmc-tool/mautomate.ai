@@ -151,6 +151,14 @@ export async function createMerchantIdentity(
       id: authIdentity.id,
       app_metadata: { merchant_id: merchant.id, email },
     })
+    // Multi-store M0: record the ownership link. merchant.tenant_id remains
+    // the default-store pointer; this table is what grants store access from
+    // now on. Best-effort — the backfill migration also covers stragglers.
+    await svc
+      .createMerchantStores([
+        { merchant_id: merchant.id, tenant_id: tenantId, role: "owner" },
+      ])
+      .catch(() => undefined)
     return { ok: true, merchant_id: merchant.id }
   } catch (e: any) {
     // rollback the merchant row so a retry can succeed
