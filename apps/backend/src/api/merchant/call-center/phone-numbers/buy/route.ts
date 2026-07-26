@@ -6,6 +6,10 @@ import { checkPlanGate } from "../../../../../modules/platform/billing/plan-gate
 import { getLedger } from "../../../../../modules/platform/credits/metering"
 import { creditsFor } from "../../../../../modules/platform/pricing/price-book"
 import { getNumberProvider } from "../../../../../modules/call-center/telephony-providers"
+import {
+  checkVoiceGate,
+  gatePayload,
+} from "../../../../../modules/platform/entitlements"
 
 /**
  * POST /merchant/call-center/phone-numbers/buy
@@ -33,6 +37,13 @@ const E164 = /^\+[1-9]\d{6,15}$/
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  // Live voice is plan-gated (R3): trials are always locked (simulator only);
+  // paid tiers below the required plan are shadow-logged until enforcement.
+  {
+    const voiceGate = await checkVoiceGate(req.scope, ctx.tenant.id, "call_center_phone")
+    if (!voiceGate.allowed) return res.status(403).json(gatePayload(voiceGate))
+  }
   const tenant_id = ctx.merchant.tenant_id
 
   const gate = await checkPlanGate(req.scope, tenant_id, "phone")

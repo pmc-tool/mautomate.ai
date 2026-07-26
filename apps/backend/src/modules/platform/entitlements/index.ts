@@ -129,6 +129,7 @@ const MATRIX: Record<PlanKey, PlanEntitlements> = {
       "custom_domain",
       "badge_removal",
       "call_center_live",
+      "call_center_phone",
     ],
   },
   scale: {
@@ -406,6 +407,53 @@ export const gatePayload = (denial: Exclude<GateResult, { allowed: true }>) => (
   required_plan: denial.required_plan,
   required_plan_label: denial.required_plan_label,
 })
+
+// ---------------------------------------------------------- voice gate (P3)
+
+/**
+ * Live voice is subscription-gated, full stop (profit rule R3): no plan, no
+ * live STT/TTS — trials get the simulator. Unlike other gates, the TRIAL
+ * denial here is UNCONDITIONAL (not shadow-able): this is the explicit
+ * business rule, and there are no paying customers on trial to false-positive.
+ * PAID tiers below the feature's plan follow the normal shadow/enforce flags,
+ * so existing sub-tier voice users are grandfathered until enforcement flips.
+ */
+export const checkVoiceGate = async (
+  container: { resolve: (key: string) => any },
+  tenantId: string,
+  feature: Extract<
+    FeatureKey,
+    "jarvis_voice" | "call_center_live" | "call_center_phone"
+  >
+): Promise<GateResult> => {
+  try {
+    const svc: any = container.resolve("platform")
+    const tenant = await svc.retrieveTenant(tenantId)
+    const pkg =
+      (
+        await svc
+          .listPlatformPackages({ key: tenant.package }, { take: 1 })
+          .catch(() => [])
+      )[0] ?? null
+    const ent = resolveEntitlements(tenant, pkg)
+    if (!ent.paid) {
+      const required = requiredPlanFor(feature)
+      return {
+        allowed: false,
+        code: "entitlement_locked",
+        feature,
+        required_plan: required,
+        required_plan_label: PLAN_LABEL[required],
+        message: `Live voice comes with the ${PLAN_LABEL[required]} plan. Watch the demo to see it in action, then upgrade to turn it on for real.`,
+      }
+    }
+    return checkFeature(tenantId, ent, feature)
+  } catch {
+    // R6: a broken gate never takes live voice down for anyone paid; and if
+    // we cannot even resolve the tenant, failing open is the lesser harm.
+    return { allowed: true }
+  }
+}
 
 // -------------------------------------------------- AI-generation gate (P2)
 

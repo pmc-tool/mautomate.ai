@@ -2,6 +2,10 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { CALL_CENTER_MODULE } from "../../../../../modules/call-center"
 import { resolveMerchant } from "../../../_helpers"
 import { JARVIS_VOICE_PLAYBOOK_ID } from "../../_voice"
+import {
+  checkVoiceGate,
+  gatePayload,
+} from "../../../../../modules/platform/entitlements"
 
 /**
  * POST /merchant/jarvis/voice/start
@@ -82,6 +86,13 @@ const dispatchBot = async (body: Record<string, unknown>): Promise<boolean> => {
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  // Live voice is plan-gated (R3): trials are always locked (simulator only);
+  // paid tiers below the required plan are shadow-logged until enforcement.
+  {
+    const voiceGate = await checkVoiceGate(req.scope, ctx.tenant.id, "jarvis_voice")
+    if (!voiceGate.allowed) return res.status(403).json(gatePayload(voiceGate))
+  }
 
   const tenant_id = ctx.tenant?.id
   if (!tenant_id) {

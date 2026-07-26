@@ -103,6 +103,16 @@ export function GateDeniedWatcher() {
     router.push(`/dashboard/billing?tab=${tab}`)
   }
 
+  const isVoiceLock =
+    detail.feature === "jarvis_voice" ||
+    detail.feature === "call_center_live" ||
+    detail.feature === "call_center_phone"
+
+  const watchDemo = () => {
+    close()
+    window.dispatchEvent(new CustomEvent("mautomate:voice-demo"))
+  }
+
   return (
     <>
     <TrialBanner />
@@ -136,6 +146,15 @@ export function GateDeniedWatcher() {
           >
             Not now
           </button>
+          {isVoiceLock && (
+            <button
+              type="button"
+              onClick={watchDemo}
+              className="rounded-base border border-grey-20 px-4 py-2 text-sm font-medium text-grey-70 transition-colors hover:bg-grey-10"
+            >
+              Watch the demo
+            </button>
+          )}
           {isTrialAiLock ? (
             <button
               type="button"

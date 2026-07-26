@@ -462,6 +462,16 @@ export function JarvisStage({
         body: JSON.stringify({}),
       })
       if (!resp.ok) {
+        // Plan gate: live voice needs a paid plan. Hand off to the global
+        // gate modal (which offers the demo) instead of a raw failure state.
+        if (resp.status === 403) {
+          const body: any = await resp.json().catch(() => ({}))
+          if (body?.code === "entitlement_locked") {
+            window.dispatchEvent(
+              new CustomEvent("mautomate:gate-denied", { detail: body })
+            )
+          }
+        }
         const err = new Error(`voice/start ${resp.status}`)
         console.error("[jarvis-voice] real voice failed (voice/start):", err)
         logged = true

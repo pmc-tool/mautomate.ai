@@ -6,6 +6,7 @@ import { IncomingCallWatcher } from "@components/merchant-admin/incoming-call"
 import { JarvisLauncher } from "@components/merchant-admin/jarvis-stage/jarvis-launcher"
 import { JarvisOSMount } from "@components/merchant-admin/jarvis-stage/os/jarvis-os-mount"
 import { GateDeniedWatcher } from "@components/merchant-admin/gate-denied"
+import { VoiceDemoOverlay } from "@components/merchant-admin/voice-demo"
 
 export const metadata: Metadata = {
   title: "Merchant Admin",
@@ -66,6 +67,7 @@ export default function MerchantAdminLayout({
         <style dangerouslySetInnerHTML={{ __html: SURFACE_CSS }} />
         <PageShell>{children}</PageShell>
         <GateDeniedWatcher />
+        <VoiceDemoOverlay />
         <IncomingCallWatcher />
         {JARVIS_OS_ON ? <JarvisOSMount /> : <JarvisPanel />}
         <JarvisLauncher />
