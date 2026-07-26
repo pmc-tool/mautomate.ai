@@ -1,11 +1,11 @@
 // Single source of truth for plans + billing periods, shared by the home
 // Pricing section and the Get Started page so they never drift apart.
 //
-// Trial model: every plan starts with a 7-day free trial. There is no separate
-// "free trial" pack to pick — the trial is baked into each plan. When the 7
-// days end, the plan begins automatically; cancelling before then avoids any
-// charge.
-export const TRIAL_DAYS = 7;
+// Trial model: signup starts a 14-day free trial (no card). Picking a plan
+// during or after the trial starts the subscription. This copy must match the
+// platform_package rows — the enforced entitlement matrix lives in the
+// backend; this file only describes it.
+export const TRIAL_DAYS = 14;
 
 // Billing periods and the discount each applies to the monthly base price.
 export const BILLING = [
@@ -28,11 +28,12 @@ export const PLANS = [
     credits: "500 AI credits / month",
     note: "For a first store finding its feet",
     features: [
-      "1 store",
+      "1 store with 100 products and 5 GB media",
       "AI Storefront Studio — pages, copy, and SEO built for you",
+      "2 staff seats",
       "Community support",
     ],
-    cta: "Start 7-day free trial",
+    cta: "Start 14-day free trial",
     highlighted: false,
   },
   {
@@ -45,45 +46,52 @@ export const PLANS = [
     note: "For brands ready to market like a team of ten",
     features: [
       "Everything in Launch, plus",
+      "Custom domain and no mAutomate badge",
       "Full AI Marketing Suite — social, campaigns, ads, and SEO",
-      "Custom domain and business email included",
+      "Jarvis voice — talk to your store, for real",
+      "All messaging channels including WhatsApp",
+      "1,000 products, 25 GB media, 5 staff seats",
       "Priority support",
     ],
-    cta: "Start 7-day free trial",
+    cta: "Start 14-day free trial",
     highlighted: true,
   },
   {
     id: "pro",
     name: "Pro",
     badge: null,
-    audience: "Established brands or multi-store businesses",
+    audience: "Established brands scaling content and campaigns",
     price: 149,
     credits: "4,000 AI credits / month",
     note: "For brands scaling content and campaigns",
     features: [
       "Everything in Grow, plus",
-      "Higher limits across the whole suite",
+      "AI Call Center answers on your website, live",
+      "Ads autopilot",
+      "10,000 products, 100 GB media, 15 staff seats",
+      "3 custom domains",
       "Advanced analytics and reporting",
-      "Priority support",
+      "Priority chat support",
     ],
-    cta: "Start 7-day free trial",
+    cta: "Start 14-day free trial",
     highlighted: false,
   },
   {
     id: "scale",
     name: "Scale",
     badge: "Best value",
-    audience: "Multi-store operators who want the phones answered too",
+    audience: "High-volume brands that want the phones answered too",
     price: 349,
     credits: "10,000 AI credits / month",
     note: "For operators who want the phones answered too",
     features: [
       "Everything in Pro, plus",
-      "AI Call Center answers customers around the clock",
-      "Multi-store",
+      "AI Call Center with a real phone number",
+      "Unlimited products and staff, 500 GB media",
+      "10 custom domains",
       "Dedicated onboarding",
     ],
-    cta: "Start 7-day free trial",
+    cta: "Start 14-day free trial",
     highlighted: false,
   },
 ];

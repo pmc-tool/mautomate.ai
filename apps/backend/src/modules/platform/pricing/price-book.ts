@@ -36,9 +36,9 @@ export const PRICE_BOOK: Record<BillableAction, PriceRow> = {
   // Voice: our profit engine. Vendor = Deepgram STT + TTS + LLM (+ Twilio on phone).
   ai_call_minute: { action: "ai_call_minute", credits: 15, vendor_cost_usd: 0.03 },
   ai_call_phone_minute: { action: "ai_call_phone_minute", credits: 18, vendor_cost_usd: 0.04 },
-  phone_number_month: { action: "phone_number_month", credits: 300, vendor_cost_usd: 1.15 },
-  // Thinnest margin on the board — carrier fees move; watch this one.
-  sms_segment: { action: "sms_segment", credits: 2, vendor_cost_usd: 0.011 },
+  phone_number_month: { action: "phone_number_month", credits: 350, vendor_cost_usd: 1.15 },
+  // Carrier fees move; 3 credits holds the 65%-margin floor (2 was 45%).
+  sms_segment: { action: "sms_segment", credits: 3, vendor_cost_usd: 0.011 },
   // Near-free to us, generous to them: makes the product feel unlimited.
   ai_text: { action: "ai_text", credits: 2, vendor_cost_usd: 0.0005 },
   // Selection-scoped node edit (ARCH-AI §3.3): between ai_text and ai_page_edit.
