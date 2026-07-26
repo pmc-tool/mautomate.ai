@@ -3201,11 +3201,13 @@ export async function getMfaStatus(token: string): Promise<MfaStatus> {
 export async function createAddonStore(
   token: string,
   input: { slug: string; name?: string }
-): Promise<{ checkout_url: string; transaction_id: string }> {
-  return request<{ checkout_url: string; transaction_id: string }>(
-    "/merchant/stores",
-    { method: "POST", token, body: input }
-  )
+): Promise<{
+  checkout_url?: string
+  transaction_id?: string
+  store?: { id: string; slug: string; name: string }
+  included?: boolean
+}> {
+  return request("/merchant/stores", { method: "POST", token, body: input })
 }
 
 export type MfaSetup = {

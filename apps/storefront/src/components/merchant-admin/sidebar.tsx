@@ -89,8 +89,15 @@ function StoreSwitcher({
         slug: newSlug.trim().toLowerCase(),
         name: newName.trim() || undefined,
       })
-      // Paddle overlay page: payment first, the webhook provisions after.
-      window.location.assign(out.checkout_url)
+      if (out.store?.id) {
+        // Included with the plan — provisioned immediately; jump into it.
+        setActiveStoreId(out.store.id)
+        window.location.assign("/dashboard/overview")
+        return
+      }
+      // Paid add-on: Paddle overlay first, the webhook provisions after.
+      if (out.checkout_url) window.location.assign(out.checkout_url)
+      else setErr("Unexpected response - try again.")
     } catch (e: any) {
       setErr(e?.message ?? "Could not start store creation.")
       setBusy(false)
@@ -162,7 +169,7 @@ function StoreSwitcher({
             >
               + New store
               <span className="ml-auto text-[11px] font-normal text-grey-40">
-                $49/mo
+                3 included · then $49/mo
               </span>
             </button>
           )}
@@ -204,7 +211,7 @@ function StoreSwitcher({
                   disabled={busy}
                   className="flex-1 rounded-base bg-grey-90 px-2 py-1.5 text-xs font-semibold text-white hover:bg-grey-80 disabled:opacity-60"
                 >
-                  {busy ? "Starting..." : "Continue to payment"}
+                  {busy ? "Starting..." : "Create store"}
                 </button>
               </div>
             </div>

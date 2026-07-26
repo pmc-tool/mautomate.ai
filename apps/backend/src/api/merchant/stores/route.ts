@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { validateSlug } from "../../../modules/platform/abuse/quota"
 import { PaddleGateway } from "../../../modules/platform/billing/paddle"
+import { provisionTenantWorkflow } from "../../../workflows/platform/provision-tenant"
 import {
   checkLimit,
   gatePayload,
@@ -13,6 +14,10 @@ import {
 } from "../_helpers"
 
 const ROOT = "mautomate.ai"
+
+/** Scale includes this many stores in the plan price; beyond it, each
+ *  additional store is its own $49/mo Paddle subscription. */
+const SCALE_INCLUDED_STORES = 3
 
 /**
  * GET /merchant/stores — the stores this login owns plus whether one more can
@@ -52,6 +57,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       stores,
       can_add: ent.plan === "scale" && (max === null || stores.length < max),
       max_stores: max,
+      included_stores: SCALE_INCLUDED_STORES,
+      next_store_included:
+        ent.plan === "scale" && stores.length < SCALE_INCLUDED_STORES,
       addon_price_usd: 49,
     })
   } catch (e: any) {
@@ -98,6 +106,42 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     ])
     if (taken?.length || domainTaken?.length) {
       return res.status(409).json({ message: `${slug}.${ROOT} is already taken` })
+    }
+
+    // INCLUDED stores (plan decision: Scale covers 3 in the $349): provision
+    // immediately — the plan subscription already paid for it. The paid-first
+    // rule applies to ADD-ON stores beyond the included allowance.
+    if (owned.length < SCALE_INCLUDED_STORES) {
+      const { result, errors } = await provisionTenantWorkflow(req.scope).run({
+        input: { slug, name, package: "growth", trial_credits: 1500 },
+        throwOnError: false,
+      })
+      if (errors?.length) {
+        return res.status(500).json({
+          message: errors
+            .map((e: any) => String(e?.error?.message ?? e?.error ?? e))
+            .join("; "),
+        })
+      }
+      const tenantId = (result as any)?.tenant_id
+      if (!tenantId) {
+        return res.status(500).json({ message: "provisioning returned no tenant_id" })
+      }
+      await ctx.svc.createMerchantStores([
+        { merchant_id: ctx.merchant.id, tenant_id: tenantId, role: "owner" },
+      ])
+      await ctx.svc
+        .updateTenants({
+          id: tenantId,
+          status: "live",
+          meta: { addon_store: true, included_with_plan: true, owner_merchant_id: ctx.merchant.id },
+        })
+        .catch(() => undefined)
+      return res.status(201).json({
+        store: { id: tenantId, slug, name },
+        included: true,
+        note: "Included with your Scale plan - the store is live now.",
+      })
     }
 
     // Paid-first: hand back the checkout; the webhook does the rest.

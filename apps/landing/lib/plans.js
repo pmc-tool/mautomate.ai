@@ -85,6 +85,7 @@ export const PLANS = [
     note: "For operators who want the phones answered too",
     features: [
       "Everything in Pro, plus",
+      "Multi-store — 3 stores included, up to 10 ($49/mo each after)",
       "AI Call Center with a real phone number",
       "Unlimited products, 500 GB media",
       "10 custom domains",
