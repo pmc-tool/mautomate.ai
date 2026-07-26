@@ -8,10 +8,17 @@ import {
 export type MerchantCtx = { merchant: any; tenant: any; svc: any }
 
 /**
- * Resolve the authenticated merchant + their tenant from the request's auth
- * context (actor_type "merchant"). Returns null if not a merchant, the merchant
- * is disabled, or the tenant is missing — every /merchant route is scoped to
- * EXACTLY this tenant, so cross-tenant access is impossible.
+ * Resolve the authenticated merchant + their ACTIVE tenant from the request's
+ * auth context (actor_type "merchant"). Returns null if not a merchant, the
+ * merchant is disabled, or the tenant is missing — every /merchant route is
+ * scoped to EXACTLY this tenant, so cross-tenant access is impossible.
+ *
+ * MULTI-STORE (M1): the dashboard may send `x-store-id: <tenant_id>` to act
+ * on another store the SAME login owns. The header is honored ONLY when a
+ * live merchant_store row grants it — the sole source of store context, per
+ * the iron rule (never from body/query). A store id without a grant is a
+ * hard null (401 at the route), logged for the audit trail. No header =
+ * merchant.tenant_id, byte-identical to the single-store world.
  */
 export async function resolveMerchant(req: MedusaRequest): Promise<MerchantCtx | null> {
   const auth = (req as any).auth_context ?? {}
@@ -19,9 +26,42 @@ export async function resolveMerchant(req: MedusaRequest): Promise<MerchantCtx |
   const svc: any = req.scope.resolve(PLATFORM_MODULE)
   const merchant = await svc.retrieveMerchant(auth.actor_id).catch(() => null)
   if (!merchant || merchant.status !== "active") return null
-  const tenant = await svc.retrieveTenant(merchant.tenant_id).catch(() => null)
+
+  let tenantId: string = merchant.tenant_id
+  const requested = String(req.headers["x-store-id"] ?? "").trim()
+  if (requested && requested !== merchant.tenant_id) {
+    const grants = await svc
+      .listMerchantStores(
+        { merchant_id: merchant.id, tenant_id: requested },
+        { take: 1 }
+      )
+      .catch(() => [])
+    const grant = (Array.isArray(grants) ? grants : [grants]).filter(Boolean)[0]
+    if (!grant) {
+      console.warn(
+        `[store-context] DENIED merchant=${merchant.id} requested=${requested}`
+      )
+      return null
+    }
+    tenantId = requested
+  }
+
+  const tenant = await svc.retrieveTenant(tenantId).catch(() => null)
   if (!tenant) return null
   return { merchant, tenant, svc }
+}
+
+/**
+ * The stores this login may act on (owner grants), for the switcher UI.
+ */
+export async function listOwnedStores(
+  svc: any,
+  merchantId: string
+): Promise<Array<{ tenant_id: string }>> {
+  const rows = await svc
+    .listMerchantStores({ merchant_id: merchantId }, { take: 50 })
+    .catch(() => [])
+  return (Array.isArray(rows) ? rows : [rows]).filter(Boolean)
 }
 
 

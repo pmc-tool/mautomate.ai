@@ -45,8 +45,90 @@ import {
   Phone,
 } from "@medusajs/icons"
 import { useMerchantAuth } from "@lib/merchant-admin/auth"
-import { apiUrl } from "@lib/merchant-admin/api"
+import {
+  apiUrl,
+  setActiveStoreId,
+  type OwnedStore,
+} from "@lib/merchant-admin/api"
 import { CreditsBadge } from "./credits-badge"
+
+/**
+ * Multi-store switcher (M1). Renders only when the login owns 2+ stores, so
+ * the entire feature is invisible to single-store merchants (dark launch).
+ * Switching stores stores the id (validated server-side on every request)
+ * and hard-reloads so every surface refetches under the new context.
+ */
+function StoreSwitcher({
+  stores,
+  activeName,
+}: {
+  stores: OwnedStore[]
+  activeName: string
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label="Switch store"
+        className="flex w-full items-center gap-1 rounded-base text-left outline-none transition-colors hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500"
+      >
+        <h2 className="truncate text-base font-semibold text-grey-90">
+          {activeName}
+        </h2>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          aria-hidden="true"
+          className={cn("shrink-0 text-grey-50 transition-transform", open && "rotate-180")}
+        >
+          <path d="M2.5 4.5 6 8l3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1.5 w-56 rounded-large border border-grey-20 bg-white p-1.5 shadow-lg">
+          <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-grey-40">
+            Your stores
+          </p>
+          {stores.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => {
+                if (s.is_active) {
+                  setOpen(false)
+                  return
+                }
+                setActiveStoreId(s.id)
+                window.location.assign("/dashboard/overview")
+              }}
+              className={cn(
+                "flex w-full items-center justify-between rounded-base px-2.5 py-2 text-left text-sm transition-colors",
+                s.is_active
+                  ? "bg-grey-10 font-semibold text-grey-90"
+                  : "text-grey-70 hover:bg-grey-10"
+              )}
+            >
+              <span className="min-w-0">
+                <span className="block truncate">{s.name}</span>
+                <span className="block truncate text-[11px] font-normal text-grey-40">
+                  {s.slug}.mautomate.ai
+                </span>
+              </span>
+              {s.is_active && (
+                <span className="ml-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 import { cn } from "@lib/util/cn"
 
 /**
@@ -380,10 +462,17 @@ export function Sidebar({
                 alt="mAutomate"
                 className="h-8 w-8 shrink-0 rounded-base"
               />
-              <div className="min-w-0">
-                <h2 className="truncate text-base font-semibold text-grey-90">
-                  {me?.store.name || "Store Admin"}
-                </h2>
+              <div className="min-w-0 flex-1">
+                {me?.stores && me.stores.length > 1 ? (
+                  <StoreSwitcher
+                    stores={me.stores}
+                    activeName={me?.store.name || "Store Admin"}
+                  />
+                ) : (
+                  <h2 className="truncate text-base font-semibold text-grey-90">
+                    {me?.store.name || "Store Admin"}
+                  </h2>
+                )}
                 <p className="truncate text-xs text-grey-50">{me?.merchant.email}</p>
               </div>
             </div>

@@ -65,7 +65,19 @@ export type Store = {
   }
 }
 
-export type MeResponse = { merchant: Merchant; store: Store }
+export type OwnedStore = {
+  id: string
+  name: string
+  slug: string
+  is_active: boolean
+}
+
+export type MeResponse = {
+  merchant: Merchant
+  store: Store
+  /** Multi-store: every store this login owns (single-item for most). */
+  stores?: OwnedStore[]
+}
 
 export type Product = {
   id: string
@@ -199,6 +211,32 @@ async function httpErrorMessage(res: Response, fallback: string): Promise<string
   return raw && raw.length < 300 ? raw : `${fallback} (${res.status})`
 }
 
+/**
+ * Multi-store (M1): the active store id, kept in localStorage and injected
+ * into EVERY merchant API request from this one place. The backend validates
+ * ownership on each request — this is convenience, not authority.
+ */
+const STORE_KEY = "merchant_active_store"
+
+export function getActiveStoreId(): string | null {
+  if (typeof window === "undefined") return null
+  try {
+    return localStorage.getItem(STORE_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setActiveStoreId(storeId: string | null): void {
+  if (typeof window === "undefined") return
+  try {
+    if (storeId) localStorage.setItem(STORE_KEY, storeId)
+    else localStorage.removeItem(STORE_KEY)
+  } catch {
+    /* storage unavailable — default store applies */
+  }
+}
+
 async function request<T>(
   path: string,
   init?: Omit<RequestInit, "body"> & { token?: string; body?: unknown }
@@ -212,12 +250,29 @@ async function request<T>(
   if (init?.token) {
     headers["authorization"] = `Bearer ${init.token}`
   }
+  const activeStore = getActiveStoreId()
+  if (activeStore && !headers["x-store-id"]) {
+    headers["x-store-id"] = activeStore
+  }
 
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     ...init,
     headers,
     body: init?.body ? JSON.stringify(init.body) : undefined,
   })
+
+  // Self-heal a stale store selection: if the active store was revoked or
+  // deleted, the backend 401s the context — clear the selection and retry
+  // once on the default store instead of bouncing the user to login.
+  if (res.status === 401 && headers["x-store-id"]) {
+    setActiveStoreId(null)
+    delete headers["x-store-id"]
+    res = await fetch(url, {
+      ...init,
+      headers,
+      body: init?.body ? JSON.stringify(init.body) : undefined,
+    })
+  }
 
   if (res.status === 401) {
     throw new ApiError("Session expired. Please log in again.", 401, "unauthorized")

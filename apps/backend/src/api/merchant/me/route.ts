@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { resolveMerchant } from "../_helpers"
+import { resolveMerchant, listOwnedStores } from "../_helpers"
 import {
   resolveEntitlements,
   trialInfo,
@@ -34,8 +34,30 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const brandAccent =
     (await resolveBrandAccent(req.scope, tenant.id).catch(() => "")) || null
 
+  // Multi-store (M1): every store this login owns, for the dashboard
+  // switcher. Single-store merchants get a one-item list.
+  let stores: Array<{ id: string; name: string; slug: string; is_active: boolean }> = []
+  try {
+    const grants = await listOwnedStores(svc, merchant.id)
+    const rows = await Promise.all(
+      grants.map((g) => svc.retrieveTenant(g.tenant_id).catch(() => null))
+    )
+    stores = rows
+      .filter(Boolean)
+      .filter((t: any) => !["purged", "failed"].includes(t.status))
+      .map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        slug: t.slug,
+        is_active: t.id === tenant.id,
+      }))
+  } catch {
+    stores = [{ id: tenant.id, name: tenant.name, slug: tenant.slug, is_active: true }]
+  }
+
   res.json({
     merchant: { id: merchant.id, email: merchant.email, name: merchant.name },
+    stores,
     store: {
       id: tenant.id,
       name: tenant.name,
