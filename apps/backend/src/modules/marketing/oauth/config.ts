@@ -16,6 +16,11 @@ export type OAuthConfig = {
   clientIdEnv: string
   clientSecretEnv: string
   usePkce: boolean
+  /** Send client credentials as an HTTP Basic Authorization header on token
+   *  requests instead of in the form body. X (Twitter) REQUIRES this for
+   *  confidential clients — body credentials get "Missing valid authorization
+   *  header". */
+  tokenAuthBasic?: boolean
 }
 
 const CONFIGS: Record<OAuthPlatform, OAuthConfig> = {
@@ -63,6 +68,7 @@ const CONFIGS: Record<OAuthPlatform, OAuthConfig> = {
     clientIdEnv: "MARKETING_X_CLIENT_ID",
     clientSecretEnv: "MARKETING_X_CLIENT_SECRET",
     usePkce: true,
+    tokenAuthBasic: true,
   },
   linkedin: {
     authUrl: "https://www.linkedin.com/oauth/v2/authorization",

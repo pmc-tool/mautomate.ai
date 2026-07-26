@@ -195,11 +195,39 @@ const processTarget = async (
     return "failed"
   }
 
-  // 5. Resolve the connected account.
-  const socialAccountId = target.social_account_id
+  // 5. Resolve the connected account. The composer creates targets by
+  // PLATFORM only (social_account_id null), so bind late: the tenant's
+  // oldest connected account for the platform at publish time. This also
+  // covers accounts connected AFTER a post was scheduled.
+  let socialAccountId = target.social_account_id
+  if (!socialAccountId) {
+    try {
+      const rows = await mk.listMarketingSocialAccounts({
+        tenant_id: currentTenantId(),
+        platform: target.platform,
+        status: "connected",
+      })
+      const candidates = (Array.isArray(rows) ? rows : [rows])
+        .filter(Boolean)
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.created_at ?? 0).getTime() -
+            new Date(b.created_at ?? 0).getTime()
+        )
+      if (candidates[0]?.id) {
+        socialAccountId = candidates[0].id
+        await mk.updateMarketingPostTargets({
+          id: target.id,
+          social_account_id: socialAccountId,
+        } as any)
+      }
+    } catch {
+      // Fall through to the no-account failure below.
+    }
+  }
   if (!socialAccountId) {
     await failTarget(mk, target, now, {
-      message: "no connected account",
+      message: `no connected ${target.platform} account - connect one under Marketing > Social accounts, then reschedule`,
       code: "no_account",
       retryable: false,
       exhaust: true,

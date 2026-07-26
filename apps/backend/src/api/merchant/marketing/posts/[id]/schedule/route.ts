@@ -67,11 +67,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       )
     }
 
+    // Rescheduling is a fresh delivery intent: clear the previous attempt
+    // trail so an exhausted/failed target runs again instead of staying dead.
     await svc.updateMarketingPostTargets(
       toSchedule.map((t) => ({
         id: t.id,
         scheduled_at: isUnschedule ? null : when,
         status: isUnschedule ? "pending" : "scheduled",
+        attempts: 0,
+        next_retry_at: null,
+        error: null,
       })) as any
     )
 

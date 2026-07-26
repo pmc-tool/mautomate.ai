@@ -59,11 +59,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     const now = new Date()
     // Make the targets due now so the claim-first sweep will pick them up.
+    // Publish-now is a fresh delivery intent: clear the attempt trail so a
+    // previously failed/exhausted target runs again.
     await svc.updateMarketingPostTargets(
       toPublish.map((t) => ({
         id: t.id,
         status: "scheduled",
         scheduled_at: now,
+        attempts: 0,
+        next_retry_at: null,
+        error: null,
       })) as any
     )
 

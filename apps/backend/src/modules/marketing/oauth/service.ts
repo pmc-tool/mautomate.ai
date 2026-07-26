@@ -124,16 +124,23 @@ export const startOAuth = async (
 
 const exchangeToken = async (
   tokenUrl: string,
-  form: Record<string, string>
+  form: Record<string, string>,
+  basicAuth?: { clientId: string; clientSecret: string } | null
 ): Promise<TokenResponse> => {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded",
+    Accept: "application/json",
+  }
+  if (basicAuth) {
+    headers.Authorization = `Basic ${Buffer.from(
+      `${basicAuth.clientId}:${basicAuth.clientSecret}`
+    ).toString("base64")}`
+  }
   let res: Response
   try {
     res = await fetch(tokenUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
+      headers,
       body: new URLSearchParams(form).toString(),
     })
   } catch (e) {
@@ -603,13 +610,14 @@ export const completeOAuth = async (
   const clientSecret = process.env[config.clientSecretEnv] ?? ""
   const redirectUri = row.redirect_uri ?? buildRedirectUri(input.platform)
 
+  const useBasic = !!config.tokenAuthBasic && !!clientId && !!clientSecret
   const form: Record<string, string> = {
     grant_type: "authorization_code",
     code: input.code,
     client_id: clientId,
     redirect_uri: redirectUri,
   }
-  if (clientSecret) {
+  if (clientSecret && !useBasic) {
     form.client_secret = clientSecret
   }
   if (config.usePkce && row.code_verifier_enc) {
@@ -623,7 +631,11 @@ export const completeOAuth = async (
     }
   }
 
-  const tokens = await exchangeToken(config.tokenUrl, form)
+  const tokens = await exchangeToken(
+    config.tokenUrl,
+    form,
+    useBasic ? { clientId, clientSecret } : null
+  )
 
   // The provider code is single-use and is now SPENT — consume the state
   // immediately so a callback refresh/retry gets the clear "already used"
@@ -758,18 +770,23 @@ export const refreshOAuth = async (
   const clientId = process.env[config.clientIdEnv] ?? ""
   const clientSecret = process.env[config.clientSecretEnv] ?? ""
 
+  const useBasic = !!config.tokenAuthBasic && !!clientId && !!clientSecret
   const form: Record<string, string> = {
     grant_type: "refresh_token",
     refresh_token: creds.refreshToken,
     client_id: clientId,
   }
-  if (clientSecret) {
+  if (clientSecret && !useBasic) {
     form.client_secret = clientSecret
   }
 
   let tokens: TokenResponse
   try {
-    tokens = await exchangeToken(config.tokenUrl, form)
+    tokens = await exchangeToken(
+      config.tokenUrl,
+      form,
+      useBasic ? { clientId, clientSecret } : null
+    )
   } catch {
     return false
   }
