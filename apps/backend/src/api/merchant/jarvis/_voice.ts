@@ -138,21 +138,33 @@ const compressText = (text: unknown, budget: number): string => {
 
 const compressParams = (params: any): any => {
   if (!VOICE_COMPRESS() || !params || typeof params !== "object") return params
-  const walk = (node: any): any => {
-    if (Array.isArray(node)) return node.map(walk)
+  // JSON-Schema-AWARE walk. "description"/"examples"/"default" are metadata
+  // ONLY when they appear as schema keywords — under a `properties` map those
+  // same names are PROPERTY NAMES whose values are schema objects (e.g.
+  // create_product's `description` field) and must be recursed, not trimmed.
+  const walkSchema = (node: any): any => {
+    if (Array.isArray(node)) return node.map(walkSchema)
     if (!node || typeof node !== "object") return node
     const out: Record<string, any> = {}
     for (const [k, v] of Object.entries(node)) {
       if (k === "examples" || k === "default") continue
-      if (k === "description") {
+      if (k === "description" && typeof v === "string") {
         out[k] = compressText(v, 100)
         continue
       }
-      out[k] = walk(v)
+      if (k === "properties" && v && typeof v === "object" && !Array.isArray(v)) {
+        const props: Record<string, any> = {}
+        for (const [name, schema] of Object.entries(v)) {
+          props[name] = walkSchema(schema)
+        }
+        out[k] = props
+        continue
+      }
+      out[k] = walkSchema(v)
     }
     return out
   }
-  return walk(params)
+  return walkSchema(params)
 }
 
 export async function buildJarvisVoiceConfig(
