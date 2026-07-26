@@ -112,7 +112,28 @@ export const POST = async (req: AuthenticatedMedusaRequest, res: MedusaResponse)
   // credit = $0.01 charged by quantity), with a 100-credit ($1) minimum —
   // so $1.20 buys exactly 120 credits, no silent rounding.
   const requested = Math.round(Number(body.credits) || 0)
-  const credits = Math.max(100, Math.min(1000000, requested))
+  // Trial first purchase carries a $5 (500-credit) minimum — it is the "AI
+  // unlock" and doubles as a card-qualification signal. After any purchase
+  // (or on a paid plan) the normal $1 minimum applies.
+  let minCredits = 100
+  if (ctx.tenant.package === "free_trial") {
+    const lots = await ctx.svc
+      .listCreditLots({ tenant_id: ctx.tenant.id, source: "topup" }, { take: 1 })
+      .catch(() => [])
+    const purchasedBefore =
+      (Array.isArray(lots) ? lots : [lots]).filter(Boolean).length > 0
+    if (!purchasedBefore) minCredits = 500
+  }
+  if (requested > 0 && requested < minCredits) {
+    return res.status(400).json({
+      message:
+        minCredits === 500
+          ? "Your first credit purchase during the trial starts at $5 (500 credits) - it unlocks all AI generation features."
+          : "The minimum credit purchase is $1 (100 credits).",
+      min_credits: minCredits,
+    })
+  }
+  const credits = Math.max(minCredits, Math.min(1000000, requested))
   // SECURITY INVARIANT (top-up underpayment, P1): the dollar charge is ALWAYS
   // derived server-side from the credit quantity at the fixed rate
   // (1 credit = CREDIT_USD = $0.01 → 100 credits per USD). Any client-supplied

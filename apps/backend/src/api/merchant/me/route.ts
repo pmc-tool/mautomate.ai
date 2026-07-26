@@ -1,6 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { resolveMerchant } from "../_helpers"
-import { resolveEntitlements } from "../../../modules/platform/entitlements"
+import {
+  resolveEntitlements,
+  trialInfo,
+} from "../../../modules/platform/entitlements"
 import { THEME_CATALOG } from "../../admin/cms/themes/_catalog"
 import { resolveBrandAccent } from "../../../modules/marketing/brand"
 
@@ -49,6 +52,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       // Full entitlement set (matrix + package-row overrides): the dashboard
       // mirrors these to hide/upsell; the server independently enforces them.
       entitlements: resolveEntitlements(tenant, plan ?? null),
+      // Trial clock (state trial/grace/paused, or paid) for banners/prompts.
+      trial: trialInfo(tenant),
       active_theme: active,
       allowed_themes: allowed,
       logo_url: logoUrl,

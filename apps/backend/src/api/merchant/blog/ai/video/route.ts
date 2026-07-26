@@ -8,6 +8,10 @@ import { meterAction } from "../../../../../modules/platform/integration/meterin
 import { creditsFor } from "../../../../../modules/platform/pricing/price-book"
 import { resolveMerchant } from "../../../_helpers"
 import { fetchBytes, storeBytes } from "../_helpers"
+import {
+  checkAiGeneration,
+  gatePayload,
+} from "../../../../../modules/platform/entitlements"
 
 const ORIENTATIONS: Orientation[] = ["landscape", "portrait", "square"]
 
@@ -23,6 +27,13 @@ const ORIENTATIONS: Orientation[] = ["landscape", "portrait", "square"]
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  // AI generation is plan/unlock-gated (trial: locked until first credit
+  // purchase). Shadow-logged unless ENTITLEMENTS_ENFORCE(_AI_GENERATION)=1.
+  {
+    const aiGate = await checkAiGeneration(req.scope, ctx.tenant.id)
+    if (!aiGate.allowed) return res.status(403).json(gatePayload(aiGate))
+  }
 
   const b = (req.body ?? {}) as Record<string, any>
   try {

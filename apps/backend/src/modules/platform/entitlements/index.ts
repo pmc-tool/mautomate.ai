@@ -173,9 +173,56 @@ const requiredPlanForLimit = (limit: LimitKey, needed: number): PlanKey => {
   return "scale"
 }
 
+export const TRIAL_DAYS = 14
+export const GRACE_DAYS = 7
+
+/** Lifecycle state derived from package + clock (P2). */
+export type TenantState = "trial" | "grace" | "paused" | "paid"
+
+export type TrialInfo = {
+  state: TenantState
+  ends_at: string | null
+  days_left: number | null
+}
+
+/**
+ * Where the trial stands. The clock starts at tenant.created_at and can be
+ * overridden by meta.trial_ends_at (used to give pre-existing trials a fresh
+ * 14-day clock at rollout).
+ */
+export const trialInfo = (
+  tenant: {
+    package?: string | null
+    created_at?: string | Date | null
+    meta?: Record<string, any> | null
+  },
+  now: Date = new Date()
+): TrialInfo => {
+  if (tenant?.package && tenant.package !== "free_trial") {
+    return { state: "paid", ends_at: null, days_left: null }
+  }
+  const override = tenant?.meta?.trial_ends_at
+    ? new Date(tenant.meta.trial_ends_at)
+    : null
+  const created = tenant?.created_at ? new Date(tenant.created_at) : now
+  const ends =
+    override && !isNaN(override.getTime())
+      ? override
+      : new Date(created.getTime() + TRIAL_DAYS * 86_400_000)
+  const graceEnds = new Date(ends.getTime() + GRACE_DAYS * 86_400_000)
+  const state: TenantState =
+    now < ends ? "trial" : now < graceEnds ? "grace" : "paused"
+  const daysLeft = Math.max(
+    0,
+    Math.ceil((ends.getTime() - now.getTime()) / 86_400_000)
+  )
+  return { state, ends_at: ends.toISOString(), days_left: daysLeft }
+}
+
 export type Entitlements = {
   plan: PlanKey
   paid: boolean
+  state: TenantState
   limits: Limits
   features: FeatureKey[]
 }
@@ -184,14 +231,23 @@ export type Entitlements = {
  * Resolve a tenant's entitlements from its package key. `tenant` is the row
  * resolveMerchant already loaded; `pkg` (optional) is the platform_package row
  * whose products/seats/domains columns override the matrix when set.
+ *
+ * opts.hasPurchasedCredits — the trial "$5 AI unlock": a trial tenant that has
+ * bought credits at least once gains ai_generation (voice stays plan-gated,
+ * per the three-rails rule). In grace/paused, AI features drop entirely.
  */
 export const resolveEntitlements = (
-  tenant: { package?: string | null },
+  tenant: {
+    package?: string | null
+    created_at?: string | Date | null
+    meta?: Record<string, any> | null
+  },
   pkg?: {
     products_limit?: number | null
     seats_limit?: number | null
     domains_limit?: number | null
-  } | null
+  } | null,
+  opts?: { hasPurchasedCredits?: boolean; now?: Date }
 ): Entitlements => {
   const raw = String(tenant?.package ?? "")
   const plan: PlanKey = (PLAN_ORDER as string[]).includes(raw)
@@ -204,7 +260,18 @@ export const resolveEntitlements = (
     if (pkg.seats_limit != null) limits.seats = pkg.seats_limit
     if (pkg.domains_limit != null) limits.domains = pkg.domains_limit
   }
-  return { plan, paid: plan !== "free_trial", limits, features: [...base.features] }
+  const info = trialInfo(tenant, opts?.now)
+  let features = [...base.features]
+  if (plan === "free_trial") {
+    if (info.state === "trial" && opts?.hasPurchasedCredits) {
+      features.push("ai_generation")
+    }
+    if (info.state !== "trial") {
+      // Grace/paused: build access remains (via routes that allow it), AI is off.
+      features = []
+    }
+  }
+  return { plan, paid: plan !== "free_trial", state: info.state, limits, features }
 }
 
 // ---------------------------------------------------------------- enforcement
@@ -339,3 +406,66 @@ export const gatePayload = (denial: Exclude<GateResult, { allowed: true }>) => (
   required_plan: denial.required_plan,
   required_plan_label: denial.required_plan_label,
 })
+
+// -------------------------------------------------- AI-generation gate (P2)
+
+/**
+ * The generation actions locked in trial until the first credit purchase
+ * (the "$5 unlock"). Text/copy/page-edit actions stay open — they are the
+ * cheap hook; these are the expensive ones.
+ */
+export const GENERATION_ACTIONS = new Set([
+  "ai_image",
+  "ai_video",
+  "ai_logo",
+  "ai_ad_campaign",
+])
+
+/**
+ * Self-contained gate for AI generation, callable from ANY route that can
+ * name the tenant (merchant routes AND editor-token CMS routes). Loads the
+ * tenant + package + purchase history itself.
+ *
+ * R6: an internal error resolves to allow — a broken gate must never take
+ * paid generation down; the trial leak in that failure mode costs cents.
+ */
+export const checkAiGeneration = async (
+  container: { resolve: (key: string) => any },
+  tenantId: string
+): Promise<GateResult> => {
+  try {
+    const svc: any = container.resolve("platform")
+    const tenant = await svc.retrieveTenant(tenantId)
+    const pkg =
+      (
+        await svc
+          .listPlatformPackages({ key: tenant.package }, { take: 1 })
+          .catch(() => [])
+      )[0] ?? null
+    let hasPurchased = false
+    if (tenant.package === "free_trial") {
+      const lots = await svc
+        .listCreditLots({ tenant_id: tenantId, source: "topup" }, { take: 1 })
+        .catch(() => [])
+      hasPurchased =
+        (Array.isArray(lots) ? lots : [lots]).filter(Boolean).length > 0
+    }
+    const ent = resolveEntitlements(tenant, pkg, {
+      hasPurchasedCredits: hasPurchased,
+    })
+    const gate = checkFeature(tenantId, ent, "ai_generation")
+    if (!gate.allowed && ent.plan === "free_trial") {
+      // Trial-specific upsell copy: the $5 unlock, not a plan pitch.
+      return {
+        ...gate,
+        message:
+          ent.state === "trial"
+            ? "AI generation is locked during the trial. Add AI credits (from $5) to unlock it right away - your credits never expire."
+            : "Your trial has ended - pick a plan to keep using AI features.",
+      }
+    }
+    return gate
+  } catch {
+    return { allowed: true }
+  }
+}

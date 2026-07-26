@@ -51,6 +51,18 @@ export type Store = {
   allowed_themes?: string[]
   package?: string
   plan?: { key: string; name: string; domains_limit: number }
+  entitlements?: {
+    plan: string
+    paid: boolean
+    state: "trial" | "grace" | "paused" | "paid"
+    limits: Record<string, number | null>
+    features: string[]
+  }
+  trial?: {
+    state: "trial" | "grace" | "paused" | "paid"
+    ends_at: string | null
+    days_left: number | null
+  }
 }
 
 export type MeResponse = { merchant: Merchant; store: Store }
@@ -212,6 +224,16 @@ async function request<T>(
   }
   if (res.status === 403) {
     const data = await res.json().catch(() => ({} as any))
+    // Entitlement denials carry a typed payload; a global listener renders
+    // the upgrade/unlock modal so every surface gets it for free.
+    if (
+      typeof window !== "undefined" &&
+      (data.code === "entitlement_locked" || data.code === "limit_reached")
+    ) {
+      window.dispatchEvent(
+        new CustomEvent("mautomate:gate-denied", { detail: data })
+      )
+    }
     throw new ApiError(
       data.message || "Access denied.",
       403,

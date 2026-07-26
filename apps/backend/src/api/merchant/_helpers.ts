@@ -36,7 +36,17 @@ export async function tenantEntitlements(ctx: MerchantCtx): Promise<Entitlements
         .listPlatformPackages({ key: ctx.tenant.package }, { take: 1 })
         .catch(() => [])
     )[0] ?? null
-  return resolveEntitlements(ctx.tenant, pkg)
+  let hasPurchased = false
+  if (ctx.tenant.package === "free_trial") {
+    const lots = await ctx.svc
+      .listCreditLots({ tenant_id: ctx.tenant.id, source: "topup" }, { take: 1 })
+      .catch(() => [])
+    hasPurchased =
+      (Array.isArray(lots) ? lots : [lots]).filter(Boolean).length > 0
+  }
+  return resolveEntitlements(ctx.tenant, pkg, {
+    hasPurchasedCredits: hasPurchased,
+  })
 }
 
 /**

@@ -3,6 +3,10 @@ import { z } from "zod"
 import { resolveMerchant } from "../../../_helpers"
 import { generateSetupLogos } from "../../../../../modules/marketing/ai/logo-generator"
 import { getLedger, withCredits } from "../../../../../modules/platform/credits/metering"
+import {
+  checkAiGeneration,
+  gatePayload,
+} from "../../../../../modules/platform/entitlements"
 
 /**
  * POST /merchant/setup/logo/generate
@@ -22,6 +26,13 @@ const Schema = z.object({
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  // AI generation is plan/unlock-gated (trial: locked until first credit
+  // purchase). Shadow-logged unless ENTITLEMENTS_ENFORCE(_AI_GENERATION)=1.
+  {
+    const aiGate = await checkAiGeneration(req.scope, ctx.tenant.id)
+    if (!aiGate.allowed) return res.status(403).json(gatePayload(aiGate))
+  }
 
   if (process.env.AI_EDITOR_ENABLED === "0") {
     return res.status(503).json({ message: "AI is disabled." })

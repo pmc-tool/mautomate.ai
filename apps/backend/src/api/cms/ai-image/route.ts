@@ -9,6 +9,10 @@ import { PLATFORM_MODULE } from "../../../modules/platform"
 import { getLedger } from "../../../modules/platform/credits/metering"
 import { checkImageQuota } from "../../../modules/platform/billing/plan-gate"
 import { creditsFor, type BillableAction } from "../../../modules/platform/pricing/price-book"
+import {
+  checkAiGeneration,
+  gatePayload,
+} from "../../../modules/platform/entitlements"
 
 /**
  * POST /cms/ai-image — AI image generation that produces USABLE assets.
@@ -728,6 +732,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(503).json({ error: "AI is disabled." })
   }
   const tenantId = await requireWriteTenant(req)
+
+  // AI generation is plan/unlock-gated (trial: locked until first credit
+  // purchase). Shadow-logged unless ENTITLEMENTS_ENFORCE(_AI_GENERATION)=1.
+  {
+    const aiGate = await checkAiGeneration(req.scope, tenantId)
+    if (!aiGate.allowed) return res.status(403).json(gatePayload(aiGate))
+  }
   const key = process.env.NOVITA_API_KEY
   if (!key) return res.status(503).json({ error: "Image generation is not configured." })
 
