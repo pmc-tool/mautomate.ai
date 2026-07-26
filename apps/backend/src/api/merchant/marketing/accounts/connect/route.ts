@@ -8,7 +8,12 @@ import {
   sealCredentials,
 } from "../../../../../modules/marketing/publish"
 import { startOAuth } from "../../../../../modules/marketing/oauth/service"
-import { resolveMerchant } from "../../../_helpers"
+import { resolveMerchant, tenantEntitlements } from "../../../_helpers"
+import {
+  checkFeature,
+  checkLimit,
+  gatePayload,
+} from "../../../../../modules/platform/entitlements"
 
 const statusFor = (e: any): number => {
   if (e?.type === MedusaError.Types.INVALID_DATA) return 400
@@ -193,6 +198,30 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         MedusaError.Types.INVALID_DATA,
         "`platform` is required."
       )
+    }
+
+    // Plan gates (shadow-logged until enforcement flips): WhatsApp is a
+    // Grow+ channel, and connected accounts count against the plan cap.
+    try {
+      const ent = await tenantEntitlements(ctx)
+      if (platform === "whatsapp") {
+        const featGate = checkFeature(tenantId, ent, "whatsapp")
+        if (!featGate.allowed) {
+          return res.status(403).json(gatePayload(featGate))
+        }
+      }
+      const mkCount: any = req.scope.resolve(MARKETING_MODULE)
+      const existing = await mkCount.listMarketingSocialAccounts({
+        tenant_id: tenantId,
+      })
+      const used = (Array.isArray(existing) ? existing : [existing]).filter(
+        Boolean
+      ).length
+      const capGate = checkLimit(tenantId, ent, "social_accounts", used)
+      if (!capGate.allowed) return res.status(403).json(gatePayload(capGate))
+    } catch (gateErr: any) {
+      if (gateErr?.type === MedusaError.Types.NOT_ALLOWED) throw gateErr
+      // R6: an internal gate error never blocks the connect path itself.
     }
 
     // WhatsApp is messaging-only (no publish provider): the merchant pastes

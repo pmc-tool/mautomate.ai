@@ -2,7 +2,11 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MARKETING_MODULE } from "../../../../modules/marketing"
 import { ensurePlatformEnv } from "../../../../modules/marketing/platform-credentials"
 import { launchCampaign, storeBaseUrl } from "../../../../modules/marketing/ads"
-import { resolveMerchant } from "../../_helpers"
+import { resolveMerchant, tenantEntitlements } from "../../_helpers"
+import {
+  checkFeature,
+  gatePayload,
+} from "../../../../modules/platform/entitlements"
 import { adsStatusFor } from "../_helpers"
 
 /**
@@ -69,6 +73,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
+
+  // Launching campaigns is a Grow+ capability (wizard/preview stays open to
+  // everyone). Shadow-logged until enforcement flips.
+  try {
+    const ent = await tenantEntitlements(ctx)
+    const gate = checkFeature(ctx.tenant.id, ent, "ads")
+    if (!gate.allowed) return res.status(403).json(gatePayload(gate))
+  } catch {
+    // R6: gate errors never block the request path.
+  }
 
   const b = (req.body ?? {}) as Record<string, any>
   const mk: any = req.scope.resolve(MARKETING_MODULE)

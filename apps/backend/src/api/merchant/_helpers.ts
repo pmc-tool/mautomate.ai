@@ -1,5 +1,9 @@
 import { MedusaRequest } from "@medusajs/framework/http"
 import { PLATFORM_MODULE } from "../../modules/platform"
+import {
+  Entitlements,
+  resolveEntitlements,
+} from "../../modules/platform/entitlements"
 
 export type MerchantCtx = { merchant: any; tenant: any; svc: any }
 
@@ -20,6 +24,20 @@ export async function resolveMerchant(req: MedusaRequest): Promise<MerchantCtx |
   return { merchant, tenant, svc }
 }
 
+
+/**
+ * The tenant's full entitlement set (plan matrix + package-row overrides).
+ * Cheap enough to call per request; the package row is a single-row lookup.
+ */
+export async function tenantEntitlements(ctx: MerchantCtx): Promise<Entitlements> {
+  const pkg =
+    (
+      await ctx.svc
+        .listPlatformPackages({ key: ctx.tenant.package }, { take: 1 })
+        .catch(() => [])
+    )[0] ?? null
+  return resolveEntitlements(ctx.tenant, pkg)
+}
 
 /**
  * Custom-domain entitlement for a store. Connecting your own domain (or buying

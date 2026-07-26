@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { resolveMerchant } from "../_helpers"
+import { resolveEntitlements } from "../../../modules/platform/entitlements"
 import { THEME_CATALOG } from "../../admin/cms/themes/_catalog"
 import { resolveBrandAccent } from "../../../modules/marketing/brand"
 
@@ -45,6 +46,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         name: plan?.name ?? tenant.package,
         domains_limit: Number(plan?.domains_limit ?? 0),
       },
+      // Full entitlement set (matrix + package-row overrides): the dashboard
+      // mirrors these to hide/upsell; the server independently enforces them.
+      entitlements: resolveEntitlements(tenant, plan ?? null),
       active_theme: active,
       allowed_themes: allowed,
       logo_url: logoUrl,

@@ -2,7 +2,11 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createProductsWorkflow } from "@medusajs/core-flows"
 import { z } from "zod"
-import { resolveMerchant } from "../_helpers"
+import { resolveMerchant, tenantEntitlements } from "../_helpers"
+import {
+  checkLimit,
+  gatePayload,
+} from "../../../modules/platform/entitlements"
 import {
   getAvailableByVariant,
   getVariantInventoryLinks,
@@ -302,6 +306,28 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!ctx) return res.status(401).json({ message: "not authorized" })
   const scId = ctx.tenant.meta?.sales_channel_id
   if (!scId) return res.status(400).json({ message: "tenant sales channel not configured" })
+
+  // Plan capacity gate (shadow-logged until ENTITLEMENTS_ENFORCE flips it).
+  try {
+    const ent = await tenantEntitlements(ctx)
+    if (ent.limits.products !== null) {
+      const countQuery = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: links } = await countQuery.graph({
+        entity: "product_sales_channel",
+        filters: { sales_channel_id: scId } as any,
+        fields: ["product_id"],
+      })
+      const gate = checkLimit(
+        ctx.tenant.id,
+        ent,
+        "products",
+        (links || []).length
+      )
+      if (!gate.allowed) return res.status(403).json(gatePayload(gate))
+    }
+  } catch {
+    // R6: never let the gate itself break product creation.
+  }
 
   const parsed = CreateProductSchema.safeParse(req.body)
   if (!parsed.success) {

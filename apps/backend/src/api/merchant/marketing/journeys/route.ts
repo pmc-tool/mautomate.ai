@@ -2,7 +2,11 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { MARKETING_MODULE } from "../../../../modules/marketing"
 import MarketingModuleService from "../../../../modules/marketing/service"
-import { resolveMerchant } from "../../_helpers"
+import { resolveMerchant, tenantEntitlements } from "../../_helpers"
+import {
+  checkLimit,
+  gatePayload,
+} from "../../../../modules/platform/entitlements"
 
 /**
  * Typed journey step schema, mirroring modules/marketing/journey/types.ts.
@@ -137,6 +141,25 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const svc: MarketingModuleService = req.scope.resolve(MARKETING_MODULE)
+
+  // Creating straight into "active" counts against the plan cap (shadow-logged
+  // until enforcement flips).
+  if (parsed.data.status === "active") {
+    try {
+      const ent = await tenantEntitlements(ctx)
+      const actives = await (svc as any).listMarketingJourneys(
+        { tenant_id: ctx.tenant.id, status: "active" },
+        { take: 1000, select: ["id"] }
+      )
+      const used = (Array.isArray(actives) ? actives : [actives]).filter(
+        Boolean
+      ).length
+      const gate = checkLimit(ctx.tenant.id, ent, "journeys_active", used)
+      if (!gate.allowed) return res.status(403).json(gatePayload(gate))
+    } catch {
+      // R6: gate errors never block creation.
+    }
+  }
 
   try {
     const [journey] = await svc.createMarketingJourneys([
