@@ -1057,6 +1057,9 @@ export function JarvisStage({
         <JarvisCore state={coreState} level={level} activities={activities} />
       </div>
 
+      {/* boot choreography fills the connect gap so it never reads as a stall */}
+      {voiceMode === "connecting" && !closing && <BootSequence />}
+
       {/* top bar: state label + close */}
       <div className="relative z-10 flex items-start justify-between p-6">
         <div
@@ -1120,7 +1123,7 @@ export function JarvisStage({
               {micDenied
                 ? "Microphone is blocked — you can still type below."
                 : voiceMode === "connecting"
-                ? "Connecting to Pixi…"
+                ? "" // the BootSequence overlay narrates the connect gap
                 : voiceMode === "failed"
                 ? "Couldn’t connect voice. Tap retry below, or type instead."
                 : realMode
@@ -1416,9 +1419,123 @@ function cleanReply(s: string): string {
     .trim()
 }
 
+/**
+ * Full-screen boot choreography for the connect gap (room create + bot join
+ * is ~4-6s of otherwise dead air). Staged status lines advance on a timer —
+ * the wait reads as Pixi deliberately powering up instead of a stall. Pure
+ * presentation: it renders only while voiceMode === "connecting" and holds
+ * its last line until the pipeline flips to real/failed.
+ */
+const BOOT_STEPS = [
+  "Waking Pixi",
+  "Securing a private line",
+  "Turning on your microphone",
+  "Loading your store",
+]
+
+function BootSequence() {
+  const [step, setStep] = useState(0)
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setStep((s) => Math.min(s + 1, BOOT_STEPS.length - 1)),
+      1400
+    )
+    return () => window.clearInterval(id)
+  }, [])
+
+  return (
+    <div
+      className="absolute inset-0 z-[5] flex flex-col items-center justify-center"
+      aria-live="polite"
+    >
+      {/* pulsing mic ring above the status line */}
+      <div className="jv-boot-ring relative mb-10 flex h-24 w-24 items-center justify-center rounded-full">
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{ border: `1.5px solid ${EMBER}55` }}
+        />
+        <div
+          className="jv-boot-ping absolute inset-0 rounded-full"
+          style={{ border: `1.5px solid ${EMBER}` }}
+        />
+        <svg
+          width="30"
+          height="30"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={WARM}
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="9" y="2.5" width="6" height="11.5" rx="3" />
+          <path d="M5 11a7 7 0 0 0 14 0" />
+          <path d="M12 18v3.5" />
+        </svg>
+      </div>
+
+      {/* one line at a time, crossfading upward on each step change */}
+      <div className="relative h-8 w-full text-center">
+        <p
+          key={step}
+          className="jv-boot-line text-[17px] font-medium"
+          style={{ color: WARM }}
+        >
+          {BOOT_STEPS[step]}
+          <span className="jv-boot-dots" aria-hidden="true" />
+        </p>
+      </div>
+
+      {/* step progress ticks */}
+      <div className="mt-6 flex items-center gap-2">
+        {BOOT_STEPS.map((_, i) => (
+          <span
+            key={i}
+            className="h-1 rounded-full transition-all duration-500"
+            style={{
+              width: i === step ? 22 : 8,
+              background: i <= step ? EMBER : "rgba(245,241,236,0.18)",
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function StageStyles() {
   return (
     <style>{`
+      .jv-boot-ping{
+        animation: jvBootPing 1.8s cubic-bezier(0.2,0.6,0.4,1) infinite;
+      }
+      @keyframes jvBootPing{
+        0%   { transform: scale(0.86); opacity: 0.9; }
+        70%  { transform: scale(1.45); opacity: 0; }
+        100% { transform: scale(1.45); opacity: 0; }
+      }
+      .jv-boot-line{
+        animation: jvBootLine .45s cubic-bezier(0.2,0.8,0.2,1) both;
+      }
+      @keyframes jvBootLine{
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      .jv-boot-dots::after{
+        content: "";
+        animation: jvBootDots 1.4s steps(4, end) infinite;
+      }
+      @keyframes jvBootDots{
+        0%   { content: ""; }
+        25%  { content: "."; }
+        50%  { content: ".."; }
+        75%  { content: "..."; }
+      }
+      @media (prefers-reduced-motion: reduce){
+        .jv-boot-ping, .jv-boot-line { animation: none; }
+        .jv-boot-dots::after { content: "..."; animation: none; }
+      }
       .jv-stage-close{
         color:rgba(245,241,236,0.55);
         background:rgba(245,241,236,0.04);
