@@ -1,8 +1,7 @@
 "use client";
 
-import { Collapse } from "antd";
+import { useState } from "react";
 import AnimatedSection from "./AnimatedSection";
-import { ChevronDown } from "./icons";
 
 const QA = [
   {
@@ -32,20 +31,12 @@ const QA = [
 ];
 
 export default function Faq() {
-  const items = QA.map((item, i) => ({
-    key: String(i),
-    label: (
-      <span className="text-lg font-semibold text-ink sm:text-xl tracking-[-0.02em]">
-        {item.q}
-      </span>
-    ),
-    children: (
-      <p className="max-w-2xl text-sm leading-relaxed text-muted">{item.a}</p>
-    ),
-  }));
+  // Accordion: one card open at a time (start with the first). Clicking the
+  // open card closes it.
+  const [open, setOpen] = useState(0);
 
   return (
-    <section id="faq" className="shell scroll-mt-24 py-16 lg:py-24">
+    <section id="faq" className="shell scroll-mt-24 pb-16 lg:pb-24">
       <AnimatedSection className="mx-auto max-w-2xl text-center">
         <span className="eyebrow justify-center">FAQ</span>
         <h2 className="mt-4 text-[28px]/[36px] xl:text-[48px]/[56px] tracking-[-0.02em] xl:tracking-[-0.028em] font-semibold text-ink">
@@ -58,22 +49,66 @@ export default function Faq() {
         </p>
       </AnimatedSection>
 
-      <AnimatedSection delay={120} className="mx-auto mt-12 max-w-3xl">
-        <Collapse
-          items={items}
-          defaultActiveKey={["0"]}
-          variant="borderless"
-          expandIconPosition="end"
-          expandIcon={({ isActive }) => (
-            <ChevronDown
-              className={`h-5 w-5 text-muted transition-transform duration-300 ${
-                isActive ? "rotate-180 text-brand" : ""
+      <AnimatedSection delay={120} className="mx-auto mt-12 max-w-3xl space-y-3">
+        {QA.map((item, i) => {
+          const isOpen = i === open;
+          return (
+            <div
+              key={item.q}
+              className={`rounded-3xl transition-all duration-300 ease-smooth ${
+                isOpen
+                  ? "bg-white shadow-card"
+                  : "bg-surface-alt hover:bg-line/60"
               }`}
-            />
-          )}
-          className="faq-collapse divide-y divide-line border-y border-line !bg-transparent"
-        />
+            >
+              <button
+                type="button"
+                onClick={() => setOpen(isOpen ? -1 : i)}
+                aria-expanded={isOpen}
+                className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left sm:px-8 sm:py-6 cursor-pointer"
+              >
+                <span className="text-lg font-semibold tracking-[-0.02em] text-ink sm:text-xl">
+                  {item.q}
+                </span>
+                <PlusToggle open={isOpen} />
+              </button>
+
+              {/* collapsible answer */}
+              <div
+                className={`grid transition-all duration-300 ease-smooth ${
+                  isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                }`}
+              >
+                <div className="overflow-hidden">
+                  <p className="max-w-2xl px-6 pb-6 text-sm leading-relaxed text-muted sm:px-8 sm:pb-7">
+                    {item.a}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </AnimatedSection>
     </section>
+  );
+}
+
+// A plus that rotates 45° into a "×" when its card is open.
+function PlusToggle({ open }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={`h-5 w-5 flex-none text-muted-light transition-transform duration-300 ease-smooth ${
+        open ? "rotate-45" : ""
+      }`}
+    >
+      <path
+        d="M12 5v14M5 12h14"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

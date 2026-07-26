@@ -4,7 +4,7 @@ import Faq from "@/components/Faq";
 export const metadata = {
   title: "FAQ — mAutomate, the AI-powered commerce platform",
   description:
-    "Answers about mAutomate: how the AI builds and runs your store, what AI actions cost, who owns your data, and how the 7-day free trial works.",
+    "Answers about mAutomate: how the AI builds and runs your store, what AI actions cost, who owns your data, and how the 14-day free trial works.",
 };
 
 export default function FaqPage() {
@@ -22,7 +22,7 @@ export default function FaqPage() {
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-muted">
             Talk to a real person about your brand, or jump straight in and let
-            the AI build your store — free for 7 days, cancel any time before
+            the AI build your store — free for 14 days, cancel any time before
             your trial ends.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

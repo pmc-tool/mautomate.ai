@@ -114,6 +114,12 @@ module.exports = {
           "75%, 93%": { transform: "translateY(-3.75rem)" },
           "100%": { transform: "translateY(-5rem)" },
         },
+        // Continuous horizontal logo marquee. The track duplicates its content
+        // once, so shifting by -50% lands on an identical frame — a seamless loop.
+        marquee: {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(-50%)" },
+        },
       },
       animation: {
         "float-slow": "float-slow 6s ease-in-out infinite",
@@ -125,6 +131,7 @@ module.exports = {
         "fade-up": "fade-up 0.4s ease both",
         progress: "progress var(--progress-duration, 5s) linear both",
         "text-roll": "text-roll 8s cubic-bezier(0.7, 0, 0.3, 1) infinite",
+        marquee: "marquee 30s linear infinite",
       },
       transitionTimingFunction: {
         smooth: "cubic-bezier(0.22, 1, 0.36, 1)",

@@ -7,23 +7,27 @@ const COLUMNS = [
     title: "Get to market faster",
     color: "text-brand",
     items: [
-      "No-code store builder",
-      "AI content in minutes",
-      "Composable blocks",
+      "Launch a no-code store in minutes",
+      "Generate product pages and copy with AI",
+      "Build pages from composable, reusable blocks",
     ],
   },
   {
     title: "Sell on every channel",
     color: "text-accent-green",
-    items: ["Publish anywhere", "Automated marketing", "24/7 AI support"],
+    items: [
+      "Publish your products anywhere your customers are",
+      "Run marketing campaigns on full autopilot",
+      "Answer every customer 24/7 with AI support",
+    ],
   },
   {
     title: "Free your team",
     color: "text-ink",
     items: [
-      "Easy to adopt & scale",
-      "Simple, elegant workflows",
-      "Everything works together",
+      "Easy for your whole team to adopt and scale",
+      "Simple, elegant workflows that stay out of the way",
+      "Every tool connected so everything just works together",
     ],
   },
 ];
@@ -46,7 +50,7 @@ export default function WhyChoose() {
       </AnimatedSection>
 
       {/* benefit columns */}
-      <div className="mx-auto mt-14 grid max-w-5xl grid-cols-1 gap-10 sm:grid-cols-3 sm:gap-8 lg:gap-14">
+      <div className="mx-auto mt-14 grid max-w-7xl grid-cols-1 gap-10 sm:grid-cols-3 sm:gap-8 lg:gap-10">
         {COLUMNS.map((col, i) => (
           <AnimatedSection key={col.title} delay={i * 100}>
             <h3 className="text-xl font-bold text-ink text-left">
@@ -54,9 +58,11 @@ export default function WhyChoose() {
             </h3>
             <ul className="mt-5 space-y-3.5">
               {col.items.map((item) => (
-                <li key={item} className="flex items-center gap-3">
-                  <SparkleIcon className={`h-4 w-4 flex-none ${col.color}`} />
-                  <span className="text-[15px] text-muted">{item}</span>
+                <li key={item} className="flex items-start gap-3 text-left">
+                  <SparkleIcon className={`mt-1 h-4 w-4 flex-none ${col.color}`} />
+                  <span className="text-[15px] leading-relaxed text-muted">
+                    {item}
+                  </span>
                 </li>
               ))}
             </ul>

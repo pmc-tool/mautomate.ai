@@ -3,19 +3,19 @@ import GetStarted from "@/components/GetStarted";
 import { TRIAL_DAYS } from "@/lib/plans";
 
 export const metadata = {
-  title: "Get started — start your 7-day free trial | mAutomate",
+  title: "Get started — start your 14-day free trial | mAutomate",
   description:
-    "Pick a plan and launch your AI-run store today. Every plan starts with a 7-day free trial — your plan begins automatically when the trial ends, cancel any time before then.",
+    "Pick a plan and launch your AI-run store today. Every plan starts with a 14-day free trial — your plan begins automatically when the trial ends, cancel any time before then.",
 };
 
 // How the trial works — three plain-language steps.
 const STEPS = [
   {
     title: "Pick a plan and start today",
-    body: "Choose the pack that fits your store. Your 7 days of full access begin the moment you sign up — every feature, no limits.",
+    body: "Choose the pack that fits your store. Your 14 days of full access begin the moment you sign up — every feature, no limits.",
   },
   {
-    title: "Build and sell, free for 7 days",
+    title: "Build and sell, free for 14 days",
     body: "Let the AI build your storefront, run your marketing, and handle operations. Explore the whole suite while the trial runs.",
   },
   {
@@ -49,8 +49,8 @@ export default function GetStartedPage() {
     <PageShell>
       <PageHero
         eyebrow="Get started"
-        title="Start your 7-day free trial"
-        subtitle="Pick a plan and launch your store today. You get full access for 7 days — when the trial ends your plan begins automatically, and you can cancel any time before then."
+        title="Start your 14-day free trial"
+        subtitle="Pick a plan and launch your store today. You get full access for 14 days — when the trial ends your plan begins automatically, and you can cancel any time before then."
       />
 
       {/* Pack picker + billing toggle. */}
@@ -61,7 +61,7 @@ export default function GetStartedPage() {
         <div className="mx-auto max-w-2xl text-center">
           <span className="eyebrow justify-center">How the trial works</span>
           <h2 className="mt-4 text-h2 font-semibold tracking-[-0.02em] text-ink">
-            Free for 7 days. Then your store keeps running.
+            Free for 14 days. Then your store keeps running.
           </h2>
         </div>
 

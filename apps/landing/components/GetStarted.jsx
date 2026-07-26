@@ -7,7 +7,7 @@ import { BILLING, PLANS, fmt, TRIAL_DAYS } from "@/lib/plans";
 import { trialSignupUrl } from "@/lib/site";
 
 // Interactive pack picker for the Get Started page. Every pack starts the same
-// 7-day free trial — there is no separate "free trial" pack to choose. A plan
+// 14-day free trial — there is no separate "free trial" pack to choose. A plan
 // and billing period can be pre-selected via ?plan=<id>&billing=<id> (set by
 // the CTAs on the pricing section). We read them from the URL on mount instead
 // of useSearchParams to avoid the static-export prerender bailout.

@@ -2,7 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { NAV, LOGIN_URL, GET_STARTED_URL } from "@/lib/site";
+import { LOGIN_URL, GET_STARTED_URL } from "@/lib/site";
+
+// "/#section" (not "#section") so the nav works from subpages
+// (/get-started, /privacy, blog) as well as the homepage.
+const NAV = [
+  { label: "Use cases", href: "/#use-cases" },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Reviews", href: "/#reviews" },
+  { label: "Pricing", href: "/#pricing" },
+  { label: "FAQ", href: "/#faq" },
+];
 
 export default function Header() {
   const [open, setOpen] = useState(false);
@@ -16,17 +26,17 @@ export default function Header() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50">
+    <header className="fixed inset-x-0 top-0 z-50">
       <div
-        className={`border-b border-line transition-all duration-300 ease-smooth ${
+        className={`border-b transition-all duration-300 ease-smooth ${
           scrolled
-            ? "bg-[#fdf9f8]/85 shadow-[0_8px_30px_-18px_rgba(20,20,20,0.35)] backdrop-blur-md"
-            : "bg-[#fdf9f8]"
+            ? "border-line bg-surface-alt/85 shadow-[0_8px_30px_-18px_rgba(20,20,20,0.35)] backdrop-blur-md"
+            : "border-transparent bg-transparent"
         }`}
       >
         <nav className="shell relative flex items-center justify-between py-4">
           <a
-            href="#top"
+            href="/#top"
             className="transition-opacity duration-300 hover:opacity-80"
             aria-label="mAutomate home"
           >

@@ -63,7 +63,7 @@ export default function Testimonials() {
           <TestimonialCard {...featured} className="lg:row-span-2" />
 
           {/* stat tile */}
-          <div className="flex flex-col justify-center rounded-3xl bg-brand-soft p-6">
+          <div className="flex flex-col justify-center rounded-3xl bg-surface-alt p-6">
             <p className="text-4xl font-bold text-ink">{STAT.value}</p>
             <p className="mt-1 text-sm text-muted">{STAT.label}</p>
           </div>
@@ -81,7 +81,7 @@ export default function Testimonials() {
 function TestimonialCard({ quote, name, role, tall = false, className = "" }) {
   return (
     <div
-      className={`flex flex-col justify-between rounded-3xl bg-brand-soft p-6 ${className}`}
+      className={`flex flex-col justify-between rounded-3xl bg-surface-alt p-6 ${className}`}
     >
       <div>
         <div className="flex gap-1">

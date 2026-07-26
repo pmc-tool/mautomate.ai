@@ -24,6 +24,8 @@ export default function Footer() {
             </p>
           </div>
 
+          {/* Functional signup (posts to /api/newsletter) — the decorative
+              form it replaces submitted nowhere. */}
           <NewsletterForm />
         </div>
 
@@ -32,14 +34,12 @@ export default function Footer() {
           <div className="flex flex-col justify-between gap-10 lg:flex-row">
             {/* brand + tagline */}
             <div>
-              {/* Same logo asset as the header, rendered white so it reads on
-                  the dark footer. */}
               <Image
                 src="/assets/logo.svg"
                 alt="mAutomate"
                 width={200}
                 height={44}
-                className="h-10 w-auto [filter:brightness(0)_invert(1)]"
+                className="h-11 w-auto brightness-0 invert"
               />
               <p className="mt-6 text-lg font-bold text-white">
                 Smart automation for modern commerce.

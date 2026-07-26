@@ -15,16 +15,20 @@ export default function LogoCloud() {
         Trusted by 2,500+ businesses, globally
       </p>
 
-      <div className="mt-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-6 sm:gap-x-14">
-        {LOGOS.map(({ name, glyph: Glyph }) => (
-          <div
-            key={name}
-            className="flex items-center gap-2 text-muted-light transition-colors duration-300 hover:text-ink"
-          >
-            <Glyph className="h-6 w-6 flex-none" />
-            <span className="text-lg font-bold tracking-tight">{name}</span>
-          </div>
-        ))}
+      {/* marquee — a duplicated track scrolls left continuously; edge mask
+          fades the logos in/out at both ends */}
+      <div className="group mt-8 overflow-hidden mask-[linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
+        <div className="flex w-max animate-marquee items-center group-hover:[animation-play-state:paused] motion-reduce:animate-none">
+          {[...LOGOS, ...LOGOS].map(({ name, glyph: Glyph }, i) => (
+            <div
+              key={`${name}-${i}`}
+              className="flex flex-none items-center gap-3 px-8 text-muted-light transition-colors duration-300 hover:text-ink sm:px-10"
+            >
+              <Glyph className="h-9 w-9 flex-none" />
+              <span className="text-2xl font-bold tracking-tight">{name}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

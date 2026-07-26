@@ -20,7 +20,7 @@ export const SIGNUP_STATUS_PATH = "/api/signup/status";
 // Stores are provisioned as <slug>.mautomate.ai.
 export const STORE_DOMAIN = "mautomate.ai";
 
-// Build the /signup URL for a chosen plan + billing period. The 7-day trial is
+// Build the /signup URL for a chosen plan + billing period. The 14-day trial is
 // baked into every plan; there is no separate free-trial pack.
 export function trialSignupUrl(planId, billingId) {
   const params = new URLSearchParams();

@@ -152,8 +152,8 @@ export default function SignupFlow() {
         const rslug = data.slug ?? finalSlug;
 
         // Paid plan: the account starts on a free trial and we take the card
-        // FIRST via the Paddle 7-day-trial checkout ($0 today, plan begins after
-        // 7 days). Go straight there — never drop the visitor into the dashboard
+        // FIRST via the Paddle 14-day-trial checkout ($0 today, plan begins after
+        // 14 days). Go straight there — never drop the visitor into the dashboard
         // before the card step.
         if (data.requires_card && (data.checkout_url || data.admin_url)) {
           setStep("redirecting");

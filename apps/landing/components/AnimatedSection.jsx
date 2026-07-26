@@ -32,6 +32,15 @@ export default function AnimatedSection({
       return;
     }
 
+    // Reveal once ~30% of the element is visible — but elements taller than
+    // the viewport can never hit 30% on screen at once (e.g. the stacked hero
+    // bento on mobile), so cap the threshold to a viewport-relative amount.
+    const vh = window.innerHeight || 800;
+    const threshold =
+      node.offsetHeight > 0
+        ? Math.min(0.3, (vh * 0.3) / node.offsetHeight)
+        : 0.3;
+
     const observer = new IntersectionObserver(
       (entries, obs) => {
         entries.forEach((entry) => {
@@ -41,7 +50,7 @@ export default function AnimatedSection({
           }
         });
       },
-      { threshold: 0.3 }
+      { threshold }
     );
 
     observer.observe(node);

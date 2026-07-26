@@ -30,7 +30,7 @@ const sections = [
   {
     heading: "4. Trials and billing",
     body: [
-      "New accounts start with a 7-day free trial. When the trial ends, your selected plan begins automatically and your payment method is charged, unless you cancel before the trial ends. The specifics of your plan, price, and included AI credits are shown at checkout and in your billing settings.",
+      "New accounts start with a 14-day free trial. When the trial ends, your selected plan begins automatically and your payment method is charged, unless you cancel before the trial ends. The specifics of your plan, price, and included AI credits are shown at checkout and in your billing settings.",
       "- Subscriptions are billed in advance on a recurring basis, monthly or annually, depending on the plan you choose.\n- AI features consume AI credits. Your plan includes a monthly credit allowance, and you can purchase additional credit packs as needed.\n- Subscriptions renew automatically at the end of each billing period unless you cancel before the renewal date.\n- You can cancel at any time from your billing settings; cancellation takes effect at the end of the current billing period, and you keep access until then.\n- Except where required by law, fees already paid are non-refundable, and unused AI credits do not carry over beyond their stated validity.",
       "We may change prices or plan features, and will give reasonable advance notice before a change affects your next renewal.",
     ],

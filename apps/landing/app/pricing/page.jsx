@@ -4,17 +4,17 @@ import Pricing from "@/components/Pricing";
 export const metadata = {
   title: "Pricing — mAutomate plans from $29/month",
   description:
-    "Simple pricing for an AI-run store: pay for work done, not seats. Every plan starts with a 7-day free trial — your plan begins automatically when the trial ends.",
+    "Simple pricing for an AI-run store: pay for work done, not seats. Every plan starts with a 14-day free trial — your plan begins automatically when the trial ends.",
 };
 
 // Short reassurance points shown as compact trust cards under the plans.
 const TRUST = [
   {
-    title: "7-day free trial",
+    title: "14-day free trial",
     body: "Every plan, every feature. Explore the whole suite before your plan begins.",
   },
   {
-    title: "Only pay after 7 days",
+    title: "Only pay after 14 days",
     body: "Build today for free. Your plan starts automatically when the trial ends — cancel before then and you won't be charged.",
   },
   {
@@ -82,11 +82,11 @@ export default function PricingPage() {
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-base text-muted">
               Spin up your storefront, marketing, and AI operator in minutes —
-              free for 7 days, cancel any time before your trial ends.
+              free for 14 days, cancel any time before your trial ends.
             </p>
             <div className="mt-8 flex justify-center">
               <a href="/get-started" className="btn-primary">
-                Start your 7-day free trial
+                Start your 14-day free trial
               </a>
             </div>
           </div>

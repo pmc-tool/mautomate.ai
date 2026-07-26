@@ -77,9 +77,9 @@ const GAUGE = (() => {
 export default function HeroBento() {
   return (
     <div className="flex w-full flex-col gap-4">
-      <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:auto-rows-[minmax(180px,auto)]">
+      <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:auto-rows-[minmax(150px,auto)]">
         {/* ---- Promo tile ---- */}
-        <div className="relative flex min-h-[260px] flex-col justify-between overflow-hidden rounded-3xl bg-ink p-6 text-left sm:col-span-2 lg:col-span-2">
+        <div className="relative flex min-h-65 flex-col justify-between overflow-hidden rounded-3xl bg-ink p-6 text-left sm:col-span-2 lg:col-span-2">
           <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand/25 blur-2xl" />
           <div className="relative">
             <h3 className="text-xl font-bold text-white">
@@ -111,13 +111,13 @@ export default function HeroBento() {
         </div>
 
         {/* ---- Smart AI Call Center tile ---- */}
-        <CallCenterTile className="min-h-[260px] sm:col-span-2 lg:col-span-2" />
+        <CallCenterTile className="min-h-52 sm:col-span-2 lg:col-span-2" />
 
         {/* ---- Omnichannel hub tile ---- */}
-        <ChannelHub className="min-h-[200px] sm:col-span-2 lg:col-span-1 lg:row-span-2" />
+        <ChannelHub className="min-h-45 sm:col-span-2 lg:col-span-1 lg:row-span-2" />
 
         {/* ---- Sales chart card ---- */}
-        <div className="flex min-h-[250px] flex-col rounded-3xl border border-line bg-white p-5 text-left sm:col-span-2 lg:col-span-2 lg:row-span-2">
+        <div className="flex min-h-52 flex-col rounded-[20px] border-2 border-white bg-white/60 shadow-[-3px_15px_25px_#68635026] p-5 text-left sm:col-span-2 lg:col-span-2 lg:row-span-2">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-base font-bold text-ink">Sales Overview</p>
@@ -135,7 +135,7 @@ export default function HeroBento() {
 
           {/* toggle */}
           <div className="mt-4 inline-flex self-start rounded-full bg-surface-alt p-1 text-xs font-semibold">
-            <span className="rounded-full bg-[#fdf9f8] px-3 py-1 text-ink">
+            <span className="rounded-full bg-surface-alt px-3 py-1 text-ink">
               Weekly
             </span>
             <span className="px-3 py-1 text-muted">Monthly</span>
@@ -234,9 +234,9 @@ export default function HeroBento() {
           icon={OperationsIcon}
           label="Orders"
           value="+1,204"
-          className="min-h-[150px]"
+          className="min-h-32"
         />
-        <RevenueGauge className="min-h-[150px]" />
+        <RevenueGauge className="min-h-32" />
       </div>
 
       {/* ---- Feature cards ---- */}
@@ -251,7 +251,7 @@ export default function HeroBento() {
 
 function ResponsiveCard() {
   return (
-    <div className="flex flex-col rounded-3xl border border-line bg-white p-6 relative">
+    <div className="flex flex-col rounded-[20px] border-2 border-white bg-white/60 shadow-[-3px_15px_25px_#68635026] p-6 relative">
       {/* store preview */}
       <Image
         src="/assets/screen.png"
@@ -313,7 +313,7 @@ const ALERTS = [
 
 function InventoryCard() {
   return (
-    <div className="flex flex-col rounded-3xl border border-line bg-white p-6">
+    <div className="flex flex-col rounded-[20px] border-2 border-white bg-white/60 shadow-[-3px_15px_25px_#68635026] p-6">
       <div className="mb-8">
         <h3 className="text-lg font-bold text-ink">
           Inventory &amp; Order Management
@@ -420,7 +420,7 @@ const CONFIG = [
 
 function CustomizeCard() {
   return (
-    <div className="flex flex-col rounded-3xl border border-line bg-white p-6">
+    <div className="flex flex-col rounded-[20px] border-2 border-white bg-white/60 shadow-[-3px_15px_25px_#68635026] p-6">
       <div className="w-60 m-auto">
         <p className="text-[11px] font-medium text-muted text-left">
           Configuration
@@ -498,7 +498,7 @@ function wavePath(scale, phase) {
 function CallCenterTile({ className = "" }) {
   return (
     <div
-      className={`relative flex flex-col items-center overflow-hidden rounded-3xl border border-line bg-white px-6 pt-7 text-center ${className}`}
+      className={`relative flex flex-col items-center overflow-hidden rounded-[20px] border-2 border-white bg-white/60 shadow-[-3px_15px_25px_#68635026] px-6 pt-7 text-center ${className}`}
     >
       <h3 className="text-xl font-bold text-ink">Smart AI Call Center</h3>
       <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-muted">
@@ -606,7 +606,7 @@ const CHANNELS = [
 function ChannelHub({ className = "" }) {
   return (
     <div
-      className={`channel-hub group relative flex flex-col overflow-hidden rounded-3xl border border-brand/10 bg-gradient-to-b from-brand-soft to-white p-6 text-left ${className}`}
+      className={`channel-hub group relative flex flex-col overflow-hidden rounded-3xl border-2 border-white bg-linear-to-b from-brand-soft to-white p-6 text-left shadow-[-3px_15px_25px_#68635026] ${className}`}
     >
       {/* Channel graphic */}
       <div className="relative mx-auto aspect-square w-full max-w-75">
@@ -696,7 +696,7 @@ function ChannelHub({ className = "" }) {
 function StatCard({ icon: Icon, label, value, className = "" }) {
   return (
     <div
-      className={`flex flex-col justify-between rounded-3xl bg-brand-soft p-5 text-left ${className}`}
+      className={`flex flex-col justify-between rounded-3xl border-2 border-white bg-brand-soft p-5 text-left shadow-[-3px_15px_25px_#68635026] ${className}`}
     >
       <span className="flex h-9 w-9 items-center justify-center self-end rounded-xl bg-white text-brand">
         <Icon className="h-5 w-5" />
@@ -712,7 +712,7 @@ function StatCard({ icon: Icon, label, value, className = "" }) {
 function RevenueGauge({ className = "" }) {
   return (
     <div
-      className={`flex flex-col items-center justify-center rounded-3xl bg-brand-soft p-4 text-center ${className}`}
+      className={`flex flex-col items-center justify-center rounded-3xl border-2 border-white bg-brand-soft p-4 text-center shadow-[-3px_15px_25px_#68635026] ${className}`}
     >
       {/* Gauge SVG */}
       <svg
