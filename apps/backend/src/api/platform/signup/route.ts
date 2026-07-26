@@ -33,6 +33,30 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 const recent = new Map<string, number[]>()
 const PER_IP_HOUR = 5
 
+// Highest-volume throwaway mail providers (P5 trial-farming friction).
+const DISPOSABLE_DOMAINS = new Set([
+  "mailinator.com",
+  "guerrillamail.com",
+  "guerrillamail.info",
+  "sharklasers.com",
+  "10minutemail.com",
+  "10minutemail.net",
+  "temp-mail.org",
+  "tempmail.com",
+  "tempmail.dev",
+  "throwawaymail.com",
+  "yopmail.com",
+  "yopmail.fr",
+  "getnada.com",
+  "dispostable.com",
+  "maildrop.cc",
+  "trashmail.com",
+  "fakeinbox.com",
+  "mintemail.com",
+  "mohmal.com",
+  "emailondeck.com",
+])
+
 const cors = (res: MedusaResponse) => {
   res.setHeader("Access-Control-Allow-Origin", `https://${ROOT}`)
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
@@ -73,6 +97,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   if (!EMAIL_RE.test(email)) return res.status(400).json({ message: "a valid email is required" })
   if (password.length < 8) return res.status(400).json({ message: "password must be at least 8 characters" })
+
+  // Trial-farming friction (P5): throwaway mailbox domains cannot open trials.
+  // Small static list of the highest-volume providers — not exhaustive, just
+  // enough to push farmers to costlier addresses.
+  const emailDomain = email.split("@")[1] ?? ""
+  if (DISPOSABLE_DOMAINS.has(emailDomain)) {
+    return res.status(400).json({
+      message: "Please sign up with a permanent email address.",
+    })
+  }
 
   const svc = req.scope.resolve(PLATFORM_MODULE) as any
 

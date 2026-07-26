@@ -2,6 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { PLATFORM_MODULE } from "../index"
+import { dailyCapForPlan } from "../entitlements"
 import { loadRateOverrides } from "../pricing/price-book"
 import type { Reservation, WalletState, WalletStore } from "./ledger"
 
@@ -83,6 +84,30 @@ let ratesLoadedAt = 0
 
 export class SqlWalletStore implements WalletStore {
   constructor(private readonly container: MedusaContainer) {}
+
+  /** P5: credits committed since local midnight (commit rows are negative). */
+  async spentToday(tenantId: string): Promise<number> {
+    const res = await this.pg().raw(
+      `SELECT coalesce(-sum(amount), 0)::int AS spent
+         FROM credit_transaction
+        WHERE tenant_id = ?
+          AND type = 'commit'
+          AND deleted_at IS NULL
+          AND created_at >= date_trunc('day', now())`,
+      [tenantId]
+    )
+    return Number(res?.rows?.[0]?.spent ?? 0)
+  }
+
+  /** P5: the tenant's plan-derived daily ceiling (null = uncapped). */
+  async dailyCapFor(tenantId: string): Promise<number | null> {
+    try {
+      const tenant = await this.svc().retrieveTenant(tenantId)
+      return dailyCapForPlan(tenant?.package)
+    } catch {
+      return null // fail open — cap is protection, not a availability risk
+    }
+  }
 
   async refreshRates(): Promise<void> {
     const now = Date.now()

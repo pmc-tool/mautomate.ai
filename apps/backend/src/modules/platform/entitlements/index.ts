@@ -158,6 +158,31 @@ const MATRIX: Record<PlanKey, PlanEntitlements> = {
   },
 }
 
+/**
+ * P5 runaway protection: per-tenant daily credit ceilings by plan. Applied in
+ * the credit ledger's reserve path; override per plan with
+ * DAILY_CREDIT_CAP_<PLAN>=n (0 disables that plan's cap).
+ */
+export const DAILY_CREDIT_CAPS: Record<PlanKey, number> = {
+  free_trial: 50,
+  starter: 1_000,
+  growth: 3_000,
+  pro: 8_000,
+  scale: 20_000,
+}
+
+export const dailyCapForPlan = (planKey: string | null | undefined): number | null => {
+  const plan: PlanKey = (PLAN_ORDER as string[]).includes(String(planKey))
+    ? (planKey as PlanKey)
+    : "free_trial"
+  const env = process.env[`DAILY_CREDIT_CAP_${plan.toUpperCase()}`]
+  if (env !== undefined) {
+    const n = Number(env)
+    if (Number.isFinite(n)) return n > 0 ? n : null
+  }
+  return DAILY_CREDIT_CAPS[plan]
+}
+
 /** The cheapest plan that includes a feature — powers upsell payloads. */
 export const requiredPlanFor = (feature: FeatureKey): PlanKey => {
   for (const key of PLAN_ORDER) {

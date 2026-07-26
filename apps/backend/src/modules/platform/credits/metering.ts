@@ -16,7 +16,11 @@ export const getLedger = (container: MedusaContainer): CreditLedgerService =>
 
 export type MeteredOutcome<T> =
   | { ok: true; result: T; credits: number }
-  | { ok: false; reason: "insufficient_credits"; credits: number }
+  | {
+      ok: false
+      reason: "insufficient_credits" | "daily_cap_reached"
+      credits: number
+    }
 
 let counter = 0
 const reservationId = (tenantId: string): string =>
@@ -39,7 +43,7 @@ export async function withCredits<T>(
     reservationId: rid,
   })
   if (!reservation.ok) {
-    return { ok: false, reason: "insufficient_credits", credits: reservation.credits }
+    return { ok: false, reason: reservation.reason, credits: reservation.credits }
   }
   try {
     const { result, actualUnits } = await run()

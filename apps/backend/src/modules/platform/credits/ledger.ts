@@ -51,6 +51,11 @@ export interface WalletStore {
   recordIdempotencyKey(tenantId: string, key: string): Promise<void>
   /** Optional: pull operator-edited rates so EVERY charge path sees them. */
   refreshRates?(): Promise<void>
+  /** Optional (P5 spend caps): credits committed by this tenant since local
+   *  midnight. Used with dailyCapFor to bound runaway agents/journeys. */
+  spentToday?(tenantId: string): Promise<number>
+  /** Optional (P5): the tenant's daily credit ceiling (null = uncapped). */
+  dailyCapFor?(tenantId: string): Promise<number | null>
   /** Optional: credit-lot layer (source + expiry). */
   createLot?(row: {
     tenant_id: string
@@ -94,7 +99,11 @@ export const RESERVATION_TTL_MS = 15 * 60 * 1000
 
 export type ReserveResult =
   | { ok: true; reservation_id: string; credits: number }
-  | { ok: false; reason: "insufficient_credits"; credits: number }
+  | {
+      ok: false
+      reason: "insufficient_credits" | "daily_cap_reached"
+      credits: number
+    }
 
 export class CreditLedgerService {
   constructor(private readonly store: WalletStore) {}
@@ -114,6 +123,28 @@ export class CreditLedgerService {
     await this.store.refreshRates?.()
     await this.store.ensureWallet(tenantId)
     const credits = creditsFor(action, units)
+
+    // P5 runaway protection: a per-tenant daily credit ceiling by plan state.
+    // Protects the merchant from their own runaway journeys/agents as much as
+    // it protects the platform. Fail-open (R6): a broken cap check must never
+    // block a legitimate charge path.
+    try {
+      if (this.store.dailyCapFor && this.store.spentToday) {
+        const cap = await this.store.dailyCapFor(tenantId)
+        if (cap != null && cap > 0) {
+          const spent = await this.store.spentToday(tenantId)
+          if (spent + credits > cap) {
+            console.warn(
+              `[credit-cap] tenant=${tenantId} action=${action} spent_today=${spent} cap=${cap} - blocked`
+            )
+            return { ok: false, reason: "daily_cap_reached", credits }
+          }
+        }
+      }
+    } catch {
+      /* fail open */
+    }
+
     const ok = await this.store.atomicReserve(tenantId, credits)
     if (!ok) {
       return { ok: false, reason: "insufficient_credits", credits }
