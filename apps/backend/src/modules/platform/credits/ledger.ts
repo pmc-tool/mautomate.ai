@@ -305,6 +305,78 @@ export class CreditLedgerService {
   }
 
   /**
+   * Transfer PURCHASED credits between two stores of the same owner
+   * (multi-store M3). Only never-expiring topup lots move — plan/trial
+   * allowances stay where they were granted. Atomic against concurrent
+   * spends via the same conditional decrement the charge path uses; the
+   * receiving side is a normal topup-style credit (never expires).
+   * Ownership of BOTH tenants must be verified by the caller (route).
+   */
+  async transfer(
+    fromTenantId: string,
+    toTenantId: string,
+    amount: number,
+    opts: { idempotencyKey?: string } = {}
+  ): Promise<
+    | { ok: true; from_balance: number; to_balance: number }
+    | { ok: false; reason: "insufficient_purchased" | "insufficient_balance" }
+  > {
+    await this.store.ensureWallet(fromTenantId)
+    if (opts.idempotencyKey) {
+      if (await this.store.seenIdempotencyKey(fromTenantId, opts.idempotencyKey)) {
+        const fw = await this.store.getWallet(fromTenantId)
+        const tw = await this.store.getWallet(toTenantId)
+        return { ok: true, from_balance: fw.balance, to_balance: tw.balance }
+      }
+    }
+
+    // Purchased-only rule: the movable pool is topup-lot remaining.
+    const lots = (await this.store.listOpenLots?.(fromTenantId)) ?? []
+    const topupLots = lots.filter((l) => l.source === "topup" && l.remaining > 0)
+    const purchased = topupLots.reduce((s, l) => s + l.remaining, 0)
+    if (purchased < amount) {
+      return { ok: false, reason: "insufficient_purchased" }
+    }
+
+    // Atomic balance guard (concurrent reserves can't double-spend past it).
+    const okReserve = await this.store.atomicReserve(fromTenantId, amount)
+    if (!okReserve) {
+      return { ok: false, reason: "insufficient_balance" }
+    }
+    if (opts.idempotencyKey) {
+      await this.store.recordIdempotencyKey(fromTenantId, opts.idempotencyKey)
+    }
+
+    // Burn from topup lots specifically (oldest-first), then finalize the
+    // reserved hold as spent.
+    let left = amount
+    for (const lot of topupLots) {
+      if (left <= 0) break
+      const take = Math.min(lot.remaining, left)
+      await this.store.setLotRemaining?.(lot.id, lot.remaining - take)
+      left -= take
+    }
+    await this.store.applyDelta(fromTenantId, 0, -amount)
+    const fw = await this.store.getWallet(fromTenantId)
+    await this.store.appendTx({
+      tenant_id: fromTenantId,
+      type: "transfer_out",
+      amount: -amount,
+      balance_after: fw.balance,
+      idempotency_key: opts.idempotencyKey,
+      meta: { to_tenant_id: toTenantId },
+    })
+
+    const toBalance = await this.credit(toTenantId, amount, {
+      type: "topup",
+      source: "topup",
+      idempotencyKey: opts.idempotencyKey ? `${opts.idempotencyKey}:in` : undefined,
+      meta: { transfer_from: fromTenantId },
+    })
+    return { ok: true, from_balance: fw.balance, to_balance: toBalance }
+  }
+
+  /**
    * Chargeback clawback — subtract credits already granted from a payment that
    * was reversed. Allowed to drive the balance negative; returns whether the
    * tenant should be suspended. Idempotent on key.
