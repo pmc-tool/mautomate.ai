@@ -13,6 +13,89 @@ import { TIERS, CREDIT_USD } from "../../../../modules/platform/pricing/price-bo
 import { accruePartnerCommission } from "../../../../modules/platform/partners/commission"
 import { grantMerchantReferralReward } from "../../../../modules/platform/partners/merchant-referral"
 import { fulfillMobileAppPublish } from "../../../../modules/platform/mobile-app/fulfill"
+import { provisionTenantWorkflow } from "../../../../workflows/platform/provision-tenant"
+
+/**
+ * Multi-store M2: provision a PAID additional store and link it to its owner.
+ * Runs only from the signed webhook (paid-first). Idempotent: if the slug's
+ * tenant already exists it re-links ownership instead of failing, so Paddle
+ * retries are harmless. The store starts on the "growth" package (plan
+ * decision 2026-07-27: extra stores get Grow-level entitlements + credits).
+ */
+async function provisionAddonStore(
+  scope: any,
+  addon: {
+    owner_merchant_id: string
+    slug: string
+    name: string
+    subscription_id?: string
+  }
+): Promise<{ ok: boolean; tenant_id?: string; error?: string }> {
+  const svc: any = scope.resolve(PLATFORM_MODULE)
+  if (!addon.owner_merchant_id || !addon.slug) {
+    return { ok: false, error: "addon_store payload missing owner or slug" }
+  }
+
+  const link = async (tenantId: string) => {
+    const existing = await svc
+      .listMerchantStores(
+        { merchant_id: addon.owner_merchant_id, tenant_id: tenantId },
+        { take: 1 }
+      )
+      .catch(() => [])
+    if (!(Array.isArray(existing) ? existing : [existing]).filter(Boolean).length) {
+      await svc.createMerchantStores([
+        {
+          merchant_id: addon.owner_merchant_id,
+          tenant_id: tenantId,
+          role: "owner",
+        },
+      ])
+    }
+  }
+
+  // Replay/idempotency: the store may already exist from a prior delivery.
+  const [existingTenant] = await svc
+    .listTenants({ slug: addon.slug }, { take: 1 })
+    .catch(() => [])
+  if (existingTenant?.id) {
+    await link(existingTenant.id)
+    return { ok: true, tenant_id: existingTenant.id }
+  }
+
+  const growCredits = 1500
+  const { result, errors } = await provisionTenantWorkflow(scope).run({
+    input: {
+      slug: addon.slug,
+      name: addon.name || addon.slug,
+      package: "growth",
+      trial_credits: growCredits,
+    },
+    throwOnError: false,
+  })
+  if (errors?.length) {
+    return {
+      ok: false,
+      error: errors.map((e: any) => String(e?.error?.message ?? e?.error ?? e)).join("; "),
+    }
+  }
+  const tenantId = (result as any)?.tenant_id
+  if (!tenantId) return { ok: false, error: "provisioning returned no tenant_id" }
+
+  await link(tenantId)
+  await svc
+    .updateTenants({
+      id: tenantId,
+      status: "live",
+      meta: {
+        addon_store: true,
+        paddle_subscription_id: addon.subscription_id ?? null,
+        owner_merchant_id: addon.owner_merchant_id,
+      },
+    })
+    .catch(() => undefined)
+  return { ok: true, tenant_id: tenantId }
+}
 
 /**
  * The one place money turns into credits.
@@ -145,6 +228,26 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             error: out.ok ? undefined : out.error,
           })
         }
+        // Multi-store M2: a PAID additional store — provision it now, never
+        // before. Idempotent: a replayed event finds the slug taken and links
+        // ownership again harmlessly.
+        if ((event as any).purchase_kind === "addon_store" && (event as any).addon_store) {
+          const addon = (event as any).addon_store as {
+            owner_merchant_id: string
+            slug: string
+            name: string
+            subscription_id?: string
+          }
+          const out = await provisionAddonStore(req.scope, addon)
+          return res.status(200).json({
+            received: true,
+            processed: out.ok,
+            kind: "addon_store",
+            tenant_id: out.tenant_id,
+            error: out.ok ? undefined : out.error,
+          })
+        }
+
         // A subscription checkout carries a plan; a top-up carries credits.
         if (event.plan_key) {
           const { granted } = await applyPlan(
@@ -267,6 +370,31 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       }
 
       case "customer.subscription.deleted": {
+        // Multi-store M2: cancelling an ADDON store pauses that store only —
+        // via the existing suspended flow (storefront serves the offline
+        // page). Data is retained; the payer's primary plan is untouched.
+        if ((event as any).purchase_kind === "addon_store") {
+          const slug = String((event as any).addon_store?.slug ?? "")
+          if (slug) {
+            const [addonTenant] = await platform
+              .listTenants({ slug }, { take: 1 })
+              .catch(() => [])
+            if (addonTenant?.id) {
+              await platform.updateTenants({
+                id: addonTenant.id,
+                status: "suspended",
+                meta: {
+                  ...(addonTenant.meta ?? {}),
+                  paused_reason: "addon_subscription_cancelled",
+                  cancelled_at: new Date().toISOString(),
+                },
+              })
+            }
+          }
+          return res
+            .status(200)
+            .json({ received: true, processed: true, kind: "addon_store_cancelled" })
+        }
         if (!event.tenant_id) break
         const tenant = await tenantOf(event.tenant_id)
         await platform.updateTenants({

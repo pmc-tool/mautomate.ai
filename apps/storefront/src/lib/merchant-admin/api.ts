@@ -3193,6 +3193,21 @@ export async function getMfaStatus(token: string): Promise<MfaStatus> {
   return request<MfaStatus>("/merchant/mfa/status", { token })
 }
 
+/**
+ * Multi-store (M2): start creating an additional store. Paid-first — the
+ * response is a Paddle checkout URL; the store is provisioned by the payment
+ * webhook, never by this call.
+ */
+export async function createAddonStore(
+  token: string,
+  input: { slug: string; name?: string }
+): Promise<{ checkout_url: string; transaction_id: string }> {
+  return request<{ checkout_url: string; transaction_id: string }>(
+    "/merchant/stores",
+    { method: "POST", token, body: input }
+  )
+}
+
 export type MfaSetup = {
   secret: string
   qr_uri: string

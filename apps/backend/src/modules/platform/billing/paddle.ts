@@ -73,6 +73,7 @@ const PACK_PRICE: Record<number, string> = {
  * or is created once via the Paddle API and cached. */
 const CREDIT_UNIT_CREDITS = 1
 let cachedUnitPriceId: string | undefined
+let cachedAddonStorePriceId: string | undefined
 
 const planPrice = (key: string, billing = "monthly"): string | undefined =>
   process.env[`PADDLE_PRICE_${key.toUpperCase()}_${billing.toUpperCase()}`] ||
@@ -218,6 +219,84 @@ export class PaddleGateway implements PaymentGateway {
     }
   }
 
+  /** Resolve (or lazily create) the $49/mo additional-store price (M2). */
+  private async addonStorePriceId(): Promise<string | undefined> {
+    const fromEnv = process.env.PADDLE_PRICE_ADDON_STORE
+    if (fromEnv) return fromEnv
+    if (cachedAddonStorePriceId) return cachedAddonStorePriceId
+    const key = this.apiKey()
+    if (!key) return undefined
+    try {
+      const productRes = await fetch(`${apiBase()}/products`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Additional store",
+          description:
+            "An additional mAutomate store on a Scale account. Billed monthly per store.",
+          tax_category: "standard",
+        }),
+      })
+      const productBody: any = await productRes.json().catch(() => ({}))
+      const productId = productBody?.data?.id
+      if (!productId) return undefined
+      const res = await fetch(`${apiBase()}/prices`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          product_id: productId,
+          name: "Additional store (monthly)",
+          description: "One additional store, $49/month",
+          unit_price: { amount: "4900", currency_code: "USD" },
+          billing_cycle: { interval: "month", frequency: 1 },
+          tax_mode: "account_setting",
+        }),
+      })
+      const d: any = await res.json().catch(() => ({}))
+      const id = d?.data?.id ? String(d.data.id) : undefined
+      if (id) {
+        cachedAddonStorePriceId = id
+        // eslint-disable-next-line no-console
+        console.log(
+          `[paddle] created addon-store price ${id} — set PADDLE_PRICE_ADDON_STORE=${id} to pin it across restarts`
+        )
+      }
+      return id
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
+   * Checkout for one ADDITIONAL store (multi-store M2). The store does not
+   * exist yet — the webhook provisions it only after Paddle confirms payment
+   * (paid-first rule). custom_data carries everything provisioning needs.
+   */
+  async createAddonStoreCheckout(input: {
+    payer_tenant_id: string
+    owner_merchant_id: string
+    slug: string
+    name: string
+  }): Promise<GatewayResult<CheckoutSession>> {
+    const priceId = await this.addonStorePriceId()
+    if (!priceId) {
+      return { ok: false, error: "Additional-store billing is not configured." }
+    }
+    return this.createTransaction(priceId, {
+      kind: "addon_store",
+      tenant_id: input.payer_tenant_id,
+      owner_merchant_id: input.owner_merchant_id,
+      store_slug: input.slug,
+      store_name: input.name,
+    })
+  }
+
   async createTopupCheckout(input: {
     tenant_id: string
     credits: number
@@ -313,6 +392,27 @@ export class PaddleGateway implements PaymentGateway {
             },
           }
         }
+        // Multi-store M2: a paid additional-store checkout. The webhook route
+        // provisions the store from these fields (paid-first rule).
+        if (cd.kind === "addon_store") {
+          return {
+            ok: true,
+            data: {
+              ...base,
+              type: "checkout.session.completed",
+              purchase_kind: "addon_store",
+              addon_store: {
+                owner_merchant_id: String(cd.owner_merchant_id ?? ""),
+                slug: String(cd.store_slug ?? ""),
+                name: String(cd.store_name ?? cd.store_slug ?? ""),
+                subscription_id: data?.subscription_id
+                  ? String(data.subscription_id)
+                  : undefined,
+              },
+              amount_paid_usd,
+            },
+          }
+        }
         // subscription: first payment vs recurring renewal
         const renewal =
           data?.origin === "subscription_recurring" ||
@@ -339,7 +439,17 @@ export class PaddleGateway implements PaymentGateway {
       case "subscription.canceled":
         return {
           ok: true,
-          data: { ...base, type: "customer.subscription.deleted" },
+          data: {
+            ...base,
+            type: "customer.subscription.deleted",
+            // Multi-store M2: an addon-store subscription cancels the ADDON
+            // tenant (looked up by slug in the route), not the payer tenant.
+            purchase_kind: cd.kind === "addon_store" ? "addon_store" : undefined,
+            addon_store:
+              cd.kind === "addon_store"
+                ? { slug: String(cd.store_slug ?? ""), owner_merchant_id: String(cd.owner_merchant_id ?? "") }
+                : undefined,
+          },
         }
       default:
         // Acknowledged but no action (subscription.created/updated, etc).

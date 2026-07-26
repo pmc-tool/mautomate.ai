@@ -61,11 +61,41 @@ import { CreditsBadge } from "./credits-badge"
 function StoreSwitcher({
   stores,
   activeName,
+  canAdd,
+  token,
 }: {
   stores: OwnedStore[]
   activeName: string
+  canAdd: boolean
+  token: string | null
 }) {
   const [open, setOpen] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [newSlug, setNewSlug] = useState("")
+  const [newName, setNewName] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const submitNewStore = async () => {
+    if (!token || !newSlug.trim()) {
+      setErr("Choose a store address first.")
+      return
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      const { createAddonStore } = await import("@lib/merchant-admin/api")
+      const out = await createAddonStore(token, {
+        slug: newSlug.trim().toLowerCase(),
+        name: newName.trim() || undefined,
+      })
+      // Paddle overlay page: payment first, the webhook provisions after.
+      window.location.assign(out.checkout_url)
+    } catch (e: any) {
+      setErr(e?.message ?? "Could not start store creation.")
+      setBusy(false)
+    }
+  }
   return (
     <div className="relative">
       <button
@@ -124,6 +154,61 @@ function StoreSwitcher({
               )}
             </button>
           ))}
+          {canAdd && !adding && (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="mt-1 flex w-full items-center gap-1.5 rounded-base border-t border-grey-20 px-2.5 py-2 text-left text-sm font-medium text-grey-70 transition-colors hover:bg-grey-10"
+            >
+              + New store
+              <span className="ml-auto text-[11px] font-normal text-grey-40">
+                $49/mo
+              </span>
+            </button>
+          )}
+          {canAdd && adding && (
+            <div className="mt-1 space-y-2 border-t border-grey-20 px-2.5 py-2.5">
+              <input
+                value={newSlug}
+                onChange={(e) => setNewSlug(e.target.value)}
+                placeholder="store-address"
+                autoComplete="off"
+                className="w-full rounded-base border border-grey-20 px-2.5 py-1.5 text-sm outline-none focus:border-grey-40"
+              />
+              <p className="text-[11px] text-grey-40">
+                {(newSlug.trim() || "store-address").toLowerCase()}.mautomate.ai
+              </p>
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Store name (optional)"
+                autoComplete="off"
+                className="w-full rounded-base border border-grey-20 px-2.5 py-1.5 text-sm outline-none focus:border-grey-40"
+              />
+              {err && <p className="text-[11px] text-red-600">{err}</p>}
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdding(false)
+                    setErr(null)
+                  }}
+                  disabled={busy}
+                  className="flex-1 rounded-base border border-grey-20 px-2 py-1.5 text-xs font-medium text-grey-70 hover:bg-grey-10 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={submitNewStore}
+                  disabled={busy}
+                  className="flex-1 rounded-base bg-grey-90 px-2 py-1.5 text-xs font-semibold text-white hover:bg-grey-80 disabled:opacity-60"
+                >
+                  {busy ? "Starting..." : "Continue to payment"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -463,10 +548,15 @@ export function Sidebar({
                 className="h-8 w-8 shrink-0 rounded-base"
               />
               <div className="min-w-0 flex-1">
-                {me?.stores && me.stores.length > 1 ? (
+                {me?.stores &&
+                (me.stores.length > 1 || me?.store.plan?.key === "scale") ? (
                   <StoreSwitcher
                     stores={me.stores}
                     activeName={me?.store.name || "Store Admin"}
+                    canAdd={
+                      me?.store.plan?.key === "scale" && me.stores.length < 10
+                    }
+                    token={token ?? null}
                   />
                 ) : (
                   <h2 className="truncate text-base font-semibold text-grey-90">
