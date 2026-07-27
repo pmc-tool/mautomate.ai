@@ -258,10 +258,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               })
               .catch(() => undefined)
             if (t.status === "suspended" && t.meta?.paused_reason === "scale_downgraded") {
-              const meta = { ...(t.meta ?? {}) }
-              delete meta.paused_reason
+              // jsonb meta MERGES on update - deleting a key client-side is a
+              // no-op, so the flag must be nulled explicitly.
               await platform
-                .updateTenants({ id: t.id, status: "live", meta })
+                .updateTenants({
+                  id: t.id,
+                  status: "live",
+                  meta: { ...(t.meta ?? {}), paused_reason: null },
+                })
                 .catch(() => undefined)
             }
           } else if (t.status === "live") {

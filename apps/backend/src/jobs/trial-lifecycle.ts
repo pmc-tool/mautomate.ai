@@ -60,9 +60,12 @@ export default async function trialLifecycleJob(container: MedusaContainer) {
         t.package &&
         t.package !== "free_trial"
       ) {
-        const meta = { ...(t.meta ?? {}) }
-        delete meta.paused_reason
-        await svc.updateTenants({ id: t.id, status: "live", meta })
+        // jsonb meta merges - null the flag explicitly (delete is a no-op).
+        await svc.updateTenants({
+          id: t.id,
+          status: "live",
+          meta: { ...(t.meta ?? {}), paused_reason: null },
+        })
         reactivated += 1
       }
     }
