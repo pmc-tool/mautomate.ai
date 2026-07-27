@@ -256,6 +256,18 @@ export function PostComposer({
           setSaving(false)
           return
         }
+        // Instagram's API refuses text-only posts — catch it here instead of
+        // letting the publish fail after the fact.
+        if (
+          platforms.includes("instagram") &&
+          !media.some((m) => m.url || m.file_id)
+        ) {
+          setError(
+            "Instagram requires an image or video — add media to the post, or untick Instagram."
+          )
+          setSaving(false)
+          return
+        }
         const media_ = media
           .filter((m) => m.url || m.file_id)
           .map((m, i) => ({
