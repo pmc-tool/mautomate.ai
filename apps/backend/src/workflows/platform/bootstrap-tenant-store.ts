@@ -15,6 +15,7 @@ import {
 } from "@medusajs/core-flows"
 
 import { PLATFORM_MODULE } from "../../modules/platform"
+import { currencyForCountry } from "../../modules/platform/geo"
 import { EncryptedConfigService } from "../../modules/platform/secure-config"
 import { CALL_CENTER_MODULE } from "../../modules/call-center"
 import { provisionDefaultAgent } from "../../modules/call-center/default-agent"
@@ -80,7 +81,9 @@ const bootstrapTenantStoreStep = createStep(
     // No `countries` — a country belongs to exactly one region and pooled tenants
     // would collide. The region is tagged with metadata.tenant_id so ownership is
     // provable and it is never shared with another tenant.
-    const currency = (tenant.meta?.currency_code ?? "usd").toLowerCase()
+    const currency = (
+      tenant.meta?.currency_code ?? currencyForCountry(tenant.billing_country)
+    ).toLowerCase()
     const regionModule: any = container.resolve(Modules.REGION)
     const [region] = await regionModule.createRegions([
       {

@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
 import { PLATFORM_MODULE } from "../../../modules/platform"
 import { validateSlug } from "../../../modules/platform/abuse/quota"
+import { detectSignupCountry } from "../../../modules/platform/geo"
 import { provisionTenantWorkflow } from "../../../workflows/platform/provision-tenant"
 import { createMerchantIdentity } from "../_provision-helpers"
 import jwt from "jsonwebtoken"
@@ -151,8 +152,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // Run provisioning synchronously: the request scope is not safe to use after
   // the response is sent, and the in-memory bus cannot reliably queue work.
+  // The store opens in the registrant's own country + currency (geo.ts):
+  // explicit form choice wins, else Cloudflare's edge country, else US.
+  const country = detectSignupCountry(req as any, body.country)
+
   const { result, errors } = await provisionTenantWorkflow(req.scope).run({
-    input: { slug, name, package: provisionPkg, trial_credits: provisionCredits },
+    input: {
+      slug,
+      name,
+      package: provisionPkg,
+      trial_credits: provisionCredits,
+      billing_country: country,
+    },
     throwOnError: false,
   })
 

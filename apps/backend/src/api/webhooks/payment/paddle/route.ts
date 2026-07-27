@@ -63,6 +63,16 @@ async function provisionAddonStore(
     return { ok: true, tenant_id: existingTenant.id }
   }
 
+  // Inherit the owner's country/currency defaults (their primary store's).
+  let ownerCountry: string | undefined
+  try {
+    const owner = await svc.retrieveMerchant(addon.owner_merchant_id)
+    const primary = await svc.retrieveTenant(owner.tenant_id)
+    ownerCountry = primary?.billing_country ?? undefined
+  } catch {
+    ownerCountry = undefined
+  }
+
   const growCredits = 1500
   const { result, errors } = await provisionTenantWorkflow(scope).run({
     input: {
@@ -70,6 +80,7 @@ async function provisionAddonStore(
       name: addon.name || addon.slug,
       package: "growth",
       trial_credits: growCredits,
+      billing_country: ownerCountry,
     },
     throwOnError: false,
   })

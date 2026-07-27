@@ -113,7 +113,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     // rule applies to ADD-ON stores beyond the included allowance.
     if (owned.length < SCALE_INCLUDED_STORES) {
       const { result, errors } = await provisionTenantWorkflow(req.scope).run({
-        input: { slug, name, package: "growth", trial_credits: 1500 },
+        input: {
+          slug,
+          name,
+          package: "growth",
+          trial_credits: 1500,
+          // New stores inherit the owner's country/currency defaults; the
+          // setup wizard lets each store change its own afterwards.
+          billing_country: ctx.tenant.billing_country ?? undefined,
+        },
         throwOnError: false,
       })
       if (errors?.length) {
