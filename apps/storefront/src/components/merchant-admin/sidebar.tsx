@@ -58,6 +58,83 @@ import { CreditsBadge } from "./credits-badge"
  * Switching stores stores the id (validated server-side on every request)
  * and hard-reloads so every surface refetches under the new context.
  */
+/**
+ * Full-screen choreography while a new store provisions (~5-15s of real
+ * backend work). Staged lines advance on a timer; the final line holds until
+ * the request resolves. Mirrors the Pixi boot-sequence pattern so waits read
+ * as deliberate work, not a stall.
+ */
+const CREATE_STEPS = [
+  "Reserving your address",
+  "Building your storefront",
+  "Stocking starter content",
+  "Opening the doors",
+]
+
+function StoreCreatingOverlay({ mode }: { mode: "create" | "checkout" }) {
+  const [step, setStep] = useState(0)
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setStep((v) => Math.min(v + 1, CREATE_STEPS.length - 1)),
+      2600
+    )
+    return () => window.clearInterval(id)
+  }, [])
+  return (
+    <div
+      className="fixed inset-0 z-[500] flex flex-col items-center justify-center bg-[#0B0C10]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Creating your store"
+      aria-live="polite"
+    >
+      <div className="relative mb-12 flex h-28 w-28 items-center justify-center">
+        <div className="absolute inset-0 animate-ping rounded-full bg-[#F26522]/20 [animation-duration:2s] motion-reduce:animate-none" />
+        <div className="absolute inset-3 animate-pulse rounded-full bg-[#F26522]/30 [animation-duration:1.5s] motion-reduce:animate-none" />
+        <div className="absolute inset-6 rounded-full bg-gradient-to-br from-[#F26522] to-[#B33A0E] shadow-[0_0_70px_rgba(242,101,34,0.5)]" />
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="relative" aria-hidden="true">
+          <path d="M3 9.5 5 4h14l2 5.5" />
+          <path d="M4 9.5h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-10Z" />
+          <path d="M9 20.5v-6h6v6" />
+        </svg>
+      </div>
+      {mode === "checkout" ? (
+        <p className="text-lg font-medium text-white">
+          Taking you to secure payment
+          <span className="jv-boot-dots" />
+        </p>
+      ) : (
+        <>
+          <p key={step} className="animate-[fadeUp_.4s_ease-out] text-xl font-semibold text-white">
+            {CREATE_STEPS[step]}
+            <span className="jv-boot-dots" />
+          </p>
+          <div className="mt-7 flex items-center gap-2">
+            {CREATE_STEPS.map((_, i) => (
+              <span
+                key={i}
+                className="h-1 rounded-full transition-all duration-500"
+                style={{
+                  width: i === step ? 24 : 8,
+                  background: i <= step ? "#F26522" : "rgba(255,255,255,0.18)",
+                }}
+              />
+            ))}
+          </div>
+          <p className="mt-10 text-sm text-white/50">
+            Your new store is being built - this takes a few seconds.
+          </p>
+        </>
+      )}
+      <style>{`
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        .jv-boot-dots::after { content: ""; animation: sbDots 1.4s steps(4, end) infinite; }
+        @keyframes sbDots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+      `}</style>
+    </div>
+  )
+}
+
 function StoreSwitcher({
   stores,
   activeName,
@@ -74,6 +151,7 @@ function StoreSwitcher({
   const [newSlug, setNewSlug] = useState("")
   const [newName, setNewName] = useState("")
   const [busy, setBusy] = useState(false)
+  const [creating, setCreating] = useState<null | "create" | "checkout">(null)
   const [err, setErr] = useState<string | null>(null)
 
   const submitNewStore = async () => {
@@ -83,6 +161,7 @@ function StoreSwitcher({
     }
     setBusy(true)
     setErr(null)
+    setCreating("create")
     try {
       const { createAddonStore } = await import("@lib/merchant-admin/api")
       const out = await createAddonStore(token, {
@@ -96,15 +175,22 @@ function StoreSwitcher({
         return
       }
       // Paid add-on: Paddle overlay first, the webhook provisions after.
-      if (out.checkout_url) window.location.assign(out.checkout_url)
-      else setErr("Unexpected response - try again.")
+      if (out.checkout_url) {
+        setCreating("checkout")
+        window.location.assign(out.checkout_url)
+      } else {
+        setCreating(null)
+        setErr("Unexpected response - try again.")
+      }
     } catch (e: any) {
+      setCreating(null)
       setErr(e?.message ?? "Could not start store creation.")
       setBusy(false)
     }
   }
   return (
     <div className="relative">
+      {creating && <StoreCreatingOverlay mode={creating} />}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

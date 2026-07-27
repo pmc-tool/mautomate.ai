@@ -29,6 +29,8 @@ async function provisionAddonStore(
     slug: string
     name: string
     subscription_id?: string
+    /** webhook idempotency key — scopes the renewal credit grant */
+    event_idem?: string
   }
 ): Promise<{ ok: boolean; tenant_id?: string; error?: string }> {
   const svc: any = scope.resolve(PLATFORM_MODULE)
@@ -54,12 +56,27 @@ async function provisionAddonStore(
     }
   }
 
-  // Replay/idempotency: the store may already exist from a prior delivery.
+  // Replay/idempotency: the store may already exist from a prior delivery —
+  // which is ALSO the monthly renewal case (recurring transactions carry the
+  // same custom_data). A renewal re-grants the store's monthly allowance
+  // (1,500 Grow-level credits, expiring with the period), idempotent on the
+  // Paddle event id so retries can never double-grant.
   const [existingTenant] = await svc
     .listTenants({ slug: addon.slug }, { take: 1 })
     .catch(() => [])
   if (existingTenant?.id) {
     await link(existingTenant.id)
+    if (addon.event_idem) {
+      await getLedger(scope)
+        .credit(existingTenant.id, 1500, {
+          type: "grant",
+          source: "plan",
+          expiresAt: new Date(Date.now() + 35 * 86400_000),
+          idempotencyKey: addon.event_idem,
+          meta: { reason: "addon_store_allowance" },
+        })
+        .catch(() => undefined)
+    }
     return { ok: true, tenant_id: existingTenant.id }
   }
 
@@ -193,6 +210,59 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       idempotencyKey: idem, // one grant per Stripe event, ever
       meta: { reason: "plan_allowance", plan: tier.key, period_end: expiresAt.toISOString() },
     })
+
+    // Multi-store lifecycle: INCLUDED stores (created free under Scale) are
+    // paid for by THIS subscription. On a Scale payment they get their
+    // monthly Grow-level allowance and are revived if a downgrade paused
+    // them; on a non-Scale payment (downgrade) they pause via the existing
+    // suspended flow - data kept, storefront offline. Paid $49 add-on
+    // stores are untouched: they carry their own subscription.
+    try {
+      const [ownerMerchant] = await platform.listMerchants(
+        { tenant_id: tenantId },
+        { take: 1 }
+      )
+      if (ownerMerchant?.id) {
+        const grants = await platform.listMerchantStores(
+          { merchant_id: ownerMerchant.id },
+          { take: 50 }
+        )
+        for (const g of Array.isArray(grants) ? grants : []) {
+          if (!g || g.tenant_id === tenantId) continue
+          const t = await platform.retrieveTenant(g.tenant_id).catch(() => null)
+          if (!t?.meta?.included_with_plan) continue
+          if (tier.key === "scale") {
+            await ledger
+              .credit(t.id, 1500, {
+                type: "grant",
+                source: "plan",
+                expiresAt,
+                idempotencyKey: `${idem}:incl:${t.id}`,
+                meta: { reason: "included_store_allowance" },
+              })
+              .catch(() => undefined)
+            if (t.status === "suspended" && t.meta?.paused_reason === "scale_downgraded") {
+              const meta = { ...(t.meta ?? {}) }
+              delete meta.paused_reason
+              await platform
+                .updateTenants({ id: t.id, status: "live", meta })
+                .catch(() => undefined)
+            }
+          } else if (t.status === "live") {
+            await platform
+              .updateTenants({
+                id: t.id,
+                status: "suspended",
+                meta: { ...(t.meta ?? {}), paused_reason: "scale_downgraded" },
+              })
+              .catch(() => undefined)
+          }
+        }
+      }
+    } catch {
+      /* lifecycle sweep is best-effort; the next payment retries it */
+    }
+
     return { granted: grantCredits }
   }
 
@@ -249,7 +319,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             name: string
             subscription_id?: string
           }
-          const out = await provisionAddonStore(req.scope, addon)
+          const out = await provisionAddonStore(req.scope, { ...addon, event_idem: idem })
           return res.status(200).json({
             received: true,
             processed: out.ok,
@@ -408,6 +478,35 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         }
         if (!event.tenant_id) break
         const tenant = await tenantOf(event.tenant_id)
+        // Cancelling the main plan also pauses any Scale-included stores it
+        // was funding (data kept; paid $49 add-ons keep their own sub).
+        try {
+          const [ownerMerchant] = await platform.listMerchants(
+            { tenant_id: event.tenant_id },
+            { take: 1 }
+          )
+          if (ownerMerchant?.id) {
+            const grants = await platform.listMerchantStores(
+              { merchant_id: ownerMerchant.id },
+              { take: 50 }
+            )
+            for (const g of Array.isArray(grants) ? grants : []) {
+              if (!g || g.tenant_id === event.tenant_id) continue
+              const t = await platform.retrieveTenant(g.tenant_id).catch(() => null)
+              if (t?.meta?.included_with_plan && t.status === "live") {
+                await platform
+                  .updateTenants({
+                    id: t.id,
+                    status: "suspended",
+                    meta: { ...(t.meta ?? {}), paused_reason: "scale_downgraded" },
+                  })
+                  .catch(() => undefined)
+              }
+            }
+          }
+        } catch {
+          /* best-effort */
+        }
         await platform.updateTenants({
           id: event.tenant_id,
           package: "free_trial",
