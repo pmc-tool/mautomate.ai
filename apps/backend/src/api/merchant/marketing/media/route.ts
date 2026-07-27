@@ -111,6 +111,27 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       return
     }
 
+    // STAGING upload (composer create-mode, no post yet): media rows REQUIRE
+    // a post (belongsTo), so creating one here 500s the whole upload. The
+    // file is stored either way — return its handle and let the post-create
+    // body attach it ({ file_id, url, kind, alt }), which is when the row is
+    // legitimately born. Also leaves zero orphan rows behind.
+    if (!postId) {
+      res.status(201).json({
+        media: {
+          id: null,
+          post_id: null,
+          tenant_id: tenantId,
+          kind,
+          file_id: fileId,
+          url,
+          alt,
+          position,
+        },
+      })
+      return
+    }
+
     const created = await (svc as any).createMarketingPostMedias({
       tenant_id: tenantId,
       post_id: postId,
