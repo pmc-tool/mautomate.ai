@@ -316,8 +316,26 @@ const connectFacebookPages = async (
   }
 
   let firstAccount: any = null
+  const claimedElsewhere: string[] = []
   for (const page of pages) {
     if (!page?.id || !page?.access_token) continue
+
+    // A Page routes inbound Messenger traffic by its id, so it can belong to
+    // exactly ONE store — a second claim would make the ingest fail closed
+    // and silently drop every message (seen live: one page on 3 stores).
+    // Claimed-by-another-tenant pages are skipped with a clear message; the
+    // merchant must disconnect them from the other store first.
+    const foreign = (
+      await mk.listMarketingSocialAccounts({
+        platform: "facebook",
+        external_id: String(page.id),
+      })
+    ).filter((a: any) => a && a.tenant_id !== input.tenantId)
+    if (foreign.length) {
+      claimedElsewhere.push(page.name ?? String(page.id))
+      continue
+    }
+
     const existing = first(
       await mk.listMarketingSocialAccounts({
         tenant_id: input.tenantId,
@@ -371,6 +389,16 @@ const connectFacebookPages = async (
   }
 
   if (!firstAccount) {
+    if (claimedElsewhere.length) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `${claimedElsewhere.join(", ")} ${
+          claimedElsewhere.length > 1 ? "are" : "is"
+        } already connected to another store. Disconnect ${
+          claimedElsewhere.length > 1 ? "them" : "it"
+        } there first, then connect again.`
+      )
+    }
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
       "Facebook returned Pages without access tokens — grant the Pages permissions on the consent screen and try again."
@@ -431,9 +459,24 @@ const connectInstagramAccounts = async (
   }
 
   let firstAccount: any = null
+  const igClaimedElsewhere: string[] = []
   for (const page of linked) {
     const ig = page.instagram_business_account
     const igId = String(ig.id)
+
+    // Same one-store-per-account rule as Facebook Pages: the IG id routes
+    // inbound DMs, so a cross-tenant duplicate would fail-closed-drop them.
+    const foreign = (
+      await mk.listMarketingSocialAccounts({
+        platform: "instagram",
+        external_id: igId,
+      })
+    ).filter((a: any) => a && a.tenant_id !== input.tenantId)
+    if (foreign.length) {
+      igClaimedElsewhere.push(ig.username ?? igId)
+      continue
+    }
+
     const existing = first(
       await mk.listMarketingSocialAccounts({
         tenant_id: input.tenantId,
@@ -500,6 +543,16 @@ const connectInstagramAccounts = async (
     }
   }
 
+  if (!firstAccount && igClaimedElsewhere.length) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `${igClaimedElsewhere.join(", ")} ${
+        igClaimedElsewhere.length > 1 ? "are" : "is"
+      } already connected to another store. Disconnect ${
+        igClaimedElsewhere.length > 1 ? "them" : "it"
+      } there first, then connect again.`
+    )
+  }
   return firstAccount
 }
 
