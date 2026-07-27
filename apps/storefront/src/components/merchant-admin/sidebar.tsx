@@ -138,14 +138,45 @@ function StoreCreatingOverlay({ mode }: { mode: "create" | "checkout" }) {
 function StoreSwitcher({
   stores,
   activeName,
-  canAdd,
+  planKey,
   token,
 }: {
   stores: OwnedStore[]
   activeName: string
-  canAdd: boolean
+  planKey: string
   token: string | null
 }) {
+  // The + row NEVER hides (product rule: always invite, sell on click).
+  // Eligibility decides what the click does: open the create form, or raise
+  // the upgrade modal via the same typed payloads the backend gates emit.
+  const isScale = planKey === "scale"
+  const atCap = isScale && stores.length >= 10
+  const canAdd = isScale && !atCap
+
+  const raiseUpsell = () => {
+    window.dispatchEvent(
+      new CustomEvent("mautomate:gate-denied", {
+        detail: atCap
+          ? {
+              code: "limit_reached",
+              limit: "stores",
+              max: 10,
+              used: stores.length,
+              required_plan: "scale",
+              required_plan_label: "Scale",
+              message:
+                "You are running the maximum of 10 stores on this account.",
+            }
+          : {
+              code: "entitlement_locked",
+              feature: "multi_store",
+              required_plan: "scale",
+              required_plan_label: "Scale",
+              message: `Your plan includes 1 store. Upgrade to Scale to run up to 10 stores - 3 are included with the plan.`,
+            },
+      })
+    )
+  }
   const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
   const [newSlug, setNewSlug] = useState("")
@@ -247,15 +278,28 @@ function StoreSwitcher({
               )}
             </button>
           ))}
-          {canAdd && !adding && (
+          {!adding && (
             <button
               type="button"
-              onClick={() => setAdding(true)}
+              onClick={() => {
+                if (!canAdd) {
+                  setOpen(false)
+                  raiseUpsell()
+                  return
+                }
+                setAdding(true)
+              }}
               className="mt-1 flex w-full items-center gap-1.5 rounded-base border-t border-grey-20 px-2.5 py-2 text-left text-sm font-medium text-grey-70 transition-colors hover:bg-grey-10"
             >
               + New store
               <span className="ml-auto text-[11px] font-normal text-grey-40">
-                3 included · then $49/mo
+                {atCap
+                  ? "10 of 10 used"
+                  : isScale
+                    ? stores.length < 3
+                      ? "included with Scale"
+                      : "$49/mo"
+                    : "Scale plan"}
               </span>
             </button>
           )}
@@ -641,14 +685,11 @@ export function Sidebar({
                 className="h-8 w-8 shrink-0 rounded-base"
               />
               <div className="min-w-0 flex-1">
-                {me?.stores &&
-                (me.stores.length > 1 || me?.store.plan?.key === "scale") ? (
+                {me?.stores && me.stores.length > 0 ? (
                   <StoreSwitcher
                     stores={me.stores}
                     activeName={me?.store.name || "Store Admin"}
-                    canAdd={
-                      me?.store.plan?.key === "scale" && me.stores.length < 10
-                    }
+                    planKey={me?.store.plan?.key ?? ""}
                     token={token ?? null}
                   />
                 ) : (
