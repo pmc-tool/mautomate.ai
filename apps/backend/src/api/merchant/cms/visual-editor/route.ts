@@ -62,10 +62,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(401).json({ message: "Merchant authentication required" })
   }
 
-  const key = mintEditorToken(secret, ctx.tenant.id)
+  // MULTI-STORE: the token binds to the store BEING OPENED (the storefront
+  // domain), not to the dashboard's active-store context. The two can
+  // disagree — switching stores in one tab changes the shared context while
+  // another tab opens the editor for the store it still shows; a token bound
+  // to the wrong tenant then fails every editor API ("unauthorized" on AI
+  // edit, autosave, publish). Ownership is validated against the
+  // merchant_store grants, so any of the merchant's OWN stores is fine and
+  // anyone else's is still refused.
+  let tokenTenantId = ctx.tenant.id
   const to = `/editor/${encodeURIComponent(slug)}?locale=${encodeURIComponent(locale)}`
-
-  const response: Record<string, string> = { key, to }
+  const response: Record<string, string> = { key: "", to }
 
   if (requestedStorefront) {
     const requestedHost = new URL(requestedStorefront).host
@@ -77,10 +84,24 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     if (resolved.status !== "live") {
       return res.status(400).json({ message: "Storefront is not live" })
     }
-    // A merchant may only open the editor on THEIR OWN store's domains.
     if (resolved.tenant_id !== ctx.tenant.id) {
-      return res.status(403).json({ message: "That storefront belongs to another store" })
+      const grants = await ctx.svc
+        .listMerchantStores(
+          { merchant_id: ctx.merchant.id, tenant_id: resolved.tenant_id },
+          { take: 1 }
+        )
+        .catch(() => [])
+      const owned = (Array.isArray(grants) ? grants : [grants]).filter(Boolean)
+      if (!owned.length) {
+        return res.status(403).json({ message: "That storefront belongs to another store" })
+      }
     }
+    tokenTenantId = resolved.tenant_id
+  }
+
+  const key = mintEditorToken(secret, tokenTenantId)
+  response.key = key
+  if (requestedStorefront) {
     response.gate =
       `${requestedStorefront.replace(/\/$/, "")}/api/editor-auth` +
       `?key=${encodeURIComponent(key)}&to=${encodeURIComponent(to)}`
