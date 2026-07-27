@@ -202,7 +202,23 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       },
     })
 
-    const grantCredits = tier.included_credits * Math.max(1, months)
+    // Allowance comes from the LIVE package row (the enforced catalog the
+    // pricing pages show), not price-book TIERS - that stale list carried
+    // pre-rebrand amounts and silently over-granted (growth: 5,000 vs the
+    // advertised 1,500; scale: 35,000 vs 10,000).
+    let perMonthCredits = tier.included_credits
+    try {
+      const [pkg] = await platform.listPlatformPackages(
+        { key: tier.key },
+        { take: 1 }
+      )
+      if (pkg?.included_credits != null) {
+        perMonthCredits = Number(pkg.included_credits)
+      }
+    } catch {
+      /* fall back to TIERS */
+    }
+    const grantCredits = perMonthCredits * Math.max(1, months)
     await ledger.credit(tenantId, grantCredits, {
       type: "grant",
       source: "plan",
