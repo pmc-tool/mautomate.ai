@@ -8590,5 +8590,17 @@ export async function uploadMobileAppIcon(
   token: string,
   file: File
 ): Promise<{ url: string }> {
-  return uploadSetupLogo(token, file)
+  // Dedicated endpoint: the app icon must NEVER touch the store logo
+  // (tenant.meta.logo_url) - reusing the setup/logo upload did exactly that.
+  const formData = new FormData()
+  formData.append("file", file)
+  const res = await fetch(apiUrl("/merchant/mobile-app/icon"), {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+    body: formData,
+  })
+  if (!res.ok) {
+    throw new ApiError(await httpErrorMessage(res, "Icon upload failed"), res.status)
+  }
+  return (await res.json()) as { url: string }
 }

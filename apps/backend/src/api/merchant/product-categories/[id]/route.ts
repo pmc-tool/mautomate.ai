@@ -192,7 +192,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const update: any = {}
   if (name !== undefined) update.name = name
-  if (description !== undefined) update.description = description
+  // Medusa's ProductCategory.description is NON-nullable — a null here
+  // throws deep in MikroORM as an opaque "unknown error" (QA bug 57: every
+  // rename with an empty description field failed). Coerce to "".
+  if (description !== undefined) update.description = description ?? ""
   if (handle !== undefined) update.handle = slugify(handle)
   if (is_active !== undefined) update.is_active = is_active
   if (is_internal !== undefined) update.is_internal = is_internal
