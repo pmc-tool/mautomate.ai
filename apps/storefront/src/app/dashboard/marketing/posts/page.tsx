@@ -93,9 +93,12 @@ export default function MarketingPostsPage() {
     setLoading(true)
     setError(null)
     try {
+      // Accounts failures must NOT be swallowed into an empty list — the
+      // composer then claims nothing is connected (seen live during a
+      // backend restart window). Let it fail into the page error + retry.
       const [postsRes, accountsRes] = await Promise.all([
         listMarketingPosts(token, { limit: 100 }),
-        listSocialAccounts(token).catch(() => ({ accounts: [], providers: [] })),
+        listSocialAccounts(token),
       ])
       setAccounts(accountsRes.accounts || [])
       // The list endpoint does not hydrate targets/media; fetch each post's
