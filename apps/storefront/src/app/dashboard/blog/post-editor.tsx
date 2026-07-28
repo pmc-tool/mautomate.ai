@@ -189,8 +189,25 @@ export function PostEditor({ postId }: { postId?: string }) {
     }
   }
 
+  /** Publishing quality gate (QA 51): a DRAFT may be title-only, but a
+   *  LIVE post needs real content and a cover so the storefront blog never
+   *  shows empty shells. Author stays optional (many stores are one person). */
+  const publishBlockers = (): string | null => {
+    const text = content.replace(/<[^>]*>/g, "").trim()
+    if (text.length < 40)
+      return "Write the post body before publishing - a published post cannot be empty."
+    if (!coverImage)
+      return "Add a cover image before publishing (upload one or generate it with AI)."
+    return null
+  }
+
   const publishNow = async () => {
     if (!token) return
+    const blocker = publishBlockers()
+    if (blocker) {
+      setError(blocker)
+      return
+    }
     setPublishing(true)
     setError(null)
     try {
@@ -216,6 +233,11 @@ export function PostEditor({ postId }: { postId?: string }) {
 
   const schedule = async () => {
     if (!token || !scheduleAt) return
+    const blocker = publishBlockers()
+    if (blocker) {
+      setError(blocker)
+      return
+    }
     setPublishing(true)
     setError(null)
     try {

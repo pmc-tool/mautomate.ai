@@ -157,7 +157,10 @@ type MetaRow = { key: string; value: string }
 
 function metaToRows(meta?: Record<string, unknown> | null): MetaRow[] {
   const entries = Object.entries(meta ?? {}).filter(
-    ([, v]) => v === null || ["string", "number", "boolean"].includes(typeof v)
+    ([k, v]) =>
+      k !== "tenant_id" &&
+      !k.startsWith("_") &&
+      (v === null || ["string", "number", "boolean"].includes(typeof v))
   )
   if (entries.length === 0) return [{ key: "", value: "" }]
   return entries.map(([k, v]) => ({ key: k, value: v === null ? "" : String(v) }))
@@ -176,9 +179,15 @@ function rowsToMetadata(
   original?: Record<string, unknown> | null
 ): Record<string, unknown> | null {
   const out: Record<string, unknown> = {}
-  // Preserve non-primitive values that the editor cannot represent.
+  // Preserve values the editor cannot represent or deliberately hides:
+  // objects, the tenant stamp, and _-prefixed system keys.
   for (const [k, v] of Object.entries(original ?? {})) {
-    if (v !== null && typeof v === "object") out[k] = v
+    if (
+      (v !== null && typeof v === "object") ||
+      k === "tenant_id" ||
+      k.startsWith("_")
+    )
+      out[k] = v
   }
   for (const row of rows) {
     const key = row.key.trim()
@@ -566,7 +575,12 @@ export default function CustomerDetailPage() {
   }
 
   const name = fullName(customer.first_name, customer.last_name)
-  const metaKeys = Object.keys(customer.metadata ?? {})
+  const metaKeys = Object.entries(customer.metadata ?? {})
+    .filter(
+      ([k, v]) =>
+        k !== "tenant_id" && !k.startsWith("_") && (v === null || typeof v !== "object")
+    )
+    .map(([k]) => k)
 
   return (
     <div className="space-y-6">
@@ -688,11 +702,21 @@ export default function CustomerDetailPage() {
           >
             {metaKeys.length > 0 ? (
               <dl className="divide-y divide-grey-10">
-                {Object.entries(customer.metadata ?? {}).map(([k, v]) => (
+                {/* Internal plumbing (tenant stamps, _-prefixed state, raw
+                    object blobs) is hidden - merchants saw raw JSON here
+                    (QA 49). Only human-entered primitives render. */}
+                {Object.entries(customer.metadata ?? {})
+                  .filter(
+                    ([k, v]) =>
+                      k !== "tenant_id" &&
+                      !k.startsWith("_") &&
+                      (v === null || typeof v !== "object")
+                  )
+                  .map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-4 py-2 text-sm">
                     <dt className="text-grey-50">{k}</dt>
                     <dd className="max-w-[60%] truncate text-right font-medium text-grey-90">
-                      {typeof v === "object" ? JSON.stringify(v) : String(v)}
+                      {String(v)}
                     </dd>
                   </div>
                 ))}
@@ -747,7 +771,11 @@ export default function CustomerDetailPage() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <p className="text-sm font-medium text-grey-90">
-                          {a.address_name || "n/a"}
+                          {a.address_name ||
+                            fullName(a.first_name, a.last_name) ||
+                            (a.is_default_billing && !a.is_default_shipping
+                              ? "Billing address"
+                              : "Shipping address")}
                         </p>
                         {a.is_default_shipping && (
                           <span className="rounded-full bg-grey-10 px-1.5 py-0.5 text-[10px] font-medium text-grey-60">

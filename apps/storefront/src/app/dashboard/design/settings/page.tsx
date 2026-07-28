@@ -18,6 +18,34 @@ import { Spinner, CheckCircle, ExclamationCircle } from "@medusajs/icons"
 
 type Values = Record<string, unknown>
 
+/** Common storefront font families for the theme-settings font pickers. */
+const FONT_SUGGESTIONS = [
+  "Inter",
+  "Poppins",
+  "Montserrat",
+  "Roboto",
+  "Open Sans",
+  "Lato",
+  "Nunito",
+  "Raleway",
+  "Playfair Display",
+  "Marcellus",
+  "Cormorant Garamond",
+  "DM Sans",
+  "Work Sans",
+  "Source Sans 3",
+  "Jost",
+  "Karla",
+  "Libre Baskerville",
+  "Merriweather",
+  "Oswald",
+  "Quicksand",
+  "Georgia",
+  "Times New Roman",
+  "Arial",
+  "Helvetica Neue",
+]
+
 function Field({
   entry,
   value,
@@ -108,7 +136,34 @@ function Field({
           className={base}
         />
       )
-    default:
+    default: {
+      // Font settings get native suggestions (QA 52: free-typing a font name
+      // with no hints). Any entry whose type/id/label mentions "font" offers
+      // the common storefront stacks via a datalist - typing stays possible.
+      const isFont =
+        /font/i.test(String(entry.type ?? "")) ||
+        /font/i.test(String(entry.id ?? "")) ||
+        /font/i.test(String(entry.label ?? ""))
+      if (isFont) {
+        const listId = `fonts-${entry.id ?? "generic"}`
+        return (
+          <>
+            <input
+              type="text"
+              list={listId}
+              value={String(value ?? "")}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="Start typing a font name..."
+              className={base}
+            />
+            <datalist id={listId}>
+              {FONT_SUGGESTIONS.map((f) => (
+                <option key={f} value={f} />
+              ))}
+            </datalist>
+          </>
+        )
+      }
       return (
         <input
           type="text"
@@ -117,6 +172,7 @@ function Field({
           className={base}
         />
       )
+    }
   }
 }
 

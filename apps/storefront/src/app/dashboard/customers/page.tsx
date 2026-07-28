@@ -118,7 +118,10 @@ export default function CustomersPage() {
       header: "Name",
       render: (row: CustomerListItem) => (
         <span className="text-grey-90">
-          {[row.first_name, row.last_name].filter(Boolean).join(" ") || "—"}
+          {/* Theme signups collect no name yet - show the email's local part
+              instead of a blank cell (QA 46). */}
+          {[row.first_name, row.last_name].filter(Boolean).join(" ") ||
+            (row.email ? row.email.split("@")[0] : "—")}
         </span>
       ),
     },

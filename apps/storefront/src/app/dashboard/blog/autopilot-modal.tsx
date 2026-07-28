@@ -74,8 +74,14 @@ export function AutopilotModal({
         ai_cover: cfg.ai_cover,
       })
       setCfg(res.autopilot)
+      // QA 50: the success banner sat above the fold, so saving looked like
+      // nothing happened. Show it briefly, then close - the close IS the
+      // confirmation.
       setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
+      setTimeout(() => {
+        setSaved(false)
+        onClose()
+      }, 900)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save autopilot")
     } finally {
