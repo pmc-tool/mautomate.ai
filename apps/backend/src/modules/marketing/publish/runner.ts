@@ -236,6 +236,22 @@ const processTarget = async (
   }
 
   // 6. Open (decrypt) credentials. Missing/empty token => account needs reconnect.
+  // Short-lived OAuth tokens (X expires in ~2h) are refreshed FIRST when a
+  // refresh token exists and expiry is near/past — without this every X post
+  // more than two hours after connect died with "Unauthorized".
+  try {
+    const pre = await openCredentials(mk, currentTenantId(), socialAccountId)
+    if (
+      pre?.refreshToken &&
+      pre.expiresAt &&
+      pre.expiresAt.getTime() - Date.now() < 10 * 60 * 1000
+    ) {
+      const { refreshOAuth } = await import("../oauth/service")
+      await refreshOAuth(mk, currentTenantId(), socialAccountId).catch(() => false)
+    }
+  } catch {
+    // Refresh is best-effort; the publish below surfaces any real auth failure.
+  }
   const credentials = await openCredentials(mk, currentTenantId(), socialAccountId)
   if (!credentials || !credentials.accessToken) {
     await setAccountStatus(mk, socialAccountId, "expired")
