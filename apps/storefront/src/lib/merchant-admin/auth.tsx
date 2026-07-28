@@ -91,7 +91,7 @@ export function MerchantAuthProvider({ children }: { children: React.ReactNode }
         )
         const msLeft = payload?.exp ? payload.exp * 1000 - Date.now() : Infinity
         if (msLeft < 12 * 60 * 60 * 1000) {
-          fetch(apiUrl("/auth/merchant/session"), {
+          fetch(apiUrl("/merchant/session"), {
             method: "POST",
             headers: { authorization: `Bearer ${stored}` },
           })

@@ -1,9 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import jwt from "jsonwebtoken"
-import { resolveMerchant } from "../../../merchant/_helpers"
+import { resolveMerchant } from "../_helpers"
 
 /**
- * POST /auth/merchant/session — exchange a VALID merchant bearer for a fresh
+ * POST /merchant/session — exchange a VALID merchant bearer for a fresh
  * full-length session token (24h, matching password login).
  *
  * Why: handoff entries into the dashboard (post-signup "go to admin",
