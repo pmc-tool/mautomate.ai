@@ -19,15 +19,17 @@ export type PlatformMeta = {
   icon: React.ComponentType<{ className?: string }>
 }
 
+// Platform ids MUST match the backend publish-provider registry keys
+// (providers/<platform>.ts) — a mismatched id saves a target no publisher
+// can claim ("no provider", seen live with the old "twitter" id). Platforms
+// without a real provider (tiktok/youtube/pinterest) are not offered.
 export const PLATFORMS: PlatformMeta[] = [
   { value: "facebook", label: "Facebook", icon: Facebook },
   { value: "instagram", label: "Instagram", icon: AtSymbol },
-  { value: "twitter", label: "X (Twitter)", icon: X },
+  { value: "x", label: "X (Twitter)", icon: X },
   { value: "linkedin", label: "LinkedIn", icon: Linkedin },
-  { value: "tiktok", label: "TikTok", icon: AtSymbol },
   { value: "telegram", label: "Telegram", icon: Telegram },
-  { value: "youtube", label: "YouTube", icon: AtSymbol },
-  { value: "pinterest", label: "Pinterest", icon: AtSymbol },
+  { value: "wordpress", label: "WordPress", icon: AtSymbol },
 ]
 
 const PLATFORM_MAP: Record<string, PlatformMeta> = PLATFORMS.reduce(
