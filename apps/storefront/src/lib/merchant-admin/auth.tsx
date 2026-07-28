@@ -9,6 +9,7 @@ import {
   MfaVerifyInput,
   MeResponse,
   ApiError,
+  apiUrl,
 } from "./api"
 
 type View = "login" | "mfa" | "app"
@@ -79,6 +80,33 @@ export function MerchantAuthProvider({ children }: { children: React.ReactNode }
     const stored = impToken || localStorage.getItem(STORAGE_KEY)
     if (stored) {
       restore(stored)
+      // Handoff tokens (#imp= from signup / super-admin impersonation) are
+      // deliberately short-lived (30m). Persisting one as THE session meant a
+      // silent logout minutes after entering. Exchange any short token for a
+      // full 24h session in the background; failures keep the current token.
+      try {
+        const [, payloadB64] = stored.split(".")
+        const payload = JSON.parse(
+          atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/"))
+        )
+        const msLeft = payload?.exp ? payload.exp * 1000 - Date.now() : Infinity
+        if (msLeft < 12 * 60 * 60 * 1000) {
+          fetch(apiUrl("/auth/merchant/session"), {
+            method: "POST",
+            headers: { authorization: `Bearer ${stored}` },
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => {
+              if (d?.token) {
+                localStorage.setItem(STORAGE_KEY, d.token)
+                setToken(d.token)
+              }
+            })
+            .catch(() => {})
+        }
+      } catch {
+        /* not a JWT-shaped token — leave it alone */
+      }
     } else {
       setLoading(false)
     }
