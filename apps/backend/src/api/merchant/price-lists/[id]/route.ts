@@ -144,6 +144,30 @@ function extractCustomerGroupIds(rules: any[]): string[] {
  * Full detail for the edit wizard: type, status, dates, customer groups, and
  * each override price resolved back to its product/variant.
  */
+
+/**
+ * Medusa's remove/setPriceListRules can leave price_list.rules_count out of
+ * sync with the actual rule rows (seen live: rules_count=1 with zero rules).
+ * A phantom count makes the pricing engine demand a rule-match nothing can
+ * satisfy, so the list silently never applies. Reconcile after every rules
+ * mutation.
+ */
+async function reconcileRulesCount(scope: any, priceListId: string): Promise<void> {
+  try {
+    const pg: any = scope.resolve(ContainerRegistrationKeys.PG_CONNECTION)
+    await pg.raw(
+      `UPDATE price_list pl
+          SET rules_count = (
+            SELECT count(*) FROM price_list_rule plr
+             WHERE plr.price_list_id = pl.id AND plr.deleted_at IS NULL)
+        WHERE pl.id = ?`,
+      [priceListId]
+    )
+  } catch {
+    /* reconciliation is best-effort */
+  }
+}
+
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const ctx = await resolveMerchant(req)
   if (!ctx) return res.status(401).json({ message: "not authorized" })
@@ -283,6 +307,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
           .removePriceListRules({ price_list_id: id, rules: [CUSTOMER_GROUP_RULE] })
           .catch(() => {})
       }
+      await reconcileRulesCount(req.scope, id)
     }
 
     // 3. Prices — diff the full desired set against what is stored.
