@@ -202,10 +202,14 @@ const esc = (s: string) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string)
   )
 
-function htmlResponse(body: string, status: number) {
+function htmlResponse(
+  body: string,
+  status: number,
+  extraHeaders: Record<string, string> = {}
+) {
   return new NextResponse(body, {
     status,
-    headers: { "content-type": "text/html; charset=utf-8" },
+    headers: { "content-type": "text/html; charset=utf-8", ...extraHeaders },
   })
 }
 

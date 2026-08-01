@@ -520,7 +520,17 @@ export async function GET(
         buildDocumentHeadCss(
           (settings as any)?.theme,
           (bundle.manifest as any)?.tokens ?? null
-        )
+        ),
+        {
+          description:
+            (settings as any)?.seo_defaults?.description ||
+            (settings as any)?.footer?.about ||
+            `${shopName} — shop online. Quality products, fast delivery, secure checkout.`,
+          canonical: `https://${h.get("x-forwarded-host") || h.get("host") || ""}${
+            pathStr.startsWith("/") ? pathStr : `/${pathStr}`
+          }`,
+          image: h.get("x-tenant-logo") || (settings as any)?.header?.logo || null,
+        }
       ) + chatbotEmbed,
     currency: h.get("x-tenant-currency") || (settings as any)?.currency_code || "USD",
     locale: "en",
@@ -601,9 +611,17 @@ function buildChatbotEmbed(chatbotKey: string | null): string {
 function buildHead(
   shopName: string,
   themeColor: string,
-  themeVars: string
+  themeVars: string,
+  seo?: {
+    description?: string | null
+    canonical?: string | null
+    image?: string | null
+  }
 ): string {
   const color = /^#[0-9a-fA-F]{3,8}$/.test(themeColor) ? themeColor : "#111111"
+  const desc = (seo?.description || "").trim().slice(0, 300)
+  const canonical = seo?.canonical || ""
+  const image = seo?.image || ""
   return [
     `<meta charset="utf-8">`,
     // Brand design tokens (--ff-*). The style engine compiles a "link to global
@@ -614,6 +632,25 @@ function buildHead(
     themeVars ? `<style>${themeVars.replace(/<\s*\/\s*style/gi, "")}</style>` : "",
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
     `<title>${escapeHtml(shopName)}</title>`,
+    // ---- SEO head (2026-08-02): every theme page shipped bare - no
+    // description, canonical, OpenGraph or structured data. One chokepoint
+    // covers all themes.
+    desc ? `<meta name="description" content="${escapeHtml(desc)}">` : "",
+    canonical ? `<link rel="canonical" href="${escapeHtml(canonical)}">` : "",
+    `<meta property="og:site_name" content="${escapeHtml(shopName)}">`,
+    `<meta property="og:title" content="${escapeHtml(shopName)}">`,
+    desc ? `<meta property="og:description" content="${escapeHtml(desc)}">` : "",
+    canonical ? `<meta property="og:url" content="${escapeHtml(canonical)}">` : "",
+    `<meta property="og:type" content="website">`,
+    image ? `<meta property="og:image" content="${escapeHtml(image)}">` : "",
+    `<meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}">`,
+    `<script type="application/ld+json">${JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "OnlineStore",
+      name: shopName,
+      url: canonical || undefined,
+      logo: image || undefined,
+    }).replace(/<\//g, "<\\/")}</script>`,
     `<link rel="manifest" href="/manifest.webmanifest">`,
     `<meta name="theme-color" content="${color}">`,
     `<link rel="apple-touch-icon" href="/pwa-icon?size=180">`,
