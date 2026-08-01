@@ -257,6 +257,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     // compatible: older storefront builds simply ignore it.
     chatbot_public_key: chatbotPublicKey,
     name: tenant?.name ?? null,
+    // The storefront's selling country ("us", "bd", ...) - URL prefix for
+    // canonical links and the per-tenant sitemap.
+    default_country:
+      typeof tenant?.meta?.default_country === "string" && tenant.meta.default_country
+        ? String(tenant.meta.default_country).toLowerCase()
+        : "us",
     publishable_key: resolved.publishable_key,
     umami_website_id: umamiWebsiteId,
     meta_pixel_id: metaPixelId,
