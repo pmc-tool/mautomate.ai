@@ -68,12 +68,33 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(404).json({ message: "gift card not found" })
   }
 
-  const productModule: any = req.scope.resolve(Modules.PRODUCT)
-  const product = await productModule.retrieveProduct(id, {
-    relations: ["variants.prices"],
-  }).catch(() => null)
+  // Prices live in the PRICING module (linked by price set), not on the
+  // product module's variant relation - "variants.prices" resolved empty, the
+  // edit form loaded a blank amount, and its save button (which requires an
+  // amount) locked forever (QA 65). query.graph resolves the pricing link.
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: products } = await query.graph({
+    entity: "product",
+    filters: { id } as any,
+    fields: [
+      "id",
+      "title",
+      "handle",
+      "description",
+      "status",
+      "thumbnail",
+      "is_giftcard",
+      "created_at",
+      "updated_at",
+      "variants.id",
+      "variants.sku",
+      "variants.prices.amount",
+      "variants.prices.currency_code",
+    ],
+  })
+  const product = (products || [])[0] ?? null
 
-  if (!product || !product.is_giftcard) {
+  if (!product || !(product as any).is_giftcard) {
     return res.status(404).json({ message: "gift card not found" })
   }
 

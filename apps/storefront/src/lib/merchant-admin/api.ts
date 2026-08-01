@@ -1570,6 +1570,16 @@ export async function updateStoreSettings(
   token: string,
   body: Partial<StoreSettings>
 ): Promise<{ store: StoreSettings }> {
+  // The store NAME rides the setup route (which updates tenant.name); this
+  // function used to silently drop it, so renames never left the browser
+  // (QA 60: overview kept the registration-time name forever).
+  if (typeof body.name === "string" && body.name.trim()) {
+    await request("/merchant/setup", {
+      method: "PATCH",
+      token,
+      body: { name: body.name.trim() },
+    })
+  }
   const payload: { default_currency_code?: string; supported_currencies?: string[] } = {}
   if (body.default_currency_code) {
     payload.default_currency_code = body.default_currency_code.toLowerCase()
@@ -1579,11 +1589,13 @@ export async function updateStoreSettings(
       .filter((c) => c.enabled)
       .map((c) => c.code.toLowerCase())
   }
-  await request<StoreCurrencyResponse>("/merchant/store", {
-    method: "PUT",
-    token,
-    body: payload,
-  })
+  if (payload.default_currency_code || payload.supported_currencies) {
+    await request<StoreCurrencyResponse>("/merchant/store", {
+      method: "PUT",
+      token,
+      body: payload,
+    })
+  }
   return getStoreSettings(token)
 }
 
@@ -5772,6 +5784,9 @@ export type UpdateCampaignInput = {
 export type InventoryItemRow = {
   id: string
   title: string | null
+  /** Grouping identity: variants of one product cluster under this. */
+  product_title?: string | null
+  variant_title?: string | null
   sku: string | null
   thumbnail?: string | null
   reserved_quantity: number

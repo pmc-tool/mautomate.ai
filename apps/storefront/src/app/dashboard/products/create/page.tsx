@@ -30,12 +30,14 @@ import {
   listCategories,
   listCollections,
   listProductTags,
+  listProductTypes,
   listStoreCurrencies,
   uploadProductMedia,
   ApiError,
   ProductCategory,
   ProductCollection,
   ProductTag,
+  ProductType,
 } from "../../../../lib/merchant-admin/api"
 
 // ---------------------------------------------------------------------------
@@ -260,6 +262,8 @@ export default function ProductCreatePage() {
 
   // ---- reference data ----
   const [collections, setCollections] = useState<ProductCollection[]>([])
+  const [productTypes, setProductTypes] = useState<ProductType[]>([])
+  const [typeId, setTypeId] = useState("")
   const [categories, setCategories] = useState<ProductCategory[]>([])
   const [allTags, setAllTags] = useState<ProductTag[]>([])
   const [currencies, setCurrencies] = useState<string[]>(["usd"])
@@ -277,9 +281,13 @@ export default function ProductCreatePage() {
       listCategories(token),
       listProductTags(token),
       listStoreCurrencies(token),
+      listProductTypes(token),
     ]).then((results) => {
       if (cancelled) return
-      const [cols, cats, tags, curr] = results
+      const [cols, cats, tags, curr, types] = results
+      if (types.status === "fulfilled") {
+        setProductTypes(types.value.types ?? [])
+      }
       const failures: string[] = []
 
       const unauthorized = results.some(
@@ -721,6 +729,26 @@ export default function ProductCreatePage() {
       setStepErrors(allErrors)
       return
     }
+    // Publishing quality gate (QA2): a live product needs a real description
+    // and at least one image - title-only listings stay drafts.
+    if (finalStatus === "published") {
+      const publishErrs: string[] = []
+      if (description.trim().length < 20) {
+        publishErrs.push(
+          "Write a product description (at least a sentence) before publishing - or save as draft."
+        )
+      }
+      if (media.length === 0) {
+        publishErrs.push(
+          "Add at least one product image before publishing - or save as draft."
+        )
+      }
+      if (publishErrs.length) {
+        setStep(0)
+        setStepErrors(publishErrs)
+        return
+      }
+    }
     setStepErrors([])
     setSaving(true)
 
@@ -759,6 +787,7 @@ export default function ProductCreatePage() {
         tags: selectedTags.length
           ? selectedTags.map((t) => t.value)
           : undefined,
+        type_id: typeId || undefined,
         options: payloadOptions,
         variants: payloadVariants,
       })
@@ -1082,6 +1111,21 @@ export default function ProductCreatePage() {
                     {collections.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.title}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField label="Type" htmlFor="product-type" hint="Optional">
+                  <Select
+                    id="product-type"
+                    value={typeId}
+                    onChange={(e) => setTypeId(e.target.value)}
+                    disabled={loadingMeta}
+                  >
+                    <option value="">No type</option>
+                    {productTypes.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.value}
                       </option>
                     ))}
                   </Select>

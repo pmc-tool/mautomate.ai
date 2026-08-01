@@ -157,6 +157,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
           ? `${productTitle} · ${variantTitle}`
           : productTitle
         : it.title ?? variantTitle ?? null,
+      // Grouping identity (QA 62): the dashboard clusters a product's
+      // variants under one product header instead of scattering them.
+      product_title: productTitle,
+      variant_title:
+        variantTitle && !/^default/i.test(variantTitle) ? variantTitle : null,
       sku: it.sku ?? variants[0]?.sku ?? null,
       thumbnail,
       reserved_quantity: reservedByItem.get(it.id) || 0,
@@ -164,6 +169,13 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       variant_titles: variants.map((v: any) => v.title).filter(Boolean),
     }
   })
+
+  // Keep each product's variants adjacent (stable within-product order).
+  rows.sort((a: any, b: any) =>
+    String(a.product_title ?? a.title ?? "").localeCompare(
+      String(b.product_title ?? b.title ?? "")
+    )
+  )
 
   if (q) {
     const needle = q.toLowerCase()

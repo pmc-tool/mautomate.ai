@@ -54,7 +54,10 @@ export function Modal({
           >
             <Dialog.Panel
               className={cn(
-                "w-full transform overflow-hidden rounded-large bg-white p-6 text-left shadow-lg transition-all",
+                // Tall forms (create-variant, price wizards) used to clip with the
+                // footer buttons cropped off-screen (QA 61): cap the panel to
+                // the viewport and scroll INSIDE it instead of hiding overflow.
+                "max-h-[calc(100vh-2rem)] w-full transform overflow-y-auto rounded-large bg-white p-6 text-left shadow-lg transition-all",
                 sizeClasses[size]
               )}
             >

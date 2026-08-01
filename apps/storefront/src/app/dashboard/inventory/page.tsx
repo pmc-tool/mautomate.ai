@@ -935,9 +935,31 @@ function InventoryListPageContent() {
                     </td>
                   </tr>
                 ) : (
-                  items.map((item) => (
+                  items.map((item, i) => {
+                    // Group header whenever a new product starts (rows arrive
+                    // product-adjacent from the API). Only multi-variant
+                    // products get a header - singles stay one plain row.
+                    const group = item.product_title ?? null
+                    const prevGroup = i > 0 ? items[i - 1].product_title ?? null : null
+                    const nextGroup =
+                      i + 1 < items.length ? items[i + 1].product_title ?? null : null
+                    const inMultiGroup =
+                      !!group && (group === prevGroup || group === nextGroup)
+                    const startsGroup = inMultiGroup && group !== prevGroup
+                    return (
+                    <React.Fragment key={item.id}>
+                    {startsGroup && (
+                      <tr className="bg-grey-5">
+                        <td className="px-4 py-2" />
+                        <td
+                          colSpan={5}
+                          className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-grey-60"
+                        >
+                          {group}
+                        </td>
+                      </tr>
+                    )}
                     <tr
-                      key={item.id}
                       onClick={() => router.push(`/dashboard/inventory/${item.id}`)}
                       className="cursor-pointer transition-colors hover:bg-grey-5"
                     >
@@ -951,7 +973,11 @@ function InventoryListPageContent() {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        {item.title ? (
+                        {inMultiGroup ? (
+                          <span className="block max-w-[280px] truncate pl-4 text-grey-90">
+                            {item.variant_title || item.variant_titles[0] || item.sku || "Variant"}
+                          </span>
+                        ) : item.title ? (
                           <span className="block max-w-[280px] truncate font-medium text-grey-90">
                             {item.title}
                           </span>
@@ -998,7 +1024,9 @@ function InventoryListPageContent() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                    </React.Fragment>
+                    )
+                  })
                 )}
               </tbody>
             </table>
