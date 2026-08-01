@@ -58,3 +58,61 @@ export async function syncStoreLogoToCms(
     console.error("[setup] logo CMS sync failed (non-blocking):", e?.message ?? e)
   }
 }
+
+
+/**
+ * Social profile links -> the storefront footer (QA2: merchants had no way
+ * to set the footer's social icons). Writes settings.footer.social in the
+ * shape every Liquid theme's footer reads: [{ href, icon }] with FontAwesome
+ * brand icons. Empty input clears the row's link.
+ */
+const SOCIAL_ICONS: Record<string, string> = {
+  facebook: "fa-facebook-f",
+  instagram: "fa-instagram",
+  x: "fa-x-twitter",
+  youtube: "fa-youtube",
+  tiktok: "fa-tiktok",
+  linkedin: "fa-linkedin-in",
+}
+
+export async function syncSocialLinksToCms(
+  scope: any,
+  tenantId: string,
+  social: Record<string, string | null | undefined>
+): Promise<void> {
+  try {
+    const service: any = scope.resolve(CMS_MODULE)
+    const links = Object.entries(SOCIAL_ICONS)
+      .map(([key, icon]) => {
+        const href = String(social[key] ?? "").trim()
+        return href ? { href, icon } : null
+      })
+      .filter(Boolean)
+
+    const rows = await service
+      .listCmsSettings({ key: "footer", tenant_id: tenantId })
+      .catch(() => [])
+    const existing = rows?.[0]
+    const data = (existing?.data ?? {}) as Record<string, any>
+    const locales = Object.keys(data).length ? Object.keys(data) : ["en"]
+    const next: Record<string, any> = { ...data }
+    for (const loc of locales) {
+      next[loc] = { ...(next[loc] ?? {}), social: links }
+    }
+    if (!next.en) next.en = { social: links }
+
+    if (existing) {
+      await service.updateCmsSettings({ id: existing.id, data: next })
+    } else {
+      await service.createCmsSettings({ key: "footer", data: next, tenant_id: tenantId })
+    }
+    await emitCmsPublished(scope, {
+      entity_type: "global",
+      slug: "footer",
+      locale: null,
+      tenant_id: tenantId,
+    }).catch(() => undefined)
+  } catch {
+    /* best-effort mirror; setup save must not fail on this */
+  }
+}

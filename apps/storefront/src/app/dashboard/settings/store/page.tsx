@@ -17,6 +17,7 @@ import {
   StoreSettings,
   Currency,
   ApiError,
+  apiUrl,
 } from "@lib/merchant-admin/api"
 import { cn } from "@lib/util/cn"
 
@@ -120,6 +121,54 @@ export default function StoreSettingsPage() {
       showMessage("error", err instanceof Error ? err.message : "Failed to save store settings")
     } finally {
       setSaving(false)
+    }
+  }
+
+  // ---- Social links card (footer icons on the storefront) ----
+  const SOCIAL_FIELDS: { key: string; label: string; placeholder: string }[] = [
+    { key: "facebook", label: "Facebook", placeholder: "https://facebook.com/yourpage" },
+    { key: "instagram", label: "Instagram", placeholder: "https://instagram.com/yourhandle" },
+    { key: "x", label: "X (Twitter)", placeholder: "https://x.com/yourhandle" },
+    { key: "youtube", label: "YouTube", placeholder: "https://youtube.com/@yourchannel" },
+    { key: "tiktok", label: "TikTok", placeholder: "https://tiktok.com/@yourhandle" },
+    { key: "linkedin", label: "LinkedIn", placeholder: "https://linkedin.com/company/yours" },
+  ]
+  const [social, setSocial] = useState<Record<string, string>>({})
+  const [savingSocial, setSavingSocial] = useState(false)
+
+  useEffect(() => {
+    if (!token) return
+    fetch(apiUrl("/merchant/setup"), {
+      headers: { authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const cur = (d?.meta?.social ?? d?.social ?? {}) as Record<string, string>
+        setSocial(Object.fromEntries(SOCIAL_FIELDS.map((f) => [f.key, cur[f.key] ?? ""])))
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
+
+  async function handleSaveSocial(e: React.FormEvent) {
+    e.preventDefault()
+    if (!token) return
+    setSavingSocial(true)
+    try {
+      const res = await fetch(apiUrl("/merchant/setup"), {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ social }),
+      })
+      if (!res.ok) throw new Error("Failed to save social links")
+      showMessage("success", "Social links saved - your storefront footer now uses them.")
+    } catch (err) {
+      showMessage("error", err instanceof Error ? err.message : "Failed to save social links")
+    } finally {
+      setSavingSocial(false)
     }
   }
 
@@ -298,6 +347,37 @@ export default function StoreSettingsPage() {
       </form>
 
       <SectionCard
+              title="Social links"
+              description="Shown as icons in your storefront footer. Leave a field empty to hide that icon."
+            >
+              <form onSubmit={handleSaveSocial} className="space-y-4 p-5">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {SOCIAL_FIELDS.map((f) => (
+                    <FormField key={f.key} label={f.label} htmlFor={`social-${f.key}`}>
+                      <Input
+                        id={`social-${f.key}`}
+                        value={social[f.key] ?? ""}
+                        onChange={(e) =>
+                          setSocial((p) => ({ ...p, [f.key]: e.target.value }))
+                        }
+                        placeholder={f.placeholder}
+                      />
+                    </FormField>
+                  ))}
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={savingSocial}
+                    className="rounded-base bg-grey-90 px-5 py-2.5 text-sm font-medium text-white hover:bg-grey-80 disabled:opacity-50"
+                  >
+                    {savingSocial ? "Saving..." : "Save social links"}
+                  </button>
+                </div>
+              </form>
+            </SectionCard>
+
+            <SectionCard
         title="Currencies"
         description="The currencies your store supports."
         icon={CurrencyDollar}

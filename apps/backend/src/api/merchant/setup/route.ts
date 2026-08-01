@@ -2,7 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { resolveMerchant } from "../_helpers"
 import { computeSetupStatus } from "../_setup"
-import { syncStoreLogoToCms } from "../_cms-sync"
+import { syncSocialLinksToCms, syncStoreLogoToCms } from "../_cms-sync"
 
 /**
  * GET / PATCH /merchant/setup
@@ -45,6 +45,16 @@ const PatchSchema = z
   .object({
     draft: Draft.optional(),
     name: z.string().min(1).max(120).optional(),
+    social: z
+      .object({
+        facebook: z.string().max(300).optional(),
+        instagram: z.string().max(300).optional(),
+        x: z.string().max(300).optional(),
+        youtube: z.string().max(300).optional(),
+        tiktok: z.string().max(300).optional(),
+        linkedin: z.string().max(300).optional(),
+      })
+      .optional(),
     default_country: z.string().length(2).optional(),
     business: Business.optional(),
     logo_url: z.string().max(2000).nullable().optional(),
@@ -62,6 +72,7 @@ function snapshot(tenant: any) {
       : [(meta.currency_code || "usd").toLowerCase()],
     business: meta.business ?? {},
     logo_url: meta.logo_url ?? null,
+    social: meta.social ?? {},
     setup: meta.setup ?? {},
   }
 }
@@ -106,6 +117,9 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   if (body.draft !== undefined) {
     meta.setup = { ...(meta.setup ?? {}), ...body.draft }
   }
+  if (body.social !== undefined) {
+    meta.social = { ...(meta.social ?? {}), ...body.social }
+  }
 
   const update: any = { id: ctx.tenant.id, meta }
   if (body.name !== undefined) update.name = body.name.slice(0, 120)
@@ -116,6 +130,9 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
   // settings the storefront renders — not just tenant.meta.
   if (body.logo_url && typeof body.logo_url === "string") {
     await syncStoreLogoToCms(req.scope, ctx.tenant.id, body.logo_url)
+  }
+  if (body.social !== undefined) {
+    await syncSocialLinksToCms(req.scope, ctx.tenant.id, meta.social ?? {})
   }
 
   // Re-read so the response reflects exactly what was persisted.
