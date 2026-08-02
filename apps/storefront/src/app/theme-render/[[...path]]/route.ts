@@ -350,7 +350,7 @@ export async function GET(
         queryParams: {
           handle,
           fields:
-            "*variants.calculated_price,*variants.options,*images,images.variants.id,variants.thumbnail,*options,*options.values,thumbnail,title,handle,description",
+            "*variants.calculated_price,*variants.options,*images,images.variants.id,variants.thumbnail,*options,*options.values,thumbnail,title,handle,description,metadata,material,weight,length,width,height,origin_country,*type,*tags",
         } as any,
       })
       const product = response.products[0]

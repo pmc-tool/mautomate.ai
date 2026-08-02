@@ -139,7 +139,49 @@ function mapProduct(p: any): any {
       name: o.title,
       values: (o.values ?? []).map((x: any) => x.value ?? x),
     })),
+    type: p.type?.value ?? null,
+    tags: (p.tags ?? []).map((t: any) => t.value ?? t).filter(Boolean),
+    metadata: publicMetadata(p.metadata),
+    attributes: productAttributes(p),
   }
+}
+
+/** Merchant-facing metadata only: tenant stamps and _-prefixed keys are
+ *  internal plumbing and must never surface on a storefront. */
+function publicMetadata(meta: any): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(meta ?? {})) {
+    if (k.startsWith("_") || k === "tenant_id") continue
+    if (v == null || typeof v === "object") continue
+    out[k] = v
+  }
+  return out
+}
+
+/** The product's spec sheet as a flat {name, value} list so a theme can loop
+ *  it into an attributes table: physical fields the merchant filled in
+ *  (material, weight, dimensions, origin), the product type, and any public
+ *  metadata keys. Empty array when nothing is set — themes gate on size. */
+function productAttributes(p: any): Array<{ name: string; value: string }> {
+  const rows: Array<{ name: string; value: string }> = []
+  const push = (name: string, value: unknown) => {
+    if (value == null || value === "") return
+    rows.push({ name, value: String(value) })
+  }
+  push("Material", p.material)
+  if (p.weight) push("Weight", `${p.weight} g`)
+  if (p.length || p.width || p.height) {
+    push(
+      "Dimensions",
+      [p.length, p.width, p.height].filter(Boolean).join(" × ") + " cm"
+    )
+  }
+  push("Origin", p.origin_country)
+  push("Type", p.type?.value)
+  for (const [k, v] of Object.entries(publicMetadata(p.metadata))) {
+    push(k.replace(/[_-]+/g, " ").replace(/^\w/, (c) => c.toUpperCase()), v)
+  }
+  return rows
 }
 
 /** Prices reach the storefront in MAJOR units; the `money` filter only formats. */
