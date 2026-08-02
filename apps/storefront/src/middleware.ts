@@ -191,6 +191,22 @@ async function getCountryCode(
     .get("x-vercel-ip-country")
     ?.toLowerCase()
 
+  // Pooled tenants have COUNTRY-LESS regions (currency-only, resolved by
+  // x-tenant-region-id), so the region map carries no countries to validate
+  // against. The URL segment is purely presentational there: the store's own
+  // home country is canonical (a Bangladeshi shop lives at /bd), an existing
+  // 2-letter prefix is tolerated for old links, and the platform default is
+  // the last resort.
+  if (regionMap.size === 0) {
+    return (
+      storeCountry ||
+      (urlCountryCode && /^[a-z]{2}$/.test(urlCountryCode)
+        ? urlCountryCode
+        : undefined) ||
+      DEFAULT_REGION
+    )
+  }
+
   if (urlCountryCode && regionMap.has(urlCountryCode)) {
     countryCode = urlCountryCode
   } else if (storeCountry && regionMap.has(storeCountry)) {
@@ -570,9 +586,14 @@ export async function middleware(request: NextRequest) {
     return finalize(NextResponse.next({ request: { headers: forwardHeaders } }))
   }
 
-  // if the url doesn't have the country, redirect to it
-  const redirectPath =
-    request.nextUrl.pathname === "/" ? "" : request.nextUrl.pathname
+  // if the url doesn't have the country, redirect to it. When the path already
+  // starts with a DIFFERENT 2-letter country (an old /us link on a store whose
+  // home is /bd), swap the prefix instead of stacking them (/bd/us/...).
+  const basePath =
+    firstPathSegment && /^[a-z]{2}$/.test(firstPathSegment)
+      ? request.nextUrl.pathname.replace(/^\/[a-z]{2}(?=\/|$)/, "")
+      : request.nextUrl.pathname
+  const redirectPath = basePath === "/" ? "" : basePath
   const queryString = request.nextUrl.search || ""
   const redirectUrl = `${request.nextUrl.origin}/${country}${redirectPath}${queryString}`
 
