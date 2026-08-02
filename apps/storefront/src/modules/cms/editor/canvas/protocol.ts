@@ -108,11 +108,17 @@ export type CmsReadyMsg = { type: "cms:ready" }
 export type CmsClickedMsg = { type: "cms:clicked"; index: number }
 /** A chrome region was clicked. */
 export type CmsClickedChromeMsg = { type: "cms:clickedChrome"; key: string | null }
-/** A [data-el] element inside a section was clicked. */
+/** A [data-el] element inside a section was clicked. When the click landed
+ *  inside a repeated item ([data-el-item], e.g. a category tile), the item's
+ *  array prop + original index ride along so the shell can focus the RIGHT
+ *  form group — a bare key like "image" is ambiguous on sections whose intro
+ *  also has an image. */
 export type CmsClickedElementMsg = {
   type: "cms:clickedElement"
   index: number
   elementKey: string
+  itemField?: string
+  itemIndex?: number
 }
 /** A [data-w] widget inside a container section was clicked. */
 export type CmsClickedWidgetMsg = {

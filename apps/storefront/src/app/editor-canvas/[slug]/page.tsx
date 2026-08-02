@@ -1731,7 +1731,19 @@ export default function EditorCanvas() {
       e.stopPropagation()
       const { index: idx, key: elementKey } = hit.element
       setSel({ t: "element", i: idx, el: elementKey })
-      postToShell({ type: "cms:clickedElement", index: idx, elementKey })
+      // A click inside a repeated item (category tile, banner, slide …)
+      // carries WHICH array prop + item it landed in. Without this the
+      // shell can only match the bare element key ("image"), and on a
+      // section whose intro ALSO has an image it focuses the wrong group —
+      // the QA "clicked a category tile, the wrong thing opened" bug.
+      postToShell({
+        type: "cms:clickedElement",
+        index: idx,
+        elementKey,
+        ...(hit.item
+          ? { itemField: hit.item.field, itemIndex: hit.item.index }
+          : {}),
+      })
       return
     }
 

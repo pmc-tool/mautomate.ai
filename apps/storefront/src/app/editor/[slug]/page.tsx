@@ -201,7 +201,7 @@ type Section = { block_type: string; [k: string]: unknown }
 type Sel =
   | { kind: "section"; index: number }
   | { kind: "column"; index: number; colPath: number[] } // 2E
-  | { kind: "element"; index: number; key: string }
+  | { kind: "element"; index: number; key: string; itemField?: string }
   | { kind: "widget"; index: number; path: number[] }
   | { kind: "chrome"; region: string }
   | { kind: "chromeElement"; region: string; key: string }
@@ -276,6 +276,7 @@ export default function VisualEditor() {
   const [selectedElement, setSelectedElement] = useState<{
     index: number
     key: string
+    itemField?: string
   } | null>(null)
   // One-time: inject the "flash a field" highlight animation.
   useEffect(() => {
@@ -318,7 +319,15 @@ export default function VisualEditor() {
       form: ["placeholder", "button"],
       grid: ["images"],
     }
-    const cands = [key, ...(ALIASES[key] || [])]
+    // The repeated-item array prop (e.g. "categories" for a category tile)
+    // outranks the bare element key: "image" is ambiguous on sections whose
+    // intro also has an image, and the user clicked the TILE.
+    const itemField = selectedElement.itemField?.toLowerCase()
+    const cands = [
+      ...(itemField ? [itemField] : []),
+      key,
+      ...(ALIASES[key] || []),
+    ]
     const timer = setTimeout(() => {
       let el: HTMLElement | null = null
       for (const c of cands) {
@@ -923,7 +932,9 @@ export default function VisualEditor() {
     curSelRef.current = sel
     setSelected(sel?.kind === "section" ? sel.index : null)
     setSelectedElement(
-      sel?.kind === "element" ? { index: sel.index, key: sel.key } : null
+      sel?.kind === "element"
+        ? { index: sel.index, key: sel.key, itemField: sel.itemField }
+        : null
     )
     setSelectedWidget(
       sel?.kind === "widget" ? { index: sel.index, path: sel.path } : null
@@ -1231,7 +1242,15 @@ export default function VisualEditor() {
         m.elementKey
       ) {
         selRef.current(
-          { kind: "element", index: m.index, key: m.elementKey },
+          {
+            kind: "element",
+            index: m.index,
+            key: m.elementKey,
+            itemField:
+              typeof (m as any).itemField === "string"
+                ? ((m as any).itemField as string)
+                : undefined,
+          },
           { mirror: false }
         )
       }
