@@ -304,9 +304,11 @@ export const googleAdsProvider: AdsProvider = {
           status: (c.status ?? "").toUpperCase() === "ENABLED" ? "active" : "disabled",
           meta: { status: c.status ?? null },
         })
-      } catch (e) {
-        if (e instanceof AdsAuthError) throw e
-        // A single inaccessible customer must not sink the whole list.
+      } catch {
+        // A single inaccessible customer (not-yet-enabled, suspended, or a
+        // manager we can't read) must not sink the whole list nor flip the
+        // connection to "reconnect required" — the token is already proven
+        // valid by listAccessibleCustomers succeeding above. Skip and continue.
       }
     }
     return accounts
