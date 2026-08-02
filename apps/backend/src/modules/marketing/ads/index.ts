@@ -6,9 +6,14 @@
  */
 import { registerAdsProvider } from "./registry"
 import { metaAdsProvider } from "./providers/meta"
+import { googleAdsProvider } from "./providers/google"
 import { mockAdsProvider } from "./providers/mock"
 
 registerAdsProvider(metaAdsProvider)
+// Registered unconditionally; isConfigured() (Google Ads developer token +
+// OAuth client) gates whether it is offered on the Connect screen, so without
+// the env it lists but cannot be connected.
+registerAdsProvider(googleAdsProvider)
 // Demo adapter is registration-gated, not just isConfigured-gated: without the
 // env it does not exist at all, so production can never list it.
 if (process.env.MARKETING_ADS_MOCK === "1") {

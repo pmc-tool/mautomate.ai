@@ -44,6 +44,12 @@ const ADS_OAUTH: Record<
     scopes: string[]
     clientIdEnv: string
     clientSecretEnv: string
+    /** OAuth scope delimiter — Meta uses "," (default), Google uses " ". */
+    scopeSeparator?: string
+    /** Extra consent-URL params, e.g. Google's offline/refresh-token grant. */
+    extraAuthParams?: Record<string, string>
+    /** Which token-exchange + identity path completeAdsOAuth takes. */
+    provider?: "meta" | "google"
   }
 > = {
   meta: {
@@ -59,6 +65,30 @@ const ADS_OAUTH: Record<
     ],
     clientIdEnv: "MARKETING_FACEBOOK_APP_ID",
     clientSecretEnv: "MARKETING_FACEBOOK_APP_SECRET",
+    provider: "meta",
+  },
+  google: {
+    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    tokenUrl: "https://oauth2.googleapis.com/token",
+    // adwords = Google Ads API; content = Merchant Center (requested now so the
+    // Shopping/PMax phase needs no re-consent); openid/email for identity.
+    scopes: [
+      "https://www.googleapis.com/auth/adwords",
+      "https://www.googleapis.com/auth/content",
+      "openid",
+      "email",
+    ],
+    clientIdEnv: "GOOGLE_ADS_CLIENT_ID",
+    clientSecretEnv: "GOOGLE_ADS_CLIENT_SECRET",
+    scopeSeparator: " ",
+    // offline + consent are what make Google return a refresh token (its access
+    // tokens live ~1h; the adapter refreshes from this on every call).
+    extraAuthParams: {
+      access_type: "offline",
+      prompt: "consent",
+      include_granted_scopes: "true",
+    },
+    provider: "google",
   },
 }
 
@@ -121,8 +151,9 @@ export const startAdsOAuth = async (
     response_type: "code",
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: config.scopes.join(","),
+    scope: config.scopes.join(config.scopeSeparator ?? ","),
     state,
+    ...(config.extraAuthParams ?? {}),
   })
 
   return { auth_url: `${config.authUrl}?${params.toString()}` }
@@ -164,6 +195,69 @@ const exchangeMetaToken = async (
     access_token: data.access_token,
     token_type: data.token_type ?? null,
     expires_in: typeof data.expires_in === "number" ? data.expires_in : null,
+  }
+}
+
+type GoogleTokenResult = TokenResult & {
+  refresh_token: string | null
+  /** OpenID identity from the id_token claims, best-effort. */
+  sub: string | null
+  email: string | null
+}
+
+/** Decode a JWT payload (id_token) without verifying — we only read the
+ *  self-issued email/sub for a display name; trust comes from the fact Google
+ *  just minted it over TLS in this same exchange. */
+const decodeIdToken = (idToken: string | undefined): { sub?: string; email?: string } => {
+  try {
+    const payload = idToken?.split(".")[1]
+    if (!payload) return {}
+    const json = Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+    return JSON.parse(json)
+  } catch {
+    return {}
+  }
+}
+
+/** Google authorization-code + refresh-token exchange (POST form). Unlike
+ *  Meta, Google issues a refresh token (with access_type=offline) that the
+ *  adapter uses to mint short-lived access tokens on every call. */
+const exchangeGoogleToken = async (
+  form: Record<string, string>
+): Promise<GoogleTokenResult> => {
+  let res: Response
+  try {
+    res = await fetch(ADS_OAUTH.google.tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(form).toString(),
+    })
+  } catch (e: any) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Could not reach Google's token endpoint: ${e?.message ?? "network error"}`
+    )
+  }
+  let data: any = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+  if (!res.ok || !data?.access_token) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      data?.error_description ?? data?.error ?? `Google token exchange failed (${res.status})`
+    )
+  }
+  const claims = decodeIdToken(data.id_token)
+  return {
+    access_token: data.access_token,
+    token_type: data.token_type ?? null,
+    expires_in: typeof data.expires_in === "number" ? data.expires_in : null,
+    refresh_token: data.refresh_token ?? null,
+    sub: claims.sub ?? null,
+    email: claims.email ?? null,
   }
 }
 
@@ -219,42 +313,65 @@ export const completeAdsOAuth = async (
   const redirectUri =
     row.redirect_uri ?? buildRedirectUri(`${ADS_OAUTH_PLATFORM_PREFIX}${platform}`)
 
-  let tokens = await exchangeMetaToken({
-    client_id: clientId,
-    client_secret: clientSecret,
-    redirect_uri: redirectUri,
-    code: input.code,
-  })
-
-  // Long-lived upgrade — best-effort: a failure leaves the short token, which
-  // still works for the immediate account discovery below.
-  try {
-    tokens = await exchangeMetaToken({
-      grant_type: "fb_exchange_token",
-      client_id: clientId,
-      client_secret: clientSecret,
-      fb_exchange_token: tokens.access_token,
-    })
-  } catch {
-    /* keep the short-lived token */
-  }
-
-  // Identity, best-effort — connect works without a display name.
+  let tokens: TokenResult
+  let refreshToken: string | null = null
   let externalUserId: string | null = null
   let displayName: string | null = null
-  try {
-    const res = await fetch(
-      `${GRAPH}/me?fields=id,name&access_token=${encodeURIComponent(
-        tokens.access_token
-      )}`
-    )
-    const me: any = await res.json()
-    if (res.ok) {
-      externalUserId = me?.id != null ? String(me.id) : null
-      displayName = me?.name ?? null
+
+  if (config.provider === "google") {
+    // Google: authorization-code exchange yields the access + refresh tokens
+    // directly; identity comes from the id_token, no separate profile call.
+    const g = await exchangeGoogleToken({
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      code: input.code,
+      grant_type: "authorization_code",
+    })
+    tokens = {
+      access_token: g.access_token,
+      token_type: g.token_type,
+      expires_in: g.expires_in,
     }
-  } catch {
-    /* ignore */
+    refreshToken = g.refresh_token
+    externalUserId = g.sub
+    displayName = g.email
+  } else {
+    tokens = await exchangeMetaToken({
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      code: input.code,
+    })
+
+    // Long-lived upgrade — best-effort: a failure leaves the short token, which
+    // still works for the immediate account discovery below.
+    try {
+      tokens = await exchangeMetaToken({
+        grant_type: "fb_exchange_token",
+        client_id: clientId,
+        client_secret: clientSecret,
+        fb_exchange_token: tokens.access_token,
+      })
+    } catch {
+      /* keep the short-lived token */
+    }
+
+    // Identity, best-effort — connect works without a display name.
+    try {
+      const res = await fetch(
+        `${GRAPH}/me?fields=id,name&access_token=${encodeURIComponent(
+          tokens.access_token
+        )}`
+      )
+      const me: any = await res.json()
+      if (res.ok) {
+        externalUserId = me?.id != null ? String(me.id) : null
+        displayName = me?.name ?? null
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
   const existing = first(
@@ -272,7 +389,7 @@ export const completeAdsOAuth = async (
     display_name: displayName,
     scopes: config.scopes,
     access_token_enc: sealSecret(tokens.access_token),
-    refresh_token_enc: null,
+    refresh_token_enc: refreshToken ? sealSecret(refreshToken) : null,
     token_type: tokens.token_type,
     expires_at: tokens.expires_in
       ? new Date(Date.now() + tokens.expires_in * 1000)
