@@ -13,9 +13,60 @@
 
 import { MedusaContainer } from "@medusajs/framework/types"
 import { MARKETING_MODULE } from ".."
+import { PLATFORM_MODULE } from "../../platform"
+import {
+  checkLimit,
+  resolveEntitlements,
+} from "../../platform/entitlements"
 import { resolveEmailFrom } from "../brand"
 import { getEmailProvider } from "./index"
 import { makeSendToken, signClickUrl, signUnsubscribe } from "./tokens"
+
+/**
+ * Monthly email cap. Usage is the tenant's email_send rows this CALENDAR
+ * month (suppressed rows included — they still burned a recipient slot), so
+ * there is no counter to drift. Shadow/enforce follows the per-gate env flag
+ * inside checkLimit; any internal error fails OPEN — the cap must never
+ * break a transactional send path.
+ */
+const checkEmailBudget = async (
+  container: MedusaContainer,
+  svc: any,
+  tenantId: string
+): Promise<{ allowed: boolean; message?: string }> => {
+  try {
+    const platform: any = container.resolve(PLATFORM_MODULE)
+    const tenant = (
+      await platform.listTenants({ id: tenantId }, { take: 1 })
+    )?.[0]
+    if (!tenant) return { allowed: true }
+    const pkg =
+      (
+        await platform
+          .listPlatformPackages({ key: tenant.package }, { take: 1 })
+          .catch(() => [])
+      )?.[0] ?? null
+    const ent = resolveEntitlements(tenant, pkg, {})
+    const monthStart = new Date()
+    monthStart.setUTCDate(1)
+    monthStart.setUTCHours(0, 0, 0, 0)
+    const [, sentThisMonth] = await svc.listAndCountMarketingEmailSends(
+      { tenant_id: tenantId, created_at: { $gte: monthStart } },
+      { take: 1 }
+    )
+    const gate = checkLimit(
+      tenantId,
+      ent,
+      "emails_month",
+      Number(sentThisMonth) || 0
+    )
+    return gate.allowed
+      ? { allowed: true }
+      : { allowed: false, message: (gate as any).message }
+  } catch {
+    return { allowed: true }
+  }
+}
 
 export type SendEmailInput = {
   tenantId: string
@@ -156,6 +207,15 @@ export const sendEmail = async (
   let token: string | undefined
 
   try {
+    // 0. Monthly plan cap — over-cap tenants get a clean refusal, no row.
+    const budget = await checkEmailBudget(container, svc, tenantId)
+    if (!budget.allowed) {
+      return {
+        ok: false,
+        error: budget.message || "monthly email limit reached",
+      }
+    }
+
     // 1. Suppression check — an address on the do-not-email list is skipped.
     const suppressions = await svc.listMarketingSuppressions({
       tenant_id: tenantId,

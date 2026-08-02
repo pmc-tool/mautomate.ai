@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { uploadFilesWorkflow } from "@medusajs/core-flows"
-import { resolveMerchant } from "../../_helpers"
+import { checkStorageBudget, resolveMerchant } from "../../_helpers"
+import { gatePayload } from "../../../../modules/platform/entitlements"
 import { syncStoreLogoToCms } from "../../_cms-sync"
 import { tenantScopedUploadFilename } from "../../../../lib/tenant-upload"
 
@@ -29,6 +30,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
   if (uploaded.size > MAX_BYTES) {
     return res.status(400).json({ message: "logo exceeds 5MB limit" })
+  }
+  const storageGate = await checkStorageBudget(ctx, uploaded.size)
+  if (!storageGate.allowed) {
+    return res.status(403).json(gatePayload(storageGate as any))
   }
 
   try {

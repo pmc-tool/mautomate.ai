@@ -150,12 +150,27 @@ function mapProduct(p: any): any {
  *  internal plumbing and must never surface on a storefront. */
 function publicMetadata(meta: any): Record<string, unknown> {
   const out: Record<string, unknown> = {}
+  const INTERNAL_KEYS = new Set(["tenant_id", "is_sample", "sample", "source"])
   for (const [k, v] of Object.entries(meta ?? {})) {
-    if (k.startsWith("_") || k === "tenant_id") continue
-    if (v == null || typeof v === "object") continue
+    if (k.startsWith("_") || INTERNAL_KEYS.has(k)) continue
+    if (v == null || typeof v === "object" || typeof v === "boolean") continue
     out[k] = v
   }
   return out
+}
+
+/** "bd" -> "Bangladesh"; unknown codes fall back to uppercase. */
+function countryName(code: unknown): string | null {
+  const c = String(code ?? "").trim()
+  if (!c) return null
+  try {
+    return (
+      new Intl.DisplayNames(["en"], { type: "region" }).of(c.toUpperCase()) ||
+      c.toUpperCase()
+    )
+  } catch {
+    return c.toUpperCase()
+  }
 }
 
 /** The product's spec sheet as a flat {name, value} list so a theme can loop
@@ -176,7 +191,7 @@ function productAttributes(p: any): Array<{ name: string; value: string }> {
       [p.length, p.width, p.height].filter(Boolean).join(" × ") + " cm"
     )
   }
-  push("Origin", p.origin_country)
+  push("Origin", countryName(p.origin_country))
   push("Type", p.type?.value)
   for (const [k, v] of Object.entries(publicMetadata(p.metadata))) {
     push(k.replace(/[_-]+/g, " ").replace(/^\w/, (c) => c.toUpperCase()), v)

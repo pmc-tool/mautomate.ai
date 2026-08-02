@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { uploadFilesWorkflow } from "@medusajs/core-flows"
-import { resolveMerchant } from "../../_helpers"
+import { checkStorageBudget, resolveMerchant } from "../../_helpers"
+import { gatePayload } from "../../../../modules/platform/entitlements"
 import { tenantScopedUploadFilename } from "../../../../lib/tenant-upload"
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
@@ -39,6 +40,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
   if (uploadedFile.size > MAX_BYTES) {
     return res.status(400).json({ message: "image exceeds 10MB limit" })
+  }
+  const storageGate = await checkStorageBudget(ctx, uploadedFile.size)
+  if (!storageGate.allowed) {
+    return res.status(403).json(gatePayload(storageGate as any))
   }
 
   const { result } = await uploadFilesWorkflow(req.scope).run({

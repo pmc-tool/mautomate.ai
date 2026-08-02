@@ -2,7 +2,8 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { uploadFilesWorkflow } from "@medusajs/core-flows"
 import { MARKETING_MODULE } from "../../../../modules/marketing"
 import MarketingModuleService from "../../../../modules/marketing/service"
-import { resolveMerchant } from "../../_helpers"
+import { checkStorageBudget, resolveMerchant } from "../../_helpers"
+import { gatePayload } from "../../../../modules/platform/entitlements"
 import { tenantScopedUploadFilename } from "../../../../lib/tenant-upload"
 
 const ALLOWED_MIME_TYPES = [
@@ -74,6 +75,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       }
       if (uploaded.size > MAX_BYTES) {
         res.status(400).json({ message: "media exceeds 10MB limit" })
+        return
+      }
+      const storageGate = await checkStorageBudget(ctx, uploaded.size)
+      if (!storageGate.allowed) {
+        res.status(403).json(gatePayload(storageGate as any))
         return
       }
 

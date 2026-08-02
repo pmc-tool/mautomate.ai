@@ -1,7 +1,12 @@
+import fs from "fs"
+import path from "path"
+
 import { MedusaRequest } from "@medusajs/framework/http"
 import { PLATFORM_MODULE } from "../../modules/platform"
 import {
   Entitlements,
+  GateResult,
+  checkLimit,
   resolveEntitlements,
 } from "../../modules/platform/entitlements"
 
@@ -87,6 +92,42 @@ export async function tenantEntitlements(ctx: MerchantCtx): Promise<Entitlements
   return resolveEntitlements(ctx.tenant, pkg, {
     hasPurchasedCredits: hasPurchased,
   })
+}
+
+/**
+ * Storage cap: may this tenant store `addBytes` more upload bytes? Usage is
+ * the on-disk size of the tenant's own static prefix (local file provider —
+ * the pooled prod setup), so it is always ground truth: deleting media frees
+ * quota with no counter to drift. Same shadow/enforce semantics as every
+ * other gate (checkLimit honors the per-gate env flag), and any internal
+ * error fails OPEN — a quota bug must never block a merchant's upload.
+ */
+export async function checkStorageBudget(
+  ctx: MerchantCtx,
+  addBytes: number
+): Promise<GateResult> {
+  try {
+    const ent = await tenantEntitlements(ctx)
+    const dir = path.join(process.cwd(), "static", ctx.tenant.id)
+    let usedBytes = 0
+    try {
+      for (const f of fs.readdirSync(dir)) {
+        try {
+          const st = fs.statSync(path.join(dir, f))
+          if (st.isFile()) usedBytes += st.size
+        } catch {
+          /* file raced away — skip */
+        }
+      }
+    } catch {
+      /* no uploads yet */
+    }
+    const usedMb = Math.floor(usedBytes / (1024 * 1024))
+    const addMb = Math.max(1, Math.ceil(addBytes / (1024 * 1024)))
+    return checkLimit(ctx.tenant.id, ent, "storage_mb", usedMb, addMb)
+  } catch {
+    return { allowed: true }
+  }
 }
 
 /**

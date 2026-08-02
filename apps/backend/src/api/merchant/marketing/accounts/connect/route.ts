@@ -214,10 +214,23 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       const existing = await mkCount.listMarketingSocialAccounts({
         tenant_id: tenantId,
       })
-      const used = (Array.isArray(existing) ? existing : [existing]).filter(
+      const rows = (Array.isArray(existing) ? existing : [existing]).filter(
         Boolean
+      )
+      // Messaging channels (customer conversations) and social publishing
+      // accounts are SEPARATE plan limits — count each platform against its
+      // own bucket so a WhatsApp connect can't eat a social-posting slot.
+      const MESSAGING_PLATFORMS = new Set(["whatsapp", "telegram"])
+      const isMessaging = MESSAGING_PLATFORMS.has(platform)
+      const used = rows.filter(
+        (a: any) => MESSAGING_PLATFORMS.has(String(a?.platform)) === isMessaging
       ).length
-      const capGate = checkLimit(tenantId, ent, "social_accounts", used)
+      const capGate = checkLimit(
+        tenantId,
+        ent,
+        isMessaging ? "messaging_channels" : "social_accounts",
+        used
+      )
       if (!capGate.allowed) return res.status(403).json(gatePayload(capGate))
     } catch (gateErr: any) {
       if (gateErr?.type === MedusaError.Types.NOT_ALLOWED) throw gateErr
