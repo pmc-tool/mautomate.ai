@@ -16,9 +16,10 @@ const LINE = "#eeeef1"
 const FONT =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
-const LOGO_URL =
-  process.env.PLATFORM_EMAIL_LOGO_URL ||
-  "https://mautomate.ai/mautomate-logo.png"
+// A hosted logo image only if the operator provides a real, reachable URL;
+// otherwise we render a bulletproof text wordmark (matches the merchant store
+// emails, never shows a broken-image icon, and survives image-blocking clients).
+const LOGO_URL = process.env.PLATFORM_EMAIL_LOGO_URL || ""
 
 const esc = (v: unknown): string =>
   String(v ?? "")
@@ -46,8 +47,13 @@ export const renderPlatformEmail = (o: PlatformEmailOptions): string => {
   const supportEmail =
     process.env.PLATFORM_SUPPORT_EMAIL || "support@mautomate.ai"
   const dashUrl = (
-    process.env.MERCHANT_DASHBOARD_URL || "https://mautomate.ai"
+    process.env.MERCHANT_DASHBOARD_URL || "https://merchant.mautomate.ai"
   ).replace(/\/+$/, "")
+
+  // Ember text wordmark by default; a real image only when a logo URL is set.
+  const logoBlock = LOGO_URL
+    ? `<img src="${LOGO_URL}" alt="mAutomate" height="30" style="height:30px;width:auto;display:block;border:0;">`
+    : `<span style="font-family:${FONT};font-size:23px;font-weight:800;line-height:1;color:${EMBER};letter-spacing:-0.4px;">mAutomate</span>`
 
   const cta = hasCta
     ? `<tr><td style="padding:8px 0 8px 0;">
@@ -81,7 +87,7 @@ export const renderPlatformEmail = (o: PlatformEmailOptions): string => {
   <tr><td align="center" style="padding:24px 12px;">
     <table role="presentation" width="600" border="0" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;">
       <tr><td style="padding:28px 40px 18px 40px;border-top:4px solid ${EMBER};">
-        <img src="${LOGO_URL}" alt="mAutomate" height="30" style="height:30px;width:auto;display:block;border:0;">
+        ${logoBlock}
       </td></tr>
       <tr><td style="padding:6px 40px 30px 40px;">
         <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">

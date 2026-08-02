@@ -25,8 +25,10 @@ const PLATFORM_MODULE = "platform"
 const dashboardUrl = (): string =>
   (
     process.env.MERCHANT_DASHBOARD_URL ||
-    process.env.STOREFRONT_URL ||
-    "https://mautomate.ai"
+    // The merchant dashboard lives on the merchant subdomain — NOT the marketing
+    // site (mautomate.ai/dashboard/* 404s). STOREFRONT_URL is a per-store host,
+    // so it must not be used for the account dashboard link.
+    "https://merchant.mautomate.ai"
   ).replace(/\/+$/, "")
 
 const enabled = (): boolean => process.env.PLATFORM_LIFECYCLE_EMAILS === "1"
