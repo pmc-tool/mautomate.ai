@@ -405,6 +405,12 @@ export async function GET(
         title: post.title, content: post.content, excerpt: post.excerpt,
         cover_image: post.cover_image, published_at: post.published_at,
         reading_time: post.reading_time, author: post.author?.name ?? "",
+        // The API already computes up to 3 related published posts — hand
+        // them to the theme so the article page has a "keep reading" rail.
+        related: ((result as any).related ?? []).map((b: any) => ({
+          slug: b.slug, title: b.title, excerpt: b.excerpt,
+          cover_image: b.cover_image, published_at: b.published_at,
+        })),
       }
     } else if (template === "list-collections") {
       const { response } = await listProducts({
