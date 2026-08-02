@@ -38,6 +38,12 @@ type TenantConfig = {
    * this id directly to display the right currency. Null => country-code lookup.
    */
   region_id: string | null
+  /**
+   * The store's HOME country (tenant.meta.default_country, e.g. "bd"). Drives
+   * the country prefix a visitor lands on: a Bangladeshi shop opens at /bd,
+   * not the platform-wide default. Null/absent => older tenant, fall through.
+   */
+  default_country?: string | null
   /** The tenant's display currency (from tenant.meta.currency_code). */
   currency_code: string | null
   /** The tenant's logo (from tenant.meta.logo_url). */
@@ -168,20 +174,27 @@ async function getRegionMap(
 
 async function getCountryCode(
   request: NextRequest,
-  regionMap: Map<string, HttpTypes.StoreRegion | number>
+  regionMap: Map<string, HttpTypes.StoreRegion | number>,
+  tenantCountry?: string | null
 ) {
   let countryCode
 
   const urlCountryCode = request.nextUrl.pathname.split("/")[1]?.toLowerCase()
-  const cloudflareCountryCode = (
-    request as { cf?: { country?: string } }
-  ).cf?.country?.toLowerCase()
+  // The STORE's home country wins over visitor geolocation: a Bangladeshi shop
+  // opens at /bd for everyone. (`request.cf` only exists on Cloudflare Workers;
+  // on this stack the real visitor-geo signal is the CF-IPCountry header.)
+  const storeCountry = tenantCountry?.toLowerCase()
+  const cloudflareCountryCode =
+    (request as { cf?: { country?: string } }).cf?.country?.toLowerCase() ||
+    request.headers.get("cf-ipcountry")?.toLowerCase()
   const vercelCountryCode = request.headers
     .get("x-vercel-ip-country")
     ?.toLowerCase()
 
   if (urlCountryCode && regionMap.has(urlCountryCode)) {
     countryCode = urlCountryCode
+  } else if (storeCountry && regionMap.has(storeCountry)) {
+    countryCode = storeCountry
   } else if (cloudflareCountryCode && regionMap.has(cloudflareCountryCode)) {
     countryCode = cloudflareCountryCode
   } else if (vercelCountryCode && regionMap.has(vercelCountryCode)) {
@@ -505,7 +518,7 @@ export async function middleware(request: NextRequest) {
   let countryCode: string | undefined
   try {
     regionMap = await getRegionMap(tenantKey, publishableKey, tenantBackend)
-    countryCode = await getCountryCode(request, regionMap)
+    countryCode = await getCountryCode(request, regionMap, tenant?.default_country)
   } catch {
     return settingUpPage(tenant?.name ?? null)
   }
