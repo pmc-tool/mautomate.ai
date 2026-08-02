@@ -37,7 +37,10 @@ import {
  *    with an actionable message rather than creating something broken.
  */
 
-const API = "https://googleads.googleapis.com/v18"
+// Google Ads REST API version. Google sunsets versions ~13 months out and the
+// endpoint 404s on a dead version — verified live that v18/v19 are gone and v21
+// is current (Aug 2026). Bump this when Google deprecates it.
+const API = "https://googleads.googleapis.com/v21"
 const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const MAX_PAGES = 10
 
