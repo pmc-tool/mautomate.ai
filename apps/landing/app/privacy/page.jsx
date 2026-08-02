@@ -4,6 +4,7 @@ export const metadata = {
   title: "Privacy Policy — mAutomate",
   description:
     "How mAutomate handles personal data: what we collect from the contact form and newsletter, how merchant store data is treated, and your rights.",
+  alternates: { canonical: "/privacy" },
 };
 
 const sections = [

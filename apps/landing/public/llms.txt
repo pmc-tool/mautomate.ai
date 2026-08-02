@@ -1,0 +1,38 @@
+# mAutomate
+
+> mAutomate is an all-in-one AI commerce platform. Merchants sign up and an AI builds their online store, then markets it, supports customers, and runs day-to-day operations — from a single dashboard. Positioning: "your store, run by AI." Plans start at $29/month with a 14-day free trial (no card required to start).
+
+## What mAutomate does
+- AI Storefront Studio: an AI builds the storefront, product pages, copy, and on-page SEO for you — no coding.
+- AI Marketing Suite: plan, generate, schedule, and publish social, campaigns, ads, and SEO; track performance in one place.
+- AI Customer Support & Call Center: AI answers customers on the website (and, on higher plans, on a real phone number).
+- Business Operations: inventory, sales, analytics, custom domains, and business email.
+- Human-in-the-loop: the AI drafts and recommends; nothing goes live until the merchant approves it.
+
+## Who it is for
+Entrepreneurs, small and growing merchants, makers, coaches, artists, print-on-demand and digital-product sellers, and agencies who want a complete online store without hiring a team or writing code.
+
+## How it compares
+mAutomate combines what would otherwise be several tools — a store builder (like Shopify or Wix), a marketing-automation platform (like GoHighLevel or Systeme.io), and an AI website builder (like Durable) — into one AI-run platform, so the same AI that builds the store also markets it and supports customers.
+
+## Plans (USD / month, billed monthly; 6-month and yearly billing discounted)
+- Launch — $29: 1 store, 100 products, 5 GB media, AI Storefront Studio, community support.
+- Grow — $79 (most popular): everything in Launch, custom domain, full AI Marketing Suite, all messaging channels incl. WhatsApp, 1,000 products, priority support.
+- Pro — $149: everything in Grow, AI Call Center on your website, ads autopilot, 10,000 products, advanced analytics.
+- Scale — $349 (best value): everything in Pro, multi-store (3 included, up to 10), AI Call Center with a real phone number, unlimited products, dedicated onboarding.
+Every plan includes a 14-day free trial; the plan begins automatically when the trial ends and can be cancelled any time before then.
+
+## Key pages
+- Home: https://mautomate.ai/
+- Pricing: https://mautomate.ai/pricing
+- Solutions by use case: https://mautomate.ai/solutions
+- Free tools: https://mautomate.ai/tools
+- Free store name generator: https://mautomate.ai/tools/store-name-generator
+- About: https://mautomate.ai/about
+- Blog: https://mautomate.ai/blog
+- FAQ: https://mautomate.ai/faq
+- Get started (free trial): https://mautomate.ai/get-started
+
+## Contact
+- Email: hello@mautomate.com
+- Website: https://mautomate.ai

@@ -6,6 +6,7 @@ export const metadata = {
   title: "Get started — start your 14-day free trial | mAutomate",
   description:
     "Pick a plan and launch your AI-run store today. Every plan starts with a 14-day free trial — your plan begins automatically when the trial ends, cancel any time before then.",
+  alternates: { canonical: "/get-started" },
 };
 
 // How the trial works — three plain-language steps.

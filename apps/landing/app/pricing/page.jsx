@@ -1,10 +1,14 @@
 import PageShell from "@/components/PageShell";
 import Pricing from "@/components/Pricing";
+import JsonLd from "@/components/JsonLd";
+import { softwareApplicationSchema, breadcrumbSchema } from "@/lib/schema";
+import { PLANS } from "@/lib/plans";
 
 export const metadata = {
   title: "Pricing — mAutomate plans from $29/month",
   description:
     "Simple pricing for an AI-run store: pay for work done, not seats. Every plan starts with a 14-day free trial — your plan begins automatically when the trial ends.",
+  alternates: { canonical: "/pricing" },
 };
 
 // Short reassurance points shown as compact trust cards under the plans.
@@ -30,6 +34,15 @@ const TRUST = [
 export default function PricingPage() {
   return (
     <PageShell>
+      <JsonLd
+        data={[
+          softwareApplicationSchema(PLANS),
+          breadcrumbSchema([
+            { name: "Home", path: "/" },
+            { name: "Pricing", path: "/pricing" },
+          ]),
+        ]}
+      />
       {/* Main pricing content — self-contained billing toggle + plan cards. */}
       <Pricing />
 

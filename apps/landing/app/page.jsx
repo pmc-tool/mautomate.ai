@@ -7,10 +7,16 @@ import Infrastructure from "@/components/Infrastructure";
 import Pricing from "@/components/Pricing";
 import ProductShowcase from "@/components/ProductShowcase";
 import Testimonials from "@/components/Testimonials";
+import JsonLd from "@/components/JsonLd";
+import { softwareApplicationSchema, faqSchema } from "@/lib/schema";
+import { PLANS } from "@/lib/plans";
+import { FAQ_ITEMS } from "@/lib/faqData";
 
+// Home keeps the layout's default canonical ("/") and full default title.
 export default function Home() {
   return (
     <>
+      <JsonLd data={[softwareApplicationSchema(PLANS), faqSchema(FAQ_ITEMS)]} />
       <Header />
       <main>
         <Hero />

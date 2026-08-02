@@ -5,6 +5,7 @@ export const metadata = {
   title: "Create your store — mAutomate",
   description:
     "Create your AI-run store in minutes. Start a 14-day free trial — your plan begins when the trial ends, cancel any time before then.",
+  alternates: { canonical: "/signup" },
 };
 
 export default function SignupPage() {

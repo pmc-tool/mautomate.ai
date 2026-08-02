@@ -4,6 +4,7 @@ export const metadata = {
   title: "Terms of Service — mAutomate",
   description:
     "The terms for using mAutomate: trials and billing, AI actions, your responsibility for what ships, data ownership and export, and liability.",
+  alternates: { canonical: "/terms" },
 };
 
 const sections = [

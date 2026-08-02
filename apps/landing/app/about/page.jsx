@@ -12,6 +12,7 @@ export const metadata = {
   title: "About mAutomate — merchants first, AI second",
   description:
     "Why we built mAutomate: software gave everyone a store, nobody got the staff. Meet the AI team that builds, markets, and answers — with you in charge.",
+  alternates: { canonical: "/about" },
 };
 
 // The AI "roles" that make up the team you hire when you open a store.

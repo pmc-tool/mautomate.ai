@@ -1,15 +1,28 @@
 import PageShell from "@/components/PageShell";
 import Faq from "@/components/Faq";
+import JsonLd from "@/components/JsonLd";
+import { faqSchema, breadcrumbSchema } from "@/lib/schema";
+import { FAQ_ITEMS } from "@/lib/faqData";
 
 export const metadata = {
   title: "FAQ — mAutomate, the AI-powered commerce platform",
   description:
     "Answers about mAutomate: how the AI builds and runs your store, what AI actions cost, who owns your data, and how the 14-day free trial works.",
+  alternates: { canonical: "/faq" },
 };
 
 export default function FaqPage() {
   return (
     <PageShell>
+      <JsonLd
+        data={[
+          faqSchema(FAQ_ITEMS),
+          breadcrumbSchema([
+            { name: "Home", path: "/" },
+            { name: "FAQ", path: "/faq" },
+          ]),
+        ]}
+      />
       {/* The Faq component renders its own eyebrow + heading, so it serves as
           the page header — no PageHero needed. */}
       <Faq />

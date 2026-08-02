@@ -6,6 +6,7 @@ export const metadata = {
   title: "Blog — Notes from the build | mAutomate",
   description:
     "What we're learning building an AI that runs real stores: shipped features, honest numbers, and the occasional wrong turn.",
+  alternates: { canonical: "/blog" },
 };
 
 export default async function BlogPage() {

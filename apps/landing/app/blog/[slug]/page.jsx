@@ -16,7 +16,14 @@ export async function generateMetadata({ params }) {
   return {
     title: `${post.title} — mAutomate`,
     description: post.excerpt || undefined,
-    openGraph: { title: post.title, description: post.excerpt, type: "article" },
+    alternates: { canonical: `/blog/${slug}` },
+    openGraph: {
+      title: post.title,
+      description: post.excerpt,
+      type: "article",
+      url: `/blog/${slug}`,
+      images: post.cover_image ? [{ url: post.cover_image }] : undefined,
+    },
   };
 }
 
